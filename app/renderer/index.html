@@ -1,0 +1,2302 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'">
+  <title>Protoart Studio</title>
+  <link rel="icon" href="assets/favicon.png">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="rack.css">
+  <script src="rack.js"></script>
+</head>
+<body>
+<!-- Launch screen (shown before anything else, like DiffusionBee's) -->
+<div id="splash">
+  <div class="splash-bezel"><img src="assets/logo-round-512.png" alt=""></div>
+  <div class="splash-name">Protoart Studio</div>
+  <div class="splash-model">Image processor · Model PA-1</div>
+  <div class="splash-status" id="splash-status">Starting the engine…</div>
+  <div class="splash-bar"><div></div></div>
+  <div class="splash-note">A standalone app: everything runs on this Mac.<br>No account, no cloud, and your images never leave your computer.</div>
+</div>
+<div id="app" v-cloak>
+  <header class="topbar rack-head" :class="{'meters-off': ['settings', 'library', 'help', 'models'].includes(tab)}">
+    <div class="rack-ear"><i class="screw s0"></i><i class="slot"></i></div>
+    <div class="brand plate" title="Protoart Studio">
+      <img src="assets/logo-round-96.png" class="brand-logo" alt="">
+      <div class="brand-text"><b>Protoart</b><span>Studio · PA-1</span></div>
+    </div>
+    <nav>
+      <button :class="{active: tab==='create'}" @click="tab='create'"><i class="led"></i>Create</button>
+      <button :class="{active: tab==='i2i'}" @click="openI2I()"><i class="led"></i>Image to image</button>
+      <button :class="{active: tab==='tools'}" @click="tab='tools'"><i class="led"></i>Tools</button>
+      <button :class="{active: tab==='train'}" @click="openTrain()"><i class="led"></i>Train</button>
+      <button :class="{active: tab==='library'}" @click="openLibrary()"><i class="led"></i>Library</button>
+      <button :class="{active: tab==='models'}" @click="tab='models'"><i class="led"></i>Models</button>
+      <button :class="{active: tab==='settings'}" @click="tab='settings'; loadLogTail()"><i class="led"></i>Settings</button>
+      <button :class="{active: tab==='help'}" @click="tab='help'"><i class="led"></i>How to</button>
+    </nav>
+    <div class="rack-slot">
+      <!-- Create: presets -->
+      <div v-if="tab==='create'" class="slot-presets">
+        <span class="eng slot-label">Preset</span>
+        <div class="slot-line">
+          <select v-model="selectedPreset" @change="applyPreset" title="Load a saved setup">
+            <option value="">— choose a preset —</option>
+            <option v-for="p in presets" :key="p.id" :value="p.name">{{ p.name }}</option>
+          </select>
+          <button class="ghost" :disabled="!selectedPreset" @click="deletePreset" title="Delete preset">🗑</button>
+          <label class="check nsfw-switch" :class="{on: hideNsfw}" title="Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings."><input type="checkbox" :checked="hideNsfw" @change="setHideNsfw($event.target.checked)"> Hide NSFW</label>
+        </div>
+        <div class="slot-line">
+          <input v-model="newPresetName" placeholder="Save current settings as…" @keyup.enter="savePreset">
+          <button @click="savePreset" :disabled="!newPresetName.trim()">Save</button>
+          <label class="check" title="Also save the prompt and negative prompt in the preset"><input type="checkbox" v-model="presetIncludesPrompt"> incl. prompt</label>
+          <label class="check" title="Hide the models and LoRAs you tagged ● People (made of real people)"><input type="checkbox" :checked="opts.hide_people" @change="setHidePeople($event.target.checked)"> Hide People</label>
+        </div>
+      </div>
+      <!-- Image to image: the model -->
+      <div v-else-if="tab==='i2i'" class="slot-model">
+        <span class="eng slot-label">Model</span>
+        <select :value="form.model" @change="selectModel($event.target.value)">
+          <optgroup v-for="g in i2iModelGroups" :key="g.name" :label="g.name">
+            <option v-for="m in g.models" :key="m.id" :value="m.id" :disabled="!m.i2iOk">
+              {{ m.label }}{{ m.people ? ' ●' : '' }}{{ m.nsfw ? ' ⚑' : '' }}{{ m.i2iOk ? (m.cached ? '' : ' · ' + Math.round(m.download_gb) + ' GB download') : ' — not for image to image' }}</option>
+          </optgroup>
+        </select>
+        <span class="hint">{{ familyLabel }}<template v-if="form.loras.length"> · {{ form.loras.length }} LoRA{{ form.loras.length === 1 ? '' : 's' }} from Create</template></span>
+      </div>
+      <!-- Tools: the engine -->
+      <div v-else-if="tab==='tools'" class="slot-engine">
+        <span class="eng slot-label">Engine <span class="hint">{{ backendDead ? 'stopped' : busy ? 'working · ' + queue.length + ' in queue' : 'running, idle' }}</span></span>
+        <div class="slot-line">
+          <button class="danger" @click="forceStop"
+                  title="Stops the engine at once (no waiting for the current step), frees its memory and starts it again. The job that was running is lost; waiting jobs are added back.">⟲ Force stop &amp; restart</button>
+          <button v-if="!quitAsk" class="danger-outline" @click="quitAsk = true" title="Closes Protoart Studio immediately, even in the middle of a job">⏻ Force quit</button>
+          <template v-else>
+            <button class="danger" @click="forceQuit">Quit now</button>
+            <button class="ghost" @click="quitAsk = false">Cancel</button>
+          </template>
+        </div>
+        <span class="hint" v-if="quitAsk">Quit now? Anything running or waiting is lost.</span>
+        <span class="hint" v-else>If a picture takes far too long or Stop doesn't respond.</span>
+      </div>
+      <!-- Library: search and filters -->
+      <div v-else-if="tab==='library'" class="slot-library">
+        <div class="slot-line">
+          <input v-model="lib.text" placeholder="Search prompts or a seed…" @input="queryLibraryDebounced">
+          <input v-model="lib.seed" class="amber-num lib-seed" inputmode="numeric" placeholder="seed"
+                 title="Show only pictures made with exactly this seed" @input="queryLibraryDebounced">
+          <select v-model="lib.model" @change="queryLibrary()">
+            <option value="">All models</option>
+            <option v-for="m in libModels" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+          <select v-model="lib.kind" @change="queryLibrary()">
+            <option value="">All versions</option><option value="generated">Originals</option>
+            <option value="img2img">Image-to-image</option><option value="faces">Face-restored</option><option value="enhanced">Enhanced</option>
+          </select>
+        </div>
+        <div class="slot-line">
+          <label class="check"><input type="checkbox" v-model="lib.starred" @change="queryLibrary()"> ★ Starred only</label>
+          <label class="check nsfw-switch" :class="{on: hideNsfw}" title="Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings."><input type="checkbox" :checked="hideNsfw" @change="setHideNsfw($event.target.checked)"> Hide NSFW</label>
+          <span class="hint">{{ lib.results.length }} image{{ lib.results.length===1?'':'s' }}<template v-if="hideNsfw && content.nsfw"> · {{ content.nsfw }} hidden</template></span>
+          <span class="spacer"></span>
+          <button v-if="libLoras.length" class="ghost" :class="{on: libLoraOpen || lib.loras.length}" @click="libLoraOpen = !libLoraOpen"
+                  title="Show images made with particular LoRAs">Filter by LoRA{{ lib.loras.length ? ' (' + lib.loras.length + ')' : '' }}</button>
+          <button class="ghost" @click="openFolder(imagesDir.path)" title="Open the image folder in Finder">📁 Image folder</button>
+          <button v-if="!selectMode" @click="selectMode=true">Select</button>
+        </div>
+      </div>
+      <!-- Models: filters, search and adding your own -->
+      <div v-else-if="tab==='models'" class="slot-models">
+        <span class="eng slot-label">Models <span class="hint">on this Mac appear in Create; the others download the first time you use them</span></span>
+        <div class="slot-line">
+          <div class="seg">
+            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'ernie', label: 'ERNIE'}, {id: 'sdxl', label: 'SDXL'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
+                    :class="{on: shop.family === f.id}" @click="shop.family = f.id">{{ f.label }}</button>
+          </div>
+          <button class="chip" :class="{on: shop.fav}" @click="shop.fav = !shop.fav" title="Show only your ★ favourite models">★ Favorites <small>{{ favModels.length }}</small></button>
+          <input v-model="shop.search" placeholder="Search models…">
+          <span class="spacer"></span>
+          <button @click="addLocalModels" title="Checkpoint files (.safetensors / .ckpt) or model folders already on this Mac">+ Add from your Mac…</button>
+          <button class="ghost" @click="openModelSettings('hub')" title="Paste a Hugging Face model id or link">+ Add from Hugging Face…</button>
+          <button class="ghost" @click="openModelSettings('civitai')" title="Paste a civitai.com model link: LoRAs and checkpoints">+ Add from Civitai…</button>
+          <button class="ghost" @click="refreshModels" title="Look again for models and LoRAs: new files in your folders, finished downloads">↻ Refresh</button>
+        </div>
+      </div>
+      <!-- Settings: the look -->
+      <div v-else-if="tab==='settings'" class="slot-look">
+        <span class="eng slot-label">Look <span class="hint">{{ (SKIN_LIST.find(k => k.id === skin) || {}).title?.split(':')[0] }} · {{ theme === 'system' ? 'follows your Mac (light by day, dark at night)' : theme === 'dark' ? 'dark faceplate' : 'light faceplate' }}</span></span>
+        <div class="look-row">
+        <div class="seg">
+          <button :class="{on: theme === 'light'}" @click="setTheme('light')" title="Brushed aluminium faceplate">☀︎ Light</button>
+          <button :class="{on: theme === 'dark'}" @click="setTheme('dark')" title="Black anodised faceplate">☾ Dark</button>
+          <button :class="{on: theme === 'system'}" @click="setTheme('system')" title="Light or dark, following macOS (System Settings → Appearance)">Match macOS</button>
+        </div>
+        <div class="seg skin-pick" role="radiogroup" aria-label="Theme">
+          <button v-for="k in SKIN_LIST" :key="k.id" :class="{on: skin === k.id}" @click="setSkin(k.id)" :title="k.title" role="radio" :aria-checked="skin === k.id">
+            <i class="skin-swatch" :class="k.id"></i>{{ k.label }}</button>
+        </div>
+        </div>
+      </div>
+      <!-- other tabs: an engraved name plate -->
+      <div v-else class="slot-plate">
+        <b>{{ ({train: 'Train', library: 'Library', models: 'Models', settings: 'Settings', help: 'How to'})[tab] || '' }}</b>
+        <span>{{ ({train: 'Teach the app your own character, object or style', library: 'Everything you\'ve made, searchable', models: 'What\'s on this Mac, and what you can download', settings: 'Folders, look and options', help: 'The operator\'s manual'})[tab] || '' }}</span>
+      </div>
+    </div>
+    <div class="rack-meters">
+      <div class="rack-leds">
+        <span title="Engine running"><i class="led green" :class="{on: !backendDead}"></i>Power</span>
+        <span title="Working on a job"><i class="led amber" :class="{on: busy, blink: !!runningJob}"></i>Busy</span>
+        <span title="Something went wrong (details in the window or in Settings → Backend log)"><i class="led red" :class="{on: backendDead || !!error}"></i>Fault</span>
+      </div>
+      <div class="rack-readouts">
+        <div class="status amber-strip" :class="{err: backendDead}" :title="statusText">{{ statusText }}</div>
+        <div class="amber-pair">
+          <div class="amber-box" title="Time left for the job running now">
+            <span class="eng">Time left</span>
+            <div class="seg7" :class="{idle: rackTimeLeft === '--:--'}"><span class="seg7-ghost">88:88</span><span class="seg7-val">{{ rackTimeLeft }}</span></div>
+          </div>
+          <div class="amber-box" :title="queue.length > 1 ? 'Everything in the queue (' + queue.length + ' jobs) should be done in this time' : 'Queue empty'">
+            <span class="eng">Queue · {{ queue.length }}</span>
+            <div class="seg7" :class="{idle: rackQueueLeft === '--:--'}"><span class="seg7-ghost">88:88</span><span class="seg7-val">{{ rackQueueLeft }}</span></div>
+          </div>
+        </div>
+      </div>
+      <rack-vu :pct="vuPct" :live="!!runningJob" :lit="!backendDead"></rack-vu>
+    </div>
+    <div class="rack-ear"><i class="screw s2"></i><i class="slot"></i></div>
+  </header>
+
+  <div v-if="edits.pending.length || edits.notInstalled" class="edit-banner">
+    <template v-if="edits.notInstalled">
+      <span>{{ opts.editor }} isn't installed on this Mac.</span>
+      <button v-if="opts.editor === 'PhotoCraft'" class="primary" @click="getPhotoCraft">Get PhotoCraft (free)</button>
+      <span class="hint" v-if="opts.editor === 'PhotoCraft'">download the macOS .dmg, drag PhotoCraft to Applications, then try again ·</span>
+      <button class="link" @click="tab='settings'">choose another editor</button>
+      <button class="link" @click="edits.notInstalled = false">close</button>
+    </template>
+    <template v-else>
+      <span>✏️ Editing {{ edits.pending.length }} picture{{ edits.pending.length === 1 ? '' : 's' }} in {{ editorName() }} ·
+        save there (⌘S) and each saved version appears in your Library, linked to the original</span>
+      <button class="link" @click="openFolder(edits.folder)">edits folder</button>
+      <button class="ghost small-btn" @click="finishEdits()">Done editing</button>
+    </template>
+  </div>
+
+  <!-- ============================ CREATE ============================ -->
+  <main v-if="tab==='create'" class="create">
+    <aside class="controls">
+      <div class="cfold-all">
+        <button class="link small" @click="cfAll(true)" title="Fold every section down to one line">collapse all</button> ·
+        <button class="link small" @click="cfAll(false)">expand all</button>
+        <span class="hint">· click a section's name to fold it</span>
+      </div>
+
+      <section class="cfold" :class="{shut: cfShut('model')}">
+        <label @click="cfToggle('model', $event)">Model <span class="hint">{{ currentModel ? currentModel.label : '' }}<template v-if="currentModel && preloading === currentModel.id"> · <span class="ready-note">getting ready…</span></template><template v-else-if="currentModel && readyModel === currentModel.id"> · <span class="ready-note on">● loaded, ready</span></template></span><span v-if="cfShut('model')" class="cfold-sum">{{ cfSummary('model') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <div class="row small add-model">
+          <span class="hint">+ Add a base model:</span>
+          <button class="link" @click="addLocalModels" title="Checkpoint files (.safetensors / .ckpt) or model folders already on this Mac, used where they are (offline)">from your Mac…</button>
+          <button class="link" @click="openModelSettings('hub')" title="Download a new model from Hugging Face (Models tab)">from Hugging Face…</button>
+          <button class="link" @click="openModelSettings('civitai')" title="Download a model or LoRA from civitai.com (Models tab)">from Civitai…</button>
+          <button class="link" @click="openModelsPanel('own')" title="Your model files and added models (Models tab)">manage</button>
+          <button class="link" @click="refreshModels" title="Look again for new models and LoRAs (files you added to your folders, finished downloads)">↻ refresh</button>
+          <button class="link" @click="fixLoraType('')" title="A model file listed as the wrong type (SD 1.5 / SDXL)? Fix it in the Models tab">fix a type</button>
+        </div>
+        <div v-if="localErr" class="hint warn add-model-msg">{{ localErr }} <button class="link" @click="localErr = ''">ok</button></div>
+        <div class="model-filter">
+          <button v-for="f in modelFilters" :key="f.id" class="chip" :class="{on: modelFilter===f.id}"
+                  @click="modelFilter=f.id">{{ f.label }} <small>{{ f.count }}</small></button>
+        </div>
+        <input class="model-search" v-model="modelSearch" placeholder="Search models…">
+        <div class="model-list">
+          <button v-for="m in filteredModels" :key="m.id" class="model-item"
+                  :class="{on: m.id===form.model, warn: !m.enough_ram}" @click="selectModel(m.id)">
+            <span class="m-row"><span class="m-name" :title="m.label">{{ m.label }}</span><span class="marks">
+              <span class="fav-star" :class="{on: isFav(m)}" role="button" :aria-label="isFav(m) ? 'Favourite: click to remove' : 'Add to favourites'" @click.stop="toggleFav(m)"
+                    :title="isFav(m) ? '★ Favourite · click to remove (favourites are listed first; ★ Favorites shows only them)' : 'Click to add to your favourites'">★</span><i
+                 class="people-dot" :class="{on: m.people}" role="button" :aria-label="m.people ? 'Tagged People' : 'Tag as People'" @click.stop="markPeople('model', m)"
+                  :title="m.people ? 'Tagged People (made of real people) · click to untag' : 'Click to tag as People: made of real people (hidden when Hide People is on)'"></i><span
+                  class="nsfw-flag" :class="{on: m.nsfw}" role="button" :aria-label="m.nsfw ? 'Marked NSFW' : 'Mark as NSFW'" @click.stop="markItem('model', m)"
+                  :title="m.nsfw ? 'NSFW (' + (m.nsfw_mark ? 'you marked it' : 'from its name') + ') · click to mark it safe' : 'Click to mark as NSFW (hidden when Hide NSFW is on)'">⚑</span></span></span>
+            <span class="m-meta">{{ familyName(m.family) }}<template v-if="m.flavor"> · {{ flavorName(m.flavor) }}</template> · {{ modelSizeText(m) }}<template v-if="!m.enough_ram"> · needs {{ m.min_ram_gb }} GB RAM</template></span>
+          </button>
+          <div v-if="!filteredModels.length" class="hint m-empty">No models match.</div>
+        </div>
+        <div v-if="downloadableCount" class="hint more-models">
+          Showing the models on this Mac.
+          <button class="link" @click="tab = 'models'">{{ downloadableCount }} more to download → Models tab</button>
+        </div>
+      </section>
+
+      <section class="cfold" :class="{shut: cfShut('prompt')}">
+        <label @click="cfToggle('prompt', $event)">Prompt <span class="hint" v-if="['sd15','sdxl'].includes(family)">~{{ roughTokens(form.prompt) }} tokens<template v-if="roughTokens(form.prompt) > 75"> · long prompt: read in {{ Math.ceil(roughTokens(form.prompt) / 75) }} parts, nothing is cut off</template> · <span title="(word:1.3) = stronger, [word] = weaker, BREAK = start a new part">(word:1.3) weights work</span></span><span v-if="cfShut('prompt')" class="cfold-sum">{{ cfSummary('prompt') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <div class="dropzone" :class="{over: dragOver}" @dragover.prevent="dragOver=true" @dragleave="dragOver=false" @drop.prevent="onDrop">
+          <textarea class="tape" v-model="form.prompt" rows="4" placeholder="Describe the image… or drop a picture here to turn it into a prompt" @keydown.meta.enter="generate"></textarea>
+          <div v-if="dragOver" class="drop-hint">Drop to {{ i2p.mode==='tags' ? 'tag' : 'describe' }} this image</div>
+        </div>
+        <div class="row small enh">
+          <label class="check"><input type="checkbox" v-model="form.enhance_prompt"> ✨ Enhance prompt when generating</label>
+          <button class="link" @click="enhanceNow" :disabled="!form.prompt.trim()">enhance now</button>
+          <button v-if="undoPrompt" class="link" @click="form.prompt = undoPrompt; undoPrompt = null">↩ undo</button>
+          <span class="hint">{{ family === 'sd15' ? 'writes tags (best for SD 1.5)' : 'writes a detailed description' }}</span>
+        </div>
+        <div v-if="lastEnhanced" class="enhanced-note">
+          <span class="hint">Enhanced:</span> {{ lastEnhanced.prompt }}
+          <button class="link" @click="form.prompt = lastEnhanced.prompt; form.enhance_prompt = false">use as my prompt</button>
+          <button class="link" @click="lastEnhanced = null">hide</button>
+        </div>
+        <div class="row small i2p">
+          <span class="hint">Image → prompt:</span>
+          <label class="check"><input type="radio" value="describe" v-model="i2p.mode"> Describe</label>
+          <label class="check"><input type="radio" value="tags" v-model="i2p.mode"> Danbooru tags</label>
+          <label class="check"><input type="checkbox" v-model="i2p.append"> append</label>
+          <button class="link" @click="$refs.filePick.click()">choose file…</button>
+          <input ref="filePick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onFilePicked">
+        </div>
+        <div v-if="hasWildcards" class="wild-note">
+          <span>🎲 Wildcards: each image picks its own words</span>
+          <button class="link" @click="previewWildcards">preview</button>
+          <div v-if="wild.preview.length" class="wild-preview">
+            <div v-for="(p, k) in wild.preview" :key="k" class="hint">• {{ p }}</div>
+          </div>
+        </div>
+        <div class="row small gen">
+          <button @click="randomPrompt" title="Random Danbooru-style prompt" class="gen-btn">🎲 Random prompt</button>
+          <button class="ghost gen-btn" @click="openWildcards" title="{red|blue} picks one per image; __name__ picks a line from a wildcard file">{ } Wildcards</button>
+          <button class="ghost gen-btn" @click="batch.open = true" title="Queue one job per line of a list of prompts">📋 Prompt list</button>
+        </div>
+        <div v-if="wild.open" class="wild-panel">
+          <div class="hint">
+            <b>{red|blue|green} dress</b> picks one per image · <b>{2$$a|b|c}</b> picks two ·
+            <b>__hair__</b> picks a random line from <i>hair.txt</i> in your wildcards folder. The same seed gives the same words again.</div>
+          <div class="chips" v-if="wild.files.length">
+            <button v-for="f in wild.files" :key="f.name" class="chip" @click="insertPromptText(f.token)" :title="f.count + ' lines · click to add to the prompt'">{{ f.token }} <small>{{ f.count }}</small></button>
+          </div>
+          <div v-else class="hint">No wildcard files yet: put .txt files (one option per line) in the folder.</div>
+          <div class="row small">
+            <button class="link" @click="openFolder(wild.folder)">Open wildcards folder</button>
+            <button class="link" @click="loadWildcards">Refresh</button>
+            <button class="link" @click="wild.open = false">close</button>
+          </div>
+        </div>
+        <div class="gen-opts">
+          <select v-model="rnd.subject" title="Subject">
+            <option value="random">any subject</option><option>1girl</option><option>1boy</option>
+            <option>2girls</option><option>1girl 1boy</option><option value="scenery">scenery</option>
+          </select>
+          <select v-model="rnd.quality" title="Quality tags">
+            <option value="standard">quality: standard</option><option value="illustrious">quality: Illustrious/NoobAI</option>
+            <option value="pony">quality: Pony</option><option value="none">no quality tags</option>
+          </select>
+          <select v-model.number="rnd.detail" title="How many tags">
+            <option :value="1">simple</option><option :value="2">detailed</option><option :value="3">very detailed</option>
+          </select>
+        </div>
+        <div v-if="currentFlavor" class="row small quality-row">
+          <label class="check" :title="'Puts ' + flavorName(currentFlavor) + '\'s quality tags in front of the prompt (and its low-quality tags in the negative prompt) when you generate'">
+            <input type="checkbox" :checked="form.quality_tags !== false" @change="form.quality_tags = $event.target.checked">
+            Add {{ flavorName(currentFlavor) }} quality tags when generating</label>
+          <button class="link tags-insert" @click="insertQualityTags" :disabled="tagsInPrompt"
+                  :title="tagsInPrompt ? 'Already at the start of your prompt' : 'Put these at the start of the prompt (and the low-quality ones in the negative prompt) so you can see and edit them'">
+            {{ flavorTags }} <b>{{ tagsInPrompt ? '✓ in prompt' : '⤴ put in prompt' }}</b></button>
+        </div>
+        <label>Negative prompt <span v-if="family==='flux'" class="hint">· FLUX Schnell doesn't use it</span></label>
+        <div v-if="compatibleEmbeddings.length" class="trig-row emb-row">
+          <span class="hint">Embeddings:</span>
+          <button v-for="e in compatibleEmbeddings" :key="e.name" class="chip trig" :class="{on: inNegative(e.name) || inPrompt(e.name)}"
+                  @click="toggleNegativeWord(e.name)" title="Click to add to / remove from the negative prompt (or type its name in the prompt)">{{ e.name }}</button>
+        </div>
+        <textarea class="tape tape-neg" v-model="form.negative_prompt" rows="2" placeholder="What to avoid…"></textarea>
+      </section>
+
+      <section class="i2i-hint">
+        <button class="link" @click="tab='i2i'">🖼 Start from a picture or use ControlNet → Image to image tab</button>
+      </section>
+
+      <section class="loras cfold" :class="{shut: cfShut('loras')}">
+        <label @click="cfToggle('loras', $event)">LoRAs
+          <span class="hint">{{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · no limit</span>
+          <button v-if="form.loras.length" class="link small-link" @click="form.loras = []">clear all</button>
+          <span v-if="cfShut('loras')" class="cfold-sum">{{ cfSummary('loras') }}</span><span class="cfold-chev" aria-hidden="true"></span>
+        </label>
+        <div class="lora-rand">
+          <button class="ghost" @click="randomLoras()" :disabled="!randomPool.length"
+                  :title="'Pick random LoRAs that work with ' + familyLabel + ' (' + randomPool.length + ' to choose from)'">🎲 Random LoRAs</button>
+          <span class="hint">how many</span>
+          <select v-model.number="loraRand.min" title="At least"><option v-for="v in [1,2,3,4]" :key="v" :value="v">{{ v }}</option></select>
+          <span class="hint">to</span>
+          <select v-model.number="loraRand.max" title="At most"><option v-for="v in [1,2,3,4,5]" :key="v" :value="v">{{ v }}</option></select>
+          <span class="hint">weight</span>
+          <input type="number" min="-2" max="2" step="0.05" v-model.number="loraRand.wmin" class="num" title="Lowest weight">
+          <span class="hint">–</span>
+          <input type="number" min="-2" max="2" step="0.05" v-model.number="loraRand.wmax" class="num" title="Highest weight">
+          <label class="check" title="Pick new random LoRAs every time you press Generate"><input type="checkbox" v-model="loraRand.every"> new pick every Generate</label>
+
+        </div>
+        <template v-for="(l, i) in form.loras" :key="l.name">
+        <div class="lora-row">
+          <span class="lora-name" :title="l.name">{{ l.name }}</span>
+          <input type="range" min="-2" max="2" step="0.05" v-model.number="l.weight">
+          <input type="number" min="-5" max="5" step="0.05" v-model.number="l.weight" class="num">
+          <button class="ghost" @click="form.loras.splice(i,1)" title="Remove">✕</button>
+        </div>
+        <div class="trig-row">
+          <template v-if="trigEdit.name !== l.name">
+            <span class="hint">Trigger words:</span>
+            <button v-for="w in activeTriggers(l.name)" :key="'a'+w" class="chip trig" :class="{on: inPrompt(w)}"
+                    @click="togglePromptWord(w)" :title="inPrompt(w) ? 'In the prompt · click to remove' : 'Click to add to the prompt'">{{ w }}</button>
+            <button v-for="w in suggestedTriggers(l.name)" :key="'s'+w" class="chip trig suggested" :class="{on: inPrompt(w)}"
+                    @click="togglePromptWord(w)" title="Suggested from the LoRA's training tags">{{ w }}</button>
+            <span v-if="trigInfo[l.name] && !activeTriggers(l.name).length && !suggestedTriggers(l.name).length" class="hint">none found</span>
+            <span v-if="!trigInfo[l.name]" class="hint">looking…</span>
+            <button class="link small-link" @click="startTrigEdit(l.name)">{{ trigInfo[l.name]?.saved ? 'edit' : 'add / edit' }}</button>
+          </template>
+          <template v-else>
+            <input class="trig-input" v-model="trigEdit.text" placeholder="trigger words, separated by commas"
+                   @keydown.enter="saveTrigEdit" @keydown.esc="trigEdit.name = ''">
+            <button class="small" @click="saveTrigEdit">Save</button>
+            <button class="ghost small" @click="trigEdit.name = ''">Cancel</button>
+          </template>
+        </div>
+        </template>
+        <input class="lora-search" v-model="loraSearch" @focus="loraOpen = true"
+               :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ')'">
+        <div v-if="loraOpen" class="lora-list">
+          <button v-for="l in shownLoras" :key="l.name" class="lora-item" @click="addLoraByName(l.name)">
+            <span class="l-name" :title="l.name">{{ l.name }}</span><span class="marks"><i class="people-dot" :class="{on: l.people}" role="button" :aria-label="l.people ? 'Tagged People' : 'Tag as People'" @click.stop="markPeople('lora', l)"
+                  :title="l.people ? 'Tagged People (made of real people) · click to untag' : 'Click to tag as People: made of real people (hidden when Hide People is on)'"></i><span
+                  class="nsfw-flag" :class="{on: l.nsfw}" role="button" :aria-label="l.nsfw ? 'Marked NSFW' : 'Mark as NSFW'" @click.stop="markItem('lora', l)"
+                  :title="l.nsfw ? 'NSFW (' + (l.nsfw_mark ? 'you marked it' : 'from its name or training tags') + ') · click to mark it safe' : 'Click to mark as NSFW (hidden when Hide NSFW is on)'">⚑</span></span>
+            <span class="hint">{{ l.source==='diffusionbee' ? 'DiffusionBee · ' : '' }}{{ l.family==='unknown' ? 'type unknown · ' : '' }}<template v-if="l.flavor">{{ flavorName(l.flavor) }}{{ currentFlavor && l.flavor !== currentFlavor ? ' (may not match)' : '' }} · </template>{{ l.size_mb }} MB</span>
+          </button>
+          <div v-if="!shownLoras.length" class="hint m-empty">
+            <template v-if="addableLoras.length">No LoRAs match.</template>
+            <template v-else-if="!compatibleLoras.length">No {{ familyLabel }} LoRAs found yet. If yours are in a folder (an external drive is fine), add it:
+              <button class="small" @click="addLoraDir">Add LoRA folders…</button></template>
+            <template v-else>No more {{ familyLabel }} LoRAs to add.</template></div>
+          <div v-if="moreLoras" class="hint m-empty">…and {{ moreLoras }} more; type to narrow it down</div>
+          <div v-if="unknownTypeLoras" class="hint m-empty">{{ unknownTypeLoras }} LoRA{{ unknownTypeLoras === 1 ? '' : 's' }} of unknown type {{ unknownTypeLoras === 1 ? 'isn\'t' : 'aren\'t' }} shown for any model.
+            <button class="link" @click="fixLoraType('', true)">Give {{ unknownTypeLoras === 1 ? 'it' : 'them' }} a type →</button></div>
+          <button class="link close-list" @click="fixLoraType(loraSearch)" title="A LoRA listed under the wrong model type doesn't show here: fix its type in the Models tab">LoRA missing or the wrong type? Fix it →</button>
+          <button class="link close-list" @click="loraOpen = false; loraSearch = ''">close list</button>
+        </div>
+        <div class="row small">
+          <button class="link" @click="openFolder(sys.loras_dir)">Open LoRA folder</button>
+          <button class="link" @click="refreshLoras">Refresh</button>
+        </div>
+      </section>
+
+      <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="ipa cfold" :class="{shut: cfShut('ipa')}">
+        <label @click="cfToggle('ipa', $event)">Image prompt <span class="hint">IP-Adapter · borrow the look, style or face of a picture · ~2.6 GB first time</span><span v-if="cfShut('ipa')" class="cfold-sum">{{ cfSummary('ipa') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <div v-if="!form.ip_adapter.image" class="ipa-drop" :class="{over: ipDragOver}" @dragover.prevent="ipDragOver=true"
+             @dragleave="ipDragOver=false" @drop.prevent="onIpDrop" @click="$refs.ipPick.click()">
+          Drop a reference picture <span class="hint">(or click to choose)</span></div>
+        <div v-else class="ipa-on">
+          <img :src="fileUrl(form.ip_adapter.image)">
+          <div class="ipa-opts">
+            <div class="seg">
+              <button v-for="k in ipKinds" :key="k.id" :class="{on: form.ip_adapter.kind === k.id}" @click="form.ip_adapter.kind = k.id" :title="k.tip">{{ k.label }}</button>
+            </div>
+            <label>How much to borrow <span class="hint">{{ form.ip_adapter.scale.toFixed(2) }}</span></label>
+            <input type="range" min="0" max="1.2" step="0.05" v-model.number="form.ip_adapter.scale">
+            <div class="hint slider-help">0.4–0.6 mixes it with your prompt · 0.8+ follows the picture closely</div>
+            <button class="link" @click="form.ip_adapter.image = ''">remove</button>
+          </div>
+        </div>
+        <input ref="ipPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onIpPicked">
+      </section>
+
+      <section class="grid2 cfold" :class="{shut: cfShut('size')}">
+        <label class="span2 cfold-title" @click="cfToggle('size', $event)">Size, steps &amp; seed<span v-if="cfShut('size')" class="cfold-sum">{{ cfSummary('size') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <div class="span2 size-presets">
+          <label>Size <span class="hint">{{ familyLabel }}</span></label>
+          <div class="size-console">
+            <rack-switch label="Max size" :options="sizeTiers.map(t => ({id: t.id, label: t.label, sub: t.side, title: t.side + ' × ' + t.side + ' (keeps the current shape)'}))"
+                         :model-value="currentTier" @update:model-value="id => applyTier(sizeTiers.find(t => t.id === id))"
+                         off-label="custom size"></rack-switch>
+            <div class="size-side">
+          <div class="chips">
+            <button v-for="p in sizePresets" :key="p.label" class="chip" :class="{on: form.width===p.w && form.height===p.h}"
+                    @click="applySizePreset(p)" :title="p.w + ' × ' + p.h">{{ p.label }}</button>
+          </div>
+            </div>
+          </div>
+        </div>
+        <div class="span2 size-row">
+          <div><label>Width</label>
+            <input type="number" list="dims-list" min="256" max="2048" step="8" :value="form.width"
+                   @input="setSide('width', $event.target.value, false)" @change="setSide('width', $event.target.value, true)"></div>
+          <button class="ghost link-btn" :class="{on: form.size_link}" @click="toggleSizeLink"
+                  :title="form.size_link ? 'Width and height are linked (keeps the shape). Click to unlink.' : 'Link width and height to keep the shape'">
+            🔗</button>
+          <div><label>Height</label>
+            <input type="number" list="dims-list" min="256" max="2048" step="8" :value="form.height"
+                   @input="setSide('height', $event.target.value, false)" @change="setSide('height', $event.target.value, true)"></div>
+          <button class="ghost link-btn" @click="swapSize" title="Swap width and height (portrait ⇄ landscape)">⇄</button>
+          <datalist id="dims-list"><option v-for="v in dims" :key="v" :value="v"></option></datalist>
+          <div class="hint size-hint">{{ form.width }} × {{ form.height }} · {{ aspectText }}<template v-if="form.size_link"> · linked</template></div>
+        </div>
+        <div v-if="sizeWarning()" class="span2 size-warn">⚠ {{ sizeWarning() }}</div>
+        <div v-if="currentModel?.fast_mode" class="span2 fast-row" :class="{on: form.fast}">
+          <label class="check"><input type="checkbox" :checked="form.fast" @change="toggleFast($event.target.checked)">
+            ⚡ Fast mode <span class="hint">LCM speed LoRA · 6 steps instead of 25–30 (≈3–5× faster, slightly softer detail)</span></label>
+        </div>
+        <div class="span2"><label>Sampler <span v-if="form.fast && currentModel?.fast_mode" class="hint">· LCM is used in fast mode</span></label>
+          <select v-model="form.sampler" @change="onSamplerChange" :disabled="form.fast && currentModel?.fast_mode"
+                  :class="{'rec-sampler': samplerIsPick(form.sampler)}">
+            <template v-if="samplerPicks().fast.length">
+              <optgroup :label="'⚡ Fastest for ' + pickFor()"><option v-for="s in samplerPicks().fast" :key="'f' + s.id" :value="s.id">{{ s.label }}{{ s.steps ? ' · ~' + s.steps[0] + ' steps' : '' }}</option></optgroup>
+              <optgroup v-if="samplerPicks().qualityOnly.length" :label="'★ Best quality for ' + pickFor()"><option v-for="s in samplerPicks().qualityOnly" :key="'q' + s.id" :value="s.id">{{ s.label }}{{ s.steps ? ' · ~' + s.steps[0] + ' steps' : '' }}</option></optgroup>
+              <optgroup label="All other samplers"><option v-for="s in samplerPicks().rest" :key="s.id" :value="s.id">{{ s.label }}</option></optgroup>
+            </template>
+            <template v-else><option v-for="s in samplers" :key="s.id" :value="s.id">{{ s.label }}</option></template>
+          </select>
+          <div v-if="samplerPicks().fast.length && !(form.fast && currentModel?.fast_mode)" class="sampler-picks">
+            <div class="chips"><span class="hint">⚡ Fastest:</span>
+              <button v-for="s in samplerPicks().fast" :key="'cf' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)"
+                      :title="'Quick to a clean picture with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ s.label }}</button></div>
+            <div class="chips"><span class="hint">★ Best quality:</span>
+              <button v-for="s in samplerPicks().quality" :key="'cq' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)"
+                      :title="'Most detailed results with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ s.label }}</button></div>
+          </div></div>
+        <div class="span2 knob-row">
+          <rack-knob v-model.number="form.steps" :min="1" :max="150" :step="1" label="Steps" title="Steps: more = more detail, slower"
+                     :default-value="recSteps ? recSteps[0] : (currentModel?.defaults?.steps ?? 25)"></rack-knob>
+          <rack-knob v-model.number="form.cfg" :min="0" :max="30" :step="0.5" label="Guidance" title="Guidance (CFG): how strictly to follow the prompt"
+                     :default-value="currentModel?.defaults?.cfg ?? 7"></rack-knob>
+          <rack-knob v-model.number="form.num_images" :min="1" :max="16" :step="1" label="Images" :size="46" title="How many images to make"
+                     :default-value="1"></rack-knob>
+          <div class="hint knob-hint">Turn a knob (drag or scroll), click its number to type an exact value, or double-click a knob to put it back to the default.</div>
+          <div class="reset-row">
+            <button class="ghost" @click="resetCreate" :disabled="!currentModel"
+                    title="Back to this model's own size, steps, guidance and sampler; 1 image; random seed; recommended CLIP skip; extras off. Your prompt, model and LoRAs stay.">↺ Reset to defaults</button>
+            <button v-if="resetUndo" class="link" @click="undoResetCreate">undo</button>
+          </div>
+        </div>
+        <div>
+          <div v-if="recSteps" class="hint step-hint">
+            Recommended {{ recSteps[0] }} <span v-if="recSteps[1] !== recSteps[2]">({{ recSteps[1] }}–{{ recSteps[2] }})</span>
+            <button v-if="form.steps !== recSteps[0]" class="link" @click="form.steps = recSteps[0]">use</button>
+          </div></div>
+        <div>
+          <div v-if="['lcm','tcd'].includes(form.sampler) && form.cfg > 2" class="hint step-hint">
+            LCM/TCD want CFG 1–2 <button class="link" @click="form.cfg = 1.5">use 1.5</button></div></div>
+        <div class="span2 seed-row"><label>Seed <span class="hint">-1 = random</span></label><input type="number" class="amber-num" v-model.number="form.seed"></div>
+      </section>
+
+      <section class="cfold" :class="{shut: cfShut('extras')}">
+        <label @click="cfToggle('extras', $event)">Extras <span class="hint">CLIP skip, Hi-res fix, faces</span><span v-if="cfShut('extras')" class="cfold-sum">{{ cfSummary('extras') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <div v-if="clipSkipOk" class="clip-skip">
+          <span class="clip-label" title="CLIP skip: stop reading the prompt this many layers before the text encoder's last one. 1 = normal. 2 is what many anime-style SD 1.5 models and LoRAs were made with; it can make them follow the prompt in their intended style.">CLIP skip</span>
+          <div class="seg small-seg">
+            <button v-for="o in clipSkipOptions" :key="o.v" :class="{on: (form.clip_skip || 1) === o.v, rec: o.v === clipSkipRec}" @click="setClipSkip(o.v)"
+                    :title="o.title + (o.v === clipSkipRec ? ' · recommended for this model' : '')">{{ o.label }}<span v-if="o.v === clipSkipRec" class="rec-star">★</span></button>
+          </div>
+          <span class="hint">{{ clipSkipText }}</span>
+          <button v-if="clipSkipRec && (form.clip_skip || 1) !== clipSkipRec" class="link" @click="setClipSkip(clipSkipRec)">use recommended</button>
+        </div>
+        <div v-if="clipSkipOk && clipSkipHint" class="hint clip-hint">
+          LoRA “{{ clipSkipHint.name }}” was trained with CLIP skip {{ clipSkipHint.value }}
+          <button class="link" @click="form.clip_skip = clipSkipHint.value">use {{ clipSkipHint.value }}</button>
+        </div>
+        <template v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'">
+          <label class="check" title="Make the picture at the model's natural size, then redraw it bigger so the detail is real (no doubled heads)">
+            <input type="checkbox" v-model="form.hires.on"> 🔍 Hi-res fix <span class="hint">sharp large images · {{ hiresTarget }}</span></label>
+          <div v-if="form.hires.on" class="extra-opts">
+            <div class="seg">
+              <button v-for="v in [1.5, 2]" :key="v" :class="{on: form.hires.scale === v}" @click="form.hires.scale = v">×{{ v }}</button>
+            </div>
+            <span class="hint">redraw</span>
+            <input type="range" min="0.2" max="0.7" step="0.05" v-model.number="form.hires.strength" title="How much the bigger version may change: 0.35–0.5 adds detail and keeps the picture">
+            <span class="hint">{{ form.hires.strength.toFixed(2) }}</span>
+            <span class="hint">steps</span>
+            <input type="number" min="4" max="60" v-model.number="form.hires.steps" class="num">
+          </div>
+          <label class="check" title="Finds each face, redraws it at full detail with this model and prompt, and blends it back (like ADetailer)">
+            <input type="checkbox" v-model="form.face_detailer.on"> 🙂 Face detailer <span class="hint">redraws faces in the image's own style</span></label>
+          <div v-if="form.face_detailer.on" class="extra-opts">
+            <span class="hint">change</span>
+            <input type="range" min="0.15" max="0.7" step="0.05" v-model.number="form.face_detailer.strength" title="0.3–0.45 fixes faces and keeps the likeness">
+            <span class="hint">{{ form.face_detailer.strength.toFixed(2) }}</span>
+            <input v-model="form.face_detailer.prompt" class="det-prompt tape" placeholder="face prompt (optional, e.g. detailed eyes, smile)">
+          </div>
+        </template>
+        <label class="check"><input type="checkbox" v-model="form.restore_faces"> Restore faces (RestoreFormer)
+          <span class="hint" v-if="form.face_detailer.on">· usually not needed with the face detailer</span></label>
+        <div v-if="form.restore_faces" class="row">
+          <span class="hint">strength</span>
+          <input type="range" min="0.1" max="1" step="0.05" v-model.number="form.face_strength">
+          <span class="hint">{{ form.face_strength.toFixed(2) }}</span>
+        </div>
+      </section>
+
+      <section class="compare">
+        <details :open="cmp.open" @toggle="cmp.open = $event.target.open">
+          <summary><span class="sum-toggle" :class="{on: cmp.open}" aria-hidden="true"></span><b>🔬 Compare settings</b>
+            <span class="hint">{{ cmp.open ? 'on · click here to turn it off' : 'off · same picture, different settings, side by side' }}</span></summary>
+          <div class="grid2">
+            <div><label>Across</label>
+              <select v-model="cmp.x" @change="cmpDefaults('x')"><option v-for="(lbl, k) in cmpAxes" :key="k" :value="k">{{ lbl }}</option></select></div>
+            <div><label>Down <span class="hint">optional</span></label>
+              <select v-model="cmp.y" @change="cmpDefaults('y')"><option value="">—</option><option v-for="(lbl, k) in cmpAxes" :key="k" :value="k" :disabled="k === cmp.x">{{ lbl }}</option></select></div>
+            <div class="span2"><label>Values across <span class="hint">{{ cmpHelp(cmp.x) }}</span></label>
+              <input v-model="cmp.xv" :placeholder="cmpPlaceholder(cmp.x)"></div>
+            <div v-if="cmp.y" class="span2"><label>Values down <span class="hint">{{ cmpHelp(cmp.y) }}</span></label>
+              <input v-model="cmp.yv" :placeholder="cmpPlaceholder(cmp.y)"></div>
+            <div v-if="['lora_weight','lora'].includes(cmp.x) || ['lora_weight','lora'].includes(cmp.y)" class="span2">
+              <label>Which LoRA <span class="hint">{{ cmp.x === 'lora' || cmp.y === 'lora' ? 'is swapped for each value (“none” = without it)' : 'gets the different weights' }}</span></label>
+              <select v-model="cmp.lora"><option value="">{{ form.loras.length ? 'all active LoRAs' : '(add a LoRA above)' }}</option>
+                <option v-for="l in form.loras" :key="l.name" :value="l.name">{{ l.name }}</option></select></div>
+          </div>
+          <div class="row">
+            <button class="primary" @click="runCompare" :disabled="!cmpCount || cmpCount > 36">Make comparison grid ({{ cmpCount }} picture{{ cmpCount === 1 ? '' : 's' }})</button>
+            <span class="hint" v-if="cmpCount > 36">36 at most</span>
+            <span class="hint" v-else>uses everything above, with one seed for all</span>
+            <span class="spacer"></span>
+            <button class="ghost" @click="cmp.open = false">Turn off compare</button>
+          </div>
+        </details>
+      </section>
+
+      <div class="actions" :class="{busy}">
+        <button class="primary" @click="generate" :disabled="backendDead">{{ busy ? 'Add to queue' : 'Generate' }} ⌘↵</button>
+        <div v-if="busy" class="stop-group">
+          <button v-if="runningJob || queue.length" class="ghost pause-btn" :class="{on: paused}" @click="togglePause"
+                  :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
+          <button v-if="canSkipImage" class="ghost" @click="skipImage"
+                  title="Stop just the image being made now; the rest of this job's images carry on">⏭ Skip image</button>
+          <button v-if="runningJob" class="danger" @click="cancelJob(runningJob.id)"
+                  :title="queue.length > 1 ? 'Stop the current job; the other ' + (queue.length - 1) + ' in the queue carry on' : 'Stop the current job'">■ Stop</button>
+          <button v-if="queue.length > 1" class="ghost" @click="stopAll" title="Stop the current job and clear the queue">Stop all ({{ queue.length }})</button>
+        </div>
+      </div>
+    </aside>
+
+    <section class="output">
+      <div v-if="queue.length" class="queue">
+        <div class="queue-head">
+          <span>Queue · {{ queue.length }} job{{ queue.length===1?'':'s' }}
+            <span class="hint" v-if="paused"> · ❚❚ paused</span>
+            <span class="hint" v-else-if="jobEtas.length"> · all done in ~{{ formatDuration(jobEtas[jobEtas.length-1].finishIn) }}</span></span>
+          <span class="queue-btns">
+            <button class="ghost small-btn pause-btn" :class="{on: paused}" @click="togglePause"
+                    :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
+            <button class="ghost small-btn" @click="stopAll" title="Stop the current job and clear the queue">Stop all</button>
+          </span>
+        </div>
+        <div v-for="(j, i) in queue" :key="j.id" class="job" :class="j.state">
+          <div class="job-main">
+            <span class="job-state">{{ j.state==='running' ? '▶' : i }}</span>
+            <span class="job-label" :title="j.label">{{ j.label }}</span>
+            <span class="hint" v-if="j.model">{{ modelLabel(j.model) }}</span>
+          </div>
+          <div v-if="j.loras && j.loras.length" class="job-loras">
+            <span v-for="l in j.loras" :key="l.name" class="chip static job-lora" :title="l.name + ' at weight ' + l.weight">
+              {{ l.name }} <small>{{ Number(l.weight).toFixed(2).replace(/\.?0+$/, '') }}</small></span>
+          </div>
+          <div class="job-eta" v-if="!stopping[j.id]">{{ etaText(j) }}</div>
+          <div class="job-eta stopping" v-else>Stopping…
+            <button v-if="canForceStop(j)" class="danger small-force" @click="forceStop">Force stop now</button>
+            <span v-else class="hint">(finishing the current step)</span>
+          </div>
+          <div v-if="j.state==='running'" class="job-progress">
+            <div class="bar"><div :style="{width: (jobProgress(j) ?? 0) + '%'}"></div></div>
+            <span class="hint">{{ jobProgress(j) !== null ? progressText : status + elapsedText }}</span>
+          </div>
+          <button v-if="j.state==='running' && j.cmd==='generate' && (j.images || 1) > 1 && canSkipImage" class="ghost job-skip"
+                  @click="skipImage" title="Skip the image being made now; the job carries on with its next image">⏭</button>
+          <button class="job-cancel" @click="cancelJob(j.id)"
+                  :title="j.state==='running' ? 'Stop this job (the rest of the queue continues)' : 'Remove from queue'">✕</button>
+        </div>
+      </div>
+      <div v-if="error" class="error-box">{{ error }}</div>
+      <div v-if="livePreviewShown" class="live-preview" :class="{covered: previewCovered}">
+        <img :src="livePreview.src" alt="live preview"><span v-if="previewCovered" class="nsfw-cover">NSFW prompt · preview hidden</span>
+        <div class="live-caption">
+          <span class="live-dot"></span> Live preview<template v-if="progress && progress.job === livePreview.job">
+          · image {{ progress.image }}/{{ progress.images }} · step {{ progress.step }}/{{ progress.steps }}</template>
+        </div>
+      </div>
+      <div v-if="!session.length && !busy" class="empty">
+        <img src="assets/logo-round-512.png" class="empty-logo" alt="">
+        <div class="empty-title">Protoart Studio</div>
+        <div>Your images will appear here.</div>
+      </div>
+      <div class="gallery">
+        <figure v-for="r in session" :key="r.id" @click="openDetail(r)" :class="{covered: covered(r)}">
+          <img :src="thumbUrl(r)" loading="lazy" decoding="async"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
+          <span v-if="r.kind && r.kind!=='generated'" class="badge">{{ kindLabel(r.kind) }}</span>
+          <button class="star" :class="{on: r.starred}" @click.stop="toggleStar(r)" title="Star">★</button>
+          <button v-if="r.prompt" class="to-i2i" @click.stop="reusePrompt(r)" title="Put this picture's prompt back in the prompt box (keeps your current model and settings)">↺ Prompt</button>
+          <button v-if="r.prompt" class="to-i2i to-tools" @click.stop="reuse(r)" title="Load everything that made this picture: prompt, model, LoRAs, size, steps, sampler and seed">⚙ All settings</button>
+        </figure>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============================ LIBRARY ============================ -->
+  <main v-if="tab==='library'" class="library">
+    <div v-if="bx.open" id="batch-card" class="card batch-card">
+      <h3>🗂 Batch edit &amp; export <span class="hint">· {{ bx.ids.length }} picture{{ bx.ids.length === 1 ? '' : 's' }} · copies are saved to a folder; the Library stays as it is</span></h3>
+      <div class="chips bx-presets"><span class="hint">Presets:</span>
+        <button v-for="pr in bxBuiltins()" :key="pr.name" class="ghost small" :class="{on: bxPresetOn(pr.set)}" @click="bxApply(pr.set)" :title="pr.tip">{{ pr.name }}</button>
+        <span v-for="pr in exportPresets" :key="'u' + pr.name" class="adj-preset">
+          <button class="ghost small" :class="{on: bxPresetOn(pr.set)}" @click="bxApply(pr.set)">{{ pr.name }}</button><button
+            class="ghost small adj-preset-x" @click="bxDeletePreset(pr)" :title="'Delete the preset ' + pr.name">✕</button></span>
+        <template v-if="bx.savingPreset">
+          <input v-model="bx.presetName" class="adj-preset-name" placeholder="Name these settings…" maxlength="60" @keydown.enter="bxSavePreset">
+          <button class="ghost small" :disabled="!bx.presetName.trim()" @click="bxSavePreset">Save</button>
+          <button class="link small" @click="bx.savingPreset = false">cancel</button>
+        </template>
+        <button v-else class="ghost small" @click="bx.savingPreset = true" title="Save these export settings as your own preset">＋ Save as preset</button>
+      </div>
+      <div class="bx-grid">
+        <div>
+          <label>Adjust <span class="hint">light, colour &amp; filters (optional)</span></label>
+          <select v-model="bx.adjust">
+            <option value="">No adjustments</option>
+            <optgroup label="Looks"><option v-for="l in ProtoLooks" :key="l.id" :value="'look:' + l.id">{{ l.label }}</option></optgroup>
+            <optgroup v-if="adjPresets.length" label="My Adjust presets"><option v-for="pr in adjPresets" :key="pr.name" :value="'preset:' + pr.name">{{ pr.name }}</option></optgroup>
+          </select>
+          <label>Size</label>
+          <div class="seg bx-seg">
+            <button v-for="m in [['none','Keep'],['long','Long side'],['short','Short side'],['fit','Fit in box'],['percent','Percent']]" :key="m[0]"
+                    :class="{on: bx.resize.mode === m[0]}" @click="bx.resize.mode = m[0]">{{ m[1] }}</button>
+          </div>
+          <div class="row" v-if="bx.resize.mode !== 'none'">
+            <template v-if="bx.resize.mode === 'fit'">
+              <input type="number" min="16" max="16384" v-model.number="bx.resize.w" style="width:90px"> × <input type="number" min="16" max="16384" v-model.number="bx.resize.h" style="width:90px"> px
+            </template>
+            <template v-else><input type="number" min="1" :max="bx.resize.mode === 'percent' ? 400 : 16384" v-model.number="bx.resize.value" style="width:100px"> {{ bx.resize.mode === 'percent' ? '%' : 'px' }}</template>
+            <label class="check"><input type="checkbox" v-model="bx.resize.no_upscale"> Never enlarge</label>
+          </div>
+        </div>
+        <div>
+          <label>Format</label>
+          <div class="seg bx-seg">
+            <button v-for="f in [['same','Same as original'],['jpeg','JPEG'],['png','PNG'],['webp','WebP'],['tiff','TIFF']]" :key="f[0]"
+                    :class="{on: bx.format === f[0]}" @click="bx.format = f[0]">{{ f[1] }}</button>
+          </div>
+          <label>Compress <span class="hint">Press: the smallest file that still looks the same (JPEG and PNG)</span></label>
+          <div class="seg bx-seg">
+            <button v-for="c in [['off','Off'],['gentle','Gentle'],['balanced','Balanced'],['strong','Strong']]" :key="c[0]"
+                    :class="{on: bx.compress === c[0]}" @click="bx.compress = c[0]"
+                    :title="{off: 'Save at the quality below', gentle: 'Smallest that is visually identical by a wide margin (JPEG ≈ quality 90; PNG lossless only)', balanced: 'Smallest that measures as looking the same (JPEG ≈ 85; PNG may use 256 colours when invisible)', strong: 'Smaller still; may show on close inspection (JPEG ≈ 80)'}[c[0]]">{{ c[1] }}</button>
+          </div>
+          <div v-if="bx.compress === 'off' || ['webp'].includes(bx.format)" class="row">
+            <span class="hint">Quality</span><input type="range" min="40" max="100" v-model.number="bx.quality"><span class="hint">{{ bx.quality }}</span>
+            <span v-if="bx.format === 'webp' && bx.compress !== 'off'" class="hint">(Press works on JPEG and PNG; WebP uses this quality)</span>
+          </div>
+          <label>Resolution</label>
+          <div class="seg bx-seg"><button v-for="d in [72, 150, 300]" :key="d" :class="{on: bx.dpi === d}" @click="bx.dpi = d">{{ d }} dpi</button></div>
+        </div>
+        <div>
+          <label>Picture details <span class="hint">prompt, settings</span></label>
+          <div class="seg bx-seg">
+            <button :class="{on: !bx.keep_meta}" @click="bx.keep_meta = false" title="Nothing about how it was made, no location: best for sharing">Remove (private)</button>
+            <button :class="{on: bx.keep_meta}" @click="bx.keep_meta = true" title="Keep the prompt and settings inside (file paths on this Mac are never included)">Keep prompt &amp; settings</button>
+          </div>
+          <label>File names <span class="hint">{name} {n} {date} {time} {model} {seed} {width} {height} {preset}</span></label>
+          <input v-model="bx.pattern" placeholder="{name}">
+          <div class="hint">e.g. <code>{{ bxExample() }}</code> · existing files are never replaced</div>
+          <label>Save to</label>
+          <div class="row"><button class="link" @click="openFolder(bx.dest)" :title="bx.dest">{{ bx.dest || 'choose a folder' }}</button>
+            <button class="ghost small" @click="bxPickDest">Change…</button></div>
+        </div>
+      </div>
+      <div class="row">
+        <button class="primary" :disabled="bx.running || !bx.ids.length" @click="bxRun">
+          {{ bx.running ? 'Working…' : 'Export ' + bx.ids.length + ' picture' + (bx.ids.length === 1 ? '' : 's') }}</button>
+        <button v-if="bx.running" class="danger" @click="bx.cancel = true">■ Stop</button>
+        <button v-else class="ghost" @click="bx.open = false">Close</button>
+        <div v-if="bx.total" class="bar bx-bar"><div :style="{width: (100 * bx.done / Math.max(1, bx.total)) + '%'}"></div></div>
+        <span v-if="bx.total" class="hint">{{ bx.done }} / {{ bx.total }}</span>
+      </div>
+      <div v-if="!bx.running && bx.results.length" class="hint bx-done">
+        ✓ {{ bx.results.length }} saved in <button class="link" @click="openFolder(bx.dest)">{{ bx.dest }}</button>
+        <template v-if="bxSaved().before && bxSaved().pct > 0"> · {{ bxSizeText(bxSaved().before) }} → {{ bxSizeText(bxSaved().after) }} ({{ bxSaved().pct }}% smaller)</template>
+      </div>
+      <div v-for="e in bx.errors" :key="e" class="hint warn">⚠ {{ e }}</div>
+    </div>
+    <div v-if="selectMode" class="select-bar">
+      <span>{{ selected.length }} selected</span>
+      <button class="link" @click="selectAll">Select all {{ lib.results.length }}</button>
+      <button class="link" v-if="selected.length" @click="selected=[]">Clear</button>
+      <span class="spacer"></span>
+      <button class="primary" :disabled="!selected.length" @click="openBatch()" title="Resize, convert, compress (Press), rename, apply an Adjust preset: all the selected pictures at once">🗂 Batch edit &amp; export…</button>
+      <button class="ghost" :disabled="!selected.length" @click="openBatch(null, bxBuiltins()[0])" title="Make smaller copies that look the same (Press)">🗜 Compress</button>
+      <button class="ghost" :disabled="!selected.length" @click="markPictures(selected.slice(), true)" title="The NSFW filter hides these">Mark NSFW</button>
+      <button class="ghost" :disabled="!selected.length" @click="markPictures(selected.slice(), false)" title="The NSFW filter always shows these">Mark safe</button>
+      <button class="danger" :disabled="!selected.length" @click="askDelete(selected.slice())">Delete selected</button>
+      <button @click="exitSelect">Done</button>
+    </div>
+    <div class="lora-chips" v-if="libLoras.length && (libLoraOpen || lib.loras.length)">
+      <span class="hint">Images that used:</span>
+      <button v-if="lib.loras.length" class="link small-link" @click="lib.loras = []; queryLibrary()">clear</button>
+      <button v-for="l in libLoras" :key="l.name" class="chip" :class="{on: lib.loras.includes(l.name)}"
+              @click="toggleLibLora(l.name)">{{ l.name }} <small>{{ l.count }}</small></button>
+    </div>
+    <div v-if="!lib.results.length" class="empty">No images match.</div>
+    <div class="gallery" :class="{selecting: selectMode}">
+      <figure v-for="r in lib.results" :key="r.id" @click="onThumbClick(r)" :class="{picked: selected.includes(r.id), covered: covered(r)}">
+        <span v-if="selectMode" class="pick">{{ selected.includes(r.id) ? '✓' : '' }}</span>
+        <img :src="thumbUrl(r)" loading="lazy" decoding="async"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
+        <span v-else-if="r.nsfw && !hideNsfw" class="badge nsfw-badge" :title="nsfwReason(r)">18+</span>
+        <span v-if="r.kind && r.kind!=='generated'" class="badge">{{ kindLabel(r.kind) }}</span>
+        <button class="star" :class="{on: r.starred}" @click.stop="toggleStar(r)" title="Star">★</button>
+        <button v-if="!selectMode && r.prompt" class="to-i2i reuse-top" @click.stop="reusePrompt(r)" title="Reuse this picture's prompt in Create (keeps your current model and settings)">↺ Prompt</button>
+        <button v-if="!selectMode" class="to-i2i" @click.stop="useAsStart(r)" title="Send to Image to image">🖼 Img2img</button>
+        <button v-if="!selectMode" class="to-i2i to-tools" @click.stop="openInTools(r)" title="Send to Tools (enhance, restore faces, depth map, edit…)">🧰 Tools</button>
+      </figure>
+    </div>
+      <div v-if="libHasMore" class="row center"><button @click="queryLibrary(true)">Load more</button></div>
+  </main>
+
+
+  <!-- ============================ MODELS ============================ -->
+  <main v-if="tab==='models'" class="models-tab">
+    <div class="model-panels">
+      <section class="mpanel" id="mp-own" :class="{open: mpanels.own}">
+        <h3 @click="toggleModelsPanel('own')"><i class="led" :class="{on: mpanels.own}"></i>Your model files <span class="hint">· {{ localModels.length }} added from this Mac · offline, nothing is copied or uploaded</span></h3>
+        <div v-if="mpanels.own" class="mpanel-body">
+    <p class="hint">Use base models you already have: SD 1.5 / SDXL checkpoint files (<code>.safetensors</code>, <code>.ckpt</code>)
+      or diffusers model folders (any model type, including ERNIE and newer ones). They're read where they are.</p>
+    <div class="row">
+      <button @click="addLocalModels">Add model files or folders…</button>
+      <button class="ghost" @click="openModelFolders" title="Folders whose models are all listed: Settings → Model folders">Watch a folder… (Settings)</button>
+    </div>
+    <p class="hint">A folder that also holds LoRAs (including DiffusionBee <code>.tdict</code> files) is used as a LoRA folder too.</p>
+    <p class="hint"><b>Add model files</b>: pick particular models; only those are added. <b>Watch a folder</b>: pick a folder
+      (an external drive is fine) and every model in it is used, including ones you put there later. Either way nothing is
+      copied: the files stay where they are and must be there (drive connected) to be used.</p>
+    <div v-if="localErr" class="error-box">{{ localErr }}</div>
+    <table v-if="localModels.length || modelDirs.dirs.length">
+      <tr v-for="m in localModels" :key="m.id"><td>{{ m.label }}</td>
+        <td class="hint">{{ familyName(m.family) }}<template v-if="m.class_name && m.family === 'other'"> ({{ m.class_name }})</template> · {{ m.file || m.local_dir || '' }}</td>
+        <td><button v-if="isAddedLocal(m.id)" class="ghost small" @click="removeLocalModel(m.id)">Remove</button>
+            <span v-else class="hint">in a watched folder</span></td></tr>
+    </table>
+    <div class="row"><button class="ghost" @click="refreshModels">↻ Refresh model and LoRA lists</button>
+      <span class="hint">after adding files to your folders</span></div>
+        </div>
+      </section>
+      <section class="mpanel" id="mp-civitai" :class="{open: mpanels.civitai}">
+        <h3 @click="toggleModelsPanel('civitai')"><i class="led" :class="{on: mpanels.civitai}"></i>Add from Civitai <span class="hint">· LoRAs, embeddings and SD 1.5 / SDXL / Pony checkpoints · {{ civ.keySet ? 'signed in (API key saved)' : 'needs a free account for most downloads' }}</span></h3>
+        <div v-if="mpanels.civitai" class="mpanel-body">
+    <p class="hint">Paste the link of a model page on <a href="https://civitai.com/models" target="_blank">civitai.com</a>
+      (pick the version on the page first, if it has several). It downloads into the right folder for its type, with its trigger words.</p>
+    <div class="row">
+      <input ref="civInput" v-model="civ.url" placeholder="https://civitai.com/models/…" @keydown.enter="civInspect" style="flex:1">
+      <button @click="civInspect" :disabled="civ.busy || !civ.url.trim()">{{ civ.busy ? 'Checking…' : 'Check' }}</button>
+    </div>
+    <div v-if="civ.error && civ.needKey !== 'missing'" class="error-box">{{ civ.error }}</div>
+    <div v-if="civ.found" class="hub-card civ-card">
+      <div><b>{{ civ.found.name }}</b><span v-if="civ.found.version"> · {{ civ.found.version }}</span>
+        <span v-if="civ.found.nsfw" class="nsfw-flag on" title="Civitai marks this NSFW (the content filter will too)">⚑</span></div>
+      <div class="hint">{{ civ.found.kind === 'lora' ? 'LoRA' : civ.found.kind === 'checkpoint' ? 'Base model (checkpoint)' : civ.found.kind === 'embedding' ? 'Embedding (textual inversion)' : civ.found.type }}
+        · {{ civ.found.base_model || 'base model not given' }}<template v-if="civ.found.file"> · {{ civ.found.file.name }} · {{ civSize(civ.found.file.size_mb) }}</template></div>
+      <div v-if="civ.found.trained_words.length" class="hint">Trigger words: {{ civ.found.trained_words.slice(0, 8).join(', ') }}</div>
+      <div v-for="n in civ.found.notes" :key="n" class="hint">• {{ n }}</div>
+      <template v-if="civ.found.ok">
+        <div class="row">
+          <span class="hint">Save to</span>
+          <select v-model="civ.dest" style="flex:1">
+            <option v-for="d in civ.found.destinations" :key="d.path" :value="d.path">{{ d.label }} · {{ d.path }}</option>
+          </select>
+        </div>
+        <div v-if="civJob()" class="shop-dl">
+          <div class="bar"><div :style="{width: (jobProgress(civJob()) ?? 0) + '%'}"></div></div>
+          <span class="hint">{{ civJob().state === 'running' ? 'Downloading · ' + etaText(civJob()) : 'Waiting in the queue' }}</span>
+          <button class="ghost" @click="cancelJob(civJob().id)" title="Stop; what's downloaded so far is kept, so it carries on next time">Stop</button>
+        </div>
+        <div v-else class="row"><button class="primary" @click="civDownload" :disabled="!civ.dest">⤓ Download</button>
+          <a class="hint" :href="civ.found.page" target="_blank">open on civitai.com</a></div>
+        <div v-if="civ.needKey || !civ.keySet" class="civ-key-inline" :class="{soft: !civ.needKey}">
+          <b>{{ civ.needKey === 'refused' ? 'Civitai didn\'t accept your API key' : civ.needKey ? 'This one needs your Civitai API key' : 'Sign in to Civitai first (once): most downloads need a free account' }}</b>
+          <ol class="hint">
+            <li>Sign in (or make a free account) on <a href="https://civitai.com/user/account" target="_blank">civitai.com → Account settings</a>.</li>
+            <li>Scroll to <b>API Keys</b> → <b>Add API key</b>, give it any name, and copy the key.</li>
+            <li>Paste it here and press <b>Save &amp; download</b>. It's kept on this Mac and only ever sent to civitai.com.</li>
+          </ol>
+          <div class="row">
+            <input ref="civKeyInline" v-model="civ.key" type="password" placeholder="Paste your Civitai API key" style="flex:1" autocomplete="off"
+                   @keydown.enter="civ.key.trim() && civSaveKey(false, true)">
+            <button class="primary" @click="civSaveKey(false, true)" :disabled="!civ.key.trim()">Save &amp; download</button>
+            <button v-if="!civ.needKey" class="ghost" @click="civSaveKey(false)" :disabled="!civ.key.trim()">Save key only</button>
+          </div>
+          <p v-if="civ.needKey === 'refused'" class="hint">Still refused with a new key? Open the model's page on civitai.com while signed in:
+            some models are Early Access (only for supporters for a while) or ask you to accept their licence first.</p>
+        </div>
+      </template>
+    </div>
+    <div v-if="civ.msg" class="hint">{{ civ.msg }}</div>
+    <details class="fold">
+      <summary>Civitai API key <span class="hint">· {{ civ.keySet ? 'saved on this Mac' : 'not set · many downloads need one (free account)' }}</span></summary>
+      <div class="row" style="margin: 0 10px 8px">
+        <input v-model="civ.key" type="password" placeholder="Paste your key (civitai.com → Account settings → API keys)" style="flex:1" autocomplete="off">
+        <button @click="civSaveKey(false)" :disabled="!civ.key.trim()">Save</button>
+        <button v-if="civ.keySet" class="ghost" @click="civSaveKey(true)">Remove</button>
+      </div>
+      <p class="hint" style="margin: 0 10px 8px">Kept only on this Mac and sent only to civitai.com, never shown again.</p>
+    </details>
+        </div>
+      </section>
+      <section class="mpanel" id="mp-hub" :class="{open: mpanels.hub}">
+        <h3 @click="toggleModelsPanel('hub')"><i class="led" :class="{on: mpanels.hub}"></i>Add from Hugging Face <span class="hint">· downloads once, then works offline<template v-if="addedModels.length"> · {{ addedModels.length }} added</template></span></h3>
+        <div v-if="mpanels.hub" class="mpanel-body">
+    <p class="hint">Add new base models from Hugging Face as they come out. Paste a model id (like
+      <code>stabilityai/sdxl-turbo</code>), a link to the model page, or a link to a single SD 1.5 / SDXL
+      <code>.safetensors</code> checkpoint. It downloads the first time you generate with it.
+      Browse: <a href="https://huggingface.co/models?pipeline_tag=text-to-image&library=diffusers&sort=trending" target="_blank">huggingface.co text-to-image models</a></p>
+    <div class="row">
+      <input ref="hubInput" v-model="hub.source" placeholder="owner/model-name or https://huggingface.co/…" @keydown.enter="hubInspect" style="flex:1">
+      <button @click="hubInspect" :disabled="hub.busy || !hub.source.trim()">{{ hub.busy ? 'Checking…' : 'Check' }}</button>
+    </div>
+    <div v-if="hub.error" class="error-box">{{ hub.error }}</div>
+    <div v-if="hub.needToken" class="civ-key-inline">
+      <b>This model needs a Hugging Face account (it's “gated”)</b>
+      <ol class="hint">
+        <li>Sign in (or make a free account) on <a href="https://huggingface.co/login" target="_blank">huggingface.co</a>.</li>
+        <li>Open the model's page and press the button to <b>agree to its licence</b> (some owners review it first; wait for their email).</li>
+        <li>Go to <a href="https://huggingface.co/settings/tokens" target="_blank">huggingface.co → Settings → Access Tokens</a> → <b>Create new token</b>, type <b>Read</b>, and copy it (it starts with <code>hf_</code>).</li>
+        <li>Paste it here and press <b>Save &amp; check again</b>. It's kept on this Mac and only ever sent to huggingface.co.</li>
+      </ol>
+      <div class="row">
+        <input v-model="hub.token" type="password" placeholder="hf_…" style="flex:1" autocomplete="off" @keydown.enter="hub.token.trim() && hfSaveToken(false, true)">
+        <button class="primary" @click="hfSaveToken(false, true)" :disabled="!hub.token.trim()">Save &amp; check again</button>
+      </div>
+    </div>
+    <div v-if="hub.found" class="hub-card">
+      <div><b>{{ hub.found.repo }}</b><span v-if="hub.found.file"> · {{ hub.found.file }}</span></div>
+      <div class="hint">Type: {{ hub.found.family_label }}<template v-if="hub.found.class_name"> ({{ hub.found.class_name }})</template>
+        · download ≈ {{ hub.found.download_gb }} GB</div>
+      <div v-for="n in hub.found.notes" :key="n" class="hint">• {{ n }}</div>
+      <div class="row">
+        <input v-model="hub.found.label" placeholder="Name in the model list" style="flex:1">
+        <button class="primary" @click="hubAdd">Add model</button>
+      </div>
+    </div>
+    <div v-if="hub.msg" class="hint">{{ hub.msg }}</div>
+    <details class="fold">
+      <summary>Hugging Face access token <span class="hint">· {{ hub.tokenSet ? 'saved on this Mac' : 'not set · only needed for gated models' }}</span></summary>
+      <div class="row" style="margin: 0 10px 8px">
+        <input v-model="hub.token" type="password" placeholder="hf_… (huggingface.co → Settings → Access Tokens, type Read)" style="flex:1" autocomplete="off">
+        <button @click="hfSaveToken(false)" :disabled="!hub.token.trim()">Save</button>
+        <button v-if="hub.tokenSet" class="ghost" @click="hfSaveToken(true)">Remove</button>
+      </div>
+      <p class="hint" style="margin: 0 10px 8px">Only needed for “gated” models (you accept their licence on huggingface.co first). Use a
+        <b>Read</b> token. It's kept only on this Mac, sent only to huggingface.co, never shown again, and never used unless you save it here
+        (a token other apps saved on this Mac is ignored).</p>
+    </details>
+    <table v-if="addedModels.length">
+      <tr v-for="m in addedModels" :key="m.id"><td>{{ m.label }}</td>
+        <td class="hint">{{ familyName(m.family) }} · {{ m.cached ? 'downloaded' : Math.round(m.download_gb) + ' GB download' }}</td>
+        <td><button class="ghost small" @click="hubRemove(m)">Remove</button></td></tr>
+    </table>
+        </div>
+      </section>
+      <section class="mpanel" id="mp-fix" :class="{open: mpanels.fix}">
+        <h3 id="lora-fix" @click="toggleModelsPanel('fix')"><i class="led" :class="{on: mpanels.fix}"></i>Fix a type <span class="hint">· a LoRA or base model file listed under the wrong model type</span></h3>
+        <div v-if="mpanels.fix" class="mpanel-body">
+    <div class="row">
+      <input v-model="loraFix.q" placeholder="Search your LoRAs and base models by name…" style="max-width:320px">
+      <label class="check" title="When a LoRA folder is set to the type you pick (above), the file and its trigger-word / preview files move there"><input type="checkbox" v-model="loraFix.move"> Move the file into that type's folder</label>
+      <label class="check" title="List only LoRAs the app couldn't identify (they're not shown for any model until they have a type)"><input type="checkbox" v-model="loraFix.unknownOnly"> Show unknown type</label>
+      <label class="check" title="List every LoRA and base model file, without searching"><input type="checkbox" v-model="loraFix.showAll"> Show all</label>
+    </div>
+    <table v-if="loraFixList.length" class="lora-fix">
+      <tr v-for="l in loraFixList" :key="l.key"><td class="lf-name">{{ l.label }}<div class="hint">{{ loraTypeText(l) }}</div></td>
+        <td class="lf-type"><button class="ghost small lock-btn" :class="{on: typeLocked(l)}" @click="toggleTypeLock(l)"
+                  :title="typeLocked(l) ? 'Locked: this type can\'t be changed by accident. Click to unlock.' : 'Unlocked. Click to lock this type (picking a type locks it too).'">{{ typeLocked(l) ? '🔒' : '🔓' }}</button>
+          <div class="seg" :class="{locked: typeLocked(l)}">
+          <button v-for="f in (l.kind === 'model' ? [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}] : [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'ernie', label: 'ERNIE'}])" :key="f.id"
+                  :class="{on: f.id ? (l.family_set && l.family === f.id) : !l.family_set}" :disabled="typeLocked(l)" @click="setLoraFamily(l, f.id)">{{ f.label }}</button>
+        </div></td></tr>
+    </table>
+    <p v-else-if="loraFix.q.trim()" class="hint">No LoRA or model names contain “{{ loraFix.q }}”{{ loraFix.unknownOnly ? ' among those of unknown type' : '' }}.</p>
+    <p v-else-if="loraFix.unknownOnly" class="hint">Every LoRA and model file has a type.</p>
+    <p v-if="loraFixList.length" class="hint">{{ loraFixList.length }} listed · 🔒 = locked (a type you picked locks itself; click the lock to change it).</p>
+    <p class="hint">Base model <b>files</b> (.safetensors / .ckpt / DiffusionBee) can only be SD 1.5 or SDXL (Pony, Illustrious and NoobAI are SDXL):
+      that's all a single file can be loaded as. FLUX and ERNIE come as whole model folders, and their type is read from the folder.</p>
+    <p v-if="loraFix.msg" class="hint">{{ loraFix.msg }}</p>
+        </div>
+      </section>
+    </div>
+    <section v-for="g in shopModels" :key="g.id" class="shop-group">
+      <h3>{{ g.title }} <span class="hint">{{ g.models.length }} · {{ g.hint }}</span></h3>
+      <div class="shop-grid">
+        <div v-for="m in g.models" :key="m.id" class="card shop-card" :class="{current: m.id === form.model}">
+          <div class="shop-top">
+            <i class="led" :class="isInstalled(m) ? 'green on' : m.enough_ram ? 'on' : 'red on'"></i>
+            <span class="chip static">{{ familyName(m.family) }}</span>
+            <span v-if="m.flavor" class="chip static">{{ flavorName(m.flavor) }}</span>
+            <span v-if="m.engine === 'mlx'" class="chip static">⚡ fast engine</span>
+            <span v-if="m.id === form.model" class="chip static">in use</span>
+            <span v-if="m.id === opts.default_model" class="chip static on">default</span>
+            <span class="marks card-marks">
+              <span class="fav-star" :class="{on: isFav(m)}" role="button" @click="toggleFav(m)"
+                    :title="isFav(m) ? '★ Favourite · click to remove' : 'Click to add to your favourites (listed first in Create)'">★</span><i
+                 class="people-dot" :class="{on: m.people}" role="button" @click="markPeople('model', m)"
+                 :title="m.people ? 'Tagged People (made of real people) · click to untag' : 'Click to tag as People (hidden when Hide People is on)'"></i><span
+                 class="nsfw-flag" :class="{on: m.nsfw}" role="button" @click="markItem('model', m)"
+                 :title="m.nsfw ? 'NSFW · click to mark it safe' : 'Click to mark as NSFW (hidden when Hide NSFW is on)'">⚑</span></span>
+          </div>
+          <div class="shop-name">{{ m.label }}</div>
+          <div class="hint">{{ modelSizeText(m) }}<template v-if="!isInstalled(m) && m.min_ram_gb"> · needs {{ m.min_ram_gb }} GB RAM</template><template v-if="m.quant"> · {{ m.quant }}</template></div>
+          <div v-if="downloadJob(m)" class="shop-dl">
+            <div class="bar"><div :style="{width: (jobProgress(downloadJob(m)) ?? 0) + '%'}"></div></div>
+            <span class="hint">{{ downloadJob(m).state === 'running' ? 'Downloading · ' + etaText(downloadJob(m)) : 'Waiting in the queue' }}</span>
+            <button class="ghost" @click="downloadJob(m).state === 'running' ? forceStop() : cancelJob(downloadJob(m).id)"
+                    title="Stop the download. Files already downloaded are kept, so it doesn't start from zero next time.">Stop</button>
+          </div>
+          <div v-else class="row">
+            <template v-if="isInstalled(m)">
+              <button class="primary" @click="useModel(m)">Use in Create</button>
+              <button class="ghost" :class="{on: m.id === opts.default_model}" @click="setDefaultModel(m)"
+                      :title="m.id === opts.default_model ? 'Click to stop using it as the default' : 'Create starts with this model every time the app opens (and gets it ready in the background)'">{{ m.id === opts.default_model ? '✓ Default' : 'Make default' }}</button>
+              <button :class="modelDel === m.id ? 'danger' : 'danger-outline'" @click="deleteModel(m)"
+                      :title="isOwnModel(m) ? 'Moves the file to the macOS Trash (you can put it back from there)' : 'Deletes the downloaded files from this Mac; it downloads again if you use it later'">
+                {{ modelDel === m.id ? (isOwnModel(m) ? 'Click again: move to Trash' : 'Click again to delete') : (isOwnModel(m) ? '🗑 Move to Trash' : '🗑 Delete') }}</button>
+            </template>
+            <template v-else>
+              <button :class="m.enough_ram ? 'primary' : ''" @click="downloadModel(m)"
+                      :title="'Download now (' + m.download_gb + ' GB) so it is ready offline' + (m.enough_ram ? '' : ', even though this Mac may not have enough memory to run it')">⤓ Download {{ m.download_gb < 10 ? Number(m.download_gb).toFixed(1).replace(/\.0$/, '') : Math.round(m.download_gb) }} GB</button>
+              <button class="ghost" @click="useModel(m)" :title="m.enough_ram ? 'Pick it now; it downloads the first time you press Generate' : 'Needs Settings → Load anyway to try on this Mac'">{{ m.enough_ram ? 'Use' : 'Try anyway' }}</button>
+            </template>
+          </div>
+        </div>
+      </div>
+    </section>
+    <div v-if="!shopModels.length" class="empty">No models match.</div>
+  </main>
+
+  <!-- ============================ TOOLS ============================ -->
+  <main v-if="tab==='tools'" class="tools">
+    <section class="tool-source">
+      <div class="tool-drop" :class="{over: tool.dragOver}" @dragover.prevent="tool.dragOver=true"
+           @dragleave="tool.dragOver=false" @drop.prevent="toolDrop" @click="$refs.toolPick.click()">
+        <div v-if="adj.open" class="adjust-canvas-wrap" :class="{splitting: adj.view === 'split'}" @click.stop @mousedown="adjSplitDrag">
+          <canvas ref="adjCanvas" class="adjust-canvas"></canvas>
+          <span class="adjust-badge">{{ adj.view === 'before' ? 'ORIGINAL' : adj.view === 'split' ? 'ORIGINAL  |  EDITED' : 'EDITED' }}</span>
+          <span v-if="adj.busy || adj.msg" class="adjust-badge busy">{{ adj.msg || 'Working…' }}</span>
+        </div>
+        <img v-else-if="tool.source" :src="fileUrl(tool.source.path)" @load="onToolImgLoad">
+        <div v-else class="tool-empty">Drop any image here<br><span class="hint">or click to choose a file · or use “Enhance” on a library image</span></div>
+      </div>
+      <input ref="toolPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="toolPicked">
+      <div v-if="adj.open" class="adjust-viewbar">
+        <span class="hint">View</span>
+        <div class="seg">
+          <button :class="{on: adj.view === 'after'}" @click="adjSetView('after')" title="The picture with your adjustments (\ flips)">Edited</button>
+          <button :class="{on: adj.view === 'before'}" @click="adjSetView('before')" title="The picture as it was, without the adjustments (\ flips)">Original</button>
+          <button :class="{on: adj.view === 'split'}" @click="adjSetView('split')" title="Original on the left, edited on the right: drag on the picture to move the line">Split</button>
+        </div>
+        <span class="hint" v-if="adj.view === 'split'">drag on the picture to move the line</span>
+        <span class="hint" v-else>press \ to flip</span>
+        <span class="grow"></span>
+        <button class="ghost small" @click="closeAdjust" title="Leave Adjust without saving (the picture stays as it was)">✕ Close Adjust</button>
+      </div>
+      <p v-if="tool.source" class="hint">Original · {{ tool.source.label }} · {{ tool.source.width }}×{{ tool.source.height }}
+        <button class="link" @click="closeAdjust(); tool.source=null; tool.latest=null">clear</button>
+        · <button class="link" @click="editIn(tool.source.image_id != null ? {id: tool.source.image_id, path: tool.source.path} : {path: tool.source.path})">✏️ edit in {{ editorName() }}</button></p>
+      <div v-if="tool.source && !adj.open" class="row adjust-open-row">
+        <button class="adjust-big" @click="openAdjust(tool.source.image_id != null ? {id: tool.source.image_id, path: tool.source.path} : {path: tool.source.path})"
+                title="Lightroom-style light and colour sliders and Color Efex-style filters, with a live preview">🎚 Adjust the original</button>
+        <button class="adjust-big" @click="useAsStart(tool.source)" title="Open this picture in Image to image as the starting picture">🖼 Send to Image to image</button>
+      </div>
+
+      <div v-if="tool.working || tool.latest" class="tool-result">
+        <div v-if="tool.working" class="tool-working">
+          <div class="spinner"></div>
+          <div>
+            <div><b>{{ tool.working.label }}…</b></div>
+            <div class="hint">{{ toolJob ? (toolJob.state === 'running' ? etaText(toolJob) + ' · ' + formatDuration((now - tool.working.started) / 1000) + ' so far' : 'waiting in the queue · ' + etaText(toolJob)) : status }}</div>
+            <div class="bar"><div :style="{width: toolPct + '%'}"></div></div>
+          </div>
+          <button v-if="toolJob" class="ghost tool-stop pause-btn" :class="{on: paused}" @click="togglePause"
+                  :title="paused ? 'Carry on from exactly where it stopped' : 'Pause between tiles; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
+          <button v-if="toolJob" class="danger tool-stop" @click="cancelJob(toolJob.id)"
+                  :disabled="!!stopping[toolJob.id]">{{ stopping[toolJob.id] ? 'Stopping…' : '■ Stop' }}</button>
+        </div>
+        <template v-else-if="tool.latest">
+          <img :src="fileUrl(tool.latest.path)" @click="openDetail(tool.latest)" title="Open full size">
+          <p class="hint">{{ kindLabel(tool.latest.kind) }} · {{ tool.latest.width }}×{{ tool.latest.height }}
+            <template v-if="tool.latest.settings && tool.latest.settings.seconds"> · took {{ formatDuration(tool.latest.settings.seconds) }}</template>
+            · <button class="link" @click="showInFolder(tool.latest.path)">Show in Finder</button>
+            · <button class="link" @click="editIn(tool.latest)">✏️ edit in {{ editorName() }}</button></p>
+          <div v-if="tool.latest.kind !== 'depth'" class="row tool-next">
+            <button v-if="!adj.open" @click="openAdjust(tool.latest)">🎚 Adjust the result</button>
+            <button @click="useAsStart(tool.latest)" title="Open this picture in Image to image as the starting picture">🖼 Send to Image to image</button>
+            <button class="ghost" @click="closeAdjust(); openInTools(tool.latest)" title="Make this the picture Tools works on (enhance it again, adjust it, …)">Use as the new original</button>
+          </div>
+          <div v-if="tool.latest.kind === 'depth'" class="row">
+            <button class="ghost" @click="depthToControlNet(tool.latest)">🖼 Use as a ControlNet depth map in Image to image</button>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <section class="tool-actions">
+      <div v-if="adj.open" id="adjust-card" class="card adjust-card">
+        <h3>🎚 Adjust <span class="hint">light, colour &amp; filters · live preview on the left · saved as a copy</span></h3>
+        <div v-if="adj.error" class="error-box">{{ adj.error }}</div>
+        <template v-if="adj.p">
+          <div class="chips adjust-looks"><span class="hint">Looks:</span>
+            <button v-for="l in ProtoLooks" :key="l.id" class="ghost small" :class="{on: adjLookOn(l)}" @click="adjLook(l)" :title="l.tip">{{ l.label }}</button></div>
+          <div class="chips adjust-looks"><span class="hint">My presets:</span>
+            <span v-for="pr in adjPresets" :key="pr.name" class="adj-preset">
+              <button class="ghost small" :class="{on: adjPresetOn(pr)}" @click="adjApplyPreset(pr)" :title="'Apply ' + pr.name">{{ pr.name }}</button><button
+                class="ghost small adj-preset-x" @click="adjDeletePreset(pr)" :title="'Delete the preset ' + pr.name">✕</button></span>
+            <span v-if="!adjPresets.length && !adj.savingPreset" class="hint">none yet</span>
+            <template v-if="adj.savingPreset">
+              <input ref="adjPresetInput" v-model="adj.presetName" class="adj-preset-name" placeholder="Name this preset…" maxlength="60"
+                     @keydown.enter="adjSavePreset" @keydown.esc="adj.savingPreset = false">
+              <button class="ghost small" :disabled="!adj.presetName.trim()" @click="adjSavePreset">Save</button>
+              <button class="link small" @click="adj.savingPreset = false">cancel</button>
+            </template>
+            <button v-else class="ghost small" :disabled="!adjChanged()" @click="adj.savingPreset = true; $nextTick(() => $refs.adjPresetInput && $refs.adjPresetInput.focus())"
+                    title="Save the current sliders and filters as a preset you can use on any picture">＋ Save as preset</button>
+          </div>
+          <div class="adjust-cols">
+            <div>
+              <details v-for="sec in adjSections" :key="sec.id" class="fold adjust-sec" :open="!adj.fold[sec.id]"
+                       @toggle="adj.fold[sec.id] = !$event.target.open">
+                <summary>{{ sec.label }} <span v-if="adjSectionOn(sec)" class="led green on" title="changed"></span>
+                  <button v-if="adjSectionOn(sec)" class="link small" @click.prevent="adjResetSection(sec)">reset</button></summary>
+                <div v-for="sl in sec.sliders" :key="sl.k" class="adj-row" :title="sl.tip">
+                  <label>{{ sl.label }}</label>
+                  <input type="range" v-bind="adjSlider(sl)" v-model.number="adj.p[sl.k]" @dblclick="adj.p[sl.k] = adjDefault(sl.k)">
+                  <span class="adj-val">{{ adjValue(sl.k) }}</span>
+                </div>
+              </details>
+            </div>
+            <div>
+              <div class="adjust-sub">Filters <span class="hint">· applied top to bottom</span></div>
+              <div v-for="(id, i) in adj.p.order" :key="id" class="adj-filter" :class="{on: adj.p[adjFilters[id].on]}">
+                <div class="adj-filter-head" :title="adjFilters[id].tip">
+                  <button class="ghost adj-fbtn" :class="{on: adj.p[adjFilters[id].on]}" @click="adjToggleFilter(id)">{{ adjFilters[id].label }}</button>
+                  <button v-if="adj.p[adjFilters[id].on]" class="link small" @click="adj.openFilter = adj.openFilter === id ? '' : id">{{ adj.openFilter === id ? 'hide' : 'settings' }}</button>
+                  <span class="grow"></span>
+                  <button class="ghost tiny" :disabled="i === 0" @click="adjMove(id, -1)" title="Earlier in the stack">▲</button>
+                  <button class="ghost tiny" :disabled="i === adj.p.order.length - 1" @click="adjMove(id, 1)" title="Later in the stack">▼</button>
+                </div>
+                <div v-if="adj.openFilter === id && adj.p[adjFilters[id].on]" class="adj-filter-body">
+                  <div class="hint">{{ adjFilters[id].tip }}</div>
+                  <div v-for="sl in adjFilters[id].sliders" :key="sl.k" class="adj-row">
+                    <label>{{ sl.label }}</label>
+                    <input type="range" v-bind="adjSlider(sl)" v-model.number="adj.p[sl.k]" @dblclick="adj.p[sl.k] = adjDefault(sl.k)">
+                    <span class="adj-val">{{ adjValue(sl.k) }}</span>
+                  </div>
+                  <div v-if="adjFilters[id].seg" class="adj-row"><label>{{ adjFilters[id].seg.label }}</label>
+                    <div class="seg"><button v-for="o in adjFilters[id].seg.options" :key="o[0]" :class="{on: adj.p[adjFilters[id].seg.k] === o[0]}"
+                                             @click="adj.p[adjFilters[id].seg.k] = o[0]">{{ o[1] }}</button></div></div>
+                  <div v-if="adjFilters[id].toggle" class="adj-row"><label>Grain</label>
+                    <div class="seg"><button :class="{on: !adj.p[adjFilters[id].toggle.k]}" @click="adj.p[adjFilters[id].toggle.k] = false">{{ adjFilters[id].toggle.off }}</button>
+                      <button :class="{on: adj.p[adjFilters[id].toggle.k]}" @click="adj.p[adjFilters[id].toggle.k] = true">{{ adjFilters[id].toggle.on }}</button></div></div>
+                  <button class="link small" @click="adjResetFilter(id)">reset this filter</button>
+                </div>
+              </div>
+              <p class="hint">Click a filter to switch it on (amber) and open its settings; click again to switch it off. Double-click a slider to reset it.
+                Compare with <b>Edited / Original / Split</b> under the picture.</p>
+            </div>
+          </div>
+        </template>
+        <details class="fold adjust-batch" v-if="adj.p">
+          <summary>Several versions at once <span class="hint">· presets in a queue, with or without enhancing</span></summary>
+          <div class="adjust-batch-body">
+            <div class="chips"><span class="hint">Make one picture with each:</span>
+              <button class="ghost small" :class="{on: adj.batch.includes('current')}" :disabled="!adjChanged()" @click="adjBatchToggle('current')"
+                      title="The sliders and filters as they are now">Current settings</button>
+              <button v-for="pr in adjPresets" :key="pr.name" class="ghost small" :class="{on: adj.batch.includes(pr.name)}" @click="adjBatchToggle(pr.name)">{{ pr.name }}</button>
+              <span v-if="!adjPresets.length" class="hint">(save presets above to list them here)</span>
+            </div>
+            <div class="chips">
+              <label class="check"><input type="checkbox" v-model="adj.batchEnhance"> ✨ Enhance &amp; upscale too</label>
+              <template v-if="adj.batchEnhance">
+                <div class="seg">
+                  <button :class="{on: adj.batchOrder === 'enhance_first'}" @click="adj.batchOrder = 'enhance_first'"
+                          title="The AI enhances the picture once, then each version's filters go on top (quickest: one enhance for all versions)">Enhance first, then filters</button>
+                  <button :class="{on: adj.batchOrder === 'filters_first'}" @click="adj.batchOrder = 'filters_first'"
+                          title="Each version's filters first, then the AI enhances each filtered picture (one enhance per version, all in the queue)">Filters first, then enhance each</button>
+                </div>
+              </template>
+            </div>
+            <div class="row">
+              <button class="primary" :disabled="adj.busy || !adjBatchItems().length" @click="adjBatch">
+                Make {{ adjBatchItems().length }} version{{ adjBatchItems().length === 1 ? '' : 's' }}</button>
+              <span class="hint" v-if="adj.batchEnhance">uses the Enhance &amp; upscale settings below ·
+                {{ adj.batchOrder === 'enhance_first' ? '1 enhance in the queue' : adjBatchItems().length + ' enhances in the queue' }}</span>
+              <span class="hint" v-else>adjusting takes seconds per version</span>
+            </div>
+          </div>
+        </details>
+        <div class="row">
+          <button class="primary" @click="adjSave(false)" :disabled="adj.busy || !adjChanged()"
+                  title="Saves a new adjusted picture in the Library, linked to this one (the original stays as it is)">Save as new picture</button>
+          <button class="primary" @click="adjSave(true)" :disabled="adj.busy || !adjChanged()"
+                  title="Saves the adjusted picture, then runs Enhance &amp; upscale on it (with the settings in the Enhance card below), in the queue">Save &amp; enhance ✨</button>
+          <button class="ghost" @click="adjSave('i2i')" :disabled="adj.busy || !adjChanged()"
+                  title="Saves the adjusted picture and opens it in Image to image as the starting picture">Save &amp; send to Image to image 🖼</button>
+          <button class="ghost" @click="adjResetAll" :disabled="!adjChanged()">Reset all</button>
+          <button class="ghost" @click="adjUseLast" v-if="adjHasLast()" title="The settings you last saved with Adjust">Last used</button>
+          <button class="ghost" @click="closeAdjust">✕ Close Adjust</button>
+          <span class="hint" v-if="adj.size">{{ adj.size[0] }}×{{ adj.size[1] }}</span>
+        </div>
+      </div>
+      <div class="card run-card">
+        <h3>▶ Run on this image</h3>
+        <div class="row">
+          <label class="check"><input type="checkbox" v-model="post.do_enhance"> ✨ Enhance &amp; upscale (grain refining)</label>
+          <label class="check"><input type="checkbox" v-model="post.do_faces"> 🙂 Restore faces</label>
+        </div>
+        <div class="row">
+          <button class="primary" :disabled="!tool.source || (!post.do_enhance && !post.do_faces)" @click="toolRunSelected">
+            {{ post.do_enhance && post.do_faces ? 'Enhance, then restore faces' : post.do_enhance ? 'Enhance' : post.do_faces ? 'Restore faces' : 'Pick at least one' }}</button>
+          <span class="hint">Settings for each are below. Both together save one finished image.</span>
+        </div>
+      </div>
+      <div class="card tool-opt" :class="{active: post.do_enhance}" @click="post.do_enhance = true"
+           :title="post.do_enhance ? '' : 'Click to use Enhance & upscale'">
+        <h3>✨ Enhance &amp; upscale <span class="hint">Finegrain Image Enhancer · ~3.5 GB first time</span></h3>
+        <div class="grid2">
+          <div><label>Upscale</label>
+            <select v-model.number="post.enh.upscale_factor"><option :value="1">1× (refine only)</option><option :value="2">2×</option><option :value="3">3×</option><option :value="4">4×</option></select></div>
+          <div><label>Steps</label><input type="number" min="4" max="50" v-model.number="post.enh.num_inference_steps"></div>
+          <div class="span2 chips enh-presets"><span class="hint">Speed:</span>
+            <button v-for="p in enhSpeed" :key="p.label" class="chip" :class="{on: enhSpeedOn(p)}"
+                    @click="pickEnhSpeed(p)" :title="p.tip">{{ p.label }}</button></div>
+          <div class="span2 chips enh-presets"><span class="hint">Work at:</span>
+            <button v-for="w in [{id: 'auto', label: 'Auto'}, {id: 512, label: '512 px'}, {id: 768, label: '768 px'}]" :key="w.id" class="chip"
+                    :class="{on: String(post.enh.work_size || 'auto') === String(w.id)}" @click="post.enh.work_size = w.id"
+                    :title="w.id === 'auto' ? 'Picks 512 px for Instant / Turbo / Fast on Macs with less than 16 GB, otherwise 768 px' : w.id === 512 ? 'Quicker and lighter on memory: less than half the work. The result is smaller (512 px short side × the upscale factor)' : 'The enhancer\'s own size: bigger result, more than twice the work'">{{ w.label }}</button>
+            <span class="hint">short side the picture is worked at · now {{ enhWorkSide() }} px</span></div>
+          <div class="span2 chips enh-presets"><span class="hint">Look:</span>
+            <button v-for="p in enhPresets" :key="p.label" class="chip"
+                    :class="{on: post.enh.denoise_strength===p.c && post.enh.controlnet_scale===p.r}"
+                    @click="post.enh.denoise_strength=p.c; post.enh.controlnet_scale=p.r" :title="p.tip">{{ p.label }}</button></div>
+          <div><label>Creativity <span class="hint">{{ post.enh.denoise_strength }}</span></label>
+            <input type="range" min="0.1" max="0.8" step="0.05" v-model.number="post.enh.denoise_strength">
+            <div class="hint slider-help">How much new detail it may invent. Low = cleaner, faithful; high = more texture and changes.</div></div>
+          <div><label>Resemblance <span class="hint">{{ post.enh.controlnet_scale }}</span></label>
+            <input type="range" min="0.2" max="1.5" step="0.05" v-model.number="post.enh.controlnet_scale">
+            <div class="hint slider-help">How tightly it sticks to the original's shapes and faces. High = stays true; low = freer.</div></div>
+          <div><label>Solver</label>
+            <select v-model="post.enh.solver"><option>DDIM</option><option>DPMSolver</option><option>Euler</option></select></div>
+          <div><label>Seed <span class="hint">-1 = random</span></label><input type="number" v-model.number="post.enh.seed"></div>
+          <div class="span2"><label>Prompt <span class="hint">blank = use the image's own prompt</span></label>
+            <input v-model="post.enh.prompt" placeholder="masterpiece, best quality, highres, …"></div>
+        </div>
+        <div class="row">
+          <button class="primary" :disabled="!tool.source" @click="toolEnhance">Enhance</button>
+          <span class="hint" v-if="tool.source && tool.source.width">→ {{ enhOutSize(tool.source.width, tool.source.height, post.enh.upscale_factor).join('×') }}
+            <template v-if="post.enh.instant"> · ⏩ Instant (sharpen only)</template><template v-else-if="post.enh.turbo"> · 🚀 Turbo</template></span>
+        </div>
+      </div>
+
+      <div class="card tool-opt" :class="{active: post.do_faces}" @click="post.do_faces = true"
+           :title="post.do_faces ? '' : 'Click to use Restore faces'">
+        <h3>🙂 Restore faces <span class="hint">RestoreFormer</span></h3>
+        <div class="row">
+          <span class="hint">strength</span>
+          <input type="range" min="0.1" max="1" step="0.05" v-model.number="post.face_strength">
+          <span class="hint">{{ post.face_strength.toFixed(2) }}</span>
+          <button :disabled="!tool.source" @click="toolRestore">Restore faces</button>
+        </div>
+      </div>
+
+      <div class="card depth-card">
+        <h3>🌊 Depth map <span class="hint">Depth Anything V2 · runs on this Mac</span></h3>
+        <p class="hint">Works out how far away everything in the picture is: near things bright, far things dark. Use it as a
+          ControlNet depth map in Image to image (keeps the 3-D layout while changing everything else), or for editing and 3-D work.</p>
+        <label>Model</label>
+        <div class="seg">
+          <button v-for="d in depthModels" :key="d.id" :class="{on: post.depth.model === d.id}" @click="post.depth.model = d.id"
+                  :title="d.tip">{{ d.label }} <small>{{ d.size }}</small></button>
+        </div>
+        <div class="hint slider-help">{{ depthModelInfo(post.depth.model).tip }}</div>
+        <label>Look</label>
+        <div class="seg">
+          <button :class="{on: post.depth.style === 'gray'}" @click="post.depth.style = 'gray'" title="Black and white: what ControlNet and most apps expect">Grey</button>
+          <button :class="{on: post.depth.style === 'color'}" @click="post.depth.style = 'color'" title="Heat colours: easier to read by eye (not for ControlNet)">Colour</button>
+        </div>
+        <div class="row">
+          <button class="primary" :disabled="!tool.source" @click="toolDepth">Make depth map</button>
+          <span class="hint">Saved to the Library, linked to the original</span>
+        </div>
+      </div>
+
+      <div class="card convert-card">
+        <h3>🔁 Convert DiffusionBee files <span class="hint">.tdict → .safetensors</span></h3>
+        <p class="hint">Makes standard <code>.safetensors</code> copies of your DiffusionBee models, LoRAs and embeddings, so they work in
+          other apps too (A1111, ComfyUI, Draw Things…). Your DiffusionBee files are left as they are. Works offline.</p>
+        <div class="row" v-if="!conv.items">
+          <button @click="loadConvertList">Show my DiffusionBee files</button>
+        </div>
+        <template v-else>
+          <div class="row">
+            <input v-model="conv.search" placeholder="Search…" style="flex:1">
+            <select v-model="conv.kind" style="max-width:150px">
+              <option value="">All types</option><option value="lora">LoRAs</option><option value="checkpoint">Models</option>
+              <option value="embedding">Embeddings</option><option value="controlnet">ControlNets</option>
+            </select>
+          </div>
+          <div class="row small">
+            <button class="link" @click="convSelectShown(true)">select all shown ({{ convShown.length }})</button>
+            <button class="link" @click="convSelectShown(false)">clear</button>
+            <span class="hint">{{ conv.selected.length }} selected · {{ convSelectedSize }} · {{ conv.free_gb }} GB free</span>
+          </div>
+          <div class="conv-list">
+            <label v-for="it in convShown.slice(0, 300)" :key="it.file" class="check conv-item">
+              <input type="checkbox" :value="it.file" v-model="conv.selected">
+              <span>{{ it.name }}</span>
+              <span class="hint">{{ convKindLabel(it.kind) }}{{ it.family && it.family !== 'unknown' ? ' · ' + familyName(it.family) : '' }} · {{ it.size_mb }} MB</span>
+            </label>
+            <div v-if="convShown.length > 300" class="hint">…and {{ convShown.length - 300 }} more; search to narrow down</div>
+            <div v-if="!convShown.length" class="hint">Nothing matches.</div>
+          </div>
+          <label class="check"><input type="checkbox" v-model="conv.loras_to_lora_folder"> Put converted LoRAs in my LoRA folder (they replace the .tdict ones in the list)</label>
+          <div class="row">
+            <span class="hint">Other files go to</span>
+            <button class="link" @click="openFolder(conv.out_dir)">{{ conv.out_dir }}</button>
+            <button class="link" @click="convPickOut">change…</button>
+          </div>
+          <div class="row">
+            <button class="primary" :disabled="!conv.selected.length" @click="runConvert">Convert {{ conv.selected.length || '' }} file{{ conv.selected.length === 1 ? '' : 's' }}</button>
+            <button v-if="convJob" class="danger" @click="cancelJob(convJob.id)">■ Stop</button>
+            <span v-if="convJob" class="hint">{{ convJob.state === 'running' ? status : 'waiting in the queue' }}</span>
+          </div>
+          <div v-if="conv.result" class="hint">
+            ✅ Converted {{ conv.result.converted.length }} file{{ conv.result.converted.length === 1 ? '' : 's' }}.
+            <button class="link" @click="openFolder(conv.result.out_dir)">Open the folder</button>
+            <div v-for="e in conv.result.errors" :key="e" class="warn">⚠ {{ e }}</div>
+          </div>
+        </template>
+      </div>
+
+      <div class="card">
+        <h3>📝 Image → prompt</h3>
+        <div class="row">
+          <button :disabled="!tool.source" @click="toolToPrompt('describe')">Describe (Florence-2)</button>
+          <button :disabled="!tool.source" @click="toolToPrompt('tags')">Danbooru tags</button>
+        </div>
+        <p class="hint">Puts the result in the Create tab's prompt box.</p>
+      </div>
+
+
+      <div v-if="busy" class="hint">{{ status }}{{ queue.length > 1 ? ' · ' + queue.length + ' jobs in queue' : '' }}</div>
+      <div v-if="error" class="error-box">{{ error }}</div>
+
+      <div v-if="tool.results.length">
+        <h3>Results</h3>
+        <div class="gallery">
+          <figure v-for="r in tool.results" :key="r.id" @click="openDetail(r)" :class="{covered: covered(r)}">
+            <img :src="thumbUrl(r)" loading="lazy" decoding="async"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
+            <span class="badge">{{ kindLabel(r.kind) }}</span>
+            <button class="star" :class="{on: r.starred}" @click.stop="toggleStar(r)" title="Star">★</button>
+          </figure>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============================ SETTINGS ============================ -->
+  <!-- ============================ IMAGE TO IMAGE ============================ -->
+  <main v-if="tab==='i2i'" class="i2i">
+    <section class="i2i-left">
+      <div class="card">
+        <h3>Steps &amp; guidance <span class="hint">{{ currentModel ? currentModel.label : '' }} · model is chosen at the top</span></h3>
+        <div class="grid2 i2i-model-opts">
+          <div class="span2 knob-row">
+            <rack-knob v-model.number="form.steps" :min="1" :max="150" :step="1" label="Steps"
+                       :default-value="recSteps ? recSteps[0] : (currentModel?.defaults?.steps ?? 25)"></rack-knob>
+            <rack-knob v-model.number="form.cfg" :min="0" :max="30" :step="0.5" label="Guidance" :default-value="currentModel?.defaults?.cfg ?? 7"></rack-knob>
+          </div>
+        </div>
+        <div v-if="clipSkipOk" class="clip-skip i2i-clip">
+          <span class="clip-label" title="CLIP skip: stop reading the prompt this many layers before the text encoder's last one. 1 = normal. 2 is what many anime-style SD 1.5 models and LoRAs were made with; it can make them follow the prompt in their intended style.">CLIP skip</span>
+          <div class="seg small-seg">
+            <button v-for="o in clipSkipOptions" :key="o.v" :class="{on: (form.clip_skip || 1) === o.v, rec: o.v === clipSkipRec}" @click="setClipSkip(o.v)"
+                    :title="o.title + (o.v === clipSkipRec ? ' · recommended for this model' : '')">{{ o.label }}<span v-if="o.v === clipSkipRec" class="rec-star">★</span></button>
+          </div>
+          <span class="hint">{{ clipSkipText }}</span>
+          <button v-if="clipSkipRec && (form.clip_skip || 1) !== clipSkipRec" class="link" @click="setClipSkip(clipSkipRec)">use recommended</button>
+        </div>
+        <div v-if="clipSkipOk && clipSkipHint" class="hint clip-hint">
+          LoRA “{{ clipSkipHint.name }}” was trained with CLIP skip {{ clipSkipHint.value }}
+          <button class="link" @click="form.clip_skip = clipSkipHint.value">use {{ clipSkipHint.value }}</button>
+        </div>
+        <div class="hint">{{ familyLabel }} · ControlNet needs SD 1.5. LoRAs and the sampler are set in Create<template v-if="form.loras.length"> ({{ form.loras.length }} active)</template>.</div>
+      </div>
+
+      <div class="card">
+        <h3>1 · Picture</h3>
+        <div v-if="!form.init_image" class="start-drop" :class="{over: startDragOver}"
+             @dragover.prevent="startDragOver=true" @dragleave="startDragOver=false" @drop.prevent="onStartDrop"
+             @click="$refs.startPick.click()">
+          Drop a picture here <span class="hint">(or click to choose · or “Send to Image to image” on any library picture)</span>
+        </div>
+        <div v-else-if="form.i2i_mode === 'inpaint'" class="i2i-src mask-editor">
+          <div class="mask-stage">
+            <img :src="fileUrl(form.init_image)" @load="initMaskCanvas" ref="maskImg" draggable="false">
+            <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove" @pointerup="maskUp" @pointerleave="maskUp"
+                    :style="{cursor: 'crosshair'}"></canvas>
+          </div>
+          <button class="link" @click="form.init_image = ''; controlMap = null">remove</button>
+        </div>
+        <div v-else class="i2i-src">
+          <img :src="fileUrl(form.init_image)" @load="onInitLoad">
+          <button class="link" @click="form.init_image = ''; controlMap = null">remove</button>
+        </div>
+        <input ref="startPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onStartPicked">
+        <div class="seg i2i-modes">
+          <button :class="{on: form.i2i_mode === 'change'}" @click="setI2iMode('change')" title="Change the whole picture, keep as much as you like">🔄 Change it</button>
+          <button :class="{on: form.i2i_mode === 'inpaint'}" @click="setI2iMode('inpaint')" title="Paint over a part and redraw only that part">🖌 Inpaint</button>
+          <button :class="{on: form.i2i_mode === 'outpaint'}" @click="setI2iMode('outpaint')" title="Make the picture bigger and fill in the new area">↔ Expand</button>
+        </div>
+        <template v-if="form.i2i_mode === 'change'">
+          <label class="check"><input type="checkbox" v-model="form.i2i_use_init"> Start from this picture (image-to-image)</label>
+          <template v-if="form.i2i_use_init">
+            <label>Change strength <span class="hint">{{ form.strength.toFixed(2) }} · low = keep more of the original</span></label>
+            <input type="range" min="0.05" max="1" step="0.05" v-model.number="form.strength">
+          </template>
+        </template>
+        <template v-else-if="form.i2i_mode === 'inpaint'">
+          <div class="hint">Paint over what you want to change, then describe what should be there in the prompt.</div>
+          <div class="mask-tools">
+            <div class="seg">
+              <button :class="{on: !mask.erase}" @click="mask.erase = false">🖌 Paint</button>
+              <button :class="{on: mask.erase}" @click="mask.erase = true">🧽 Erase</button>
+            </div>
+            <span class="hint">brush</span>
+            <input type="range" min="4" max="160" step="2" v-model.number="mask.size">
+            <span class="hint">{{ mask.size }}</span>
+            <button class="link" @click="maskInvert">invert</button>
+            <button class="link" @click="maskClear">clear</button>
+          </div>
+          <label>Change strength <span class="hint">{{ form.inpaint.strength.toFixed(2) }} · 0.7–0.9 replaces what's painted; 1.0 = start from scratch there</span></label>
+          <input type="range" min="0.3" max="1" step="0.05" v-model.number="form.inpaint.strength">
+          <label>Edge softness <span class="hint">{{ form.inpaint.blur }} px</span></label>
+          <input type="range" min="0" max="32" step="1" v-model.number="form.inpaint.blur">
+          <label class="check" title="Redraws just a box around the painted area at full resolution, then pastes it back: best for small things like hands, eyes or a logo">
+            <input type="checkbox" v-model="form.inpaint.only_masked"> Redraw only the painted area at full detail</label>
+        </template>
+        <template v-else>
+          <div class="hint">How much to add on each side (pixels of the original picture):</div>
+          <div class="out-grid">
+            <label>Left <input type="number" min="0" max="1024" step="32" v-model.number="form.outpaint.left"></label>
+            <label>Right <input type="number" min="0" max="1024" step="32" v-model.number="form.outpaint.right"></label>
+            <label>Top <input type="number" min="0" max="1024" step="32" v-model.number="form.outpaint.top"></label>
+            <label>Bottom <input type="number" min="0" max="1024" step="32" v-model.number="form.outpaint.bottom"></label>
+          </div>
+          <div class="chips">
+            <button class="chip" @click="outpaintPreset('all')">+ all sides</button>
+            <button class="chip" @click="outpaintPreset('wide')">make it wider</button>
+            <button class="chip" @click="outpaintPreset('tall')">make it taller</button>
+            <button class="chip" @click="outpaintPreset('none')">reset</button>
+          </div>
+          <div class="hint" v-if="outpaintSize">New size: {{ outpaintSize }}. Describe the whole scene in the prompt (what should appear around it).</div>
+        </template>
+        <label class="check"><input type="checkbox" v-model="form.use_init_size"> Use the picture's size (otherwise the size from Create)</label>
+      </div>
+
+      <div v-if="form.i2i_mode !== 'change'" class="card hint">2 · ControlNet is off while inpainting or expanding.</div>
+      <div v-else class="card">
+        <h3>2 · ControlNet <span class="hint">SD 1.5 · makes the result follow the picture's structure</span></h3>
+        <select v-model="form.control.type" @change="controlMap = null">
+          <option value="">None</option>
+          <option v-for="t in controlTypes" :key="t.id" :value="t.id">{{ t.label }}{{ t.diffusionbee ? ' · from DiffusionBee' : '' }}</option>
+        </select>
+        <template v-if="form.control.type">
+          <label>How closely to follow the map <span class="hint">{{ form.control.scale.toFixed(2) }}</span></label>
+          <input type="range" min="0" max="2" step="0.05" v-model.number="form.control.scale">
+          <div class="hint slider-help">0.5 = loose suggestion · 1.0 = follow it (normal) · 1.5+ = follow it very strictly</div>
+          <label>When it guides the picture</label>
+          <div class="chips">
+            <button v-for="p in controlTimings" :key="p.id" class="chip" :class="{on: form.control.start === p.start && form.control.end === p.end}"
+                    @click="form.control.start = p.start; form.control.end = p.end" :title="p.tip">{{ p.label }}</button>
+          </div>
+          <div class="hint slider-help">A picture is made in steps, rough shapes first and fine detail last.
+            {{ controlTimingText }}</div>
+          <details class="fine">
+            <summary class="hint">fine-tune ({{ Math.round(form.control.start*100) }}–{{ Math.round(form.control.end*100) }}% of the steps)</summary>
+            <label>Starts at <span class="hint">{{ Math.round(form.control.start*100) }}%</span></label>
+            <input type="range" min="0" max="1" step="0.05" v-model.number="form.control.start">
+            <label>Stops at <span class="hint">{{ Math.round(form.control.end*100) }}%</span></label>
+            <input type="range" min="0" max="1" step="0.05" v-model.number="form.control.end">
+          </details>
+          <label class="check"><input type="checkbox" v-model="form.control.already_map" @change="controlMap = null"> My picture is already a control map (edges, depth, sketch…)</label>
+          <div v-if="form.control.type === 'depth' && !form.control.already_map" class="depth-pick">
+            <label>Depth model <span class="hint">Depth Anything V2</span></label>
+            <div class="seg">
+              <button v-for="d in depthModels" :key="d.id" :class="{on: (form.control.depth_model || 'small') === d.id}"
+                      @click="form.control.depth_model = d.id; controlMap = null" :title="d.tip">{{ d.label }} <small>{{ d.size }}</small></button>
+            </div>
+            <div class="hint slider-help">{{ depthModelInfo(form.control.depth_model).tip }}</div>
+          </div>
+          <div class="row">
+            <button class="ghost" :disabled="!form.init_image" @click="previewControlMap">Preview the map</button>
+            <span class="hint">{{ controlTypeInfo ? 'Map: ' + controlTypeInfo.map : '' }}</span>
+          </div>
+          <img v-if="controlMap" :src="controlMap" class="control-map">
+          <div v-if="family !== 'sd15'" class="hint warn">ControlNet needs an SD 1.5 model: pick one in Create (your current model is {{ familyLabel }}).</div>
+        </template>
+      </div>
+
+      <div class="card">
+        <h3>3 · Prompt</h3>
+        <textarea class="tape" v-model="form.prompt" rows="3" placeholder="What the result should look like…"></textarea>
+        <label>Negative prompt</label>
+        <textarea class="tape tape-neg" v-model="form.negative_prompt" rows="2" placeholder="What to avoid…"></textarea>
+        <div class="hint">LoRAs, sampler, image prompt, face detailer and wildcards: <button class="link" @click="tab='create'">set in Create</button> (they apply here too)</div>
+      </div>
+
+      <div class="actions" :class="{busy}">
+        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ busy ? 'Add to queue' : 'Generate' }}</button>
+        <div v-if="busy" class="stop-group">
+          <button v-if="runningJob || queue.length" class="ghost pause-btn" :class="{on: paused}" @click="togglePause"
+                  :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
+          <button v-if="canSkipImage" class="ghost" @click="skipImage">⏭ Skip image</button>
+          <button v-if="runningJob" class="danger" @click="cancelJob(runningJob.id)">■ Stop</button>
+          <button v-if="queue.length > 1" class="ghost" @click="stopAll">Stop all ({{ queue.length }})</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="i2i-right">
+      <div v-if="error" class="error-box">{{ error }}</div>
+      <div class="card i2i-preview">
+        <div class="i2i-preview-head">
+          <h3>Preview</h3>
+          <span class="hint" v-if="i2iRunning">{{ progressText }}</span>
+          <span class="hint" v-else-if="busy">another job is running (see Create); this one waits its turn</span>
+          <span class="spacer"></span>
+          <label v-if="i2iLatest && form.init_image && !i2iRunning" class="check"><input type="checkbox" v-model="i2iCompare"> compare with the original</label>
+        </div>
+        <div v-if="i2iRunning" class="bar"><div :style="{width: progressPct + '%'}"></div></div>
+        <div class="i2i-stage" :class="{split: i2iCompare && i2iLatest && form.init_image && !i2iRunning}">
+          <template v-if="i2iRunning">
+            <figure v-if="opts.previews && livePreview && livePreview.job === runningJob.id">
+              <img :src="livePreview.src"><figcaption><span class="live-dot"></span> live preview</figcaption></figure>
+            <figure v-else class="waiting"><div class="spinner"></div><figcaption>{{ status }}</figcaption></figure>
+          </template>
+          <template v-else-if="i2iLatest">
+            <figure v-if="i2iCompare && form.init_image"><img :src="fileUrl(form.init_image)"><figcaption>original</figcaption></figure>
+            <figure @click="openDetail(i2iLatest)" :class="{covered: covered(i2iLatest)}"><img :src="fileUrl(i2iLatest.path)" title="Open full size"><span v-if="covered(i2iLatest)" class="nsfw-cover">NSFW · hidden</span>
+              <figcaption>result · {{ i2iLatest.width }}×{{ i2iLatest.height }}<template v-if="i2iLatest.settings && i2iLatest.settings.seconds"> · {{ formatDuration(i2iLatest.settings.seconds) }}</template></figcaption></figure>
+          </template>
+          <figure v-else-if="form.init_image"><img :src="fileUrl(form.init_image)"><figcaption>your picture · the result will appear here</figcaption></figure>
+          <figure v-else class="waiting"><figcaption>Add a picture on the left to start.</figcaption></figure>
+        </div>
+        <div v-if="i2iLatest && !i2iRunning" class="row">
+          <button class="ghost" @click="useAsStart(i2iLatest)">Use the result as the new picture</button>
+          <button class="ghost" @click="openAdjust(i2iLatest)">🎚 Adjust</button>
+          <button class="ghost" @click="editIn(i2iLatest)">✏️ Edit in {{ editorName() }}</button>
+          <button class="ghost" @click="showInFolder(i2iLatest.path)">Show in Finder</button>
+        </div>
+      </div>
+      <h3 v-if="i2iResults.length > 1" class="sub">Earlier results</h3>
+      <div class="gallery">
+        <figure v-for="r in i2iResults.slice(1)" :key="r.id" @click="openDetail(r)" :class="{covered: covered(r)}">
+          <img :src="thumbUrl(r)" loading="lazy" decoding="async"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
+          <span v-if="r.settings && r.settings.control" class="badge">{{ r.settings.control.type }}</span>
+          <button class="star" :class="{on: r.starred}" @click.stop="toggleStar(r)" title="Star">★</button>
+          <button v-if="r.prompt" class="to-i2i" @click.stop="reusePrompt(r)" title="Put this picture's prompt back in the prompt box (keeps your current model and settings)">↺ Prompt</button>
+          <button v-if="r.prompt" class="to-i2i to-tools" @click.stop="reuse(r)" title="Load everything that made this picture: prompt, model, LoRAs, size, steps, sampler and seed">⚙ All settings</button>
+        </figure>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============================ TRAIN ============================ -->
+  <main v-if="tab==='train'" class="train">
+    <section class="train-left">
+      <div class="card train-mode">
+        <h3>What do you want to make?</h3>
+        <div class="seg">
+          <button :class="{on: train.mode === 'lora'}" @click="setTrainMode('lora')" title="Teach a model a character, object or style: a LoRA you add in Create">🎓 LoRA</button>
+          <button :class="{on: train.mode === 'embedding'}" @click="setTrainMode('embedding')" title="Teach a model one new word (textual inversion): a tiny file you use by typing its name">🔤 Embedding</button>
+          <button :class="{on: train.mode === 'merge'}" @click="setTrainMode('merge')" title="Combine LoRAs made for the same model type into one new LoRA">🧬 Merge LoRAs</button>
+        </div>
+        <div class="hint">{{ train.mode === 'lora' ? 'A LoRA learns a lot (a face, an outfit, a style) and is added in Create under LoRAs.'
+          : train.mode === 'embedding' ? 'An embedding learns one new word from your pictures. Tiny file (a few KB), used by typing its name in any prompt. SD 1.5 models for now.'
+          : 'Two or more LoRAs for the same model type become one new LoRA. Your originals are never changed.' }}</div>
+      </div>
+
+      <template v-if="train.mode !== 'merge'">
+      <div class="card">
+        <h3>1 · Base model</h3>
+        <select v-model="train.model" @change="onTrainModelChange">
+          <optgroup v-for="g in trainModelGroups" :key="g.name" :label="g.name">
+            <option v-for="m in g.models" :key="m.id" :value="m.id" :disabled="!!trainBlock(m)">
+              {{ m.label }}{{ m.flavor ? ' · ' + flavorName(m.flavor) : '' }}{{ m.id === 'sdxl_base_fp16' && !m.cached ? ' · ' + m.download_gb + ' GB download' : '' }}{{ trainBlock(m) ? ' — ' + trainBlock(m) : '' }}</option>
+          </optgroup>
+        </select>
+        <div class="hint">{{ trainModelNote }}</div>
+      </div>
+
+      <div class="card">
+        <h3>2 · Training images</h3>
+        <template v-if="train.mode === 'lora'">
+        <label>What are you teaching it?</label>
+        <div class="seg train-kind">
+          <button v-for="k in trainKinds" :key="k.id" :class="{on: train.kind === k.id}" @click="train.kind = k.id" :title="k.tip">{{ k.label }}</button>
+        </div>
+        <div class="hint">The picture guide on the right changes with your choice and the base model.</div>
+        </template>
+        <div class="row">
+          <button @click="trainPickFolder">{{ train.folder ? 'Change folder…' : 'Choose a folder of images…' }}</button>
+          <button v-if="train.folder" class="link" @click="openFolder(train.folder)">open</button>
+        </div>
+        <div v-if="train.folder" class="hint">{{ train.folder }}</div>
+        <template v-if="train.items.length">
+          <div class="hint">{{ train.items.length }} images · {{ trainCaptioned }} with captions
+            <span v-if="train.items.length < 10"> · 10–30 images usually work best</span></div>
+          <div class="row">
+            <select v-model="train.capMode" style="max-width:190px">
+              <option value="tags">Danbooru tags (anime/illustration)</option>
+              <option value="describe">Sentences (photos/realistic)</option>
+            </select>
+            <button @click="trainAutoCaption(false)" :disabled="trainCaptioned === train.items.length">Caption the missing ones</button>
+            <button class="ghost" @click="trainAutoCaption(true)">Redo all</button>
+          </div>
+        </template>
+        <div v-else-if="train.folder" class="hint">No images (PNG/JPG/WebP) in that folder.</div>
+        <div v-if="train.mode === 'embedding' && train.items.length" class="hint">Captions aren't used for embeddings: the new word learns what all the pictures share.</div>
+      </div>
+      </template>
+
+      <template v-if="train.mode === 'embedding'">
+      <div class="card">
+        <h3>3 · Embedding</h3>
+        <div class="grid2">
+          <div><label>Name <span class="hint">the word you'll type</span></label><input v-model="train.emb.name" placeholder="e.g. my_cat or inkstyle"></div>
+          <div><label>Starting word <span class="hint">what it's close to</span></label><input v-model="train.emb.init" :placeholder="train.emb.kind === 'style' ? 'e.g. painting' : 'e.g. cat'"></div>
+          <div class="span2"><label>What is it?</label>
+            <div class="seg">
+              <button :class="{on: train.emb.kind === 'object'}" @click="train.emb.kind = 'object'" title="A character, person, animal or thing">Subject (character, object)</button>
+              <button :class="{on: train.emb.kind === 'style'}" @click="train.emb.kind = 'style'" title="How pictures look: an art style, colours, mood">Style</button>
+            </div></div>
+          <div><label>Vectors <span class="hint">detail capacity</span></label>
+            <select v-model.number="train.emb.vectors"><option :value="1">1 (simple idea)</option><option :value="2">2 (standard)</option><option :value="4">4 (more detail)</option><option :value="8">8 (styles, most detail)</option></select></div>
+          <div><label>Steps</label>
+            <select v-model.number="train.emb.steps"><option :value="500">500 (quick test)</option><option :value="1000">1000</option><option :value="1500">1500 (standard)</option><option :value="3000">3000 (thorough)</option></select></div>
+          <div><label>Save a checkpoint every</label>
+            <select v-model.number="train.emb.save_every"><option :value="0">only at the end</option><option :value="250">250 steps</option><option :value="500">500 steps</option></select></div>
+        </div>
+        <label class="check"><input type="checkbox" v-model="train.flip"> Mirror pictures too (skip for text or one-sided subjects)</label>
+      </div>
+      <div class="train-go">
+        <button class="primary" :disabled="!embReady" @click="startEmbeddingTraining">Start training</button>
+        <span class="hint">{{ embEstimate }}</span>
+      </div>
+      <div v-if="embProblem" class="hint warn">{{ embProblem }}</div>
+      </template>
+
+      <template v-if="train.mode === 'merge'">
+      <div class="card merge-card">
+        <h3>1 · LoRAs to merge</h3>
+        <label>Model type</label>
+        <div class="seg">
+          <button v-for="f in mergeFamilies" :key="f.id" :class="{on: mergeFamily === f.id}" @click="mergeSetFamily(f.id)">{{ f.label }} <small>{{ f.count }}</small></button>
+        </div>
+        <div class="hint">Only LoRAs made for the same model type can be merged; the list shows only those.</div>
+        <div v-for="(it, i) in merge.items" :key="it.name" class="merge-row">
+          <span class="merge-name" :title="it.name">{{ it.name }}</span>
+          <input type="range" min="-1" max="2" step="0.05" v-model.number="it.weight">
+          <input type="number" min="-2" max="3" step="0.05" v-model.number="it.weight" class="merge-w">
+          <button class="ghost small" @click="mergeRemove(i)" title="Take it out">✕</button>
+        </div>
+        <input v-model="merge.q" :placeholder="'+ add a LoRA… (search ' + mergeChoices.length + (mergeChoices.length >= 60 ? '+' : '') + ')'">
+        <div class="lora-list merge-list">
+          <button v-for="l in mergeChoices" :key="l.name" class="lora-item" @click="mergeAdd(l)">
+            <span class="l-name" :title="l.name">{{ l.name }}</span><span class="marks"></span><span class="hint">{{ l.size_mb }} MB</span>
+          </button>
+          <div v-if="!mergeChoices.length" class="hint m-empty">No more {{ (mergeFamilies.find(f => f.id === mergeFamily) || {}).label || '' }} LoRAs to add.</div>
+        </div>
+        <div v-if="mergeOtherCount" class="hint">{{ mergeOtherCount }} DiffusionBee LoRA file{{ mergeOtherCount === 1 ? '' : 's' }} (.tdict) can't be merged: convert them first (Tools → Convert DiffusionBee files).</div>
+      </div>
+      <div class="card">
+        <h3>2 · New LoRA</h3>
+        <div class="grid2">
+          <div class="span2"><label>Name</label><input v-model="merge.name" placeholder="e.g. ink_cats_mix"></div>
+          <div class="span2"><label>Size</label>
+            <div class="seg">
+              <button :class="{on: merge.mode === 'exact'}" @click="merge.mode = 'exact'" title="Stacks the LoRAs: exactly the same result as using them together at these weights">Exact (bigger file)</button>
+              <button :class="{on: merge.mode === 'smaller'}" @click="merge.mode = 'smaller'" title="Squeezes the combination down to the rank you pick: a close match in a much smaller file">Smaller</button>
+            </div></div>
+          <div v-if="merge.mode === 'smaller'"><label>Rank <span class="hint">detail kept</span></label>
+            <select v-model.number="merge.rank"><option :value="16">16</option><option :value="32">32 (standard)</option><option :value="64">64</option><option :value="128">128 (closest)</option></select></div>
+        </div>
+        <p class="hint">Weights work like the LoRA sliders in Create: 1 = full strength, 0.5 = half, below 0 pushes away from it.
+          <b>Exact</b> keeps every detail, so the file is about the size of the LoRAs added together; <b>Smaller</b> is a close match at a fraction of the size.</p>
+      </div>
+      <div class="train-go">
+        <button class="primary" :disabled="!mergeReady" @click="startMerge">🧬 Merge</button>
+        <span class="hint">{{ merge.items.length < 2 ? 'Add at least two LoRAs' : 'Takes a few seconds (Smaller: up to a minute)' }}</span>
+      </div>
+      <div v-if="mergeProblem" class="hint warn">{{ mergeProblem }}</div>
+      </template>
+
+      <template v-if="train.mode === 'lora'">
+      <div class="card">
+        <h3>3 · LoRA</h3>
+        <div class="grid2">
+          <div><label>Name</label><input v-model="train.name" placeholder="my_style"></div>
+          <div><label>Trigger word <span class="hint">added to every caption</span></label>
+            <input v-model="train.trigger" placeholder="e.g. pxlstyle"></div>
+          <div class="span2"><label>Output format</label>
+            <div v-if="trainFastErnie" class="hint">Saved in the fast engine's own LoRA format; works with the ⚡ fast-engine ERNIE.</div>
+            <select v-else v-model="train.format" :disabled="trainFamily === 'ernie'">
+              <option value="kohya">.safetensors (Kohya) · works in A1111, ComfyUI, Draw Things, DiffusionBee, Protoart</option>
+              <option value="diffusers">.safetensors (Diffusers/PEFT) · for diffusers scripts</option>
+            </select></div>
+          <div><label>Precision</label>
+            <select v-model="train.precision"><option value="fp16">fp16 (half the file size)</option><option value="fp32">fp32</option></select></div>
+          <div><label>Save a checkpoint every</label>
+            <select v-model.number="train.save_every"><option :value="0">only at the end</option><option :value="250">250 steps</option><option :value="500">500 steps</option></select></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>4 · Settings</h3>
+        <div class="seg">
+          <button v-for="p in trainPresets" :key="p.id" :class="{on: train.preset === p.id}" @click="applyTrainPreset(p)" :title="p.tip">{{ p.label }}</button>
+        </div>
+        <div class="grid2">
+          <div><label>Steps</label><input type="number" min="50" max="10000" step="50" v-model.number="train.steps"></div>
+          <div><label>Learning rate</label>
+            <select v-model.number="train.lr"><option :value="0.00005">0.00005 (gentle)</option><option :value="0.0001">0.0001 (standard)</option><option :value="0.0002">0.0002 (fast)</option></select></div>
+          <div><label>Rank <span class="hint">detail capacity</span></label>
+            <select v-model.number="train.rank"><option :value="4">4 (tiny file)</option><option :value="8">8</option><option :value="16">16 (standard)</option><option :value="32">32 (more detail)</option></select></div>
+          <div><label>Resolution</label>
+            <select v-model.number="train.resolution">
+              <option :value="512">512{{ trainFamily === 'sd15' ? ' (SD 1.5 native)' : '' }}</option><option :value="640">640</option>
+              <option :value="768">768{{ trainFamily === 'sdxl' ? ' (lighter for SDXL)' : ' (slower)' }}</option>
+              <option v-if="trainFamily !== 'sd15'" :value="1024">1024 ({{ trainFamily === 'ernie' ? 'ERNIE' : 'SDXL' }} native)</option></select></div>
+          <div class="span2"><label>What to train</label>
+            <select v-model="train.targets"><option value="attention">Attention layers (lighter, good for styles/characters)</option><option value="full">Attention + feed-forward (stronger, bigger file)</option></select></div>
+        </div>
+        <label class="check"><input type="checkbox" v-model="train.flip"> Mirror images too (doubles variety; skip for text or one-sided subjects)</label>
+        <label class="check" :class="{dim: trainFamily !== 'sd15'}"><input type="checkbox" v-model="train.train_text_encoder" :disabled="trainFamily !== 'sd15'">
+          Also train the text encoder (stronger trigger word, slower, more memory){{ trainFamily !== 'sd15' ? ' · SD 1.5 only' : '' }}</label>
+      </div>
+
+      <div class="train-go">
+        <button class="primary" :disabled="!trainReady" @click="startTraining">Start training</button>
+        <span class="hint">{{ trainEstimate }}</span>
+      </div>
+      <div v-if="trainProblem" class="hint warn">{{ trainProblem }}</div>
+      </template>
+    </section>
+
+    <section class="train-right">
+      <div v-if="train.mode === 'merge'" class="card">
+        <h3>How merging works</h3>
+        <ul>
+          <li>Pick two or more LoRAs made for the same model type, set how strongly each counts, name the result and press Merge.</li>
+          <li>The new LoRA appears in Create's LoRA list like any other, with the trigger words of the LoRAs that went in.</li>
+          <li>Use it at weight 1: the weights you set here are already inside it.</li>
+          <li>LyCORIS-type files (LoHa, LoKr, DoRA) and LoRAs stored in different layouts can't be merged; the app tells you which.</li>
+        </ul>
+        <div v-if="mergeJob" class="train-live">
+          <div class="bar"><div :style="{width: (jobProgress(mergeJob) ?? 0) + '%'}"></div></div>
+          <div class="hint">{{ mergeJob.state === 'running' ? 'Merging…' : 'Waiting in the queue' }}</div>
+        </div>
+        <div v-if="merge.error && !mergeJob" class="error-box">{{ merge.error }}</div>
+      </div>
+      <div v-if="train.mode === 'merge' && merge.result" class="card">
+        <h3>✅ {{ merge.result.name }} is ready</h3>
+        <div class="hint">{{ merge.result.layers }} layers · rank {{ merge.result.rank }} · {{ merge.result.size_mb }} MB · saved to your {{ familyName(merge.result.family) }} LoRA folder</div>
+        <div class="row">
+          <button class="primary" @click="useMergedLora">Use it in Create</button>
+          <button class="ghost" @click="showInFolder(merge.result.path)">Show in Finder</button>
+        </div>
+      </div>
+      <div v-if="train.mode === 'embedding'" class="card train-guide">
+        <h3>Picture guide · embedding</h3>
+        <ul>
+          <li>5–20 pictures that all share the thing you're teaching (the same cat, the same art style), with variety in everything else: background, angle, lighting.</li>
+          <li>At least 512 px on the short side; they're centre-cropped to a square.</li>
+          <li>The <b>starting word</b> is a hint of what it is (cat, woman, painting); it makes training faster and steadier.</li>
+          <li>An embedding can only steer what the model already knows how to draw: for a new face or a very specific look, a LoRA learns more.</li>
+          <li>When it's done, type its name in a prompt (for example <i>a portrait of my_cat</i>) or click it in the list above the negative prompt.</li>
+        </ul>
+      </div>
+      <div v-if="train.mode === 'lora'" class="card train-guide">
+        <h3>Picture guide · {{ (trainKinds.find(k => k.id === train.kind) || trainKinds[0]).label }} · {{ trainSizeAdvice.label }}</h3>
+        <p><b>Size:</b> {{ trainSizeAdvice.shapes }}. Each picture should be at least <b>{{ trainSizeAdvice.minSide }} px</b> on its
+          short side; bigger is fine (it's scaled down), smaller looks soft.
+          <template v-if="trainSizeAdvice.lowRam"> On this Mac, training at 768 is lighter; your pictures can still be {{ trainSizeAdvice.native }}.</template></p>
+        <ul><li v-for="t in trainSizeAdvice.tips" :key="t">{{ t }}</li></ul>
+        <p class="hint">Captions describe what's <i>not</i> the thing you're teaching; the trigger word stands for what is.</p>
+        <div v-if="trainSizeAdvice.checked" :class="trainSizeAdvice.small ? 'hint warn' : 'hint ok'">
+          <template v-if="trainSizeAdvice.small">⚠ {{ trainSizeAdvice.small }} of your {{ trainSizeAdvice.checked }} pictures are smaller than {{ trainSizeAdvice.minSide }} px on the short side: replace them with bigger versions if you can.</template>
+          <template v-else>✓ All {{ trainSizeAdvice.checked }} pictures are big enough.</template>
+        </div>
+      </div>
+      <div v-if="trainJob" class="card train-live">
+        <h3>Training {{ trainJob.label }}</h3>
+        <div class="bar"><div :style="{width: trainPct + '%'}"></div></div>
+        <div class="hint">{{ trainProgressText }}</div>
+        <div v-if="train.lossHistory.length > 1" class="loss-chart">
+          <svg viewBox="0 0 300 70" preserveAspectRatio="none">
+            <polyline :points="lossPoints" fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+          </svg>
+          <div class="hint">loss (should drift down and level off; spikes are normal)</div>
+        </div>
+        <div class="row"><button class="ghost pause-btn" :class="{on: paused}" @click="togglePause"
+                  :title="paused ? 'Carry on training' : 'Pause training between steps (it keeps its memory; nothing is lost)'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
+          <button class="danger" @click="cancelJob(trainJob.id)">Stop training (keeps progress so far)</button></div>
+      </div>
+      <div v-if="train.result && train.result.kind === 'embedding' && train.mode !== 'merge'" class="card">
+        <h3>✅ Embedding {{ train.result.name }} is ready</h3>
+        <div class="hint">{{ train.result.steps }} steps in {{ formatDuration(train.result.seconds) }} · {{ train.result.vectors }} vector{{ train.result.vectors === 1 ? '' : 's' }} · saved to your embeddings folder</div>
+        <div class="row">
+          <button class="primary" @click="useTrainedEmbedding">Use it in Create</button>
+          <button class="ghost" @click="showInFolder(train.result.path)">Show in Finder</button>
+        </div>
+      </div>
+      <div v-if="train.result && train.result.kind !== 'embedding' && train.mode === 'lora'" class="card">
+        <h3>✅ {{ train.result.name }} is ready</h3>
+        <div class="hint">{{ train.result.steps }} steps in {{ formatDuration(train.result.seconds) }} · {{ train.result.format }} ·
+          saved to your LoRA folder</div>
+        <div class="row">
+          <button class="primary" @click="useTrainedLora">Use it in Create</button>
+          <button class="ghost" @click="showInFolder(train.result.path)">Show in Finder</button>
+        </div>
+      </div>
+      <div v-if="train.items.length && train.mode === 'lora'" class="card">
+        <h3>Captions <span class="hint">edit, then save (written as .txt next to each image)</span></h3>
+        <div class="row">
+          <button @click="trainSaveCaptions" :disabled="!train.dirty">Save captions</button>
+          <span v-if="train.dirty" class="hint">unsaved changes</span>
+        </div>
+        <div class="cap-grid">
+          <div v-for="it in train.items" :key="it.path" class="cap-item">
+            <img :src="fileUrl(it.path)" loading="lazy" decoding="async">
+            <textarea v-model="it.caption" rows="3" @input="train.dirty = true" :placeholder="'(no caption: only the trigger word is used)'"></textarea>
+          </div>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- ============================ HOW TO / ABOUT ============================ -->
+  <main v-if="tab==='help'" class="settings help">
+    <div class="help-hero">
+      <img src="assets/logo-round-512.png" alt="">
+      <div>
+        <h1>Protoart Studio</h1>
+        <p class="hint">Version 0.3 · AI image making that runs entirely on your Mac</p>
+      </div>
+    </div>
+
+    <h2>Quick start</h2>
+    <ol class="steps">
+      <li><b>Create:</b> pick a model, type what you want to see, press <b>Generate</b> (⌘↵). The first time, the model downloads once.</li>
+      <li>Add <b>LoRAs</b> for a style or character (their trigger words are added for you) and pick a <b>size</b> with the Max size switch. Turn the knobs (drag or scroll), or click the amber number under a knob to type an exact value.</li>
+      <li>Your images appear on the right and are saved in the <b>Library</b>.</li>
+    </ol>
+
+    <h2>The tabs <span class="hint">click one to learn more</span></h2>
+    <div class="help-acc">
+      <div v-for="t in helpTabs" :key="t.id" class="acc-item" :class="{open: helpOpen === t.id}">
+        <button class="acc-head" @click="helpOpen = helpOpen === t.id ? '' : t.id" :aria-expanded="helpOpen === t.id">
+          <span class="acc-icon">{{ t.icon }}</span>
+          <span class="acc-title">{{ t.title }}</span>
+          <span class="acc-sum hint">{{ t.summary }}</span>
+          <span class="acc-chev">›</span>
+        </button>
+        <div class="acc-body"><div class="acc-inner">
+          <div v-for="sec in t.sections" :key="sec.h" class="acc-sec">
+            <h4>{{ sec.h }}</h4>
+            <ul><li v-for="(line, k) in sec.items" :key="k" v-html="line"></li></ul>
+          </div>
+          <button class="ghost" @click="tab = t.go; if (t.go === 'library') openLibrary(); if (t.go === 'i2i') openI2I(); if (t.go === 'train') openTrain(); if (t.go === 'settings') loadLogTail()">{{ t.goLabel || ('Go to ' + t.title) }} →</button>
+        </div></div>
+      </div>
+    </div>
+
+    <h2>Tips for Macs with 8 GB</h2>
+    <ul>
+      <li><b>SD 1.5</b> is the quickest; keep it at <b>Small (512)</b>. For ERNIE use <b>Medium (768)</b> and the <b>⚡ fast engine</b>.</li>
+      <li>Fewer steps = faster: 20–25 for most samplers, 6 in Fast mode. The step box shows the recommended number for each sampler.</li>
+      <li>One big job at a time: avoid generating while an enhance or training is running. Quit other heavy apps.</li>
+      <li>If the Mac feels stuck, use <b>■ Stop</b>; it stops within a step or two and keeps your other queued jobs.</li>
+    </ul>
+
+    <h2>Privacy</h2>
+    <p>Everything runs on this Mac. Your prompts, images and LoRAs never leave it, and there is no account, tracking or usage
+      reporting. The app only goes online to download a model or tool you've asked for that isn't on your Mac yet (from Hugging Face),
+      then goes back offline. Models you add from your own files load with no internet at all.</p>
+
+    <h2>Where your things are</h2>
+    <table>
+      <tr><td>Images</td><td><button class="link" :disabled="!imagesDir.path" @click="openFolder(imagesDir.path)">{{ imagesDir.path || 'loading…' }}</button></td></tr>
+      <tr><td>LoRAs</td><td><button class="link" :disabled="!sys.loras_dir" @click="openFolder(sys.loras_dir)">{{ sys.loras_dir || 'loading…' }}</button>
+        <span v-if="loraDirs.dirs.length" class="hint"> + {{ loraDirs.dirs.length }} more folder{{ loraDirs.dirs.length === 1 ? '' : 's' }} (Settings)</span></td></tr>
+      <tr><td>Your checkpoints</td><td><button class="link" :disabled="!sys.models_dir" @click="openFolder(sys.models_dir)">{{ sys.models_dir || 'loading…' }}</button></td></tr>
+      <tr><td>App data &amp; log</td><td><button class="link" :disabled="!sys.data_dir" @click="openFolder(sys.data_dir)">{{ sys.data_dir || 'loading…' }}</button></td></tr>
+      <tr><td></td><td class="hint">These are this Mac's own folders: each person who uses the app sees their own.</td></tr>
+    </table>
+
+    <h2>About</h2>
+    <p>Protoart Studio is a rebuild of the ideas behind DiffusionBee, made for older and smaller Macs, with ERNIE-Image, LoRA stacking
+      and training, presets, ControlNet, face restoration, enhancing, a searchable library and live previews.</p>
+    <p class="hint">Built on open-source work: Hugging Face diffusers &amp; transformers, PyTorch, Apple MLX and mflux (fast ERNIE engine),
+      ERNIE-Image (Baidu, Apache 2.0), Stable Diffusion (CreativeML OpenRAIL-M), ControlNet 1.1 (lllyasviel), RestoreFormer (via GFPGAN),
+      the Finegrain Image Enhancer and refiners (MIT; its 4x-UltraSharp upscaler is CC BY-NC-SA 4.0, non-commercial),
+      Florence-2 (MIT), WD tagger (Apache 2.0), Depth Anything V2, Electron and Vue.
+      Models you download keep their own licences.</p>
+  </main>
+
+  <main v-if="tab==='settings'" class="settings" @click="foldSettings($event)">
+  <div class="cfold-all set-fold-all">
+    <span class="hint">Click a heading to open or fold it ·</span>
+    <button class="link small" @click.stop="settingsFoldAll(true)">fold all</button> ·
+    <button class="link small" @click.stop="settingsFoldAll(false)">open all</button>
+  </div>
+  <div class="set-cols">
+    <section class="set-sec">
+    <h2>This Mac</h2>
+    <table>
+      <tr><td>Memory</td><td>{{ sys.ram_gb }} GB</td></tr>
+      <tr><td>GPU</td><td>{{ sys.device === 'mps' ? 'Apple GPU (Metal)' : sys.device }}</td></tr>
+      <tr><td>Free disk</td><td>{{ sys.free_disk_gb }} GB</td></tr>
+      <tr><td>Versions</td><td>torch {{ sys.torch }} · diffusers {{ sys.diffusers }}</td></tr>
+      <tr><td>Data folder</td><td><button class="link" @click="openFolder(sys.data_dir)">{{ sys.data_dir }}</button></td></tr>
+      <tr><td>Your checkpoints</td><td><button class="link" @click="openFolder(sys.models_dir)">{{ sys.models_dir }}</button>
+        <span class="hint"> drop SD 1.5 / SDXL .safetensors here</span></td></tr>
+    </table>
+    <div v-if="sys.error" class="error-box">Python setup problem: {{ sys.error }}. Run setup.sh again.</div>
+    </section>
+    <section class="set-sec">
+    <h2 id="models-section">Model folders</h2>
+    <h3 class="sub">Watched model folders <span class="hint">· every model in these folders is listed (new ones too)</span></h3>
+    <p class="hint">Pick a folder (an external drive is fine) and every model in it is used, including ones you put there later.
+      Nothing is copied: the files stay where they are. Single model files you added, Civitai and Hugging Face are in the
+      <button class="link" @click="openModelsPanel('own')">Models tab</button>.</p>
+    <div class="row"><button @click="addModelDir">Watch a models folder…</button></div>
+    <table v-if="modelDirs.dirs.length">
+      <tr v-for="d in modelDirs.dirs" :key="d"><td>📁 Watched folder</td>
+        <td class="hint">{{ d }}</td><td><button class="ghost small" @click="removeModelDir(d)">Remove</button></td></tr>
+    </table>
+    <h3 class="sub">Downloaded models folder <span class="hint">· where the models this app downloads are kept</span></h3>
+    <p class="hint">Models from the Models tab and Hugging Face (SD 1.5, SDXL, ERNIE, FLUX, the enhancer, ControlNets…) are
+      saved here. Pick a folder on an external drive to keep them off your Mac; plug the drive in before using them.</p>
+    <div v-if="dl.missing" class="error-box">Your downloaded-models folder {{ dl.missing }} wasn't found (is the drive connected?).
+      Connect it and press Restart engine; until then, models download to the default folder.</div>
+    <table>
+      <tr><td>Folder</td><td><button class="link" @click="openFolder(dl.path)">{{ dl.path || 'loading…' }}</button>
+        <span class="hint" v-if="dl.free_gb != null"> · {{ dl.free_gb }} GB free</span>
+        <span class="hint" v-if="dl.sizeGb != null"> · models here use {{ dl.sizeGb }} GB</span></td></tr>
+    </table>
+    <div class="row">
+      <button @click="changeDownloadsDir" :disabled="dl.busy">Change folder…</button>
+      <button class="ghost" v-if="dl.custom" @click="changeDownloadsDir(true)" :disabled="dl.busy">Use the default</button>
+      <button class="link" @click="measureDownloads">how much space do they use?</button>
+    </div>
+    <label class="check"><input type="checkbox" v-model="dl.move"> Move the models already downloaded to the new folder</label>
+    </section>
+    <section class="set-sec">
+    <h2>Moved a folder?</h2>
+    <p class="hint">Moved your models / LoRAs folder (for example to a new drive)? Point the app at the new place and everything
+      that used it carries on: LoRA and embedding folders, LoRA types, watched folders, models you added, your ⚑ and ● marks, and
+      which model made each picture in the Library.</p>
+    <table v-if="folders.length">
+      <tr v-for="f in folders" :key="f.path"><td>
+          <span :class="f.found ? 'led green on' : 'led red on'" class="led" style="margin-right:8px"></span>
+          <button class="link" @click="openFolder(f.path)" :disabled="!f.found">{{ f.path }}</button>
+          <span v-if="!f.found" class="hint warn"> · not found (moved, renamed, or the drive isn't connected)</span></td>
+        <td><button :class="f.found ? 'ghost small' : 'small primary'" @click="relinkFolder(f.path)">{{ f.found ? 'Moved it…' : 'Find it…' }}</button></td></tr>
+    </table>
+    <p v-else class="hint">No folders of yours yet (add them under Models and LoRA folders).</p>
+    <div v-if="relinkMsg" class="hint">{{ relinkMsg }}</div>
+    </section>
+    <section class="set-sec">
+    <h2>LoRA folders</h2>
+    <p class="hint">LoRAs are used straight from these folders (sub-folders included); nothing is copied.
+      Checkpoints in the same folders are ignored here.</p>
+    <table>
+      <tr v-for="d in [loraDirs.default, ...loraDirs.dirs]" :key="d"><td>{{ d === loraDirs.default ? 'Protoart folder' : 'Also' }}</td>
+        <td><button class="link" @click="openFolder(d)">{{ d }}</button>
+        <span class="hint"> · {{ lorasIn(d) }} LoRAs</span>
+        <div class="row small lora-dir-type">
+          <span class="hint">for</span>
+          <div class="seg">
+            <button v-for="f in [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'ernie', label: 'ERNIE'}]" :key="f.id"
+                    :class="{on: ((loraDirs.families || {})[d] || '') === f.id}" @click="setLoraDirFamily(d, f.id)"
+                    :title="f.id ? 'Every LoRA in this folder is used with ' + f.label + ' models, whatever the file says' : 'Work out each LoRA\'s model type from the file itself'">{{ f.label }}</button>
+          </div>
+          <button class="ghost small" @click="planSort(d)" title="Move each LoRA into a sub-folder for its model type (SD 1.5 / SDXL / FLUX / ERNIE). You see the plan first.">Sort into type folders…</button>
+          <button v-if="d !== loraDirs.default" class="ghost small" @click="removeLoraDir(d)">Remove</button>
+        </div>
+        <div v-if="subTypes(d).length" class="hint sub-types">Type folders:
+          <span v-for="t in subTypes(d)" :key="t.path" class="chip static">{{ t.name }} → {{ familyName(t.family) }}</span></div>
+        <div v-if="sortPlan && sortPlan.dir === d" class="sort-plan">
+          <template v-if="sortPlan.moves">
+            <b>Sort {{ sortPlan.moves }} LoRA{{ sortPlan.moves === 1 ? '' : 's' }}?</b> {{ sortPlanText(sortPlan) }}.
+            <div class="hint">Into: <span v-for="(f, fam) in sortPlan.folders" :key="fam" v-show="sortPlan.by_type[fam] || f.exists">
+              {{ f.path.split('/').pop() }}{{ f.exists ? '' : ' (new)' }} · </span>
+              trigger-word and preview files move with them. Base models stay where they are.</div>
+            <div v-if="sortPlan.unknown.length" class="hint">{{ sortPlan.unknown.length }} of unknown type stay where they are ({{ sortPlan.unknown.slice(0, 4).join(', ') }}{{ sortPlan.unknown.length > 4 ? '…' : '' }}): fix them with “Fix a LoRA's type” below.</div>
+            <div v-if="sortPlan.skipped.length" class="hint warn">{{ sortPlan.skipped.length }} skipped: {{ sortPlan.skipped[0].why }}</div>
+            <div class="row"><button class="primary small" @click="doSort">Sort them</button><button class="ghost small" @click="sortPlan = null">Not now</button></div>
+          </template>
+          <template v-else>Already sorted: nothing to move. <button class="link" @click="sortPlan = null">ok</button></template>
+        </div></td></tr>
+    </table>
+    <p class="hint">Keep LoRAs for each model type in their own folder? Set its type above, and its LoRAs show up only for those
+      models, even when a file doesn't say what it was made for. <b>Auto</b> reads the type from each file (works for most).</p>
+    <p class="hint">A LoRA or model listed under the wrong type? <button class="link" @click="fixLoraType('')">Fix a type → Models tab</button></p>
+    <div class="row"><button @click="addLoraDir">Add LoRA folders…</button>
+      <span class="hint">Add as many locations as you like (other drives too); pick several at once with ⌘.</span></div>
+    <label class="check"><input type="checkbox" v-model="opts.auto_triggers" @change="saveOpts">
+      When I add a LoRA, put its trigger words in the prompt automatically</label>
+    </section>
+    <section class="set-sec" id="embeddings">
+    <h2>Embeddings</h2>
+    <p class="hint">Embeddings (textual inversions, such as <i>EasyNegative</i>) are small files that add one word to a model.
+      Click one above the negative prompt in Create, or type its name. SD 1.5 and SDXL (Pony / Illustrious / NoobAI too);
+      each shows only with models of its type, read from the file.</p>
+    <table>
+      <tr v-for="d in [embDirs.default, ...(embDirs.dirs || [])].filter(Boolean)" :key="d"><td>{{ d === embDirs.default ? 'Protoart folder' : 'Also' }}</td>
+        <td><button class="link" @click="openFolder(d)">{{ d }}</button>
+          <span class="hint"> · {{ embeddingsIn(d) }} embedding{{ embeddingsIn(d) === 1 ? '' : 's' }}</span>
+          <button v-if="d !== embDirs.default" class="ghost small" @click="removeEmbeddingDir(d)">Remove</button></td></tr>
+    </table>
+    <div class="row">
+      <button @click="addEmbeddingFiles" title="Copies .safetensors / .pt embedding files into Protoart's embeddings folder">Add embedding files…</button>
+      <button class="ghost" @click="addEmbeddingDir" title="Use embeddings straight from a folder of yours (sub-folders included; nothing is copied)">Add folders…</button>
+      <button class="ghost" @click="openModelSettings('civitai')" title="Download one from civitai.com (they're called “Textual Inversion” there)">From Civitai…</button>
+      <button class="link" @click="refreshEmbeddings">Rescan</button>
+    </div>
+    <div v-if="embMsg" class="hint">{{ embMsg }}</div>
+    <table v-if="embeddings.length" class="emb-list">
+      <tr v-for="e in embeddings" :key="e.name + e.file">
+        <td>{{ e.name }} <span v-if="e.nsfw_auto" class="nsfw-flag on" title="The name says NSFW: hidden while Hide NSFW is on">⚑</span></td>
+        <td class="hint">{{ familyName(e.family) }}<template v-if="e.family === 'sd2'"> (can't be used)</template>
+          <template v-if="e.vectors"> · {{ e.vectors }} vector{{ e.vectors === 1 ? '' : 's' }}</template> · {{ embSourceName(e) }}</td></tr>
+    </table>
+    <p v-else class="hint">No embeddings yet.</p>
+    </section>
+    <section class="set-sec">
+    <h2>DiffusionBee models</h2>
+    <template v-if="dbee.available">
+      <label class="check"><input type="checkbox" :checked="dbee.enabled" @change="setDiffusionBee($event.target.checked)">
+        Use my models, LoRAs and embeddings from DiffusionBee (read in place, nothing is copied)</label>
+      <p class="hint" v-if="dbee.enabled">
+        Found {{ dbee.checkpoints }} SD 1.5 model{{ dbee.checkpoints===1?'':'s' }},
+        {{ dbee.loras }} LoRA{{ dbee.loras===1?'':'s' }} and {{ dbee.embeddings }} embedding{{ dbee.embeddings===1?'':'s' }}
+        in <button class="link" @click="openFolder(dbee.folder)">{{ dbee.folder }}</button>.
+        <template v-if="dbee.skipped"> {{ dbee.skipped }} other file{{ dbee.skipped===1?'':'s' }} can't be used yet
+          ({{ dbee.skipped_kinds.join(', ') }}).</template>
+      </p>
+      <p class="hint" v-if="dbee.enabled && dbee.embeddings">DiffusionBee's embeddings are listed under Embeddings (above) and work
+        with SD 1.5 models.</p>
+      <div class="row"><button class="ghost" @click="refreshDiffusionBee">Rescan</button></div>
+    </template>
+    <p v-else class="hint">No DiffusionBee folder found (~/.diffusionbee).</p>
+    </section>
+    <section class="set-sec">
+    <h2>Image storage</h2>
+    <table>
+      <tr><td>Save images to</td><td><button class="link" @click="openFolder(imagesDir.path)">{{ imagesDir.path }}</button></td></tr>
+    </table>
+    <div class="row">
+      <button @click="changeImagesDir">Change folder…</button>
+      <button class="ghost" v-if="imagesDir.path !== imagesDir.default" @click="resetImagesDir">Use default</button>
+    </div>
+    <label class="check"><input type="checkbox" v-model="moveExisting"> Move my existing images to the new folder</label>
+    </section>
+    <section class="set-sec">
+    <h2>Image format</h2>
+    <label class="check"><input type="radio" value="png" v-model="opts.image_format" @change="saveOpts">
+      PNG (lossless, larger files)</label>
+    <label class="check"><input type="radio" value="jpeg" v-model="opts.image_format" @change="saveOpts">
+      JPEG (much smaller files)</label>
+    <div v-if="opts.image_format==='jpeg'" class="row">
+      <span class="hint">JPEG quality</span>
+      <input type="range" min="60" max="100" step="1" v-model.number="opts.jpeg_quality" @change="saveOpts" style="max-width:240px">
+      <span class="hint">{{ opts.jpeg_quality }}</span>
+    </div>
+    </section>
+    <section class="set-sec">
+    <h2>Details inside pictures</h2>
+    <label class="check"><input type="radio" value="details" v-model="opts.embed_meta" @change="saveOpts">
+      Embed the prompt and settings (model, LoRAs, seed…) so they travel with the picture</label>
+    <label class="check"><input type="radio" value="none" v-model="opts.embed_meta" @change="saveOpts">
+      Embed nothing (the library still remembers everything)</label>
+    <p class="hint">Anyone you share a picture with can read embedded details. File paths on your Mac (start images,
+      reference pictures, your own model files) are never included, only their file names.</p>
+    </section>
+    <section class="set-sec">
+    <h2>Deleting images</h2>
+    <label class="check"><input type="radio" :value="false" v-model="opts.trash" @change="saveOpts">
+      Delete permanently (removes the file from your Mac)</label>
+    <label class="check"><input type="radio" :value="true" v-model="opts.trash" @change="saveOpts">
+      Move to the Trash (recoverable until you empty it)</label>
+    <template v-if="models.some(m => m.has_original)">
+      <h2>Converted models</h2>
+      <div v-for="m in models.filter(x => x.has_original)" :key="m.id" class="row">
+        <span>{{ m.label }}: the 8-bit copy is saved, so the original {{ Math.round(m.download_gb) }} GB download can go.</span>
+        <button :class="freeConfirm===m.id ? 'danger' : ''" @click="freeOriginal(m)">
+          {{ freeConfirm===m.id ? 'Click again to remove' : 'Remove original' }}</button>
+      </div>
+    </template>
+    </section>
+    <section class="set-sec">
+    <h2>Speed: a model ready in memory</h2>
+    <p class="hint">Loading a model takes a while (about 5–15 s for SD 1.5 on this Mac, longer for SDXL, ERNIE and FLUX).
+      Once loaded it stays in memory, so the next pictures start straight away. These load it in the background
+      while you write the prompt. It only uses idle time and never downloads anything.</p>
+    <div class="row">
+      <span class="hint">When the app opens, load</span>
+      <select v-model="opts.preload_start" @change="saveOpts" style="width:auto">
+        <option value="">nothing (load on Generate)</option>
+        <option value="last">{{ opts.default_model ? 'my default model' : 'the model I used last' }}</option>
+        <option v-for="m in installedModels" :key="m.id" :value="m.id">{{ m.label }}</option>
+      </select>
+    </div>
+    <label class="check"><input type="checkbox" v-model="opts.preload_on_pick" @change="saveOpts">
+      Load a model as soon as I pick it in Create</label>
+    <p class="hint">It makes the first picture faster, not every step: the speed per step is set by the model, the picture size
+      and the Mac. Only one model fits in memory at a time, so switching models loads again. Where the files live matters
+      only while loading (an external drive loads a little slower), never while drawing.</p>
+    </section>
+    <section class="set-sec">
+    <h2>Content filter (NSFW)</h2>
+    <label class="check nsfw-switch" :class="{on: hideNsfw}"><input type="checkbox" :checked="hideNsfw" @change="setHideNsfw($event.target.checked)">
+      Hide NSFW pictures, models and LoRAs</label>
+    <p class="hint">The same switch is at the top of Create and Library. When it's on: NSFW pictures are left out of the Library
+      and covered in Create, Image to image and Tools (click one to look); NSFW models and LoRAs disappear from the lists
+      and the LoRA randomizer; and the live preview is covered while a prompt asks for NSFW. Nothing is deleted, and
+      nothing stops you from making a picture.</p>
+    <h3 class="sub">How pictures are judged</h3>
+    <label class="check"><input type="checkbox" :checked="opts.check_pictures" :disabled="content.scanning" @change="setCheckPictures($event.target.checked)">
+      Check each picture with the on-device picture checker
+      <span class="hint">· {{ content.checker_installed ? 'installed' : '~' + content.checker_mb + ' MB download, once' }}</span></label>
+    <p class="hint">Without the checker, only the prompt's words count (words in the negative prompt are ignored).
+      The checker (Falconsai NSFW detector, Apache 2.0) runs on this Mac in a fraction of a second per picture; pictures never leave the Mac.
+      Your own mark (picture details, or <b>Select</b> in the Library) always wins.</p>
+    <div class="row">
+      <span class="hint">{{ content.total }} picture{{ content.total === 1 ? '' : 's' }} · {{ content.nsfw }} count as NSFW<template v-if="content.unchecked && opts.check_pictures"> · {{ content.unchecked }} not checked yet</template></span>
+      <button v-if="opts.check_pictures && content.unchecked && !content.scanning" class="ghost" @click="scanPictures">Check them now</button>
+      <span v-if="content.msg" class="hint">{{ content.msg }}</span>
+    </div>
+    <h3 class="sub">Models and LoRAs</h3>
+    <p class="hint">Marked NSFW automatically when the name says so (or, for LoRAs, the tags they were trained on):
+      {{ autoFlagged.models }} model{{ autoFlagged.models === 1 ? '' : 's' }} and {{ autoFlagged.loras }} LoRA{{ autoFlagged.loras === 1 ? '' : 's' }} right now.
+      To change one, point at it in Create's model or LoRA list and click the <b>⚑</b> after its name (red = NSFW).</p>
+    <details v-if="markedItems.length" class="fold">
+      <summary>⚑ Marked by you <span class="hint">· {{ markedItems.filter(i => i.nsfw).length }} NSFW, {{ markedItems.filter(i => !i.nsfw).length }} safe</span></summary>
+      <table>
+        <tr v-for="it in markedItems" :key="it.kind + it.name"><td>{{ it.label }}</td>
+          <td><span class="hint">{{ it.kind === 'model' ? 'model' : 'LoRA' }} · {{ it.nsfw ? 'NSFW' : 'safe' }}</span>
+            <button class="ghost small" @click="unmarkItem(it)">Automatic</button></td></tr>
+      </table>
+    </details>
+    <h3 class="sub">People <span class="hint">· models and LoRAs made of real people</span></h3>
+    <label class="check"><input type="checkbox" :checked="opts.hide_people" @change="setHidePeople($event.target.checked)"> Hide People models and LoRAs</label>
+    <p class="hint">Tag one by pointing at it in Create's model or LoRA list and clicking the <b>●</b> after its name (it lights amber).
+      Nothing is tagged automatically: you decide what counts.</p>
+    <details v-if="peopleItems.length" class="fold">
+      <summary>● Tagged People <span class="hint">· {{ peopleItems.length }}</span></summary>
+      <table>
+        <tr v-for="it in peopleItems" :key="'p' + it.kind + it.name"><td>{{ it.label }}</td>
+          <td><span class="hint">{{ it.kind === 'model' ? 'model' : 'LoRA' }}</span>
+            <button class="ghost small" @click="markPeople(it.kind, it.item)">Untag</button></td></tr>
+      </table>
+    </details>
+    </section>
+    <section class="set-sec">
+    <h2>Options</h2>
+    <label class="check"><input type="checkbox" v-model="opts.previews" @change="saveOpts">
+      Show a live preview while an image is being made</label>
+    <label class="check"><input type="checkbox" v-model="opts.low_memory" @change="saveOpts">
+      Low-memory mode for SDXL (8-bit while loading; slightly slower)</label>
+    <label class="check"><input type="checkbox" v-model="opts.force_load" @change="saveOpts">
+      Load anyway when a model needs more memory than this Mac has</label>
+    </section>
+    <section class="set-sec" id="privacy-section">
+    <h2>Privacy</h2>
+    <label class="check" title="Blocks every download and sign-in check. Models and tools already on this Mac keep working."><input type="checkbox" :checked="strictOffline" @change="setStrictOffline($event.target.checked)">
+      Strict offline: never go online</label>
+    <p class="hint">Everything already runs on this Mac and nothing is ever uploaded. Normally the app goes online only to download
+      a model or tool you asked for (Hugging Face, Civitai, GitHub, PyPI). With Strict offline on, it doesn't even do that:
+      downloads stop with a message, and only models and tools already on this Mac work.</p>
+    </section>
+    <section class="set-sec">
+    <h2>Image editor</h2>
+    <p class="hint">“✏️ Edit in…” (in the Library, Tools and Image to image) opens a copy of the picture in this app. Each time you
+      save there, the new version is added to your Library, linked to the original. The original is never changed.</p>
+    <div class="row">
+      <select v-model="opts.editor" @change="saveOpts" style="width:auto">
+        <option v-for="e in editorChoices" :key="e" :value="e">{{ e }}</option>
+        <option v-if="!editorChoices.includes(opts.editor)" :value="opts.editor">{{ opts.editor }}</option>
+      </select>
+      <input v-model.lazy="opts.editor" @change="saveOpts" placeholder="or type an app name, e.g. Krita" style="max-width:260px">
+      <button v-if="opts.editor === 'PhotoCraft'" class="link" @click="getPhotoCraft">Get PhotoCraft (free, open source)</button>
+    </div>
+    <p class="hint" v-if="opts.editor === 'PhotoCraft'">PhotoCraft is a free, open-source editor in the style of Photoshop (layers, masks,
+      adjustments, selections, PSD files), early test version. It's a separate app: install it from its download page once.</p>
+
+    </section>
+    <section class="set-sec">
+    <h2>Reset</h2>
+    <p class="hint">Puts things back to how they were when the app was new. Your pictures, library, models, LoRAs, presets
+      and saved trigger words are never deleted.</p>
+    <div class="reset-box">
+      <div>
+        <b>Folder locations</b>
+        <div class="hint">Images go back to <code>{{ imagesDir.default || '~/.protoartstudio/images' }}</code> (pictures already in another folder
+          stay there and remain in the library); extra LoRA folders and watched model folders are removed from the lists
+          (the files themselves stay where they are).</div>
+      </div>
+      <button class="ghost" @click="askReset('folders')">Reset folder locations</button>
+    </div>
+    <div class="reset-box">
+      <div>
+        <b>Settings</b>
+        <div class="hint">All options in Settings, the Create and Image to image fields (prompt, size, extras…), your per-model
+          CLIP skip choices, the random-LoRA and wildcard options, and the window size.</div>
+      </div>
+      <button class="ghost" @click="askReset('settings')">Reset settings</button>
+    </div>
+    <div v-if="resetAsk" class="reset-confirm">
+      <span>{{ resetAsk === 'folders' ? 'Reset folder locations to the defaults?' : 'Reset all settings to the defaults? The app will reload.' }}</span>
+      <button class="danger" @click="doReset(resetAsk)">Reset</button>
+      <button class="ghost" @click="resetAsk = ''">Cancel</button>
+    </div>
+
+    </section>
+    <section class="set-sec">
+    <h2>Backend log</h2>
+    <div class="row"><button @click="restartBackend">Restart engine</button>
+      <button class="ghost" @click="loadLogTail">Refresh</button>
+      <button class="ghost" v-if="logPath" @click="showInFolder(logPath)">Show the log file</button>
+      <span class="hint">kept in a file, so it survives restarts</span></div>
+    <div class="row log-tools">
+      <button class="ghost small" @click="selectLog" title="Highlight all of the log text">Select all</button>
+      <button class="ghost small" @click="copyLog" title="Copy the whole log, e.g. to paste into a message">{{ logCopied ? '✓ Copied' : 'Copy all' }}</button>
+      <button class="ghost small" @click="clearLog" title="Empty the log file">Clear log</button>
+      <span class="hint">The log can include parts of prompts and model names; your home folder is shown as ~.</span>
+    </div>
+    <pre class="log" ref="logBox" tabindex="0" @keydown.meta.a.prevent="selectLog">{{ logs }}</pre>
+    </section>
+  </div>
+  </main>
+
+  <!-- ============================ PROMPT LIST (batch) ============================ -->
+  <div v-if="batch.open" class="modal top" @click.self="batch.open = false">
+    <div class="confirm batch-box">
+      <h3>📋 Queue a list of prompts</h3>
+      <p class="hint">One prompt per line. Each line becomes its own job with the current model, LoRAs, size and settings
+        (blank lines and lines starting with # are skipped). Wildcards work in every line.</p>
+      <textarea v-model="batch.text" rows="10" placeholder="a red fox in the snow&#10;a lighthouse at dusk, oil painting&#10;# this line is skipped"></textarea>
+      <div class="row">
+        <button class="ghost" @click="$refs.batchPick.click()">Load a .txt file…</button>
+        <input ref="batchPick" type="file" accept=".txt,text/plain" hidden @change="onBatchFile">
+        <label class="check"><input type="checkbox" v-model="batch.keepPrompt"> add my current prompt to each line</label>
+      </div>
+      <div class="row">
+        <button class="primary" :disabled="!batchLines.length" @click="queueBatch">Queue {{ batchLines.length }} job{{ batchLines.length === 1 ? '' : 's' }}
+          <template v-if="form.num_images > 1"> ({{ form.num_images }} images each)</template></button>
+        <button class="ghost" @click="batch.open = false">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ CONFIRM DELETE ============================ -->
+  <div v-if="confirmDel" class="modal top" @click.self="confirmDel=null">
+    <div class="confirm">
+      <h3>Delete {{ confirmDel.count }} image{{ confirmDel.count===1?'':'s' }}?</h3>
+      <p v-if="!opts.trash">This permanently deletes the file{{ confirmDel.count===1?'':'s' }} from your Mac. It can't be undone.</p>
+      <p v-else>The file{{ confirmDel.count===1?'':'s' }} will be moved to the Trash.</p>
+      <label v-if="confirmDel.versions" class="check">
+        <input type="checkbox" v-model="confirmDel.include_versions">
+        Also delete {{ confirmDel.versions }} edited version{{ confirmDel.versions===1?'':'s' }} (face-restored / enhanced)
+      </label>
+      <div class="row end">
+        <button @click="confirmDel=null">Cancel</button>
+        <button class="danger" @click="doDelete">{{ opts.trash ? 'Move to Trash' : 'Delete permanently' }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ DETAIL ============================ -->
+  <div v-if="detail" class="modal" @click.self="detail=null">
+    <div class="detail">
+      <div class="detail-img" :class="{covered: covered(detail) && !revealDetail}">
+        <img :src="fileUrl(detail.path)">
+        <button v-if="covered(detail) && !revealDetail" class="nsfw-reveal" @click="revealDetail = true">Hidden by the NSFW filter · Show picture</button>
+      </div>
+      <div class="meta">
+        <p class="prompt">{{ detail.prompt }}</p>
+        <p v-if="detail.negative_prompt" class="hint">Negative: {{ detail.negative_prompt }}</p>
+        <table>
+          <tr><td>Model</td><td>{{ modelLabel(detail.model) }}</td></tr>
+          <tr><td>Sampler</td><td>{{ detail.sampler }} · {{ detail.steps }} steps · CFG {{ detail.cfg }}</td></tr>
+          <tr><td>Size</td><td>{{ detail.width }} × {{ detail.height }}</td></tr>
+          <tr><td>Seed</td><td>{{ detail.seed }}
+            <button v-if="detail.seed != null" class="link small-link" @click="findSeed(detail.seed)" title="Show every picture in the Library made with this seed">find all with this seed</button></td></tr>
+          <tr v-if="detail.settings?.clip_skip"><td>CLIP skip</td><td>{{ detail.settings.clip_skip }}</td></tr>
+          <tr v-if="detail.loras.length"><td>LoRAs</td>
+            <td><button v-for="l in detail.loras" :key="l.name" class="chip static lora-link" @click="filterByLora(l.name)"
+                        title="Show all images made with this LoRA">{{ l.name }} {{ l.weight }}</button></td></tr>
+          <tr><td>Created</td><td>{{ new Date(detail.created_at*1000).toLocaleString() }}</td></tr>
+          <tr><td>Content</td><td>{{ nsfwReason(detail) }}
+            <span class="nsfw-marks">
+              <button class="link small-link" v-if="!detail.nsfw" @click="markPictures([detail.id], true)">mark NSFW</button>
+              <button class="link small-link" v-if="detail.nsfw" @click="markPictures([detail.id], false)">mark safe</button>
+              <button class="link small-link" v-if="detail.nsfw_mark != null" @click="markPictures([detail.id], null)">automatic</button>
+            </span></td></tr>
+        </table>
+        <p v-if="detail.parent_id" class="hint">{{ kindLabel(detail.kind) }} version of
+          <button class="link" @click="openById(detail.parent_id)">image #{{ detail.parent_id }}</button></p>
+
+        <div class="post">
+          <div class="row">
+            <span class="hint">Restore faces</span>
+            <input type="range" min="0.1" max="1" step="0.05" v-model.number="post.face_strength">
+            <span class="hint">{{ post.face_strength.toFixed(2) }}</span>
+            <button @click="restoreFaces(detail)">Restore</button>
+          </div>
+          <div class="row">
+            <button class="primary" @click="openInTools(detail)">✨ Enhance &amp; upscale…</button>
+            <span class="hint">opens the Finegrain enhancer in Tools</span>
+          </div>
+          <div v-if="busy" class="hint">{{ status }}{{ queue.length > 1 ? ' · ' + queue.length + ' jobs in queue' : '' }}</div>
+          <div v-if="error" class="error-box">{{ error }}</div>
+        </div>
+
+        <div class="row">
+          <button @click="toggleStar(detail)">{{ detail.starred ? '★ Starred' : '☆ Star' }}</button>
+          <button v-if="detail.prompt" @click="reusePrompt(detail)" title="Put this prompt back in the prompt box; your current model and settings stay">↺ Reuse prompt</button>
+          <button v-if="detailOriginalPrompt" @click="reusePrompt(detail, true)" title="The prompt as you typed it, before Enhance prompt or wildcards changed it">↺ Original prompt</button>
+          <button @click="reuse(detail)" title="Load everything that made this picture: prompt, model, LoRAs, size, steps, sampler and seed">Use these settings</button>
+          <button @click="useAsStart(detail)">🖼 Send to Image to image</button>
+          <button @click="openInTools(detail)">🧰 Send to Tools</button>
+          <button @click="openAdjust(detail)" title="Opens it in Tools with Lightroom-style light and colour sliders and Color Efex-style filters; saves an adjusted copy">🎚 Adjust</button>
+          <button @click="editIn(detail)" :title="'Open in ' + editorName() + '; saved edits come back to the Library'">✏️ Edit in {{ editorName() }}</button>
+          <button @click="compressOne(detail)" title="Export a smaller copy that looks the same, or resize / convert it (Library → Batch edit &amp; export)">🗜 Compress / export…</button>
+          <button @click="showInFolder(detail.path)">Show in Finder</button>
+          <button class="danger-outline" @click="askDelete([detail.id])">Delete</button>
+          <button class="ghost" @click="detail=null">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="../node_modules/vue/dist/vue.global.prod.js"></script>
+<script src="adjust.js"></script>
+<script src="prompt_generator.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

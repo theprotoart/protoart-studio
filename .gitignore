@@ -1,0 +1,45 @@
+# environments and dependencies
+backend/.venv/
+backend/.venv-mlx/
+app/node_modules/
+__pycache__/
+*.py[cod]
+
+# build output (publish DMGs as GitHub Release files instead)
+dist/
+*.dmg
+*.dmg.sha256
+*.app/
+
+# local data that must never be committed
+*.sqlite
+*.sqlite-journal
+*.db
+*.log
+.env
+.env.*
+*.safetensors
+*.ckpt
+*.tdict
+*.pth
+*.bin
+*.gguf
+
+# system and editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# one-off / local files
+.sums_check.txt
+move_to_protoart.sh
+*.bak
+*.orig
+*.zip
+enhance_bench/
+selftest/
+
+# other projects that live next to this one on the developer's Mac (separate repositories)
+ProtoArtBeautify/
+protoart-press/

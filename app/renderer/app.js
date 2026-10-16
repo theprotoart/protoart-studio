@@ -1,0 +1,4281 @@
+/* Protoart Studio renderer. Talks to the Python backend through window.bee (see preload.js). */
+const { createApp } = Vue;
+
+// ------------------------------------------------------------------ backend client
+let nextId = 1;
+const pending = new Map();
+const listeners = [];
+const HEAVY = new Set(["preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+                        "control_preview", "convert_tdict", "compare"]);
+const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
+
+window.bee.onMessage((m) => {
+  if ((m.type === "result" || m.type === "error") && pending.has(m.id)) {
+    const { resolve, reject } = pending.get(m.id);
+    pending.delete(m.id);
+    jobArgs.delete(m.id);
+    if (m.type === "result") resolve(m.data);
+    else reject(Object.assign(new Error(m.msg), { cancelled: !!m.cancelled }));
+    return;
+  }
+  listeners.forEach((fn) => fn(m));
+});
+
+function call(cmd, args = {}) {
+  const id = nextId++;
+  // Vue's reactive objects can't cross Electron's process boundary, so always send a plain copy.
+  const plainArgs = JSON.parse(JSON.stringify(args ?? {}));
+  if (HEAVY.has(cmd)) jobArgs.set(id, { cmd, args: plainArgs });
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    window.bee.send({ id, cmd, args: plainArgs }).then(
+      (ok) => {
+        if (!ok) {
+          pending.delete(id);
+          reject(new Error("Backend is not running"));
+        }
+      },
+      (err) => {
+        pending.delete(id);
+        reject(err);
+      }
+    );
+  });
+}
+
+const FLAVOR_LABEL = { pony: "Pony", illustrious: "Illustrious", noobai: "NoobAI" };
+const QUALITY_TAGS = {
+  pony: "score_9, score_8_up, score_7_up",
+  illustrious: "masterpiece, best quality, amazing quality, very aesthetic, absurdres",
+  noobai: "masterpiece, best quality, newest, absurdres, highres",
+};
+const QUALITY_NEG = {
+  pony: "score_6, score_5, score_4",
+  illustrious: "worst quality, low quality, bad quality, lowres",
+  noobai: "worst quality, old, early, low quality, lowres",
+};
+// Recommended samplers per model type: quickest to a clean picture first (fewest model runs), then best quality.
+// (Pony / Illustrious / NoobAI were trained and tuned with Euler a, so it leads their quality list.)
+const SAMPLER_PICKS = {
+  sd15: { fast: ["unipc", "dpmpp_2m_karras", "deis"], quality: ["dpmpp_2m_karras", "dpmpp_sde_karras", "dpmpp_2m_sde_karras"] },
+  sdxl: { fast: ["dpmpp_2m_karras", "unipc", "deis"], quality: ["dpmpp_2m_sde_karras", "dpmpp_2m_karras", "euler_a"] },
+  anime_xl: { fast: ["euler_a", "dpmpp_2m_karras", "unipc"], quality: ["euler_a", "dpmpp_2m_sde_karras", "dpmpp_2m_karras"] },
+  ernie: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
+  flux: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
+};
+const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", sd2: "SD 2" };
+const OPTS_KEY = "beestudio.opts";
+const PERF_KEY = "protoart.perf";
+// Starting guesses (seconds per step per megapixel) until this Mac has real measurements.
+const DEFAULT_SPS_PER_MP = { sd15: 2.4, sdxl: 3.5, ernie: 9, flux: 12 };
+const DEFAULT_LOAD_S = { sd15: 15, sdxl: 30, ernie: 60, flux: 60 };
+const DEFAULT_JOB_S = { faces: 15, enhance: 180, interrogate: 20, enhance_prompt: 25 };
+const FORM_KEY = "beestudio.lastForm";
+// Pictures you can drop or pick anywhere: these open directly; HEIC, TIFF, RAW… are converted by macOS first
+const DIRECT_EXT = ["png", "jpg", "jpeg", "jpe", "jfif", "webp", "gif", "bmp"];
+const PICTURE_EXT = DIRECT_EXT.concat(["heic", "heif", "hif", "avif", "tif", "tiff", "psd", "jp2", "j2k", "jpx", "tga", "ico", "icns",
+  "exr", "hdr", "dng", "cr2", "cr3", "crw", "nef", "nrw", "arw", "srf", "sr2", "raf", "orf", "rw2", "pef", "srw", "x3f", "3fr",
+  "erf", "kdc", "mrw", "raw", "rwl", "iiq"]);
+const extOf = (name) => String(name || "").split(".").pop().toLowerCase();
+const isPicture = (f) => !!f && ((f.type || "").startsWith("image/") || PICTURE_EXT.includes(extOf(f.name)));
+const ADJ_KEY = "protoart.adjustLast";  // the last Adjust settings you saved ("Last used")
+let adjEngine = null;                   // the WebGL engine (kept outside Vue: not reactive)
+let adjFrame = 0;
+// Adjust panel: Camera Raw-style sliders (Light, Color, Presence) and the Color Efex-style filter stack
+const ADJ_SECTIONS = [
+  { id: "light", label: "Light", tip: "Like Camera Raw's Light panel. Double-click a slider to reset it.", sliders: [
+    { k: "exposure", label: "Exposure", min: -2, max: 2, step: 0.05, tip: "Overall brightness, in stops" },
+    { k: "contrast", label: "Contrast", tip: "Difference between light and dark" },
+    { k: "highlights", label: "Highlights", tip: "Left recovers bright areas; right brightens them" },
+    { k: "shadows", label: "Shadows", tip: "Right opens up dark areas; left deepens them" },
+    { k: "whites", label: "Whites", tip: "Where pure white starts" },
+    { k: "blacks", label: "Blacks", tip: "Where pure black starts" } ] },
+  { id: "color", label: "Color", tip: "White balance and colour strength.", sliders: [
+    { k: "temperature", label: "Temperature", tip: "Cooler (blue) ↔ warmer (yellow)" },
+    { k: "tint", label: "Tint", tip: "Green ↔ magenta" },
+    { k: "vibrance", label: "Vibrance", tip: "Boosts muted colours and protects skin tones" },
+    { k: "saturation", label: "Saturation", tip: "All colours; far left = black and white" } ] },
+  { id: "presence", label: "Presence & effects", tip: "Lightroom's Clarity, Sharpening and Vignette.", sliders: [
+    { k: "clarity", label: "Clarity", tip: "Mid-tone contrast: crisper texture (left softens)" },
+    { k: "sharpen", label: "Sharpening", min: 0, max: 1, tip: "Fine-edge sharpening" },
+    { k: "vignette", label: "Vignette", tip: "Darkens the corners (left lightens them)" } ] },
+];
+const ADJ_FILTERS = {
+  extract: { label: "Detail Extractor", on: "extractOn", tip: "Pulls out texture everywhere, an HDR-like look.", sliders: [
+    { k: "deAmount", label: "Detail", min: 0, max: 1 }, { k: "deContrast", label: "Contrast" }, { k: "deSaturation", label: "Saturation" }],
+    seg: { k: "deRadius", label: "Size", options: [[0, "Fine"], [1, "Normal"], [2, "Coarse"]] } },
+  dark: { label: "Dark Contrasts", on: "darkOn", tip: "Deeper, moodier tones with crisp mid-tone detail.", sliders: [
+    { k: "dcStrength", label: "Strength", min: 0, max: 1 }, { k: "dcBrightness", label: "Brightness" }, { k: "dcSaturation", label: "Saturation" }] },
+  bleach: { label: "Bleach Bypass", on: "bleachOn", tip: "Silvery, high-contrast, half-desaturated film look.", sliders: [
+    { k: "bbBrightness", label: "Brightness" }, { k: "bbSaturation", label: "Saturation" }, { k: "bbContrast", label: "Contrast" },
+    { k: "bbLocalContrast", label: "Local contrast", min: 0, max: 1 }] },
+  glow: { label: "Glamour Glow", on: "glowOn", tip: "A soft, glowing bloom: flattering for portraits.", sliders: [
+    { k: "ggGlow", label: "Glow", min: 0, max: 1 }, { k: "ggSaturation", label: "Saturation" }, { k: "ggWarmth", label: "Warmth" }] },
+  grain: { label: "Film Grain", on: "grainOn", tip: "Photographic grain. Usually best last in the stack.", sliders: [
+    { k: "grainAmount", label: "Intensity", min: 0, max: 1 }, { k: "grainSize", label: "Grain size", min: 0, max: 1 },
+    { k: "grainSoftness", label: "Softness", min: 0, max: 1 }], toggle: { k: "grainColor", off: "Mono", on: "Color" } },
+};
+const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
+
+function loadJSON(key, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem(key)) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+function saveJSON(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage unavailable: settings just won't persist */
+  }
+}
+
+// Launch screen: stays at least ~1.5 s, then fades out once the engine has answered.
+const SPLASH_STARTED = Date.now();
+function hideSplash(msg) {
+  const el = document.getElementById("splash");
+  if (!el || el.dataset.hiding) return;
+  if (msg) {
+    const st = document.getElementById("splash-status");
+    if (st) st.textContent = msg;
+  }
+  el.dataset.hiding = "1";
+  setTimeout(() => {
+    el.classList.add("gone");
+    setTimeout(() => el.remove(), 600);
+  }, Math.max(0, 1500 - (Date.now() - SPLASH_STARTED)));
+}
+setTimeout(() => hideSplash("Taking a while…"), 25000); // never block the app forever
+
+const protoartApp = createApp({
+  // Packaged app: the page template is compiled at build time (packaging/precompile_template.js),
+  // so Vue's runtime-only build runs under a strict Content Security Policy (no eval).
+  ...(window.__PROTOART_RENDER__ ? { render: window.__PROTOART_RENDER__ } : {}),
+  data() {
+    return {
+      tab: "create",
+      theme: window.RackTheme ? window.RackTheme.get() : "dark", // faceplate: light / dark / system (rack.js)
+      skin: window.RackTheme && window.RackTheme.getSkin ? window.RackTheme.getSkin() : "studio", // theme colours (rack.js)
+      SKIN_LIST: [
+        { id: "studio", label: "Amber", title: "Amber: brushed metal and charcoal panels with amber lamps (the classic look)" },
+        { id: "console", label: "Cream", title: "Cream: warm cream and muted metal, yellow lamps and deep red accents" },
+        { id: "puig", label: "Slate", title: "Slate: blue-grey steel, cream lettering and soft ivory lamps" },
+        { id: "magma", label: "Ember", title: "Ember: black panels with red-orange lamps" },
+      ],
+      sys: {},
+      models: [],
+      samplers: [],
+      loras: [],
+      presets: [],
+      selectedPreset: "",
+      newPresetName: "",
+      presetIncludesPrompt: false,
+      loraToAdd: "",
+      loraSearch: "",
+      loraOpen: false,
+      logCopied: false,
+      resetAsk: "",
+      edits: { pending: [], timer: null, notInstalled: false, folder: "" },
+      editorChoices: ["PhotoCraft", "Adobe Photoshop 2025", "Pixelmator Pro", "Affinity Photo 2", "GIMP", "Preview"],
+      wild: { open: false, files: [], folder: "", preview: [] },
+      batch: { open: false, text: "", keepPrompt: false },
+      loraRand: Object.assign({ min: 1, max: 2, wmin: 0.6, wmax: 1.0, every: false, knownOnly: true, picked: [], words: [] },
+                              loadJSON("protoart.loraRand", {})),
+      ipDragOver: false,
+      ipKinds: [
+        { id: "style", label: "Style & look", tip: "Borrows the overall look: colours, style, mood, subject" },
+        { id: "plus", label: "Stronger", tip: "Follows the reference picture more closely (IP-Adapter Plus)" },
+        { id: "face", label: "Face", tip: "Borrows a person's face from a close-up photo (IP-Adapter Plus Face)" },
+      ],
+      mask: { erase: false, size: 40, data: null, for: "", painting: false, last: null },
+      initDims: null,
+      resetUndo: null,       // Create settings before "Reset to defaults", for one undo
+      quitAsk: false,        // Tools -> Force quit: waiting for confirmation
+      engineExits: [],       // when the engine stopped unexpectedly (to avoid restart loops)
+      cmp: { open: false, x: "cfg", xv: "4, 6, 8, 10", y: "", yv: "", lora: "" },
+      cmpAxes: { cfg: "Guidance (CFG)", steps: "Steps", sampler: "Sampler", seed: "Seed", clip_skip: "CLIP skip",
+                 lora_weight: "LoRA weight", lora: "Which LoRA", strength: "Change strength (Image to image)" },
+      form: Object.assign(
+        { model: "sdxl", prompt: "", negative_prompt: "", width: 1024, height: 1024, steps: 30, cfg: 6,
+          sampler: "", seed: -1, num_images: 1, loras: [],
+          restore_faces: false, face_strength: 0.8, enhance_prompt: false, clip_skip: 1, quality_tags: true,
+          init_image: "", strength: 0.6, use_init_size: false, size_link: false, size_ratio: 1,
+          fast: false, fast_prev: null, i2i_use_init: true, control_image: "",
+          control: { type: "", scale: 1.0, start: 0.0, end: 1.0, already_map: false },
+          hires: { on: false, scale: 1.5, strength: 0.45, steps: 15 },
+          face_detailer: { on: false, strength: 0.4, prompt: "" },
+          ip_adapter: { image: "", kind: "style", scale: 0.6 },
+          i2i_mode: "change", inpaint: { strength: 0.85, blur: 4, only_masked: false },
+          outpaint: { left: 0, right: 0, top: 0, bottom: 0 } },
+        loadJSON(FORM_KEY, {})
+      ),
+      dims: [512, 576, 640, 704, 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344, 1536],
+      queue: [],          // jobs from the backend: running first, then queued
+      progress: null,
+      status: "Starting…",
+      error: "",
+      session: [],
+      lib: { text: "", seed: "", model: "", kind: "", starred: false, loras: [], results: [] },
+      dragOver: false,
+      stopping: {},          // job id -> time Stop was pressed
+      strictOffline: false,  // Settings → Privacy → Strict offline (never go online)
+      paused: false,         // Pause: the running image waits at its next step; no new job starts
+      pausedAt: 0,
+      requeue: [],           // jobs to re-send after a Force stop restart
+      libHasMore: false,
+      startDragOver: false,
+      lastEnhanced: null,
+      undoPrompt: null,
+      timing: { job: null, image: 0, lastAt: 0, stepTimes: [] },
+      jobStartedAt: 0,
+      firstStepAt: 0,
+      perf: loadJSON(PERF_KEY, { models: {}, jobs: {} }),
+      lastModel: null,
+      now: Date.now(),
+      i2p: Object.assign({ mode: "describe", append: false }, loadJSON("beestudio.i2p", {})),
+      rnd: Object.assign({ subject: "random", quality: "standard", detail: 2 }, loadJSON("beestudio.rnd", {})),
+      post: {
+        depth: { model: "small", style: "gray" },
+        face_strength: 0.8,
+        do_enhance: true,
+        do_faces: false,
+        enh: { upscale_factor: 2, num_inference_steps: 18, denoise_strength: 0.35, controlnet_scale: 0.6,
+               solver: "DDIM", seed: -1, prompt: "", turbo: false, instant: false, work_size: "auto" },
+      },
+      libLoras: [],
+      detail: null,
+      selectMode: false,
+      selected: [],
+      confirmDel: null,   // {ids, count, versions, include_versions}
+      imagesDir: { path: "", default: "" },
+      moveExisting: true,
+      opts: Object.assign({ low_memory: false, force_load: false, trash: false, image_format: "png", jpeg_quality: 92,
+                            auto_triggers: true, previews: true, editor: "PhotoCraft", embed_meta: "details",
+                            // speed: get a model ready before you press Generate ("last" = the one you last used)
+                            preload_start: "last", preload_on_pick: true,
+                            // content filter (off until you turn it on)
+                            hide_nsfw: false, check_pictures: false, hide_people: false,
+                            default_model: "" },   // the model Create starts with (Models tab → ☆ Default)
+        loadJSON(OPTS_KEY, {})),
+      dbee: { available: false, enabled: true, checkpoints: 0, loras: 0, embeddings: 0, skipped: 0, skipped_kinds: [] },
+      // Enhance & upscale speed/quality presets. Only steps × creativity steps actually run (it refines the
+      // picture rather than starting from noise); DPM-Solver gets sharp results in fewer steps than DDIM.
+      enhSpeed: [
+        { label: "⏩ Instant", steps: 0, solver: "DDIM", instant: true, tip: "The 4× sharpening upscaler only: seconds instead of minutes, but it invents no new detail. Good for previews and big batches." },
+        { label: "🚀 Turbo", steps: 6, solver: "DDIM", turbo: true, tip: "A distilled few-step add-on (LCM-LoRA, ~135 MB once): a few steps and no negative-prompt pass, several times faster. Slightly softer detail." },
+        { label: "⚡ Fast", steps: 10, solver: "DPMSolver", tip: "Fewer steps that still look clean: about half the time of Standard" },
+        { label: "Standard", steps: 18, solver: "DDIM", tip: "The enhancer's own default" },
+        { label: "★ Best", steps: 30, solver: "DPMSolver", tip: "Most detail and the cleanest textures; about 1.7× the time of Standard" },
+      ],
+      enhPresets: [
+        { label: "Subtle", c: 0.2, r: 1.0, tip: "Sharper and cleaner, almost no new detail" },
+        { label: "Balanced", c: 0.35, r: 0.6, tip: "The default: adds detail, keeps the picture" },
+        { label: "Creative", c: 0.55, r: 0.45, tip: "Lots of new texture and detail; may change small things" },
+      ],
+      livePreview: null,
+      // Adjust (sliders + filters after generating): {open, rec, p, before, busy, msg, error, openFilter, size}
+      adj: { open: false, rec: null, p: null, before: false, busy: false, msg: "", error: "", openFilter: "", size: null,
+             fold: {}, which: "original", view: "after", split: 0.5, presetName: "", savingPreset: false,
+             // several versions at once: which settings ("current" and/or preset names), enhance too, and in which order
+             batch: ["current"], batchEnhance: false, batchOrder: "enhance_first" },
+      adjPresets: [],   // your saved Adjust presets: [{name, set}]
+      // Library → Batch edit & export (PhotoMill-style) with Press compression
+      bx: { open: false, ids: [], adjust: "", format: "same", quality: 90, compress: "balanced", dpi: 72, keep_meta: false,
+            pattern: "{name}", dest: "", resize: { mode: "none", value: 2048, w: 1080, h: 1350, no_upscale: true },
+            running: false, done: 0, total: 0, results: [], errors: [], cancel: false, presetName: "", savingPreset: false },
+      exportPresets: [],
+      bxOne: null,      // the picture "Compress / export" was pressed on (it may not be in the Library list)
+      // Create: sections you folded down to one line (at first: the image prompt and extras are folded)
+      cfolds: loadJSON("protoart.createFolds", { ipa: true, extras: true }),
+      adjSections: ADJ_SECTIONS,
+      ProtoLooks: window.ProtoAdjust ? window.ProtoAdjust.LOOKS : [],
+      adjFilters: ADJ_FILTERS,
+      helpOpen: "",
+      preloading: "",     // model being loaded in the background (kept out of the visible queue)
+      readyModel: "",     // model known to be loaded and waiting
+      content: { checker_installed: false, checker_mb: 340, total: 0, nsfw: 0, unchecked: 0, scanning: false, msg: "" },
+      revealDetail: false,
+      modelDel: "",
+      folders: [],         // Settings → Moved a folder?: your folders and whether each is there
+      relinkMsg: "",
+      loraFix: { q: "", move: true, msg: "", unknownOnly: false, showAll: false },  // Settings → Fix a LoRA's type
+      favModels: loadJSON("protoart.favModels", []),  // ★ favourite models (kept on this Mac; files are never touched)
+      typeLocks: loadJSON("protoart.typeLocks", {}),  // Fix a type: 🔒 rows (a type you picked is locked until you unlock it)
+      sortPlan: null,      // Settings → LoRA folders → Sort into type folders (the plan, shown before moving)       // result of the last "Moved it…" 
+      depthModels: [
+        { id: "small", label: "Small", size: "~100 MB", tip: "Fast and light (fine on 8 GB Macs). Free for any use (Apache 2.0)." },
+        { id: "base", label: "Base", size: "~400 MB", tip: "Sharper edges and finer detail; a little slower. Non-commercial use only (CC BY-NC 4.0)." },
+        { id: "large", label: "Large", size: "~1.3 GB", tip: "Best detail; slowest, and on 8 GB Macs it frees the image model first. Non-commercial use only (CC BY-NC 4.0)." },
+      ],
+      helpTabs: [
+        { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
+          sections: [
+            { h: "🧬 Merge LoRAs and 🔤 train embeddings", items: [
+              "<b>Train → Merge LoRAs</b>: combine two or more LoRAs for the same model type into one, each at its own weight. <b>Exact</b> keeps every detail; <b>Smaller</b> makes a much smaller file that's a close match.",
+              "<b>Train → Embedding</b>: teach an SD 1.5 model one new word from 5–20 pictures (textual inversion). The result is a tiny file you use by typing its name. Pause / Stop work as usual." ] },
+            { h: "🎛 Themes, favourites and a tidier Models tab", items: [
+              "<b>Colour themes</b> (Settings, at the top): <b>Amber</b> (charcoal and amber, the classic look), <b>Cream</b> (warm cream, yellow lamps, deep red), <b>Slate</b> (blue-grey steel, ivory lamps) and <b>Ember</b> (black and red-orange). Each works in Light and Dark; everything that's on lights up in the theme's colour.",
+              "Buttons that are on now light up fully, like an illuminated studio switch, including the choices in Settings (PNG / JPEG and the like).",
+              "<b>★ Favourite models</b>: click the ★ on a model (Create's list or the Models tab). Favourites come first, and <b>★ Favorites</b> shows only them.",
+              "Markers ★ ● ⚑ sit in their own column on every row, so long names no longer push them around (a long name shows in full when you point at it).",
+              "The <b>Models tab</b> now holds your model files, Add from Civitai, Add from Hugging Face and Fix a type; <b>Settings</b> keeps the folders. Settings no longer overlaps itself in a narrow window.",
+              "<b>Hide NSFW</b> recognises many more explicit LoRA and model names, so 🎲 Random LoRAs and the lists leave them out while it's on. You can still mark any item yourself with ⚑.",
+              "Picture details: the decorative screws are gone from the pop-up, so only <b>Close</b> closes it.",
+              "New How to topic: <b>⚖️ Disclaimer &amp; licences</b>." ] },
+            { h: "❚❚ Pause, ↺ Reuse prompt, recommended samplers", items: [
+              "<b>❚❚ Pause</b> (next to Stop, and at the top of the queue): the picture being made waits at its next step and nothing new starts; <b>▶ Resume</b> carries on exactly where it was. Works for generating, enhancing in Tools and training. The clocks stop while paused.",
+              "<b>↺ Prompt</b> on any picture you made (hover it in Create or the Library), or <b>↺ Reuse prompt</b> in its details: puts its prompt back in the prompt box and keeps your current model and settings. <b>⚙ All settings</b> / <b>Use these settings</b> loads everything (model, LoRAs, size, seed…). If Enhance prompt rewrote it, <b>↺ Original prompt</b> gives you what you typed.",
+              "Under the Sampler list: <b>⚡ Fastest</b> and <b>★ Best quality</b> picks for the chosen model's type, outlined in faint blue.",
+              "<b>Fix a type</b> (Models tab): <b>🔒</b> locks a row's type so it can't change by accident, and <b>Show all</b> lists every file.",
+              "Image prompt (Style / Face…) on a fresh install: the adapter downloads by itself the first time instead of stopping with “does not appear to have a file named…”." ] },
+            { h: "🎚 Adjust: edit after generating (Lightroom / Color Efex style)", items: [
+              "In <b>Tools</b>: <b>🎚 Adjust the original</b> or <b>Adjust the result</b>; also <b>🎚 Adjust</b> in the Library's picture details and in Image to image.",
+              "Light, Color and Presence sliders (Exposure … Vignette), five Color Efex-style filters in a stack you can reorder, six ready Looks, and <b>your own presets</b>.",
+              "Live preview on the Mac's graphics chip; compare with <b>Edited / Original / Split</b> (or the \\ key). Saved as a new picture; the original never changes.",
+              "<b>🖼 Send to Image to image</b> from Tools: the original, any result, or straight from Adjust (<b>Save &amp; send to Image to image</b>).",
+              "<b>Save &amp; enhance</b> runs the AI enhancer on your adjusted picture, and <b>Several versions at once</b> makes one picture per preset in a single run, optionally enhanced too (through the queue). More under Tools → 🎚 Adjust." ] },
+            { h: "⚡ Enhance & upscale is far faster", items: [
+              "On an 8 GB M1, a 640×800 picture at 2× now takes about <b>75 s with 🚀 Turbo</b>, <b>3 min with ⚡ Fast</b> and <b>8 min with Standard</b> (it used to take over an hour).",
+              "Why: the speed-ups from ProtoArt Beautify: the detail add-ons are merged into the model once, the picture is cut into the fewest tiles that fit your Mac's memory, memory goes back to macOS after every pass, and the upscaler works in small pieces on 8 GB Macs.",
+              "New <b>⏩ Instant</b> speed (seconds: the sharpening upscaler only, no new detail) and <b>Work at</b> 512 / 768 px: <b>Auto</b> picks 512 px for the quick speeds on Macs under 16 GB (less than half the work; the → size next to Enhance shows what you'll get).",
+              "Tip: run only one image app at a time on 8 GB (not ProtoArt Beautify or DiffusionBee alongside); that alone can make it many times slower." ] },
+            { h: "🔤 Embeddings", items: [
+              "<b>Settings → Embeddings</b>: add embedding files (copied in), add folders (used in place), or download them <b>From Civitai</b> (“Textual Inversion”). SD 1.5 and SDXL (Pony, Illustrious, NoobAI too).",
+              "Above the negative prompt, Create shows only the embeddings made for the chosen model's type; click one or type its name. Embeddings left in LoRA folders are found too and no longer listed as LoRAs." ] },
+            { h: "🗂 Batch edit & export, and 🗜 Compress", items: [
+              "In the <b>Library</b>: select pictures and export them all at once: resize, convert (JPEG / PNG / WebP / TIFF), apply an Adjust look or preset, rename from a pattern, choose dpi, and keep or remove the details inside (removed by default). Ready-made presets and your own.",
+              "<b>🗜 Compress</b> (from ProtoArt Press): copies that are usually 40–70% smaller and measured to look the same. One picture: <b>🗜 Compress / export…</b> in its details." ] },
+            { h: "Also new in this version", items: [
+              "<b>Almost any picture opens</b>: besides PNG, JPEG and WebP you can drop or pick iPhone <b>HEIC</b>, <b>TIFF</b>, <b>AVIF</b>, <b>PSD</b>, GIF, BMP, JPEG 2000 and camera <b>RAW</b> (DNG, CR2/CR3, NEF, ARW, RAF, ORF, RW2…) in Tools, Image to image, the image prompt and image → prompt. macOS's own reader converts them once (nothing extra is installed).",
+              "<b>Gated Hugging Face models</b>: save a Hugging Face access token (Models tab) to download models whose owners ask you to accept a licence; the app shows the steps when one needs it.",
+              "<b>Tidier screens</b>: Create's sections fold down to one line (click a section's name; the line still shows what's set), and Settings starts with only This Mac and Models open.",
+              "<b>Civitai sign-in</b>: Civitai now needs a free account for most downloads. The Civitai card asks for your API key once, with the steps to get it; see Troubleshooting → Civitai downloads for every message you might see.",
+              "<b>From Civitai</b> (Models tab): paste a link to download LoRAs, embeddings and SD 1.5 / SDXL / Pony checkpoints straight into the right folder.",
+              "LoRAs and embeddings show only for the matching model type; <b>Fix a type</b> and <b>Show unknown type</b> (Models tab) sort out files the app couldn't identify, and <b>Sort into type folders</b> tidies a folder.",
+              "<b>Moved a folder?</b> (Settings): moved your models / LoRAs to another drive? Point the app at the new place and everything keeps working.",
+              "<b>Hide NSFW</b> and <b>Hide People</b> (top of the window), a default model, deleting models, and getting a model ready in memory before you press Generate (Settings → Speed)." ] },
+          ] },
+        { id: "create", go: "create", icon: "✨", title: "Create", summary: "Make images from a text prompt",
+          sections: [
+            { h: "Making an image", items: [
+              "Pick a <b>model</b> (filter by type or search). Not downloaded yet? It downloads once, then works offline.",
+              "Type a <b>prompt</b> describing what you want, and a <b>negative prompt</b> for what to avoid.",
+              "Press <b>Generate</b> or ⌘↵. Press it again to queue more jobs; each one shows its time left.",
+              "<b>Too crowded?</b> Click a section's name (Model, Prompt, LoRAs, Image prompt, Size, steps &amp; seed, Extras) to fold it down to one line, like DiffusionBee; the folded line still shows what's set (for example <i>512×768 · 25 steps · CFG 7</i>). Click again to open it. <b>collapse all / expand all</b> at the top does every section; the app remembers what you folded." ] },
+            { h: "Knobs, switches & meters", items: [
+              "<b>Knobs</b> (Steps, Guidance, Images): <b>drag</b> up or right to turn up, down or left to turn down; hold <b>Shift</b> while dragging for fine control. You can also <b>scroll</b> over a knob, or click it and use the <b>arrow keys</b> (Page Up / Page Down jump further, Home / End go to the lowest / highest).",
+              "<b>Double-click a knob</b> to put it back to its default (the model's own steps and guidance, 1 image). <b>↺ Reset to defaults</b> under the knobs resets everything in Create to the model's defaults (size, steps, guidance, sampler, 1 image, random seed, recommended CLIP skip, extras off) and keeps your prompt, model and LoRAs; <i>undo</i> brings your settings back.",
+              "<b>Type an exact value</b>: click the amber number under a knob, type, and press Return. Esc cancels. Knobs click in steps (whole numbers for Steps and Images, 0.5 for Guidance); typed values are kept exactly, e.g. Guidance 7.3. The knob and its number always show the same value.",
+              "<b>Max size</b> switch: click it to step to the next size, drag to turn it, or click a label (Small, Medium, Large). If you type your own width and height it shows <i>custom size</i>.",
+              "<b>Toggle switches</b>: lever up = on, down = off. Buttons that are on light up amber.",
+              "<b>Top panel</b>: Power, Busy and Fault lights; amber clocks for the time left on the current job and on the whole queue; the <b>VU meter</b> needle shows the same progress as the progress bar, and its lamp warms up while a job runs. The clocks and meter are hidden on Library, Settings and How to." ] },
+            { h: "Prompt helpers", items: [
+              "<b>✨ Enhance prompt</b> turns a short idea into a full prompt in the model's style: tags for SD 1.5, a detailed description for SDXL and ERNIE (small built-in language model, ~1 GB the first time).",
+              "<b>enhance now</b> (button) rewrites the prompt once, right away, and puts it in the prompt box so you can read it, edit it or <b>↩ undo</b> before generating. Best for polishing one prompt by hand.",
+              "<b>Enhance prompt when generating</b> (checkbox) leaves your prompt box alone and enhances your short idea behind the scenes every time you press Generate, so each image gets a fresh variation. The prompt that was used shows under the box afterwards and is saved with the image. Best for exploring many variations; it adds a few seconds per image.",
+              "<b>🎲 Random prompt</b> makes Danbooru-style tag prompts (subject, quality preset, detail level).",
+              "Drop an image on the prompt box to turn it into a prompt: <b>Describe</b> (sentences) or <b>Danbooru tags</b>." ] },
+            { h: "Long prompts & word weights (SD 1.5 / SDXL)", items: [
+              "Prompts can be as long as you like: past 75 tokens they're read in parts, so nothing is cut off. <b>BREAK</b> starts a new part.",
+              "<b>(word:1.3)</b> makes a word stronger, <b>(word:0.7)</b> weaker; <b>(word)</b> = ×1.1, <b>((word))</b> = ×1.21, <b>[word]</b> = ÷1.1. Same as A1111, Draw Things and Civitai prompts, so copied prompts look as intended. Use <b>\\(</b> for a real bracket." ] },
+            { h: "Wildcards & prompt lists", items: [
+              "<b>{red|blue|green} dress</b> picks one option for each image; <b>{2$$a|b|c}</b> picks two. Options can be nested.",
+              "<b>__hair__</b> picks a random line from <i>hair.txt</i> in your wildcards folder (<b>{ } Wildcards</b> shows your files; sub-folders work as <i>__clothes/tops__</i>). The same seed gives the same words again, and the words used are saved with each image.",
+              "<b>📋 Prompt list</b> queues one job per line (type them or load a .txt file), each with your current settings." ] },
+            { h: "🎲 Random LoRAs", items: [
+              "Picks random LoRAs that work with the chosen model: set how many (e.g. 1 to 2) and the weight range.",
+              "Their trigger words are added to the prompt (if auto-add is on in Settings) and taken back out on the next pick. LoRAs you added yourself stay.",
+              "<b>new pick every Generate</b> re-rolls each time you press Generate. It only ever picks LoRAs made for the chosen model's type, and skips ones hidden by Hide NSFW / Hide People." ] },
+            { h: "Image prompt (IP-Adapter)", items: [
+              "Drop a reference picture to borrow its look without training a LoRA: <b>Style & look</b> (colours, style, mood), <b>Stronger</b> (closer to the picture) or <b>Face</b> (a person's face from a close-up).",
+              "<b>How much to borrow</b>: 0.4–0.6 blends it with your prompt; 0.8+ follows the picture closely. Works in Image to image too.",
+              "Downloads ~2.6 GB the first time. On 8 GB Macs it works best with SD 1.5 at 512–768 px." ] },
+            { h: "Extras: Hi-res fix & Face detailer", items: [
+              "<b>🔍 Hi-res fix</b> makes the picture at the model's natural size, then redraws it ×1.5 or ×2 bigger. You get real detail at large sizes without the doubled heads you get from generating big directly. <b>redraw</b> 0.35–0.5 adds detail and keeps the picture.",
+              "<b>🙂 Face detailer</b> (like ADetailer) finds each face, redraws it at full detail with your model and prompt, and blends it back: faces stay in the picture's style. Add a face prompt (e.g. <i>detailed eyes, smile</i>) if you like.",
+              "Both add time: Hi-res fix about as much as the picture itself; the face detailer a few seconds per face." ] },
+            { h: "🔬 Compare settings", items: [
+              "Makes the same picture with different settings, side by side in one labelled grid: CFG, steps, sampler, seed, CLIP skip, a LoRA's weight, which LoRA, or change strength.",
+              "Pick <b>Across</b> and (optionally) <b>Down</b>, type values separated by commas, or a range like <i>3-12 (+3)</i>. Everything else (prompt, model, LoRAs, size) comes from the Create tab, with one seed for every picture.",
+              "Up to 36 pictures. The grid and each picture are saved to the Library.",
+              "The switch next to <b>Compare settings</b> shows whether it's on; click the heading or <b>Turn off compare</b> to close it." ] },
+            { h: "LoRAs & embeddings", items: [
+              "Add as many LoRAs as you like, each with its own weight (−2 to 2).",
+              "<b>Only LoRAs made for the chosen model's type are listed</b>: an ERNIE model shows only ERNIE LoRAs, SD 1.5 only SD 1.5 ones, and so on (Pony / Illustrious LoRAs count as SDXL). Switching to another type of model removes LoRAs that don't fit.",
+              "<b>Fix a type</b> (Models tab): <b>Show all</b> lists every LoRA and base model file; <b>🔒</b> locks a row so a stray click can't change its type (a type you pick locks itself; click the lock to change it).",
+              "LoRAs whose type the app couldn't work out aren't shown for any model; the list says how many and <b>Give them a type →</b> takes you to fix them. <b>LoRA missing or the wrong type? Fix it →</b> does the same for one that's filed under the wrong type.",
+              "Markers after a name: red <b>⚑</b> = NSFW, amber <b>●</b> = tagged People. Point at a row and click either one to set or clear it.",
+              "Trigger words are found automatically and can be added to the prompt with one click; save your own with <i>add / edit</i>.",
+              "<b>Embeddings</b> (textual inversions like <i>EasyNegative</i>) work with SD 1.5 and SDXL models (Pony / Illustrious / NoobAI too): click one above the negative prompt, or type its name in either prompt. Only embeddings made for the chosen model's type are shown.",
+              "Add embeddings in <b>Settings → Embeddings</b>: <i>Add embedding files…</i> copies .safetensors / .pt files in, <i>Add folders…</i> uses a folder where they are, and <b>From Civitai</b> (Models tab) downloads them (Civitai calls them “Textual Inversion”). Embeddings in your LoRA folders and DiffusionBee's are found too." ] },
+            { h: "Size, steps & speed", items: [
+              "The <b>Max size</b> switch (Small / Medium / Large) sets the size for the model; presets set the shape; 🔗 links width and height.",
+              "Each sampler shows its <b>recommended steps</b>; picking one sets them for you. Under the Sampler list, <b>⚡ Fastest</b> and <b>★ Best quality</b> show the recommended samplers for the chosen model's type (outlined in faint blue; Pony / Illustrious models lead with Euler a). The list itself is grouped the same way.",
+              "<b>⚡ Fast mode</b> (SD 1.5 / SDXL) makes images in 6 steps. <b>Presets</b> (at the top of the window in Create) save a whole setup, LoRAs included; switch on <i>prompt</i> to save the prompt too.",
+              "<b>❚❚ Pause</b> holds the picture being made at its next step (and the queue); <b>▶ Resume</b> carries on where it was, nothing lost. Memory stays in use while paused, so on an 8 GB Mac Stop frees more if you need the Mac for something else.",
+              "<b>⏭ Skip image</b> skips one image of a batch, <b>■ Stop</b> stops the job, <b>Stop all</b> clears the queue (and ends a pause).",
+              "Next to the model's name: <b>getting ready…</b> while it loads in the background, <b>● loaded, ready</b> when the next picture can start straight away (Settings → Speed)." ] },
+            { h: "Extras", items: [
+              "<b>CLIP skip</b> (SD 1.5 / SDXL): reads your prompt from an earlier layer of the text encoder. <b>Off</b> is normal; <b>2</b> is what many anime-style models and LoRAs were made with and often follows their style better. 3–4 is looser.",
+              "Each model starts on the CLIP skip it's meant for (marked <b>★</b>): <b>2</b> for anime-style SD 1.5 models (Anything, Counterfeit, MeinaMix…), <b>Off</b> for photo and general models. SDXL always reads prompts this way, so its scale starts at <b>Standard</b>. Change it any time; your choice is remembered for that model, and <i>use recommended</i> puts it back.",
+              "If a LoRA's file says which CLIP skip it was trained with, a <i>use</i> link appears under the setting. It's saved with each image and in presets, and appears in the image's details.",
+              "<b>Restore faces</b> fixes faces right after each image is made (RestoreFormer)." ] },
+          ] },
+        { id: "models", go: "create", icon: "🧠", title: "Models & their defaults", summary: "Why each model starts with different settings, and CLIP skip",
+          sections: [
+            { h: "Every model starts ready to use", items: [
+              "Picking a model sets its own <b>size</b>, <b>steps</b>, <b>guidance (CFG)</b> and <b>sampler</b>: SD 1.5 at 512 px, SDXL at 1024 px, ERNIE at 768 px on 8 GB Macs (1024 on bigger ones), with the step count each one is made for.",
+              "Each sampler shows its <b>recommended steps</b>; <b>⚡ Fast mode</b> switches SD 1.5 / SDXL to 6 steps.",
+              "Everything can be changed. To get a model's defaults back, pick another model and then pick it again." ] },
+            { h: "CLIP skip: what it is", items: [
+              "The text encoder reads your prompt in layers, each one more refined than the last. <b>CLIP skip</b> takes the prompt's meaning from an earlier layer instead of the very last one.",
+              "Models are trained with one setting and look best with the same one. Anime-style SD 1.5 models (most descend from the NovelAI model) were made with <b>2</b>; photo and general models with <b>Off</b> (1).",
+              "Using the wrong one doesn't break anything, but images can follow the prompt less well or lose the model's intended style. 3–4 is looser and more stylised." ] },
+            { h: "CLIP skip: what the app does for you", items: [
+              "Each model starts on its recommended setting, marked <b>★</b>: <b>2</b> for anime-style SD 1.5 models (Anything, Counterfeit, MeinaMix, AbyssOrangeMix…), <b>Off</b> for photo and general ones (base SD 1.5, Realistic Vision, DreamShaper…). It's worked out from the model's name, so check it for models with unusual names.",
+              "<b>SDXL</b> always reads prompts the way other apps call “CLIP skip 2”, so its scale starts at <b>Standard</b>; 3 and 4 go further. The numbers match other apps, so shared prompts and settings look the same here.",
+              "<b>Your choice is remembered per model.</b> Click another value and that model keeps it next time; <i>use recommended</i> puts it back.",
+              "If a <b>LoRA</b> you add says in its file that it was trained with a different CLIP skip, a <i>use 2</i> link appears so you can match it.",
+              "It's saved with every image (shown in the image's details and in its embedded settings, as “Clip skip: 2”), and in presets. ERNIE and the fast engine don't use it, so it's hidden for them." ] },
+          ] },
+        { id: "i2i", go: "i2i", icon: "🖼", title: "Image to image", summary: "Change a picture, or follow its structure with ControlNet",
+          sections: [
+            { h: "Starting from a picture", items: [
+              "Drop a picture, or use <b>🖼 Img2img</b> on any Library image.",
+              "The <b>model</b> for Image to image is chosen at the top of the window, next to the brand plate.",
+              "<b>Change strength</b>: low (0.3) keeps most of the original, high (0.8+) changes a lot.",
+              "Pick the model right here; steps and CFG are next to it." ] },
+            { h: "🖌 Inpaint", items: [
+              "Choose <b>Inpaint</b>, paint over what you want to change (Paint / Erase, brush size, invert, clear), and describe what should be there.",
+              "<b>Change strength</b> 0.7–0.9 replaces what's painted; 1.0 starts from scratch there. <b>Edge softness</b> blends the edges.",
+              "<b>Redraw only the painted area at full detail</b> is best for small things like hands, eyes or text: it redraws a box around your strokes at full resolution and pastes it back.",
+              "Works with your normal SD 1.5 and SDXL models; everything you didn't paint stays exactly as it was." ] },
+            { h: "↔ Expand (outpaint)", items: [
+              "Choose <b>Expand</b> and how many pixels to add on each side (or use <i>make it wider / taller</i>). The new area is filled in to match.",
+              "Describe the whole scene in the prompt, including what should appear around the original. Expanding a little at a time (e.g. 128–256 px) gives the best results." ] },
+            { h: "ControlNet (SD 1.5)", items: [
+              "<b>Tile</b> adds detail but keeps the picture: great with low change strength for sharpening.",
+              "<b>Canny / Line art / Soft edges</b> keep the outlines; <b>Depth</b> keeps the 3-D layout; <b>Scribble</b> turns a sketch into a picture.",
+              "<b>How closely to follow the map</b>: 1.0 is normal. <b>When it guides</b>: <i>Layout only</i> sets composition and leaves details free.",
+              "<b>Preview the map</b> shows what the ControlNet sees. Your DiffusionBee ControlNets are used when you have them.",
+              "<b>Depth</b> uses <b>Depth Anything V2</b>: pick Small (fast, ~100 MB), Base or Large (more detail; non-commercial licence).",
+              "<b>OpenPose</b> copies a person's pose: it finds each person and their joints (~550 MB the first time) and draws the stick figure the ControlNet follows. Preview the map to check it found everyone. Already have a pose image? Tick <i>My picture is already a control map</i>." ] },
+            { h: "Live preview", items: [
+              "The image forming shows in the tab that started it: Image to image jobs here, Create jobs in Create. If a Create job is running, this tab says it's waiting its turn." ] },
+            { h: "Results", items: [
+              "The Preview window shows the image as it forms, then the result; tick <b>compare with the original</b> to see both.",
+              "<b>Use the result as the new picture</b> lets you refine it again." ] },
+          ] },
+        { id: "tools", go: "tools", icon: "🧰", title: "Tools", summary: "Enhance, 🎚 adjust (light, colour, filters), restore faces, image → prompt, convert files",
+          sections: [
+            { h: "⏻ Engine: force stop & force quit", items: [
+              "Both buttons are at the top of the window when the Tools tab is open.",
+              "<b>⟲ Force stop &amp; restart</b> stops the engine at once (it doesn't wait for the current step), frees all its memory and starts it again. The job that was running is lost; waiting jobs are added back.",
+              "<b>⏻ Force quit</b> closes the whole app immediately, even in the middle of a job (it asks once to confirm).",
+              "Use them when a picture takes far too long, the Mac feels frozen, or ■ Stop doesn't respond. Pictures, settings and models are never affected." ] },
+            { h: "Enhance & upscale", items: [
+              "Redraws the image bigger with fine detail (Finegrain enhancer, about 3.5 GB the first time).",
+              "<b>Creativity</b> = how much new detail it may invent. <b>Resemblance</b> = how closely it sticks to the original.",
+              "<b>Look</b>: <b>Subtle / Balanced / Creative</b> set both for you. <b>Speed</b>: <b>⏩ Instant</b> (the 4× sharpening upscaler only: seconds, but no new detail), <b>🚀 Turbo</b> (a distilled few-step add-on, LCM-LoRA, ~135 MB the first time: a handful of steps and no negative-prompt pass, several times faster, slightly softer detail), <b>⚡ Fast</b> (10 steps, DPM-Solver), <b>Standard</b> (18, DDIM) or <b>★ Best</b> (30, DPM-Solver: most detail). <b>1× (refine only)</b> is quickest of all.",
+              "Size: the enhancer first resizes every picture to a fixed short side, then upscales by the factor you pick, so a big photo isn't slower than a small one. <b>Work at</b>: <b>768 px</b> (2× gives about 1536 px) or <b>512 px</b> (2× gives about 1024 px, less than half the work). <b>Auto</b> uses 512 px for Instant / Turbo / Fast on Macs with less than 16 GB and 768 px otherwise. The → size next to Enhance shows exactly what you'll get.",
+              "Speed-ups from ProtoArt Beautify (automatic): the detail add-ons are merged into the model once; the fewest tiles that fit your Mac's memory (a 768 px picture is one tile instead of many); memory handed back to macOS after every pass; the upscaler in small pieces on 8 GB Macs.",
+              "The result appears under the original with the time left; <b>■ Stop</b> works within seconds." ] },
+            { h: "Restore faces", items: [
+              "Fixes blurry or distorted faces (RestoreFormer). The strength slider blends it with the original.",
+              "Tick both in <b>Run on this image</b> to enhance first, then restore faces, as one finished picture." ] },
+            { h: "🎚 Adjust: light, colour and filters", items: [
+              "Edits a picture the way Lightroom / Camera Raw and Nik Color Efex do, live on the Mac's graphics chip. It works in the <b>Tools</b> tab: press <b>🎚 Adjust the original</b> (or <b>Adjust the result</b> after enhancing) under the picture; <b>🎚 Adjust</b> in the Library's picture details and in Image to image brings the picture to Tools for you.",
+              "The picture on the left becomes the live preview, and the controls are in the <b>Adjust</b> card on the right.",
+              "<b>Compare</b> with the buttons under the picture: <b>Edited</b> (with your changes), <b>Original</b> (without them), or <b>Split</b> (original on the left, edited on the right; drag on the picture to move the line). The <b>\\</b> key flips between Edited and Original.",
+              "<b>✕ Close Adjust</b> (under the picture, or at the bottom of the card) leaves without saving; the picture goes back to normal.",
+              "<b>Light</b>: Exposure, Contrast, Highlights, Shadows, Whites, Blacks. <b>Color</b>: Temperature, Tint, Vibrance (protects skin tones), Saturation (far left = black and white). <b>Presence &amp; effects</b>: Clarity, Sharpening, Vignette.",
+              "<b>Filters</b> (Color Efex-style): Detail Extractor, Dark Contrasts, Bleach Bypass, Glamour Glow and Film Grain, applied top to bottom; reorder them with ▲▼. Click a filter's button to switch it on (amber) and open its settings; click again to switch it off.",
+              "<b>Looks</b> (Punchy, Detail pop, Moody, Film, Soft glow, B&amp;W contrast) are starting points: pick one, then fine-tune. <b>Last used</b> brings back the settings you last saved. Double-click a slider to reset it.",
+              "<b>My presets</b>: set the sliders and filters the way you like, press <b>＋ Save as preset</b> and give it a name. It's listed next to the Looks for every picture from then on (kept on this Mac, also after updates); click a preset to apply it, <b>✕</b> deletes it. Saving with a name you already used replaces that preset.",
+              "<b>Save as new picture</b> adds an adjusted copy to the Library, linked to the original (which never changes); it appears under the original in Tools.",
+              "<b>Save &amp; enhance ✨</b> saves the adjusted copy and then runs <b>Enhance &amp; upscale</b> on it in the queue (with the settings in the Enhance card), so the AI works on your adjusted picture. To enhance first and adjust afterwards, enhance as usual and press <b>🎚 Adjust the result</b>.",
+              "<b>Save &amp; send to Image to image 🖼</b> saves the adjusted picture and opens it in Image to image as the starting picture. Any result in Tools (enhanced, adjusted, faces restored) also has <b>🖼 Send to Image to image</b> under it, and so does the original under the picture.",
+              "<b>Several versions at once</b> (bottom of the Adjust card): pick <b>Current settings</b> and/or any of your presets, and press <b>Make N versions</b>: one picture per choice, all saved to the Library. Switch on <b>✨ Enhance &amp; upscale too</b> to put the AI in the same run: <b>Enhance first, then filters</b> enhances once and puts each version's filters on top (quickest), <b>Filters first, then enhance each</b> queues one enhance per version (each one shows in the queue with its time left)." ] },
+            { h: "✏️ Edit in PhotoCraft (or your own editor)", items: [
+              "<b>✏️ Edit in PhotoCraft</b> (for layers, masks and retouching; for quick light and colour work use <b>🎚 Adjust</b>) (Library picture details, Tools, Image to image results) opens a copy of the picture in <b>PhotoCraft</b>, a free open-source editor in the style of Photoshop: layers, masks, adjustments, selections, text, PSD files.",
+              "Each time you <b>save</b> there (⌘S), the new version is added to your Library as <i>Edited</i>, linked to the original; “Save As”/export into the same folder works too. Your original is never changed. Click <b>Done editing</b> in the bar at the top when you're finished.",
+              "PhotoCraft is a separate app (early test version): the first time, <b>Get PhotoCraft</b> opens its download page; drag it to Applications. Prefer Photoshop, Pixelmator Pro, Affinity Photo, GIMP or Krita? Pick it in <b>Settings → Image editor</b>." ] },
+            { h: "Depth map (Depth Anything V2)", items: [
+              "Works out how far away everything is: near = bright, far = dark. Saved to the Library, linked to the original.",
+              "<b>Small</b> (~100 MB) is fast and free for any use; <b>Base</b> (~400 MB) and <b>Large</b> (~1.3 GB) show finer detail but are licensed for non-commercial use only.",
+              "<b>Grey</b> is what ControlNet and other apps expect; <b>Colour</b> is easier to read by eye.",
+              "<b>Use as a ControlNet depth map</b> sends it to Image to image, ready to make new pictures with the same 3-D layout." ] },
+            { h: "Image → prompt & converter", items: [
+              "Turn any image into a prompt (sentences or Danbooru tags) for the Create tab.",
+              "<b>Convert DiffusionBee files</b> makes standard .safetensors copies of your old models, LoRAs and embeddings." ] },
+          ] },
+        { id: "train", go: "train", icon: "🎓", title: "Train", summary: "Teach the app your own character, object or style; merge LoRAs",
+          sections: [
+            { h: "Three things you can make", items: [
+              "At the top of the Train tab, <b>What do you want to make?</b>: <b>🎓 LoRA</b> (learns a lot: a face, an outfit, a style; added in Create under LoRAs), <b>🔤 Embedding</b> (learns one new word; a tiny file you use by typing its name) or <b>🧬 Merge LoRAs</b> (several LoRAs become one)." ] },
+            { h: "🔤 Embeddings (textual inversion)", items: [
+              "Pick an SD 1.5 model, a folder of <b>5–20 pictures</b> that share the thing you're teaching, a <b>name</b> (the word you'll type, e.g. <i>my_cat</i>) and a <b>starting word</b> (what it's close to: cat, woman, painting).",
+              "<b>Subject</b> or <b>Style</b> changes the practice sentences it learns from. <b>Vectors</b>: 2 is standard; 4–8 hold more detail (good for styles). <b>Steps</b>: 1500 is standard; about 30–60 minutes on an 8 GB M1.",
+              "Only the new word is learned; the model itself isn't changed. The finished embedding appears in the list above the negative prompt; type its name or click it. Pause and Stop work as for LoRAs (Stop keeps what it learned so far).",
+              "Embeddings can only steer what the model already knows how to draw. For a new face or a very particular look, a LoRA learns more. SDXL embeddings need a 16 GB+ Mac and aren't available yet." ] },
+            { h: "🧬 Merging LoRAs", items: [
+              "Pick the model type, add two or more of its LoRAs, set how strongly each counts (1 = full, 0.5 = half, below 0 pushes away), name the result and press <b>Merge</b>. Seconds, on the CPU; the originals are never changed.",
+              "<b>Exact</b>: the LoRAs are stacked, so the new LoRA does exactly what using them together does (the file is about their sizes added together). <b>Smaller</b>: a close match squeezed to the rank you pick (16–128), much smaller.",
+              "Use the merged LoRA at weight 1 (your weights are inside it). It keeps the trigger words of the LoRAs that went in.",
+              "Only LoRAs for the same model type can be merged. DiffusionBee .tdict files need converting first (Tools → Convert DiffusionBee files); LyCORIS types (LoHa, LoKr, DoRA) and LoRAs saved in different layouts can't be merged, and the app says which." ] },
+            { h: "Before you start", items: [
+              "Collect <b>10–30 images</b> of one subject or style in a folder; varied angles and backgrounds work best.",
+              "Pick a <b>trigger word</b> that isn't a real word (e.g. <i>pxlstyle</i>): you'll type it to use the LoRA.",
+              "Choose <b>what you're teaching</b> (character / person, object, art style, pose / concept): the app then shows how many pictures to collect and what to vary.",
+              "<b>Picture size</b> depends on the base model: <b>512 × 512</b> for SD 1.5, <b>1024 × 1024</b> for SDXL and ERNIE (portrait and landscape shapes work too). Each picture should be at least that size on its short side; the app checks your folder and tells you which ones are too small." ] },
+            { h: "Captions", items: [
+              "Let the app caption the images (tags for anime/illustration, sentences for photos), then edit them.",
+              "Describe what is <i>not</i> the thing you're teaching; the trigger word stands for what is." ] },
+            { h: "Training", items: [
+              "<b>Quick / Standard / Thorough</b> set steps, learning rate and rank. Standard is about 100 steps per image.",
+              "Watch the progress, time left and the loss chart (it should drift down and level off). <b>Stop</b> keeps the progress so far.",
+              "SD 1.5 suits 8 GB Macs. <b>SDXL and Pony / Illustrious / NoobAI</b> can be trained too: pick the built-in SDXL (it trains on the full-precision SDXL Base, a 7 GB download if it isn't on your Mac yet) or any full SDXL checkpoint you've added. Under 16 GB it works but is very slow (often many hours); train at 768 to lighten it. LoRAs trained on a Pony model are labelled Pony automatically. ERNIE can be trained on the <b>⚡ fast-engine ERNIE</b> (it learns a LoRA on top of the 4-bit model, with low-memory settings): it suits 16 GB+ Macs and is experimental on 8 GB, where it may run out of memory or take many hours. The full-precision ERNIE needs 32 GB+.",
+              "FLUX.1 LoRAs can't be trained in the app yet: the fast engine's training only supports other models.",
+              "Save as <b>Kohya .safetensors</b> (works in most apps) or Diffusers format. The LoRA appears in your list, ready to use." ] },
+          ] },
+        { id: "library", go: "library", icon: "🗂", title: "Library", summary: "Everything you've made, searchable",
+          sections: [
+            { h: "Finding images", items: [
+              "Search by prompt, filter by model, version type (originals, enhanced, face-restored…) or ★ starred.",
+              "<b>Search by seed</b>: type a seed in the amber <b>seed</b> box to see only pictures made with it, or type a number in the search box to find that seed and prompts containing it. In a picture's details, <b>find all with this seed</b> does the same.",
+              "<b>Filter by LoRA</b> shows images made with particular LoRAs; clicking a LoRA in an image's details does the same." ] },
+            { h: "Working with an image", items: [
+              "Click an image to see its prompt and settings; <b>↺ Reuse prompt</b> puts just its prompt in Create (your model and settings stay), <b>Use these settings</b> loads everything. Hovering a picture shows <b>↺ Prompt</b> too.",
+              "Restore faces, enhance & upscale, or <b>🖼 Send to Image to image</b> straight from there.",
+              "Delete one image or many (<b>Select</b>); files are removed from your Mac or moved to the Trash (Settings)." ] },
+            { h: "🗂 Batch edit & export (like PhotoMill)", items: [
+              "<b>Select</b> pictures (or <b>Select all</b>), then <b>🗂 Batch edit &amp; export…</b>. Copies are saved to a folder you pick (default <i>Pictures → Protoart Exports</i>); the pictures in the Library are never changed, and nothing is ever overwritten (a -2, -3… is added).",
+              "<b>Adjust</b>: apply one of the Looks or your own Adjust presets to every picture. <b>Size</b>: keep, long side, short side, fit in a box (for example 1080 × 1350) or percent; <b>Never enlarge</b> keeps small pictures as they are.",
+              "<b>Format</b>: same as original, JPEG, PNG, WebP or TIFF; <b>Resolution</b>: 72 / 150 / 300 dpi. Colours are converted to sRGB so they look the same everywhere.",
+              "<b>Picture details</b>: <b>Remove (private)</b> (the default) leaves out the prompt, settings and any location; <b>Keep prompt &amp; settings</b> puts them inside (file paths on your Mac are never included).",
+              "<b>File names</b>: a pattern with {name} {n} {date} {time} {model} {seed} {width} {height} {preset}; the example under it shows what you'll get.",
+              "<b>Presets</b>: 🗜 Compress (Press), Web · 2048 px JPEG, Instagram 1080 and Print · TIFF 300 dpi are ready to use; <b>＋ Save as preset</b> keeps your own combination. The bar shows progress; <b>■ Stop</b> stops after the current picture. At the end it says how much smaller the files got." ] },
+            { h: "🗜 Compress (Press)", items: [
+              "Makes copies that are much smaller (usually 40–70%) but still look the same, the way <b>ProtoArt Press</b> does: every result is compared with the original (SSIM, including its worst 64×64 area and any banding) before it's used.",
+              "<b>JPEG</b>: finds the lowest quality that stays within this picture's own damage budget (Gentle ≈ quality 90, Balanced ≈ 85, Strong ≈ 80 on typical photos). <b>PNG</b>: lossless repacking always; with Balanced or Strong a 256-colour version when it's invisible; what's written is read back and checked pixel for pixel.",
+              "One picture: <b>🗜 Compress / export…</b> in its details. Several: <b>Select</b> them and press <b>🗜 Compress</b>. It uses the Compress setting with the same format and size; change anything else in the panel before pressing Export." ] },
+            { h: "Hiding NSFW pictures", items: [
+              "<b>Hide NSFW</b> (at the top of Create and Library, and in Settings → Content filter) leaves NSFW pictures out of the Library and covers them in Create, Image to image and Tools. Click a covered picture to look at it. NSFW models and LoRAs are hidden from the lists too.",
+              "A picture counts as NSFW when its prompt asks for it (the negative prompt doesn't count), or when the on-device <b>picture checker</b> says so (Settings → Content filter; ~340 MB download, once).",
+              "Your own mark always wins: in a picture's details use <b>mark NSFW</b> / <b>mark safe</b> / <b>automatic</b>, or <b>Select</b> several and use <b>Mark NSFW</b> / <b>Mark safe</b>.",
+              "In an image's details, the <b>Content</b> line says why a picture counts as NSFW.",
+              "In Create's model and LoRA lists, a red <b>⚑</b> after a name means NSFW. Point at a name and click its ⚑ to mark it (or unmark it).",
+              "<b>● People</b>: an amber dot after a name means you tagged it as made of real people (for example an SD 1.5 model or LoRA trained on photos of someone). Point at a name and click the dot to tag it. <b>Hide People</b> (top of Create) hides everything tagged that way." ] },
+          ] },
+        { id: "models", go: "models", icon: "📦", title: "Models", summary: "What's on this Mac, and what you can download",
+          sections: [
+            { h: "Finding a model", items: [
+              "<b>On this Mac</b>: models that are downloaded, your own files, DiffusionBee models and ones you added. Only these appear in Create's model list, so it stays short.",
+              "<b>Available to download</b>: models this Mac can run. <b>⤓ Download</b> fetches it now (progress and time left show on the card and in the queue; <b>Stop</b> stops it and keeps what's already downloaded). <b>Use</b> picks it right away; it then downloads the first time you press Generate.",
+              "<b>Needs more memory</b>: models that are too big for this Mac. You can still download them (for example to copy to a bigger Mac, or to try with Settings → Load anyway; it may be very slow).",
+              "<b>Pony, Illustrious and NoobAI</b> are SDXL models trained further for anime and illustration. The app recognises them from their name or the file's own details, labels them, and sorts LoRAs made for them first (LoRAs for another kind are marked “may not match”). Create then shows <b>Add … quality tags</b> (on by default), which puts their usual quality tags in front of your prompt, e.g. <i>score_9, score_8_up, score_7_up</i> for Pony. They use CLIP skip 2 like other SDXL models. Click the tags next to the switch (<b>⤴ put in prompt</b>) to write them into your prompt and negative prompt so you can see and edit them. On 8 GB Macs the first load converts the file to 8-bit and saves that copy (a few minutes, once; ~2.6 GB in your data folder).",
+              "<b>FLUX.1 Schnell</b> (Black Forest Labs, Apache-2.0 licence, free to use) makes a picture in 4 steps on the fast engine. Pick the <b>3-bit</b> build on 8 GB Macs (7.5 GB download); the 4-bit (9.6 GB) needs 16 GB and the 8-bit (18 GB) 32 GB for the best quality. FLUX prefers sentences, ignores the negative prompt, and takes FLUX LoRAs.",
+              "<b>Keeping models on an external drive</b>: base model files and LoRAs you already have can stay anywhere (Settings → <i>Watch a models folder</i> and <i>Add LoRA folders</i>; nothing is copied). Models this app downloads go to the <b>Downloaded models folder</b> in Settings, which can be on an external drive too (it can move the ones you already have).",
+              "<b>Make default</b>: Create starts with that model every time the app opens (and gets it ready in the background). <b>🗑 Delete</b> removes a downloaded model's files from this Mac (click twice; files another model still needs are kept, and it downloads again if you use it later). Your own files get <b>Move to Trash</b> instead, so you can put them back.",
+              "<b>↻ Refresh</b> (here, under Create's model list, and in Settings) looks again for models and LoRAs: files you've just put in your folders, or a download that finished.",
+              "<b>+ Add from Civitai…</b>: paste a civitai.com model link and press <b>Check</b>, then <b>⤓ Download</b>. LoRAs go into the folder set to their type, SD 1.5 / SDXL / Pony checkpoints into your checkpoints folder, with their trigger words. Only .safetensors files are downloaded (and .pt embeddings).",
+              "<b>Sign in first (once):</b> Civitai now lets only signed-in accounts download most files. Make a free account on civitai.com, open <b>Account settings → API Keys → Add API key</b>, copy the key and paste it in the box in the Civitai card (<b>Save key only</b>, or <b>Save &amp; download</b>). The box shows until a key is saved; the key stays on this Mac and is only sent to civitai.com. Errors you may see and what they mean are in Troubleshooting → Civitai downloads.",
+              "Filter by type (ERNIE, SDXL, SD 1.5) or search. <b>+ Add from your Mac</b> and <b>+ Add from Hugging Face</b> bring in models from elsewhere. In Create, the link under the model list opens this tab." ] },
+            { h: "Managing your models", items: [
+              "At the top of this tab: <b>Your model files</b> (files you added from this Mac, with Remove), <b>Add from Civitai</b>, <b>Add from Hugging Face</b> (with the models you added) and <b>Fix a type</b>. They stay folded until you click one; the + Add buttons open the right one.",
+              "<b>★ Favorites</b>: click the ★ on a model (here, or when you point at it in Create's model list) to make it a favourite. Favourites are listed first in Create, and <b>★ Favorites</b> (in Create and in this tab's toolbar) shows only them. They're remembered on this Mac; the model files are never changed or copied.",
+              "Markers, in the same place on every row: <b>★</b> favourite, <b>●</b> People (made of real people), <b>⚑</b> NSFW (red = marked). Lit = set; point at a row to see the unlit ones, and click to switch them. <b>Hide NSFW</b> / <b>Hide People</b> hide marked models and LoRAs everywhere, including 🎲 Random LoRAs.",
+              "Folders (watched model folders, the downloaded-models folder, LoRA and embedding folders) are set in <b>Settings</b>." ] },
+          ] },
+        { id: "disclaimer", go: "settings", icon: "⚖️", title: "Disclaimer & licences", summary: "What to keep in mind about AI pictures and the models you use",
+          goLabel: "Open Settings",
+          sections: [
+            { h: "Pictures made by AI", items: [
+              "Pictures are made by AI models on this Mac. They can be inaccurate, distorted or unexpected, and may contain things you didn't ask for, including content that's offensive or not suitable for work. Check a picture before you share or use it.",
+              "Text in pictures, hands, faces and small details are often wrong. Don't rely on a picture as a factual record of a real person, place or event.",
+              "<b>Hide NSFW</b> and <b>Hide People</b> help keep unwanted content out of view, but they're filters, not guarantees: names, tags and the on-device picture checker can miss things." ] },
+            { h: "Models and licences", items: [
+              "Each model and LoRA has its own licence, set by whoever made it (for example Apache-2.0 for FLUX.1 Schnell and ERNIE-Image, CreativeML OpenRAIL for Stable Diffusion, non-commercial for some others). Some don't allow commercial use or certain kinds of content. Check the licence on the model's page (Hugging Face or Civitai) before using pictures commercially.",
+              "Models and LoRAs you download from Civitai or Hugging Face are made by other people; Protoart Studio doesn't review them.",
+              "LoRAs that copy a real person's likeness, or an artist's style, may be restricted by law or by the person's rights where you live. Don't make pictures that harm, mislead or harass real people." ] },
+            { h: "Your responsibility", items: [
+              "You're responsible for what you make with the app and how you use it. Follow the law where you live and the terms of the models you use.",
+              "Protoart Studio is a test version, provided as is, without warranty. Keep copies of pictures that matter to you.",
+              "Privacy: everything runs on this Mac. Pictures, prompts and settings aren't sent anywhere; the only network use is downloading models (and the Civitai / Hugging Face sign-in keys you save, which go only to those sites)." ] },
+          ] },
+        { id: "settings", go: "settings", icon: "⚙️", title: "Settings", summary: "Folders, privacy and options",
+          sections: [
+            { h: "Look: light, dark and themes", items: [
+              "At the top of Settings: <b>Light / Dark / Match macOS</b> sets how bright the faceplate is; the colour buttons next to it set its theme: <b>Amber</b>, <b>Cream</b>, <b>Slate</b> or <b>Ember</b>. Both are remembered.",
+              "Whatever is switched on lights up in the theme's lamp colour (amber, incandescent yellow, ivory or ember); what's off stays dark." ] },
+            { h: "Finding your way around", items: [
+              "Settings starts tidy: only <b>This Mac</b> and <b>Model folders</b> are open, every other section is folded down to its heading. Click a heading to open it, click again to fold it; the app remembers. <b>fold all / open all</b> sit at the top.",
+              "Links elsewhere in the app that point to a setting (for example <i>Add from Civitai</i> or <i>Fix a type</i>) open the right section for you." ] },
+            { h: "Models & LoRAs", items: [
+              "<b>From your Mac</b>: add your own checkpoint files or model folders, or watch a folder (offline).",
+              "<b>From Hugging Face</b>: paste a model id or link to add new models as they're released.",
+              "<b>Gated Hugging Face models</b> (marked “gated”: their owners want you to accept a licence) need a free huggingface.co account: sign in, open the model's page and accept the licence, then make a <b>Read</b> access token (huggingface.co → Settings → Access Tokens) and paste it under <b>Hugging Face access token</b>. A box with these steps opens by itself when a model needs it. The token stays on this Mac, is sent only to huggingface.co, and a token other apps saved is never used.",
+              "<b>From Civitai</b>: paste the link of a model page on civitai.com and press <b>Check</b>. LoRAs (SD 1.5, SDXL, Pony, Illustrious, FLUX…) and SD 1.5 / SDXL / Pony checkpoints download straight into the right folder for their type, with their trigger words. Embeddings (“Textual Inversion”) go to Settings → Embeddings.",
+              "<b>Sign in first (once):</b> Civitai now lets only signed-in accounts download most files. Make a free account on civitai.com, open <b>Account settings → API Keys → Add API key</b>, copy the key and paste it in the box in the Civitai card (<b>Save key only</b>, or <b>Save &amp; download</b>). The box shows until a key is saved; the key stays on this Mac and is only sent to civitai.com. Errors you may see and what they mean are in Troubleshooting → Civitai downloads.",
+              "<b>LoRA folders</b>: use LoRAs where they are, including external drives. <b>DiffusionBee</b>: use your old library in place.",
+              "Each LoRA folder can be set to a model type (<b>Auto</b> reads each file). A LoRA listed under the wrong type? <b>Fix a LoRA's type</b> (Settings → LoRA folders, or the link at the bottom of Create's LoRA list): search for it and pick SD 1.5 / SDXL / FLUX / ERNIE. With <b>Move the file into that type's folder</b> on, the file and its trigger-word / preview files move into the LoRA folder you set to that type.",
+              "<b>Fix a type</b> also works for your own <b>base model files</b>, but only as <b>SD 1.5</b> or <b>SDXL</b> (Pony, Illustrious and NoobAI are SDXL): a single .safetensors / .ckpt / DiffusionBee file can only be loaded as one of those. <b>FLUX</b> and <b>ERNIE</b> come as whole model folders (from the Models tab, Hugging Face, or a folder you add), and their type is read from the folder, so there's nothing to fix. <b>Show unknown type</b> lists everything the app couldn't identify.",
+              "<b>Moved a folder?</b>: after moving your models / LoRAs folder (e.g. to a new drive), click <b>Find it…</b> and pick its new place; everything that used it follows." ] },
+            { h: "Speed: a model ready in memory", items: [
+              "Loading a model is the slow part of the first picture (about 5–15 s for SD 1.5 on an 8 GB Mac, longer for SDXL, ERNIE and FLUX). After that it stays loaded, so the next pictures start at once.",
+              "<b>When the app opens, load…</b> (the model you used last, by default) and <b>Load a model as soon as I pick it</b> do that loading in the background while you write the prompt. Create shows <b>getting ready…</b> and then <b>● loaded, ready</b> next to the model's name.",
+              "It only uses idle time (a picture you ask for always goes first) and never downloads anything. It speeds up the first picture, not each step. Only one model fits in memory at a time." ] },
+            { h: "Content filter (NSFW)", items: [
+              "Turn on <b>Hide NSFW</b> to hide NSFW pictures, models and LoRAs everywhere (the same switch is at the top of Create and Library).",
+              "<b>Check each picture with the on-device picture checker</b>: downloads a small checker once (~340 MB, Apache 2.0), then judges every new picture on this Mac in a fraction of a second, and can check your existing Library.",
+              "Models and LoRAs are marked automatically from their names (and, for LoRAs, the tags they were trained on). A ⚑ after a name in Create's lists marks NSFW; point at a name and click its ⚑ to change it; your marks are listed in Settings, with <b>Automatic</b> to undo." ] },
+            { h: "Images & options", items: [
+              "Choose where images are saved, PNG or JPEG, and whether deleting removes files or moves them to the Trash.",
+              "Live preview, low-memory mode (SDXL) and the backend log (useful when something goes wrong)." ] },
+            { h: "Finding your way around Settings", items: [
+              "Click a section's heading to fold it away (▾); the app remembers which ones you folded. Long lists (your marks, People tags) start folded.",
+              "In a narrow window the sections stack in one column, so nothing is cut off." ] },
+            { h: "Look", items: [
+              "The Look switch is at the top of the window when Settings is open.",
+              "<b>Dark</b> (black faceplate, the default), <b>Light</b> (brushed aluminium with orange trim) or <b>Match macOS</b> (follows your Mac's light / dark appearance)." ] },
+            { h: "Reset", items: [
+              "<b>Reset folder locations</b> or <b>Reset settings</b> puts things back to how they were when the app was new. Pictures, models, LoRAs and presets are never deleted." ] },
+          ] },
+        { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
+          goLabel: "Open Settings (backend log, restart, reset)",
+          sections: [
+            { h: "“The engine stopped”", items: [
+              "<b>Why:</b> the engine is the part of the app that makes pictures. If macOS stops it, it's usually because the Mac ran out of memory (big sizes, Hi-res fix and Face detailer together, or other heavy apps open).",
+              "<b>What happens:</b> the app restarts the engine by itself and adds waiting jobs back; only the job that was running needs to be made again. If it keeps happening it stops restarting and asks you to press <b>Restart engine</b> (Tools or Settings).",
+              "<b>Fix:</b> close other big apps, use a smaller size, or turn off Hi-res fix / Face detailer for that picture. Settings → Backend log shows the details." ] },
+            { h: "Downloads fail: “couldn't connect to huggingface.co” or “Bad file descriptor”", items: [
+              "<b>Why:</b> the first time you use a model or tool it downloads once. Something blocked the connection: no internet, a VPN, or a <b>firewall app</b> (Little Snitch, LuLu, Radio Silence, antivirus) that doesn't know Protoart Studio yet.",
+              "<b>Fix:</b> the app now switches to macOS's own downloader (curl) automatically when its Python is blocked, so just try again. If it still fails, open your firewall app and <b>allow “python3.12” (Protoart Studio)</b>; in Little Snitch, Silent Mode blocks without asking.",
+              "Also check <b>Settings → Privacy → Strict offline</b> is off (it blocks every download on purpose), and that the Mac is online.",
+              "After the first download everything works offline." ] },
+            { h: "macOS won't open the app the first time", items: [
+              "<b>“can't be opened because Apple cannot check it”</b>: this test version isn't signed with an Apple developer certificate. On macOS 15 or newer open <b>System Settings → Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b>. On older macOS, right-click the app → <b>Open</b> → <b>Open</b>. Only needed once.",
+              "<b>“is damaged and can't be opened”</b>: the download was changed or broken on the way. Don't force it open: delete it, download it again from the official release page, and compare its checksum (<code>shasum -a 256</code> on the DMG) with the one published there.",
+              "Needs a Mac with <b>Apple Silicon (M1 or newer)</b>." ] },
+            { h: "“The Python backend stopped” / “Failed to allocate … MTLBuffer” / the Mac freezes", items: [
+              "<b>Why:</b> the picture needed more memory than the Mac has (common on 8 GB Macs with big sizes, SDXL, the Enhancer, or several images at once).",
+              "<b>Fix:</b> click <b>Restart backend</b>, then use a smaller size (<b>Small</b>/<b>Medium</b>), fewer images per job, and quit other heavy apps. For SDXL on 8 GB, turn on <b>Low-memory mode</b> in Settings. Image to image is capped at a safe size automatically.",
+              "Copy the details with <b>Settings → Backend log → Copy all</b> if you want to report it." ] },
+            { h: "Nothing is happening / the queue doesn't move", items: [
+              "Look for <b>❚❚ paused</b> at the top of the queue: press <b>▶ Resume</b>. While paused, the picture being made waits and no new job starts (Stop all also ends a pause).",
+              "Paused pictures keep their memory. On an 8 GB Mac, if other apps feel slow while paused, <b>■ Stop</b> instead frees it." ] },
+            { h: "Generating is very slow", items: [
+              "The first picture after opening the app is slower (the model loads into memory); the next ones are faster.",
+              "On 8 GB Macs: <b>SD 1.5 at 512 px</b> is quickest, <b>⚡ Fast mode</b> cuts steps to 6, ERNIE runs best on the fast engine at <b>Medium (768)</b>. Quit other apps so macOS doesn't swap.",
+              "Hi-res fix, the face detailer and the image prompt each add time; turn them off for quick drafts. Turning off the live preview (Settings) helps a little." ] },
+            { h: "🎚 Adjust: “No handler registered” or the preview stays black", items: [
+              "<b>“No handler registered for 'image:read'”</b>: the app was updated while it was open. Adjust now works anyway (it reads the picture through the engine), but quit Protoart Studio fully (⌘Q) and reopen it for the quicker way.",
+              "<b>Black preview or “WebGL 2” error</b>: Adjust uses the Mac's graphics chip. Close it and press <b>🎚 Adjust</b> again; if it keeps happening, quit and reopen the app.",
+              "<b>“bigger than this Mac's graphics can filter”</b>: very large pictures (over 8,000–16,000 px) can't be saved from Adjust; make a smaller copy first." ] },
+            { h: "An embedding doesn't show up, or does nothing", items: [
+              "<b>Not listed above the negative prompt:</b> embeddings show only with models of their own type. An SDXL embedding (it holds “clip_l” and “clip_g” parts) needs an SDXL / Pony / Illustrious model; an SD 1.5 one needs an SD 1.5 model. Settings → Embeddings lists every one found and its type.",
+              "<b>Not in Settings → Embeddings either:</b> put the file in Protoart's embeddings folder (<i>Add embedding files…</i>) or add its folder, then <i>Rescan</i>. .safetensors, .pt and .bin files work; SD 2 embeddings can't be used; FLUX and ERNIE don't use embeddings.",
+              "<b>No effect:</b> the name in the prompt must match the file name (it isn't case-sensitive). The status line says “Loading embedding …” the first time it's used with a model." ] },
+            { h: "The result is a flat grey image", items: [
+              "<b>Why:</b> the maths overflowed, usually with a ControlNet set very strong or a model/LoRA mismatch.",
+              "<b>Fix:</b> lower the ControlNet strength (try 0.6–1.0), try another ControlNet type, remove LoRAs one at a time, or use the model's recommended steps and CFG. A broken DiffusionBee ControlNet file is swapped for the official one automatically." ] },
+            { h: "LoRA problems", items: [
+              "<b>“LoRA … is for SDXL, but the loaded model is SD 1.5”</b> (or the other way round): LoRAs only work with the model type they were made for. Pick a matching model; the LoRA list only shows ones that fit.",
+              "<b>A LoRA doesn't show for my model</b>: the list only shows LoRAs of the chosen model's type. Check, in order: (1) its folder is added in <b>Settings → LoRA folders</b> (adding model <i>files</i> doesn't add the folder they're in for LoRAs); (2) its type: <b>Models tab → Fix a type</b> (tick <i>Show unknown type</i> to see the ones the app couldn't identify; base model files can be fixed there too, as SD 1.5 or SDXL); (3) <b>Hide NSFW</b> / <b>Hide People</b> aren't hiding it; (4) press <b>Refresh</b> under LoRAs.",
+              "<b>DiffusionBee LoRAs (.tdict)</b> are SD 1.5. They're read from DiffusionBee's own folder and from any LoRA folder you add, so after deleting DiffusionBee's copies, add the folder where you keep yours.",
+              "<b>LoRAs of every type mixed in one folder</b>: <b>Settings → LoRA folders → Sort into type folders…</b> moves them into SD 1.5 / SDXL / FLUX / ERNIE sub-folders (it shows the plan first and reuses folders you already have). Or set a whole folder's type with the buttons under it.",
+              "<b>“Couldn't load LoRA”</b>: the file may be for another model family or a format the app can't read (e.g. LyCORIS variants). Try it with another model type, or re-download it.",
+              "<b>Trigger words not found</b>: add your own with <i>add / edit</i> under the LoRA; they're saved for next time." ] },
+            { h: "A folder or drive can't be found", items: [
+              "<b>Why:</b> you moved or renamed your models / LoRAs folder, or the drive it's on isn't plugged in. The app says so at startup.",
+              "<b>Fix:</b> plug the drive in, or open <b>Settings → Moved a folder?</b>, click <b>Find it…</b> next to the red one and pick the folder in its new place. LoRA folders and their types, watched folders, added models, your ⚑ / ● marks, presets and the Library all follow. Picking a different folder by mistake is refused." ] },
+            { h: "A download is stuck, or stops with “stalled”", items: [
+              "<b>Why:</b> the connection went quiet (slow Wi-Fi, VPN, a firewall). Downloads give up on a silent connection after 2 minutes, and a model download stops with a message after 5 minutes without progress, instead of hanging for hours.",
+              "<b>Fix:</b> check the internet connection and press <b>Download</b> (or Generate / Enhance) again: it carries on from where it stopped. If the queue looks frozen, <b>Tools → ⟲ Force stop &amp; restart</b> first." ] },
+            { h: "Hugging Face: “gated”, 401 / 403, or “turned the download down”", items: [
+              "<b>“… is gated on Hugging Face”</b>: the model's owners ask you to sign in and accept their licence. On huggingface.co: sign in (free), open the model's page, press the button to agree (some owners review requests; wait for their email), then <b>Settings → Access Tokens → Create new token</b> (type <b>Read</b>) and paste it in Models tab → Add from Hugging Face → Hugging Face access token (or the box that opened). Then press Check / Download again.",
+              "<b>“Hugging Face turned the download … down”</b> with a token saved: you haven't accepted that model's licence yet (or it's still waiting for the owner), or the token was deleted or mistyped: make a new one. Fine-grained tokens need “Read access to contents of all public gated repos” switched on; a plain <b>Read</b> token just works.",
+              "Most models (SD 1.5, SDXL, the ones in the Models tab) aren't gated and need no account at all." ] },
+            { h: "A picture won't open (HEIC, RAW, TIFF…)", items: [
+              "PNG, JPEG, WebP, GIF and BMP open directly; HEIC, TIFF, AVIF, PSD, JPEG 2000 and camera RAW files are converted to PNG by macOS's own image reader the first time (kept for next time, up to 8192 px on the long side).",
+              "<b>“macOS couldn't read …”</b>: the file is damaged, or a kind macOS doesn't know (a very new camera's RAW may need a macOS update). Export it as JPEG or PNG from Photos or your camera app and use that. Files over 600 MB aren't opened." ] },
+            { h: "Batch export / Compress", items: [
+              "<b>“Choose the folder to save to”</b>: press <b>Change…</b> and pick a folder (an external drive is fine). <b>“The picture file is missing”</b>: the picture was moved or deleted outside the app; it's skipped and the rest carry on.",
+              "<b>Not much smaller</b>: pictures that are already compressed (or tiny) can't shrink much without looking different; Press never trades quality away to make a number look good. Try <b>Strong</b>, a smaller size, or JPEG instead of PNG for photos.",
+              "<b>WebP / TIFF</b>: Press works on JPEG and PNG; WebP uses the quality slider and TIFF is lossless." ] },
+            { h: "Civitai downloads", items: [
+              "<b>Before your first download:</b> sign in. Civitai only lets signed-in accounts download most files, so save your free API key once (the box in the Civitai card, or Models tab → Add from Civitai → Civitai API key). Without it you'll see the first error below.",
+              "<b>“Civitai only lets signed-in accounts download this one”</b> (HTTP 401), <b>“wants you to log in”</b> or <b>“sent a page instead of the file”</b>: Civitai now asks for a free account for most downloads. A box opens right in the Civitai card: sign in on civitai.com → <b>Account settings</b> → <b>API Keys</b> → <b>Add API key</b>, copy it, paste it in the box and press <b>Save &amp; download</b>. You only do this once (it's kept on this Mac, sent only to civitai.com; also in Models tab → Add from Civitai → Civitai API key).",
+              "<b>“Civitai turned down your API key”</b>: the key is mistyped, deleted or expired; make a new one and paste it. If a new key is refused too, open the model's page on civitai.com while signed in: Early Access models (supporters only for a while) and some with a licence to accept can't be downloaded until then.",
+              "<b>“Couldn't reach Civitai”</b>: no internet, a VPN or a firewall app is blocking it, or Strict offline mode is on (Settings → Privacy). <b>“Civitai answered with an error (500/502/503)”</b>: Civitai itself is busy or down; try again in a few minutes.",
+              "<b>“The download stopped before the end”</b>: the connection dropped. Press <b>⤓ Download</b> again: it carries on where it stopped. <b>“… is already in …”</b>: you have that file already; it's never overwritten.",
+              "<b>“isn't an embedding the app can read”</b>: the file Civitai sent wasn't an SD 1.5 / SDXL embedding, so it wasn't kept.",
+              "<b>“Only .safetensors files are downloaded”</b>: older pickle files (.pt / .ckpt) can run hidden code, so they're skipped; pick a version that has a .safetensors file.",
+              "<b>FLUX / other checkpoints “can't be loaded from a single file yet”</b>: Civitai checkpoints work for SD 1.5, SDXL, Pony, Illustrious and NoobAI. FLUX LoRAs from Civitai work; for FLUX itself use the Models tab." ] },
+            { h: "Pony and other SDXL files: first load takes minutes", items: [
+              "On 8 GB Macs, SDXL checkpoint files (Pony, Illustrious, your own) are converted to 8-bit the first time (<i>Converting … to 8-bit (first time only)</i>) and the copy is saved (~2.6 GB in the data folder), so later loads take well under a minute.",
+              "<b>“Cannot copy out of meta tensor”</b> came from the old way of loading these files and is fixed; if you still see it, quit and start the app again." ] },
+            { h: "Image prompt (IP-Adapter) errors", items: [
+              "<b>“h94/IP-Adapter does not appear to have a file named …”</b>: that kind of image prompt (Style, Stronger or Face, SD 1.5 or SDXL) hasn't been downloaded yet. The app now downloads it by itself the first time (about 0.1–1 GB, plus a 2.6 GB image reader shared by all of them). If it still appears, check the internet connection and that <b>Strict offline</b> is off (Settings → Privacy), then generate again.",
+              "<b>“SlicedAttnProcessor … slice_size”</b> or <b>“'tuple' object has no attribute 'shape'”</b>: a clash between the image prompt and the memory-saving setting on 8 GB Macs, now fixed. If it appears again, press <b>Tools → ⟲ Force stop &amp; restart</b> and generate again." ] },
+            { h: "Enhance & upscale is very slow", items: [
+              "The enhancer redraws the picture in tiles, several steps each; on an 8 GB Mac that's the slow part (the size of your original doesn't matter: it's worked at 512 or 768 px on the short side × the upscale).",
+              "<b>Fix:</b> choose <b>🚀 Turbo</b> or <b>⚡ Fast</b> with <b>Work at: Auto</b> (512 px on 8 GB Macs), use <b>2×</b> rather than 3–4×, or <b>⏩ Instant</b> when you only need it sharper and bigger. Quit other apps so macOS doesn't swap memory to disk: <b>don't run ProtoArt Beautify, DiffusionBee or another image app at the same time</b>; two image engines on 8 GB is what turns minutes into hours.",
+              "If it's still crawling, <b>Tools → ⟲ Force stop &amp; restart</b> and try again with Turbo." ] },
+            { h: "Models: “isn't a diffusers model folder”, or a model doesn't show up", items: [
+              "Pick model <b>files</b> (.safetensors / .ckpt) or a folder; the app looks inside folders for models. DiffusionBee's own folders don't need adding: those models are listed automatically (marked “DiffusionBee”) while <b>Settings → DiffusionBee</b> is on.",
+              "Checkpoints smaller than 1.5 GB are treated as LoRAs/embeddings, not base models. Watched folders are re-checked every few seconds; switch tabs to refresh the list.",
+              "ERNIE and other newer models need their whole model folder (the one with <i>model_index.json</i>), or add them from Hugging Face." ] },
+            { h: "Image to image, inpainting and ControlNet", items: [
+              "ControlNet works with <b>SD 1.5</b> models; image to image and inpainting work with SD 1.5 and SDXL (not ERNIE).",
+              "Inpainting/Expand and ControlNet can't be used together yet: the app tells you to switch one off.",
+              "<b>“Paint over the part you want to change first”</b>: paint on the picture in Inpaint mode (pink = will be redrawn). <b>OpenPose “no people found”</b>: use a picture where the whole person is clearly visible." ] },
+            { h: "Prompts", items: [
+              "Long prompts and <b>(word:1.3)</b> weights work with SD 1.5 and SDXL. ERNIE reads plain descriptions instead (weights are taken literally there).",
+              "<b>Enhance prompt</b> downloads a small language model (~1 GB) the first time; after that it takes a few seconds. It always writes in English.",
+              "Wildcards <b>{a|b}</b> pick per image; if every picture looks the same, check the seed isn't fixed with only one option in the braces." ] },
+            { h: "Editing in PhotoCraft", items: [
+              "<b>“PhotoCraft isn't installed”</b>: click <b>Get PhotoCraft</b>, download the macOS .dmg and drag it to Applications, or choose another editor in <b>Settings → Image editor</b>.",
+              "<b>The edit didn't come back</b>: save (⌘S) the file the app opened (or save into the same <i>edits</i> folder); it appears in the Library within a few seconds while the “Editing…” bar is showing." ] },
+            { h: "Disk space", items: [
+              "Models are big (SD 1.5 ~2 GB, SDXL ~5–7 GB, ERNIE ~7 GB, helpers 0.1–3.5 GB each). The app warns before a download if space is short.",
+              "Free space by deleting pictures you don't need (Library → select), or downloaded models you don't use: <b>Models tab → 🗑 Delete</b> (files another model still needs are kept).",
+              "Downloaded models can live on an external drive: <b>Settings → Downloaded models folder</b>." ] },
+            { h: "Still stuck?", items: [
+              "<b>Settings → Backend log → Copy all</b> copies the technical details; paste them when asking for help.",
+              "<b>Settings → Reset</b> puts settings and folder locations back to the defaults without deleting anything.",
+              "<b>Restart backend</b> (Settings) clears most stuck states without closing the app." ] },
+          ] },
+      ],
+      conv: { items: null, search: "", kind: "", selected: [], out_dir: "", free_gb: 0, loras_to_lora_folder: true, result: null },
+      controlTypes: [],
+      controlMap: null,
+      i2iCompare: false,
+      logPath: "",
+      controlTimings: [
+        { id: "all", label: "The whole time", start: 0, end: 1, tip: "Follows the map from start to finish (normal)" },
+        { id: "layout", label: "Layout only", start: 0, end: 0.5, tip: "Sets composition and shapes, then lets the model add its own details" },
+        { id: "mostly", label: "Mostly", start: 0, end: 0.8, tip: "Follows the map, but frees the last steps for natural detail" },
+        { id: "details", label: "Details only", start: 0.4, end: 1, tip: "Leaves the layout free and uses the map for the finer structure" },
+      ],
+      libLoraOpen: false,
+      modelDirs: { dirs: [], local: [] },
+      localErr: "",
+      train: Object.assign({ model: "", folder: "", items: [], capMode: "tags", name: "", trigger: "", format: "kohya", kind: "character",
+                             precision: "fp16", save_every: 0, preset: "standard", steps: 1000, lr: 0.0001, rank: 16,
+                             resolution: 512, targets: "attention", flip: true, train_text_encoder: false,
+                             dirty: false, result: null, lossHistory: [], secPerStep: null, spsBy: {},
+                             mode: "lora", emb: { name: "", init: "", kind: "object", vectors: 2, steps: 1500, save_every: 0 } },
+                           (() => { const t = loadJSON("protoart.train", {}); delete t.items; delete t.result; delete t.lossHistory; delete t.dirty; return t; })()),
+      merge: { family: "", items: [], q: "", mode: "exact", rank: 32, name: "", result: null, error: "", busy: false },
+      hub: { source: "", busy: false, error: "", found: null, needToken: false, token: "", tokenSet: false, msg: "" },
+      civ: { url: "", busy: false, error: "", found: null, dest: "", key: "", keySet: false, msg: "", needKey: "" },  // From Civitai     // {job, image, src}
+      trigInfo: {},          // lora name -> {found, suggested, saved}
+      trigEdit: { name: "", text: "" },
+      embeddings: [],
+      loraDirs: { dirs: [], default: "" },
+      embDirs: { dirs: [], default: "" },
+      embMsg: "",
+      modelFilter: "all",
+      shop: { family: "all", search: "", fav: false }, // Models tab
+      mpanels: { own: false, civitai: false, hub: false, fix: false }, // Models tab panels (closed until you open one)
+      dl: { path: "", default: "", custom: false, missing: null, free_gb: null, sizeGb: null, move: true, busy: false }, // downloaded-models folder
+      modelSearch: "",
+      tool: { source: null, results: [], dragOver: false, working: null, latest: null },
+      freeConfirm: null,
+      logs: "",
+      backendDead: false,
+      debounceTimer: null,
+    };
+  },
+
+  computed: {
+    detailOriginalPrompt() {
+      const d = this.detail;
+      const o = d && d.settings && d.settings.original_prompt;
+      return o && o !== d.prompt ? o : "";
+    },
+    busy() {
+      return this.queue.length > 0;
+    },
+    runningJob() {
+      return this.queue.find((j) => j.state === "running");
+    },
+    currentModel() {
+      return this.models.find((m) => m.id === this.form.model);
+    },
+    family() {
+      return this.currentModel?.family || "sdxl";
+    },
+    familyLabel() {
+      return FAMILY_LABEL[this.family];
+    },
+    clipSkipOk() {
+      // CLIP skip changes how the prompt is read by SD 1.5 / SDXL text encoders (not ERNIE or other models)
+      return ["sd15", "sdxl"].includes(this.family) && this.currentModel?.engine !== "mlx";
+    },
+    clipSkipRec() {
+      return this.currentModel?.clip_skip || null;
+    },
+    clipSkipOptions() {
+      // SDXL always reads the second-to-last layer, which other apps call "CLIP skip 2", so its scale starts at 2
+      if (this.family === "sdxl")
+        return [{ v: 2, label: "Standard", title: "How SDXL normally reads prompts (called CLIP skip 2 in other apps)" },
+                { v: 3, label: "3", title: "Skip one more layer: looser, more stylised" },
+                { v: 4, label: "4", title: "Skip two more layers" }];
+      return [{ v: 1, label: "Off", title: "Normal" },
+              { v: 2, label: "2", title: "Skip the last layer: what anime-style SD 1.5 models were made with" },
+              { v: 3, label: "3", title: "Skip 2 layers: looser" },
+              { v: 4, label: "4", title: "Skip 3 layers" }];
+    },
+    clipSkipText() {
+      const v = this.form.clip_skip || 1, rec = this.clipSkipRec;
+      if (this.family === "sdxl") return v <= 2 ? "normal for SDXL" : "looser, more stylised";
+      if (v === rec) return v === 2 ? "recommended: anime-style model" : "recommended for this model";
+      if (v === 1) return rec === 2 ? "this model usually wants 2" : "normal";
+      return v === 2 ? "common for anime models" : "stronger, looser";
+    },
+    loraClipSkip() {
+      // LoRAs that say (in their file) which CLIP skip they were trained with
+      const out = [];
+      for (const l of this.form.loras) {
+        const info = this.loras.find((x) => x.name === l.name);
+        if (info?.clip_skip) out.push({ name: l.name, value: info.clip_skip });
+      }
+      return out;
+    },
+    clipSkipHint() {
+      const want = this.loraClipSkip.find((x) => x.value !== (this.form.clip_skip || 1));
+      return want ? want : null;
+    },
+    // Create shows only models that are ready on this Mac (downloaded, your own files, DiffusionBee, ones you
+    // added), plus the one that's selected. The rest are in the Models tab, ready to download.
+    installedModels() {
+      return this.models.filter((m) => (this.isInstalled(m) || m.id === this.form.model) && this.safeModel(m));
+    },
+    hideNsfw() {
+      return !!this.opts.hide_nsfw;
+    },
+    libModels() {
+      return this.models.filter((m) => this.safeModel(m));
+    },
+    markedItems() {
+      // models and LoRAs you marked yourself (Settings → Content filter)
+      return [
+        ...this.models.filter((m) => m.nsfw_mark != null).map((m) => ({ kind: "model", name: m.id, label: m.label, nsfw: m.nsfw_mark })),
+        ...this.loras.filter((l) => l.nsfw_mark != null).map((l) => ({ kind: "lora", name: l.name, label: l.name, nsfw: l.nsfw_mark })),
+      ];
+    },
+    loraFixList() {
+      // LoRAs and your own base model files, by name (or only the ones of unknown type)
+      const q = this.loraFix.q.trim().toLowerCase();
+      if (!q && !this.loraFix.unknownOnly && !this.loraFix.showAll) return [];
+      const loras = this.loras.map((l) => ({ ...l, kind: "lora", key: "l:" + l.name, label: l.name,
+        unknown: !l.family || l.family === "unknown" }));
+      const models = this.models.filter((m) => m.single_file).map((m) => ({ ...m, kind: "model", key: "m:" + m.id,
+        label: m.label, name: m.id, unknown: !["sd15", "sdxl"].includes(m.family) }));
+      return [...models, ...loras].filter((x) => (!q || x.label.toLowerCase().includes(q)) &&
+        (!this.loraFix.unknownOnly || x.unknown)).slice(0, this.loraFix.showAll ? 2000 : 60);
+    },
+    peopleItems() {
+      return [
+        ...this.models.filter((m) => m.people).map((m) => ({ kind: "model", name: m.id, label: m.label, item: m })),
+        ...this.loras.filter((l) => l.people).map((l) => ({ kind: "lora", name: l.name, label: l.name, item: l })),
+      ];
+    },
+    autoFlagged() {
+      return {
+        models: this.models.filter((m) => m.nsfw_auto && m.nsfw_mark == null).length,
+        loras: this.loras.filter((l) => l.nsfw_auto && l.nsfw_mark == null).length,
+      };
+    },
+    previewCovered() {
+      // the live preview can't be checked while it's being made: cover it when the prompt asks for NSFW
+      if (!this.hideNsfw || !this.livePreview) return false;
+      const j = this.queue.find((x) => x.id === this.livePreview.job);
+      return !!(j && j.nsfw_prompt);
+    },
+    downloadableCount() {
+      return this.models.filter((m) => !this.isInstalled(m)).length;
+    },
+    shopModels() {
+      const q = this.shop.search.trim().toLowerCase();
+      const list = this.models.filter((m) => this.safeModel(m) && (this.shop.family === "all" || m.family === this.shop.family) &&
+        (!this.shop.fav || this.isFav(m)) &&
+        (!q || `${m.label} ${FAMILY_LABEL[m.family]} ${m.quant || ""}`.toLowerCase().includes(q)));
+      return [
+        { id: "ready", title: "On this Mac", hint: "ready to use", models: list.filter((m) => this.isInstalled(m)) },
+        { id: "get", title: "Available to download", hint: "downloads once the first time you make a picture with it, then works offline",
+          models: list.filter((m) => !this.isInstalled(m) && m.enough_ram) },
+        { id: "big", title: "Needs more memory than this Mac has", hint: "you can still download them (for another Mac, or to try with Settings → Load anyway)",
+          models: list.filter((m) => !this.isInstalled(m) && !m.enough_ram) },
+      ].filter((g) => g.models.length);
+    },
+    modelFilters() {
+      const count = (f) => this.installedModels.filter(f).length;
+      const list = [
+        { id: "all", label: "All", count: this.installedModels.length },
+        { id: "fav", label: "★ Favorites", count: count((m) => this.isFav(m)) },
+        { id: "flux", label: "FLUX", count: count((m) => m.family === "flux") },
+        { id: "ernie", label: "ERNIE", count: count((m) => m.family === "ernie") },
+        { id: "sdxl", label: "SDXL", count: count((m) => m.family === "sdxl") },
+        { id: "sd15", label: "SD 1.5", count: count((m) => m.family === "sd15") },
+        ...Object.entries(FLAVOR_LABEL).map(([k, label]) => ({ id: "fl:" + k, label, count: count((m) => m.flavor === k) })),
+        { id: "mine", label: "My checkpoints", count: count((m) => m.id.startsWith("file:")) },
+        { id: "dbee", label: "DiffusionBee", count: count((m) => m.id.startsWith("tdict:")) },
+        { id: "hub", label: "Added", count: count((m) => m.id.startsWith("hf:") || m.id.startsWith("local:")) },
+      ];
+      return list.filter((f) => f.id === "all" || f.count);
+    },
+    filteredModels() {
+      const q = this.modelSearch.trim().toLowerCase();
+      // favourites first, then the usual order
+      const list = [...this.installedModels].sort((a, b) => (this.isFav(b) ? 1 : 0) - (this.isFav(a) ? 1 : 0));
+      return list.filter((m) => {
+        if (this.modelFilter === "fav" ? !this.isFav(m)
+            : this.modelFilter === "mine" ? !m.id.startsWith("file:")
+            : this.modelFilter === "dbee" ? !m.id.startsWith("tdict:")
+            : this.modelFilter === "hub" ? !(m.id.startsWith("hf:") || m.id.startsWith("local:"))
+            : this.modelFilter.startsWith("fl:") ? m.flavor !== this.modelFilter.slice(3)
+            : this.modelFilter !== "all" && m.family !== this.modelFilter) return false;
+        if (!q) return true;
+        return `${m.label} ${FAMILY_LABEL[m.family]} ${m.quant || ""}`.toLowerCase().includes(q);
+      });
+    },
+    modelGroups() {
+      const groups = [
+        { name: "FLUX.1", models: this.models.filter((m) => m.family === "flux") },
+        { name: "ERNIE-Image", models: this.models.filter((m) => m.family === "ernie") },
+        { name: "Stable Diffusion", models: this.models.filter((m) => !["ernie", "flux"].includes(m.family) && !m.id.includes(":")) },
+        { name: "Your checkpoints", models: this.models.filter((m) => m.id.startsWith("file:")) },
+        { name: "From DiffusionBee", models: this.models.filter((m) => m.id.startsWith("tdict:")) },
+        { name: "Your model files", models: this.models.filter((m) => m.id.startsWith("local:")) },
+        { name: "Added from Hugging Face", models: this.models.filter((m) => m.id.startsWith("hf:")) },
+      ];
+      return groups.filter((g) => g.models.length);
+    },
+    compatibleLoras() {
+      // only LoRAs made for this model's type (ones of unknown type are left out: see unknownTypeLoras)
+      const list = this.loras.filter((l) => l.family === this.family && !(this.hideNsfw && l.nsfw) &&
+        !(this.opts.hide_people && l.people));
+      // Pony / Illustrious / NoobAI model: LoRAs made for it first, then the rest
+      const fl = this.currentFlavor;
+      return fl ? [...list.filter((l) => l.flavor === fl), ...list.filter((l) => l.flavor !== fl)] : list;
+    },
+    compatibleEmbeddings() {
+      // only embeddings made for this model's type (SD 1.5, or SDXL incl. Pony / Illustrious / NoobAI)
+      return (this.embeddings || []).filter((e) => e.family === this.family && !(this.hideNsfw && e.nsfw_auto));
+    },
+    unknownTypeLoras() {
+      return this.loras.filter((l) => !l.family || l.family === "unknown").length;
+    },
+    currentFlavor() {
+      return this.currentModel?.flavor || null;
+    },
+    tagsInPrompt() {
+      const t = this.flavorTags;
+      return !!t && (this.form.prompt || "").toLowerCase().includes(t.split(",")[0].trim().toLowerCase());
+    },
+    flavorTags() {
+      return this.currentFlavor ? QUALITY_TAGS[this.currentFlavor] : "";
+    },
+    addableLoras() {
+      const used = new Set(this.form.loras.map((l) => l.name));
+      return this.compatibleLoras.filter((l) => !used.has(l.name));
+    },
+    filteredLoras() {
+      const q = this.loraSearch.trim().toLowerCase();
+      return this.addableLoras.filter((l) => !q || l.name.toLowerCase().includes(q));
+    },
+    shownLoras() {
+      return this.filteredLoras.slice(0, 200); // render at most 200 rows at once (keeps older Macs smooth)
+    },
+    moreLoras() {
+      return Math.max(0, this.filteredLoras.length - 200);
+    },
+    sizeKey: {
+      get() {
+        return `${this.form.width}x${this.form.height}`;
+      },
+      set(v) {
+        const [w, h] = v.split("x").map(Number);
+        this.form.width = w;
+        this.form.height = h;
+      },
+    },
+    trainModels() {
+      return this.models.filter((m) => !this.trainBlock(m));
+    },
+    trainModelGroups() {
+      // the 8-bit SDXL trains on its full-precision original, so list only that one
+      const hasFull = this.models.some((m) => m.id === "sdxl_base_fp16");
+      const by = (f) => this.models.filter((m) => f(m) && this.safeModel(m) && !(hasFull && m.id === "sdxl_int8"));
+      return [
+        { name: "SD 1.5", models: by((m) => m.family === "sd15") },
+        { name: "SDXL", models: by((m) => m.family === "sdxl") },
+        { name: "ERNIE", models: by((m) => m.family === "ernie") },
+        { name: "Other", models: by((m) => !["sd15", "sdxl", "ernie"].includes(m.family)) },
+      ].filter((g) => g.models.length);
+    },
+    trainKinds() {
+      return [
+        { id: "character", label: "Character / person", tip: "A face or character that should look the same in every picture" },
+        { id: "object", label: "Object", tip: "A product, prop, vehicle, pet…" },
+        { id: "style", label: "Art style", tip: "A look: brushwork, line art, colours, a photographic style" },
+        { id: "concept", label: "Pose / concept", tip: "A pose, outfit, composition or effect" },
+      ];
+    },
+    // What size the training pictures should be, for this base model and this kind of LoRA.
+    trainSizeAdvice() {
+      const fam = this.trainFamily;
+      const ram = this.sys.ram_gb || 0;
+      const native = { sd15: 512, sdxl: 1024, ernie: 1024 }[fam] || 512;
+      const label = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE-Image" }[fam] || "this model";
+      const train = this.train.resolution || native;
+      const kind = this.train.kind || "character";
+      const shapes = {
+        sd15: "512 × 512 square (or 512 × 768 / 768 × 512 for portrait and landscape)",
+        sdxl: "1024 × 1024 square (or 832 × 1216 / 1216 × 832)",
+        ernie: "1024 × 1024 square (or 848 × 1264 / 1264 × 848)",
+      }[fam] || `${native} × ${native}`;
+      const tips = {
+        character: ["15–30 pictures of the same person or character, cropped so they fill most of the frame.",
+                    "Mix it up: about half close-ups of the face, a third half-body, the rest full-body; different expressions, angles, clothes and backgrounds.",
+                    "Avoid other people in the picture, heavy filters, text and watermarks."],
+        object: ["10–20 pictures of the object from different sides and distances.",
+                 "Use different backgrounds and lighting so the LoRA learns the object, not the room it was in.",
+                 "Keep the object sharp and centred; crop away empty space."],
+        style: ["20–40 pictures in the style, of many different subjects (people, places, things).",
+                "Use whole pictures rather than tight crops, so the composition and colours are learned too.",
+                "Keep the style consistent: leave out pictures that don't look like the rest."],
+        concept: ["15–30 pictures that all show the pose, outfit or effect clearly.",
+                  "Vary everything else (people, colours, backgrounds) so only the concept is learned.",
+                  "Describe everything except the concept in the captions."],
+      }[kind];
+      // pictures smaller than this look soft after training: the model's own size, or 768 for SDXL / ERNIE trained lighter
+      const minSide = Math.max(Math.min(native, train), fam === "sd15" ? 512 : 768);
+      const sized = this.train.items.filter((it) => it.width && it.height);
+      const small = sized.filter((it) => Math.min(it.width, it.height) < minSide).length;
+      return { label, native, train, shapes, tips, minSide, small, checked: sized.length,
+               lowRam: fam !== "sd15" && ram && ram < 16 };
+    },
+    trainFastErnie() {
+      const m = this.models.find((x) => x.id === this.train.model);
+      return !!(m && m.family === "ernie" && m.engine === "mlx");
+    },
+    trainFamily() {
+      return this.models.find((m) => m.id === this.train.model)?.family || "sd15";
+    },
+    trainModelNote() {
+      const ram = this.sys.ram_gb || 0;
+      if (this.trainFamily === "sdxl")
+        return ram && ram < 16 ? "SDXL training needs 16 GB+ to run well; on this Mac it will work but be very slow (expect many hours). Use 768 to lighten it."
+                               : "SDXL: UNet LoRA at 1024 (or 768 to save memory and time).";
+      if (this.trainFastErnie)
+        return ram && ram < 16
+          ? "ERNIE on the fast engine: trains a LoRA on the 4-bit model. Experimental on 8 GB Macs: it may run out of memory or take many hours. Use 512 px, rank 8 and attention layers, and close other apps."
+          : "ERNIE on the fast engine: trains a LoRA on the 4-bit model (low-memory settings are used automatically). The LoRA works with the fast-engine ERNIE.";
+      if (this.trainFamily === "ernie")
+        return "ERNIE: transformer LoRA (flow matching), saved in Diffusers format. Needs the full-precision model and 32 GB+.";
+      return ram && ram < 16 ? "SD 1.5: the best fit for this Mac. Your DiffusionBee, downloaded and own SD 1.5 models all work as a base."
+                             : "SD 1.5: fastest to train. On this Mac you can also train SDXL" + (ram >= 32 ? " and ERNIE." : ".");
+    },
+    trainSps() {
+      // seconds per training step: measured on this Mac per model type, otherwise a rough guess
+      return (fam) => {
+        const got = (this.train.spsBy || {})[fam];
+        if (got) return got;
+        const ram = this.sys.ram_gb || 0;
+        if (fam === "sdxl") return ram && ram < 16 ? 25 : 6;
+        if (fam === "ernie") return ram && ram < 16 ? 40 : 10;
+        return ram && ram < 12 ? 4 : 2;
+      };
+    },
+    trainCaptioned() {
+      return this.train.items.filter((i) => (i.caption || "").trim()).length;
+    },
+    trainPresets() {
+      const n = this.train.items.length || 15;
+      const base = Math.min(2000, Math.max(400, Math.round(n * 100 / 10) * 10));
+      return [
+        { id: "quick", label: "Quick", steps: Math.round(base * 0.5 / 50) * 50, lr: 0.0002, rank: 8, tip: "Fast test run" },
+        { id: "standard", label: "Standard", steps: base, lr: 0.0001, rank: 16, tip: "Good default (~100 steps per image)" },
+        { id: "thorough", label: "Thorough", steps: Math.min(4000, base * 2), lr: 0.0001, rank: 32, tip: "More detail, takes twice as long" },
+      ];
+    },
+    trainBlock() {
+      return (m) => {
+        if (this.train.mode === "embedding") {
+          if (m.family !== "sd15" || m.engine === "mlx") return "embeddings: SD 1.5 only for now";
+          return "";
+        }
+        if (m.family === "ernie" && m.engine === "mlx") return ""; // fast engine: trains on the 4-bit model
+        if (m.family === "ernie") {
+          if (this.sys.ram_gb && this.sys.ram_gb < 32) return "needs a Mac with 32 GB+ (use the ⚡ fast engine one)";
+          if (m.quant) return "compressed build can't be trained; use the ⚡ fast engine one";
+        }
+        if (!["sd15", "sdxl", "ernie"].includes(m.family)) return "not supported for training";
+        if (m.engine === "mlx") return "not supported for training";
+        if (m.family === "sdxl" && (m.disk_gb || /8-bit/.test(m.label)) && !this.models.some((x) => x.id === "sdxl_base_fp16"))
+          return "8-bit build can't be trained";
+        return "";
+      };
+    },
+    trainProblem() {
+      if (!this.trainModels.length) return "No SD 1.5 model available: download Stable Diffusion 1.5 in Create first.";
+      if (!this.train.folder) return "";
+      if (this.train.items.length && this.train.items.length < 3) return "Use at least 3 images.";
+      if (this.train.name && this.loras.some((l) => l.name === this.train.name.trim()))
+        return "There's already a LoRA with this name; pick another.";
+      return "";
+    },
+    embProblem() {
+      const e = this.train.emb, n = (e.name || "").trim();
+      if (n && !/^[\w-]+$/.test(n)) return "Use letters, numbers, _ or - only (it's the word you'll type in prompts).";
+      if (n && (this.embeddings || []).some((x) => x.name.toLowerCase() === n.toLowerCase())) return "There's already an embedding with this name; pick another.";
+      if (this.train.items.length && this.train.items.length < 3) return "Use at least 3 pictures.";
+      return "";
+    },
+    embReady() {
+      const m = this.models.find((x) => x.id === this.train.model);
+      return m && !this.trainBlock(m) && this.train.items.length >= 3 && (this.train.emb.name || "").trim() && !this.embProblem && !this.trainJob;
+    },
+    embEstimate() {
+      if (!this.train.items.length) return "";
+      const measured = (this.train.spsBy || {}).sd15_ti;
+      const sps = measured || ((this.sys.ram_gb || 8) < 12 ? 2.5 : 1.2);
+      return `≈ ${this.formatDuration(this.train.emb.steps * sps)} on this Mac` + (measured ? "" : " (rough guess until the first run)");
+    },
+    mergeFamilies() {
+      const c = (f) => this.loras.filter((l) => l.family === f && /\.safetensors$/i.test(l.file || "")).length;
+      return [["sd15", "SD 1.5"], ["sdxl", "SDXL"], ["flux", "FLUX"], ["ernie", "ERNIE"]].map(([id, label]) => ({ id, label, count: c(id) }))
+        .filter((f) => f.count);
+    },
+    mergeFamily() {
+      return this.merge.family || (this.mergeFamilies.find((f) => f.id === this.family) || this.mergeFamilies[0] || {}).id || "";
+    },
+    mergeChoices() {
+      const q = this.merge.q.trim().toLowerCase(), picked = new Set(this.merge.items.map((i) => i.name));
+      return this.loras.filter((l) => l.family === this.mergeFamily && /\.safetensors$/i.test(l.file || "") && !picked.has(l.name)
+        && !(this.hideNsfw && l.nsfw) && !(this.opts.hide_people && l.people) && (!q || l.name.toLowerCase().includes(q))).slice(0, 60);
+    },
+    mergeOtherCount() {
+      // LoRAs that can't be merged here (DiffusionBee .tdict files, unknown type): shown as a note
+      return this.loras.filter((l) => l.family === this.mergeFamily && !/\.safetensors$/i.test(l.file || "")).length;
+    },
+    mergeJob() {
+      return this.queue.find((j) => j.cmd === "lora_merge");
+    },
+    mergeProblem() {
+      const n = this.merge.name.trim();
+      if (n && this.loras.some((l) => l.name === n)) return "There's already a LoRA with this name; pick another.";
+      return "";
+    },
+    mergeReady() {
+      return this.merge.items.length >= 2 && this.merge.name.trim() && !this.mergeProblem && !this.mergeJob;
+    },
+    trainReady() {
+      return this.train.model && this.train.items.length >= 3 && this.train.name.trim() && !this.trainProblem && !this.trainJob;
+    },
+    trainEstimate() {
+      if (!this.train.items.length) return "";
+      const fam = this.trainFamily;
+      const measured = (this.train.spsBy || {})[fam];
+      const sps = this.trainSps(fam);
+      const base = fam === "sdxl" ? 1024 : fam === "ernie" ? 768 : 512;
+      const mult = measured ? 1 : (this.train.resolution / base) ** 2 * (this.train.train_text_encoder ? 1.3 : 1);
+      return `≈ ${this.formatDuration(this.train.steps * sps * mult)} on this Mac` + (measured ? "" : " (rough guess until the first run)");
+    },
+    trainJob() {
+      return this.queue.find((j) => j.cmd === "train_lora" || j.cmd === "train_embedding");
+    },
+    trainPct() {
+      const p = this.progress, j = this.trainJob;
+      if (!j || !p || p.job !== j.id || j.state !== "running") return 0;
+      return Math.round((p.step / p.steps) * 100);
+    },
+    trainProgressText() {
+      const j = this.trainJob, p = this.progress;
+      if (!j) return "";
+      if (j.state !== "running") return "Waiting in the queue…";
+      if (!p || p.job !== j.id) return this.status;
+      const sps = this.train.secPerStep;
+      return `Step ${p.step}/${p.steps}` + (p.loss != null ? ` · loss ${p.loss}` : "") +
+        (sps ? ` · ${sps}s/step · ${this.formatDuration((p.steps - p.step) * sps)} left` : "");
+    },
+    lossPoints() {
+      const h = this.train.lossHistory;
+      if (h.length < 2) return "";
+      const max = Math.max(...h), min = Math.min(...h), span = max - min || 1;
+      return h.map((v, i) => `${(i / (h.length - 1)) * 300},${70 - ((v - min) / span) * 66 - 2}`).join(" ");
+    },
+    toolJob() {
+      return this.tool.working ? this.queue.find((j) => j.cmd === "postprocess") : null;
+    },
+    toolPct() {
+      const j = this.toolJob;
+      if (!j || j.state !== "running") return 0;
+      const p = this.progress;
+      if (p && p.job === j.id && p.steps) return Math.min(99, Math.round((p.step / p.steps) * 100));
+      const e = this.jobEtas.find((x) => x.id === j.id);
+      if (!e) return 0;
+      const done = (this.now - this.tool.working.started) / 1000;
+      return Math.min(97, Math.round((done / (done + e.remaining)) * 100));
+    },
+    i2iModelGroups() {
+      const ok = (m) => (m.family === "sd15" || m.family === "sdxl") && m.engine !== "mlx";
+      const mark = (list) => list.map((m) => ({ ...m, i2iOk: ok(m) }));
+      return [
+        { name: "SD 1.5 (image to image + ControlNet)", models: mark(this.installedModels.filter((m) => m.family === "sd15")) },
+        { name: "SDXL (image to image)", models: mark(this.installedModels.filter((m) => m.family === "sdxl")) },
+      ].filter((g) => g.models.length);
+    },
+    convShown() {
+      const q = this.conv.search.trim().toLowerCase();
+      return (this.conv.items || []).filter((i) => (!this.conv.kind || i.kind === this.conv.kind) && (!q || i.name.toLowerCase().includes(q)));
+    },
+    convSelectedSize() {
+      const set = new Set(this.conv.selected);
+      const mb = (this.conv.items || []).filter((i) => set.has(i.file)).reduce((a, i) => a + (i.size_mb || 0), 0);
+      return mb > 1000 ? `${(mb / 1000).toFixed(1)} GB` : `${Math.round(mb)} MB`;
+    },
+    convJob() {
+      return this.queue.find((j) => j.cmd === "convert_tdict");
+    },
+    controlTimingText() {
+      const { start, end } = this.form.control;
+      if (start === 0 && end === 1) return "Now: it guides every step, so the result keeps the map's structure closely.";
+      if (start === 0) return `Now: it guides the first ${Math.round(end * 100)}% (the layout) and then lets go, so details are freer.`;
+      if (end === 1) return `Now: it starts after ${Math.round(start * 100)}%, so the overall layout is free but the finer structure follows the map.`;
+      return `Now: it guides only between ${Math.round(start * 100)}% and ${Math.round(end * 100)}% of the steps.`;
+    },
+    controlTypeInfo() {
+      return this.controlTypes.find((t) => t.id === this.form.control.type);
+    },
+    i2iResults() {
+      return this.session.filter((r) => r.kind === "img2img");
+    },
+    i2iLatest() {
+      return this.i2iResults[0] || null;
+    },
+    canSkipImage() {
+      const j = this.runningJob, p = this.progress;
+      if (!j || j.cmd !== "generate" || (j.images || 1) < 2) return false;
+      return !p || p.job !== j.id || p.image < p.images; // not on the last image
+    },
+    localModels() {
+      return this.models.filter((m) => m.id.startsWith("local:")).map((m) => ({ ...m, file: m.id.slice(6) }));
+    },
+    addedModels() {
+      return this.models.filter((m) => m.id.startsWith("hf:"));
+    },
+    sizeTiers() {
+      // Small / Medium / Large for each model type (side of an equivalent square).
+      const t = { sd15: [512, 640, 768], sdxl: [768, 1024, 1280], ernie: [640, 768, 1024], flux: [512, 768, 1024], other: [512, 768, 1024] };
+      const [s, m, l] = t[this.family] || t.other;
+      return [{ id: "s", label: "Small", side: s }, { id: "m", label: "Medium", side: m }, { id: "l", label: "Large", side: l }];
+    },
+    currentTier() {
+      const side = Math.sqrt(this.form.width * this.form.height);
+      const hit = this.sizeTiers.find((t) => Math.abs(side - t.side) / t.side < 0.06);
+      return hit ? hit.id : null;
+    },
+    sizePresets() {
+      // Shapes each model family was trained around (all multiples of 8).
+      const sets = {
+        sd15: [["Square 1:1", 512, 512], ["Portrait 2:3", 512, 768], ["Landscape 3:2", 768, 512],
+               ["Portrait 3:4", 576, 768], ["Landscape 4:3", 768, 576], ["Tall 9:16", 432, 768],
+               ["Wide 16:9", 768, 432], ["Large square", 768, 768]],
+        sdxl: [["Square 1:1", 1024, 1024], ["Portrait 2:3", 832, 1216], ["Landscape 3:2", 1216, 832],
+               ["Portrait 3:4", 896, 1152], ["Landscape 4:3", 1152, 896], ["Tall 9:16", 768, 1344],
+               ["Wide 16:9", 1344, 768], ["Small square", 768, 768]],
+      };
+      sets.ernie = [["Square 1:1", 1024, 1024], ["Portrait 2:3", 848, 1264], ["Landscape 3:2", 1264, 848],
+                    ["Portrait 3:4", 896, 1200], ["Landscape 4:3", 1200, 896], ["Tall 9:16", 768, 1376],
+                    ["Wide 16:9", 1376, 768], ["Medium square", 768, 768]];
+      // FLUX: the SDXL shapes (all multiples of 16 too)
+      sets.flux = sets.sdxl.map(([l, w, h]) => [l === "Small square" ? "Medium square" : l, w, h]);
+      return (sets[this.family] || sets.sdxl).map(([label, w, h]) => ({ label, w, h }));
+    },
+    livePreviewShown() {
+      const lp = this.livePreview;
+      // Create tab: only for jobs started there (Image to image jobs preview in their own tab)
+      return !!(lp && this.opts.previews && this.runningJob && this.runningJob.id === lp.job && !this.runningJob.i2i);
+    },
+    hasWildcards() {
+      const t = (this.form.prompt || "") + " " + (this.form.negative_prompt || "");
+      return /\{[^{}]*\|[^{}]*\}|__[\w\-./ ]+?__/.test(t);
+    },
+    randomPool() {
+      // LoRAs the randomizer may pick: ones that work with this model (and not already added by hand)
+      const mine = new Set(this.form.loras.filter((l) => !this.loraRand.picked.includes(l.name)).map((l) => l.name));
+      return this.compatibleLoras.filter((l) => !mine.has(l.name));
+    },
+    hiresTarget() {
+      const ram = this.sys.ram_gb || 8;
+      const cap = this.family === "sd15" ? (ram < 24 ? 1024 : 1536) : (ram < 24 ? 1536 : 2048);
+      let w = this.form.width * this.form.hires.scale, h = this.form.height * this.form.hires.scale;
+      if (Math.max(w, h) > cap) { const f = cap / Math.max(w, h); w *= f; h *= f; }
+      w = Math.floor(w / 8) * 8; h = Math.floor(h / 8) * 8;
+      return `${this.form.width}×${this.form.height} → ${w}×${h}`;
+    },
+    batchLines() {
+      return (this.batch.text || "").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
+    },
+    cmpCount() {
+      const n = (axis, v) => {
+        if (!axis) return 1;
+        const t = String(v || "").trim();
+        const m = t.match(/^([\d.]+)\s*-\s*([\d.]+)\s*\(\s*\+?\s*([\d.]+)\s*\)$/);
+        if (m && !["sampler", "lora"].includes(axis)) {
+          const a = +m[1], b = +m[2], st = +m[3] || 1;
+          return Math.max(0, Math.floor((b - a) / st + 1e-9) + 1);
+        }
+        return t.split(",").filter((x) => x.trim()).length;
+      };
+      return n(this.cmp.x, this.cmp.xv) * (this.cmp.y ? n(this.cmp.y, this.cmp.yv) : 1);
+    },
+    outpaintSize() {
+      const o = this.form.outpaint, d = this.initDims;
+      if (!d) return "";
+      return `${d.w + (o.left || 0) + (o.right || 0)}×${d.h + (o.top || 0) + (o.bottom || 0)} (from ${d.w}×${d.h})`;
+    },
+    i2iRunning() {
+      // the running job is an Image to image one (started from that tab)
+      const j = this.runningJob;
+      return !!(j && j.cmd === "generate" && j.i2i);
+    },
+    recSteps() {
+      // Recommended step count for the chosen sampler: [recommended, low, high].
+      const s = this.samplers.find((x) => x.id === this.form.sampler);
+      if (s?.steps) return s.steps;
+      const d = this.currentModel?.defaults?.steps; // ERNIE (flow samplers): the model's own default
+      return d ? [d, Math.max(1, Math.round(d * 0.75)), Math.round(d * 1.5)] : null;
+    },
+    aspectText() {
+      const w = this.form.width, h = this.form.height;
+      if (!w || !h) return "";
+      const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+      const g = gcd(w, h);
+      const [a, b] = [w / g, h / g];
+      const named = [[1, 1], [4, 3], [3, 2], [16, 9], [21, 9], [5, 4], [7, 5], [2, 1]];
+      const r = w / h;
+      for (const [x, y] of named) {
+        if (Math.abs(r - x / y) < 0.02) return `${x}:${y}`;
+        if (Math.abs(r - y / x) < 0.02) return `${y}:${x}`;
+      }
+      return a <= 32 && b <= 32 ? `${a}:${b}` : (w >= h ? `${r.toFixed(2)}:1` : `1:${(1 / r).toFixed(2)}`);
+    },
+    progressPct() {
+      const p = this.progress;
+      if (!p || !this.runningJob || p.job !== this.runningJob.id) return 0;
+      return Math.round((((p.image - 1) + p.step / p.steps) / p.images) * 100);
+    },
+    progressText() {
+      const p = this.progress;
+      if (!p) return this.status;
+      let text = `Image ${p.image}/${p.images} · step ${p.step}/${p.steps}`;
+      const times = this.timing.stepTimes;
+      if (times.length) {
+        const sorted = [...times].sort((a, b) => a - b);
+        const perStep = sorted[Math.floor(sorted.length / 2)] / 1000;
+        const remaining = (p.steps - p.step) + (p.images - p.image) * p.steps;
+        text += ` · ${perStep.toFixed(1)} s/step · ${this.formatDuration(remaining * perStep)} left`;
+      }
+      return text;
+    },
+    jobEtas() {
+      // Estimated seconds for each queued job, plus when it should finish (cumulative).
+      let clock = 0;
+      let loaded = this.lastModel;
+      return this.queue.map((j) => {
+        let est, measured = true;
+        const elapsed = j.state === "running" && this.jobStartedAt ? (this.clockNow() - this.jobStartedAt) / 1000 : 0;
+        if (j.cmd === "generate") {
+          const fam = this.models.find((m) => m.id === j.model)?.family || "sdxl";
+          const mp = ((j.width || 1024) * (j.height || 1024)) / 1e6;
+          const p = this.perf.models[j.model] || {};
+          if (!p.sps) measured = false;
+          const sps = (p.sps || DEFAULT_SPS_PER_MP[fam]) * mp;
+          const steps = Math.max(1, Math.ceil((j.steps || 25) * (j.strength || 1)));
+          est = sps * (steps + 2) * (j.images || 1); // +2 steps' worth for decoding/saving each image
+          if (j.model !== loaded) est += p.load ?? DEFAULT_LOAD_S[fam];
+          if (j.enhance) est += this.perf.jobs.enhance_prompt ?? DEFAULT_JOB_S.enhance_prompt;
+          loaded = j.model;
+          if (j.state === "running" && this.progress && this.progress.job === j.id && this.timing.stepTimes.length) {
+            const pr = this.progress;
+            const sorted = [...this.timing.stepTimes].sort((a, b) => a - b);
+            const perStep = sorted[Math.floor(sorted.length / 2)] / 1000;
+            est = elapsed + perStep * ((pr.steps - pr.step) + (pr.images - pr.image) * (pr.steps + 2) + 2);
+          }
+        } else if (j.cmd === "train_lora" || j.cmd === "train_embedding") {
+          const sps = this.trainSps(this.models.find((x) => x.id === j.model)?.family || "sd15");
+          const pr = this.progress;
+          est = (j.steps || 1000) * sps + 60;
+          if (j.state === "running" && pr && pr.job === j.id) est = elapsed + (pr.steps - pr.step) * sps;
+          measured = !!(this.train.spsBy || {})[this.models.find((x) => x.id === j.model)?.family];
+        } else if (j.cmd === "model_download") {
+          const gb = this.models.find((m) => m.id === j.model)?.download_gb || 5;
+          est = gb * 1000 / 25; // ~25 MB/s until it's measured
+          const pr = this.progress;
+          if (j.state === "running" && pr && pr.job === j.id && pr.step > 20 && elapsed > 5) {
+            est = elapsed * pr.steps / pr.step;
+          }
+          measured = false;
+        } else {
+          const key = j.cmd === "postprocess" ? j.action : j.cmd;
+          const one = (k) => this.perf.jobs[k] ?? DEFAULT_JOB_S[k] ?? 30;
+          est = key === "both" ? one("enhance") + one("faces") : one(key);
+          if ((key === "enhance" || key === "both") && j.upscale) est *= (j.upscale / 2) ** 2;
+          measured = this.perf.jobs[key] != null;
+        }
+        const remaining = Math.max(1, est - elapsed);
+        clock += remaining;
+        return { id: j.id, remaining, finishIn: clock, measured };
+      });
+    },
+    elapsedText() {
+      if (!this.runningJob || !this.jobStartedAt) return "";
+      const s = Math.round((this.clockNow() - this.jobStartedAt) / 1000);
+      return s >= 2 ? ` (${this.formatDuration(s)})` : "";
+    },
+    statusText() {
+      return this.backendDead ? "Backend stopped — see Settings" : this.status;
+    },
+    // Rack skin: the VU needle reads exactly what the progress bar for the running job shows
+    // (Tools and Train have their own bars; everything else uses the queue bar). The amber readouts show time left.
+    vuPct() {
+      const j = this.runningJob;
+      if (!j || this.backendDead) return 0;
+      let pct;
+      if (this.toolJob && this.toolJob.id === j.id) pct = this.toolPct;
+      else if (this.trainJob && this.trainJob.id === j.id) pct = this.trainPct;
+      else pct = this.jobProgress(j);
+      return Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) : 0;
+    },
+    rackTimeLeft() {
+      const j = this.runningJob;
+      const e = j && this.jobEtas.find((x) => x.id === j.id);
+      return e ? this.clockText(e.remaining) : "--:--";
+    },
+    rackQueueLeft() {
+      const last = this.jobEtas[this.jobEtas.length - 1];
+      return last && this.queue.length > 1 ? this.clockText(last.finishIn) : "--:--";
+    },
+  },
+
+  watch: {
+    tab(v, old) {
+      if (v === "settings") { this.loadFolders(false); this.$nextTick(() => this.applySettingsFolds()); }
+      // leaving Tools drops Adjust's GPU preview; coming back reloads it with the same settings
+      if (old === "tools" && this.adj.open && adjEngine) { adjEngine.destroy(); adjEngine = null; }
+      if (v === "tools" && this.adj.open && !adjEngine && this.adj.rec && !this.adj.busy)
+        this.$nextTick(() => this.openAdjust(this.adj.rec, true));
+    },
+    form: { deep: true, handler(v) { saveJSON(FORM_KEY, v); } },
+    "adj.p": { deep: true, handler() { this.adjRender(); } },
+    "adj.before"() { this.adjRender(); },
+    "adj.view"() { this.adjRender(); },
+    "adj.split"() { this.adjRender(); },
+    i2p: { deep: true, handler(v) { saveJSON("beestudio.i2p", v); } },
+    rnd: { deep: true, handler(v) { saveJSON("beestudio.rnd", v); } },
+    loraRand: { deep: true, handler(v) { saveJSON("protoart.loraRand", v); } },
+    "form.init_image"() { this.initDims = null; },
+    train: { deep: true, handler(v) {
+      const { items, result, lossHistory, dirty, ...keep } = v;
+      saveJSON("protoart.train", keep);
+    } },
+  },
+
+  async mounted() {
+    window.addEventListener("keydown", (e) => this.adjKey(e));  // Adjust: \ flips Edited / Original
+    setInterval(() => { if (this.queue.length || Object.keys(this.stopping).length) this.now = Date.now(); }, 1000);
+    listeners.push(this.onEvent);
+    window.bee.onLog((s) => {
+      // home folders (your username) are shown as ~, like the saved log
+      this.logs = (this.logs + String(s).replace(/\/Users\/[^/\s'"]+/g, "~")).slice(-20000);
+    });
+    window.bee.onExit((info) => this.onEngineExit(info));
+    // The backend's first "ready" message can arrive before this page has loaded,
+    // so initialise now as well (requests are queued in the backend's stdin).
+    this.init();
+  },
+
+  methods: {
+    // -------------------------------------------------------------- startup
+    onEvent(m) {
+      if (m.type === "ready") { this.setPaused(false); return this.init(); }
+      if (m.type === "status") this.status = m.msg;
+      if (m.type === "progress") this.onProgress(m);
+      if (m.type === "enhanced_prompt") this.lastEnhanced = { prompt: m.prompt, original: m.original };
+      if (m.type === "model_ready") this.readyModel = m.model;
+      if (m.type === "queue") {
+        if (typeof m.paused === "boolean") this.setPaused(m.paused);
+        const prev = this.runningJob;
+        // background preloads aren't shown as jobs (no meter, no clocks): just a "getting ready" note
+        this.preloading = (m.jobs.find((x) => x.cmd === "preload") || {}).model || "";
+        m = { ...m, jobs: m.jobs.filter((x) => x.cmd !== "preload") };
+        this.queue = m.jobs;
+        const nowRunning = this.runningJob?.id;
+        if (nowRunning !== prev?.id) {
+          if (this.runningJob && this.runningJob.model !== this.readyModel) this.readyModel = ""; // another job may unload it
+          if (prev) this.recordPerf(prev);
+          this.jobStartedAt = nowRunning ? Date.now() : 0;
+          this.firstStepAt = 0;
+        }
+        if (!m.jobs.length) {
+          this.progress = null;
+          this.livePreview = null;
+        }
+        const ids = new Set(m.jobs.map((x) => x.id));
+        for (const id of Object.keys(this.stopping)) if (!ids.has(Number(id))) delete this.stopping[id];
+      }
+      if (m.type === "skipped") this.livePreview = null;
+      if (m.type === "train_status") {
+        this.train.secPerStep = m.sec_per_step;
+        const tj = this.trainJob;
+        const fam = (tj && this.models.find((x) => x.id === tj.model)?.family) || this.trainFamily;
+        const key = tj && tj.cmd === "train_embedding" ? "sd15_ti" : fam;
+        this.train.spsBy = { ...(this.train.spsBy || {}), [key]: m.sec_per_step };
+        if (Number.isFinite(m.loss)) this.train.lossHistory.push(m.loss); // the fast engine reports speed only
+        if (this.train.lossHistory.length > 300) this.train.lossHistory.splice(0, this.train.lossHistory.length - 300);
+      }
+      if (m.type === "preview") this.livePreview = { job: m.job, image: m.image, src: m.src };
+      if (m.type === "image") {
+        this.session.unshift(m.record);
+        if (m.record.model && m.record.kind === "generated") this.readyModel = m.record.model;
+        if (m.record.nsfw && this.hideNsfw) this.status = "A new picture is covered by the NSFW filter (click it to look)";
+        this.livePreview = null;
+      }
+    },
+    async init() {
+      this.backendDead = false;
+      try {
+        await call("set_settings", this.opts);
+        [this.sys, this.models, this.presets, this.imagesDir, this.queue] = await Promise.all([
+          call("system_info"), call("list_models"), call("presets_list"), call("images_dir_get"), call("queue_get"),
+        ]);
+        this.queue = this.queue.filter((x) => x.cmd !== "preload");
+        this.loadContentStatus();
+        call("privacy_get").then((r) => { this.strictOffline = !!(r && r.strict); }).catch(() => {});
+        await this.refreshLoras();
+        call("diffusionbee_info").then((d) => { this.dbee = d; }).catch(() => {});
+        call("list_embeddings").then((e) => { this.embeddings = e; }).catch(() => {});
+        call("embedding_dirs_get").then((d) => { this.embDirs = d; }).catch(() => {});
+        call("adjust_presets_get").then((d) => { this.adjPresets = Array.isArray(d) ? d : []; }).catch(() => {});
+        call("lora_dirs_get").then((d) => { this.loraDirs = d; }).catch(() => {});
+        call("model_dirs_get").then((d) => { this.modelDirs = d; }).catch(() => {});
+        call("civitai_key_get").then((d) => { this.civ.keySet = !!(d && d.set); }).catch(() => {});
+        call("hf_token_get").then((d) => { this.hub.tokenSet = !!(d && d.set); }).catch(() => {});
+        call("export_presets_get").then((d) => { this.exportPresets = Array.isArray(d) ? d : []; }).catch(() => {});
+        call("default_export_dir").then((d) => { if (d && d.path && !this.bx.dest) this.bx.dest = loadJSON("protoart.exportDir", d.path); }).catch(() => {});
+        this.loadDownloadsDir();
+        this.refreshEdits();
+        for (const l of this.form.loras) this.fetchTriggers(l.name);
+        if (!this.defaultApplied && this.opts.default_model && this.opts.default_model !== this.form.model &&
+            this.models.some((m) => m.id === this.opts.default_model)) {
+          this.form.model = this.opts.default_model; // your default model, every time the app opens
+          await this.onModelChange();
+        }
+        this.defaultApplied = true;
+        if (!this.currentModel) {
+          // saved model no longer exists: pick one that fits and apply ITS defaults (size, steps, CFG)
+          this.form.model = (this.models.find((m) => m.enough_ram) || this.models[0]).id;
+          await this.onModelChange();
+        } else if (this.currentModel.family === "sd15" && Math.max(this.form.width, this.form.height) > 768) {
+          const d = this.currentModel.defaults;
+          Object.assign(this.form, { width: d.width, height: d.height });
+          this.status = "Reset size to 512×512 (SD 1.5 is made for 512; 1024 is many times slower)";
+        }
+        if (this.currentModel) this.form.clip_skip = this.clipSkipFor(this.currentModel); // model's default or your choice
+        await this.loadSamplers(false);
+        this.status = "Ready";
+        hideSplash();
+        await this.loadFolders(true); // warn if one of your folders has gone (moved, or drive not connected)
+        // Speed: load a model now, while you're still writing the prompt
+        const start = this.opts.preload_start === "last" ? this.form.model : this.opts.preload_start;
+        if (start && !this.requeue.length) setTimeout(() => this.preloadModel(start), 1500);
+        if (this.requeue.length) {
+          const jobs = this.requeue;
+          this.requeue = [];
+          for (const jb of jobs) this.runJob(jb.cmd, jb.args); // results arrive as image events
+          this.status = `Engine restarted · re-queued ${jobs.length} job${jobs.length === 1 ? "" : "s"}`;
+        }
+      } catch (e) {
+        this.error = e.message;
+        hideSplash();
+      }
+    },
+    async refreshLoras() {
+      this.loras = await call("list_loras");
+    },
+    // -------------------------------------------------------------- size / steps
+    snap(v) {
+      const m = ["ernie", "flux"].includes(this.family) ? 16 : 8;
+      return Math.min(2048, Math.max(256, Math.round(v / m) * m));
+    },
+    setSide(side, raw, final) {
+      // While typing (final=false) keep the raw number so the field doesn't jump; snap when done.
+      const v = Number(raw);
+      if (!v || v < 1) return;
+      const val = final ? this.snap(v) : v;
+      this.form[side] = val;
+      if (this.form.size_link && this.form.size_ratio > 0) {
+        const other = side === "width" ? "height" : "width";
+        const o = side === "width" ? val / this.form.size_ratio : val * this.form.size_ratio;
+        if (final || v >= 256) this.form[other] = this.snap(o);
+      }
+      if (final) this.$forceUpdate(); // show the snapped value in the field
+    },
+    applyTier(t) {
+      // keep the current shape, scale to the tier's pixel count
+      const r = this.form.width / this.form.height || 1;
+      const area = t.side * t.side;
+      this.form.width = this.snap(Math.sqrt(area * r));
+      this.form.height = this.snap(Math.sqrt(area / r));
+      if (this.form.size_link) this.form.size_ratio = this.form.width / this.form.height;
+    },
+    isAddedLocal(id) {
+      return (this.modelDirs.local || []).some((m) => m.id === id);
+    },
+    openModelSettings(which) {
+      // adding models (Civitai / Hugging Face / your files) lives in the Models tab now
+      this.openModelsPanel(which === "hub" ? "hub" : which === "civitai" ? "civitai" : "own");
+    },
+    openModelsPanel(which) {
+      this.mpanels[which] = true;
+      this.tab = "models";
+      this.$nextTick(() => {
+        const el = document.getElementById("mp-" + which);
+        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (which === "hub") setTimeout(() => this.$refs.hubInput?.focus(), 350);
+        if (which === "civitai") setTimeout(() => this.$refs.civInput?.focus(), 350);
+      });
+    },
+    toggleModelsPanel(which) {
+      this.mpanels[which] = !this.mpanels[which];
+    },
+    openModelFolders() {
+      this.tab = "settings";
+      this.$nextTick(() => {
+        this.settingsUnfold(document.getElementById("models-section"));
+        document.getElementById("models-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    },
+    async addLocalModels() {
+      this.localErr = "";
+      if (!window.bee.pickModels) {
+        this.localErr = "Quit and reopen Protoart Studio once to enable this button (the app itself was updated).";
+        return;
+      }
+      const paths = await window.bee.pickModels();
+      if (!paths || !paths.length) return;
+      try {
+        const r = await call("model_local_inspect", { paths });
+        if (r.found.length) {
+          const local = await call("model_local_add", { models: r.found });
+          this.modelDirs = { ...this.modelDirs, local };
+          this.models = await call("list_models");
+          this.status = `Added ${r.found.length} model${r.found.length === 1 ? "" : "s"}: ` + r.found.map((m) => m.label).join(", ");
+          if (this.tab === "create") {
+            // show it in the list, and pick it straight away when it's just one
+            this.modelFilter = "all";
+            this.modelSearch = "";
+            if (r.found.length === 1 && this.models.some((m) => m.id === r.found[0].id)) this.selectModel(r.found[0].id);
+          }
+        }
+        await this.useLoraFolders(r.lora_folders);
+        if (r.errors.length) this.localErr = r.errors.join("\n");
+      } catch (e) {
+        this.localErr = e.message;
+      }
+    },
+    async useLoraFolders(found) {
+      // a models folder that also holds LoRAs (or DiffusionBee .tdict files): use it as a LoRA folder too
+      const add = (found || []).map((f) => f.path).filter((p) => !this.loraDirs.dirs.includes(p));
+      if (!add.length) return;
+      this.loraDirs = await call("lora_dirs_set", { dirs: [...this.loraDirs.dirs, ...add] });
+      await this.refreshLoras();
+      const n = found.reduce((a, f) => a + f.loras, 0);
+      this.status = (this.status ? this.status + " · " : "") +
+        `Also using ${add.length === 1 ? "that folder" : add.length + " folders"} for LoRAs (${n} found; listed in Settings → LoRA folders)`;
+    },
+    async removeLocalModel(id) {
+      const local = await call("model_local_remove", { id });
+      this.modelDirs = { ...this.modelDirs, local };
+      this.models = await call("list_models");
+      if (this.form.model === id) { this.form.model = this.models[0].id; await this.onModelChange(); }
+    },
+    async loadDownloadsDir() {
+      try { Object.assign(this.dl, await call("downloads_dir_get")); } catch {}
+    },
+    async measureDownloads() {
+      this.dl.sizeGb = "…";
+      try { this.dl.sizeGb = (await call("downloads_dir_size", { path: this.dl.path })).gb; } catch { this.dl.sizeGb = null; }
+    },
+    async changeDownloadsDir(useDefault) {
+      let target = null;
+      if (useDefault !== true) {
+        target = await window.bee.pickFolder({ title: "Choose where downloaded models are kept", defaultPath: this.dl.path, button: "Use this folder" });
+        if (!target) return;
+      }
+      const from = this.dl.path;
+      const to = target || this.dl.default;
+      if (to === from) return;
+      this.dl.busy = true;
+      try {
+        await call("downloads_dir_set", { path: target });
+        if (this.dl.move) {
+          this.status = "Moving downloaded models… (this can take a while for a different drive)";
+          const r = await this.runJob("downloads_move", { from, to });
+          if (r) this.status = `Moved ${r.moved} model${r.moved === 1 ? "" : "s"} (${r.gb} GB) to ${to}` + (r.skipped?.length ? ` · ${r.skipped.length} were already there` : "");
+        }
+        this.status = (this.status || "") + " · restarting the engine to use the new folder…";
+        await window.bee.restart();
+      } finally {
+        this.dl.busy = false;
+        setTimeout(() => { this.loadDownloadsDir(); call("list_models").then((m) => { this.models = m; }).catch(() => {}); }, 4000);
+      }
+    },
+    async addModelDir() {
+      let picked = await window.bee.pickFolder({ title: "Choose a folder that holds your models", multi: true, button: "Watch" });
+      if (typeof picked === "string") picked = [picked];
+      if (!picked || !picked.length) return;
+      this.modelDirs = await call("model_dirs_set", { dirs: [...this.modelDirs.dirs, ...picked] });
+      this.models = await call("list_models");
+      this.status = `Watching ${picked.length} folder${picked.length === 1 ? "" : "s"} · ${this.localModels.length} of your models found`;
+      try {
+        const r = await call("model_local_inspect", { paths: picked }); // only to spot LoRAs in the same folders
+        await this.useLoraFolders(r.lora_folders);
+      } catch { /* nothing to add */ }
+    },
+    async removeModelDir(d) {
+      this.modelDirs = await call("model_dirs_set", { dirs: this.modelDirs.dirs.filter((x) => x !== d) });
+      this.models = await call("list_models");
+    },
+    async hubInspect() {
+      Object.assign(this.hub, { busy: true, error: "", found: null, needToken: false, msg: "" });
+      try {
+        this.hub.found = await call("model_inspect", { source: this.hub.source });
+      } catch (e) {
+        this.hub.error = e.message;
+        // a gated model: ask for the Hugging Face access token right here
+        this.hub.needToken = /gated on Hugging Face|turned the download|access token/i.test(e.message || "");
+      }
+      this.hub.busy = false;
+    },
+    async hfSaveToken(clear, thenRetry = false) {
+      try {
+        const r = await call("hf_token_set", { token: clear ? "" : this.hub.token, check: !clear });
+        this.hub.tokenSet = r.set;
+        this.hub.token = "";
+        if (r.ok === false) { this.hub.error = r.msg; this.hub.needToken = true; return; }
+        this.hub.msg = r.set ? "Hugging Face token saved on this Mac" + (r.ok ? " · Hugging Face accepted it" : "") + (r.msg ? " · " + r.msg : "")
+          : "Hugging Face token removed";
+        if (r.set && thenRetry && this.hub.source.trim()) await this.hubInspect();
+      } catch (e) {
+        this.hub.error = e.message;
+      }
+    },
+    // -------------------------------------------------------------- Civitai
+    async civInspect() {
+      const url = this.civ.url.trim();
+      if (!url) return;
+      Object.assign(this.civ, { busy: true, error: "", found: null, msg: "" });
+      try {
+        const f = await call("civitai_inspect", { url });
+        this.civ.found = f;
+        this.civ.dest = (f.destinations[0] || {}).path || "";
+      } catch (e) {
+        this.civ.error = e.message;
+      }
+      this.civ.busy = false;
+    },
+    civJob() {
+      return this.queue.find((j) => j.cmd === "civitai_download");
+    },
+    async civDownload() {
+      const f = this.civ.found;
+      if (!f) return;
+      Object.assign(this.civ, { msg: "", error: "", needKey: "" });
+      let r = null;
+      try {
+        r = await call("civitai_download", { url: this.civ.url.trim(), dest: this.civ.dest, name: f.name });
+      } catch (e) {
+        if (e.cancelled) return;
+        const m = String(e.message || e);
+        // Civitai wants a signed-in account: ask for the API key right here, in the card
+        this.civ.needKey = /turned down your API key/.test(m) ? "refused" : /signed-in accounts|log in/.test(m) ? "missing" : "";
+        this.civ.error = m;
+        if (this.civ.needKey) this.$nextTick(() => this.$refs.civKeyInline?.focus());
+        return;
+      }
+      if (!r) return;
+      this.civ.msg = `${f.name} is ready · saved in ${r.dest}`;
+      this.civ.found = null;
+      this.civ.url = "";
+      this.models = await call("list_models");
+      await this.refreshLoras();
+      await this.refreshEmbeddings();
+      this.status = this.civ.msg + (r.kind === "lora" ? " · it's in the LoRA list"
+        : r.kind === "embedding" ? " · click it above the negative prompt (with a model of its type)" : " · it's in Create's model list");
+    },
+    async civSaveKey(clear, thenDownload = false) {
+      try {
+        const r = await call("civitai_key_set", { key: clear ? "" : this.civ.key, check: !clear });
+        this.civ.keySet = r.set;
+        this.civ.key = "";
+        if (r.ok === false) {
+          this.civ.error = r.msg;
+          this.civ.needKey = "refused";
+          return;
+        }
+        this.civ.msg = r.set ? "Civitai API key saved on this Mac" + (r.ok ? " · Civitai accepted it" : "") : "Civitai API key removed";
+        if (r.set && thenDownload && this.civ.found) {
+          this.civ.needKey = "";
+          this.civ.error = "";
+          await this.civDownload();
+        }
+      } catch (e) {
+        this.civ.error = e.message;
+      }
+    },
+    civSize(mb) {
+      return mb > 1000 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.round(mb)} MB`;
+    },
+    async hubAdd() {
+      try {
+        await call("model_add", { model: this.hub.found });
+        this.models = await call("list_models");
+        this.status = `Added ${this.hub.found.label}. Pick it in the model list (it downloads on first use).`;
+        Object.assign(this.hub, { source: "", found: null });
+      } catch (e) {
+        this.hub.error = e.message;
+      }
+    },
+    async hubRemove(m) {
+      await call("model_remove", { id: m.id });
+      this.models = await call("list_models");
+      if (this.form.model === m.id) {
+        this.form.model = this.models[0].id;
+        await this.onModelChange();
+      }
+    },
+    applySizePreset(p) {
+      this.form.width = p.w;
+      this.form.height = p.h;
+      if (this.form.size_link) this.form.size_ratio = p.w / p.h;
+    },
+    toggleSizeLink() {
+      this.form.size_link = !this.form.size_link;
+      if (this.form.size_link) this.form.size_ratio = this.form.width / this.form.height;
+    },
+    swapSize() {
+      [this.form.width, this.form.height] = [this.form.height, this.form.width];
+      if (this.form.size_ratio) this.form.size_ratio = 1 / this.form.size_ratio;
+    },
+    toggleFast(on) {
+      if (on) {
+        this.form.fast_prev = { steps: this.form.steps, cfg: this.form.cfg, sampler: this.form.sampler };
+        Object.assign(this.form, { fast: true, steps: 6, cfg: 1.5, sampler: "lcm" });
+        this.status = "Fast mode: 6 steps, CFG 1.5, LCM (downloads a small LoRA the first time)";
+      } else {
+        const p = this.form.fast_prev;
+        this.form.fast = false;
+        if (p) Object.assign(this.form, { steps: p.steps, cfg: p.cfg, sampler: p.sampler });
+        else this.onSamplerChange();
+        this.form.fast_prev = null;
+      }
+    },
+    samplerPicks() {
+      // {fast: [samplers], quality: [samplers], rest: [samplers]} for the chosen model, only ones it offers
+      const fam = this.currentFlavor && this.family === "sdxl" ? "anime_xl" : this.family;
+      const p = SAMPLER_PICKS[fam] || { fast: [], quality: [] };
+      const by = Object.fromEntries((this.samplers || []).map((x) => [x.id, x]));
+      const fast = p.fast.map((id) => by[id]).filter(Boolean);
+      const quality = p.quality.map((id) => by[id]).filter(Boolean);
+      const shown = new Set([...fast, ...quality].map((x) => x.id));
+      return { fast, quality, rest: (this.samplers || []).filter((x) => !shown.has(x.id)),
+               qualityOnly: quality.filter((x) => !fast.some((f) => f.id === x.id)) };
+    },
+    pickFor() {
+      // name for the sampler picks: Pony / Illustrious models get their own (anime-style SDXL)
+      const f = this.currentFlavor;
+      if (f && this.family === "sdxl") return { pony: "Pony", illustrious: "Illustrious", noobai: "NoobAI" }[String(f).toLowerCase()] || "anime-style SDXL";
+      return this.familyLabel;
+    },
+    isFav(m) {
+      return !!m && this.favModels.includes(m.id);
+    },
+    toggleFav(m) {
+      const i = this.favModels.indexOf(m.id);
+      if (i >= 0) this.favModels.splice(i, 1);
+      else this.favModels.push(m.id);
+      saveJSON("protoart.favModels", this.favModels);
+    },
+    samplerIsPick(id) {
+      const p = this.samplerPicks();
+      return p.fast.some((x) => x.id === id) || p.quality.some((x) => x.id === id);
+    },
+    pickSampler(id) {
+      if (this.form.fast && this.currentModel?.fast_mode) return;
+      this.form.sampler = id;
+      this.onSamplerChange();
+    },
+    onSamplerChange() {
+      const r = this.recSteps;
+      if (r) {
+        this.form.steps = r[0];
+        const label = this.samplers.find((x) => x.id === this.form.sampler)?.label || "this sampler";
+        this.status = `Steps set to ${r[0]}, recommended for ${label}`;
+      }
+      if (["lcm", "tcd"].includes(this.form.sampler) && this.form.cfg > 2) this.form.cfg = 1.5;
+    },
+    async setDiffusionBee(enabled) {
+      try {
+        this.dbee = await call("diffusionbee_set", { enabled });
+        await this.refreshDiffusionBee();
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+    async refreshDiffusionBee() {
+      try {
+        this.status = "Scanning DiffusionBee folder…";
+        [this.dbee, this.models] = await Promise.all([call("diffusionbee_info"), call("list_models")]);
+        await this.refreshLoras();
+        this.status = "Ready";
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+    async loadSamplers(resetToDefault) {
+      this.samplers = await call("list_samplers", { family: this.family });
+      if (resetToDefault || !this.samplers.some((s) => s.id === this.form.sampler)) {
+        this.form.sampler = (this.samplers.find((s) => s.default) || this.samplers[0]).id;
+      }
+    },
+
+    // -------------------------------------------------------------- model / LoRAs
+    // Create -> "Reset to defaults": the model's own size, steps, guidance and sampler; 1 image; random seed;
+    // its recommended CLIP skip; extras off. Prompt, negative prompt, model and LoRAs are kept.
+    async resetCreate() {
+      const m = this.currentModel;
+      if (!m) return;
+      this.resetUndo = JSON.parse(JSON.stringify(this.form));
+      this.form.fast = false;
+      this.form.fast_prev = null;
+      Object.assign(this.form, { num_images: 1, seed: -1, clip_skip: m.clip_skip || 1, restore_faces: false });
+      if (this.form.hires) this.form.hires.on = false;
+      if (this.form.face_detailer) this.form.face_detailer.on = false;
+      this.cmp.open = false;
+      await this.onModelChange(); // size, steps, guidance and the default sampler for this model
+      this.status = `Create settings reset to the defaults for ${m.label}`;
+    },
+    undoResetCreate() {
+      if (!this.resetUndo) return;
+      this.form = this.resetUndo;
+      this.resetUndo = null;
+      this.status = "Settings restored";
+    },
+    async onModelChange() {
+      const m = this.currentModel;
+      if (!m) return;
+      if (this.opts.preload_on_pick) {
+        clearTimeout(this.preloadTimer); // wait until you've settled on one
+        this.preloadTimer = setTimeout(() => this.preloadModel(this.form.model), 1200);
+      }
+      this.form.clip_skip = this.clipSkipFor(m);
+      Object.assign(this.form, { width: m.defaults.width, height: m.defaults.height, steps: m.defaults.steps, cfg: m.defaults.cfg });
+      if (["ernie", "flux"].includes(m.family) && this.sys.ram_gb && this.sys.ram_gb < 12) {
+        Object.assign(this.form, { width: 768, height: 768 }); // 8 GB Macs: Medium is ~2x faster than 1024
+        this.status = `Size set to Medium (768) for ${FAMILY_LABEL[m.family]} on this Mac; Large (1024) takes about twice as long`;
+      }
+      if (this.form.size_link) this.form.size_ratio = m.defaults.width / m.defaults.height;
+      if (this.form.fast) {
+        this.form.fast_prev = null;
+        if (m.fast_mode) Object.assign(this.form, { steps: 6, cfg: 1.5 });
+        else this.form.fast = false;
+      }
+      const before = this.form.loras.length;
+      this.form.loras = this.form.loras.filter((l) => this.compatibleLoras.some((c) => c.name === l.name));
+      if (this.form.loras.length < before) this.status = "Removed LoRAs that don't match this model";
+      await this.loadSamplers(true);
+    },
+    addLoraByName(name) {
+      if (!this.form.loras.some((l) => l.name === name)) {
+        this.form.loras.push({ name, weight: 1.0 });
+        this.fetchTriggers(name).then(() => {
+          if (!this.opts.auto_triggers) return;
+          const words = this.activeTriggers(name).filter((w) => !this.inPrompt(w));
+          if (words.length) {
+            this.addPromptWords(words);
+            this.status = `Added trigger words for ${name}: ${words.join(", ")}`;
+          }
+        });
+      }
+      this.loraSearch = "";
+    },
+    // -------------------------------------------------------------- trigger words
+    async fetchTriggers(name, force) {
+      if (this.trigInfo[name] && !force) return this.trigInfo[name];
+      try {
+        this.trigInfo[name] = await call("lora_triggers", { name });
+      } catch {
+        this.trigInfo[name] = { found: [], suggested: [], saved: null };
+      }
+      return this.trigInfo[name];
+    },
+    activeTriggers(name) {
+      const t = this.trigInfo[name];
+      return t ? (t.saved || t.found || []) : [];
+    },
+    suggestedTriggers(name) {
+      const t = this.trigInfo[name];
+      if (!t || t.saved) return [];
+      // only offer training-tag suggestions when nothing definite was found
+      return (t.found || []).length ? [] : (t.suggested || []).slice(0, 5);
+    },
+    wordRe(w) {
+      return new RegExp(`(^|[\\s,(])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=$|[\\s,):])`, "i");
+    },
+    inPrompt(w) {
+      return this.wordRe(w).test(this.form.prompt || "");
+    },
+    inNegative(w) {
+      return this.wordRe(w).test(this.form.negative_prompt || "");
+    },
+    addPromptWords(words) {
+      const p = (this.form.prompt || "").trim().replace(/,\s*$/, "");
+      this.form.prompt = (p ? p + ", " : "") + words.join(", ");
+    },
+    removeWord(text, w) {
+      return (text || "").replace(this.wordRe(w), "$1").replace(/\s*,\s*,/g, ",").replace(/^\s*,\s*|\s*,\s*$/g, "").trim();
+    },
+    togglePromptWord(w) {
+      if (this.inPrompt(w)) this.form.prompt = this.removeWord(this.form.prompt, w);
+      else this.addPromptWords([w]);
+    },
+    toggleNegativeWord(w) {
+      if (this.inNegative(w)) this.form.negative_prompt = this.removeWord(this.form.negative_prompt, w);
+      else {
+        const n = (this.form.negative_prompt || "").trim().replace(/,\s*$/, "");
+        this.form.negative_prompt = (n ? n + ", " : "") + w;
+      }
+    },
+    startTrigEdit(name) {
+      const words = this.activeTriggers(name).length ? this.activeTriggers(name) : this.suggestedTriggers(name);
+      this.trigEdit = { name, text: words.join(", ") };
+    },
+    async saveTrigEdit() {
+      const { name, text } = this.trigEdit;
+      const words = text.split(",").map((w) => w.trim()).filter(Boolean);
+      try {
+        const saved = await call("lora_triggers_save", { name, words });
+        this.trigInfo[name] = Object.assign({}, this.trigInfo[name] || { found: [], suggested: [] }, { saved: saved || null });
+        this.status = words.length ? `Saved trigger words for ${name}` : `Cleared saved trigger words for ${name}`;
+      } catch (e) {
+        this.error = e.message;
+      }
+      this.trigEdit = { name: "", text: "" };
+    },
+    // -------------------------------------------------------------- embeddings
+    async refreshEmbeddings() {
+      try {
+        [this.embeddings, this.embDirs] = await Promise.all([call("list_embeddings"), call("embedding_dirs_get")]);
+      } catch {}
+    },
+    embeddingsIn(d) {
+      const pre = d.replace(/\/+$/, "") + "/";
+      return (this.embeddings || []).filter((e) => (e.file || "").startsWith(pre)).length;
+    },
+    embSourceName(e) {
+      return { protoart: "Protoart folder", folder: "your folder", lora_folder: "in a LoRA folder", diffusionbee: "DiffusionBee" }[e.source] || "";
+    },
+    async addEmbeddingFiles() {
+      const files = await window.bee.pickEmbeddings?.();
+      if (!files || !files.length) return;
+      try {
+        const r = await call("embedding_add_files", { files });
+        await this.refreshEmbeddings();
+        this.embMsg = (r.added.length ? `Added ${r.added.join(", ")}` : "Nothing added") +
+          (r.skipped.length ? ` · skipped ${r.skipped.map((x) => `${x.file} (${x.why})`).join(", ")}` : "");
+      } catch (e) {
+        this.embMsg = e.message;
+      }
+    },
+    async addEmbeddingDir() {
+      let picked = await window.bee.pickFolder({ title: "Choose embedding folders (hold ⌘ to pick several)",
+                                                 defaultPath: this.embDirs.default, multi: true, button: "Add" });
+      if (typeof picked === "string") picked = [picked];
+      if (!picked || !picked.length) return;
+      this.embDirs = await call("embedding_dirs_set", { dirs: [...(this.embDirs.dirs || []), ...picked] });
+      await this.refreshEmbeddings();
+      this.embMsg = `Added ${picked.length} folder${picked.length === 1 ? "" : "s"} · ${this.embeddings.length} embeddings in total`;
+    },
+    async removeEmbeddingDir(d) {
+      this.embDirs = await call("embedding_dirs_set", { dirs: (this.embDirs.dirs || []).filter((x) => x !== d) });
+      await this.refreshEmbeddings();
+    },
+    async addLoraDir() {
+      let picked = await window.bee.pickFolder({ title: "Choose LoRA folders (hold ⌘ to pick several)",
+                                                 defaultPath: this.loraDirs.default, multi: true, button: "Add" });
+      if (typeof picked === "string") picked = [picked]; // app not restarted yet: one folder at a time
+      if (!picked || !picked.length) return;
+      this.loraDirs = await call("lora_dirs_set", { dirs: [...this.loraDirs.dirs, ...picked] });
+      await this.refreshLoras();
+      this.planSort(picked[0], true); // a folder of mixed LoRAs: suggest sorting it into type folders
+      this.status = `Added ${picked.length} LoRA folder${picked.length === 1 ? "" : "s"} · ${this.loras.length} LoRAs available in total`;
+    },
+    async loadFolders(warn) {
+      try { const f = await call("folders_get"); this.folders = Array.isArray(f) ? f : []; } catch { return; }
+      const gone = this.folders.filter((f) => !f.found);
+      if (warn && gone.length)
+        this.status = `Can't find ${gone.length === 1 ? gone[0].path : gone.length + " of your folders"} · moved it or drive not connected? Settings → Moved a folder?`;
+    },
+    async relinkFolder(old) {
+      const name = old.split("/").filter(Boolean).pop();
+      const picked = await window.bee.pickFolder({ title: `Where is “${name}” now?`, button: "Use this folder" });
+      const nw = Array.isArray(picked) ? picked[0] : picked;
+      if (!nw) return;
+      try {
+        const r = await call("folder_relink", { old, new: nw });
+        this.folders = r.folders;
+        // your own settings that name a model inside the folder
+        const move = (id) => {
+          if (typeof id !== "string") return id;
+          for (const pre of ["local:", ""]) {
+            const b = id.slice(pre.length);
+            if (id.startsWith(pre) && (b === r.old || b.startsWith(r.old + "/"))) return pre + r.new + b.slice(r.old.length);
+          }
+          return id;
+        };
+        this.opts.default_model = move(this.opts.default_model);
+        this.opts.preload_start = move(this.opts.preload_start);
+        await this.saveOpts();
+        this.form.model = move(this.form.model);
+        [this.models, this.loraDirs, this.modelDirs] = await Promise.all([call("list_models"), call("lora_dirs_get"), call("model_dirs_get")]);
+        await this.refreshLoras();
+        this.relinkMsg = `Now using ${r.new} · ${r.changed} setting${r.changed === 1 ? "" : "s"} and ${r.pictures} Library picture${r.pictures === 1 ? "" : "s"} updated`;
+        this.status = this.relinkMsg;
+      } catch (e) {
+        this.relinkMsg = "";
+        this.error = e.message;
+      }
+    },
+    foldSettings(ev) {
+      // click a section heading in Settings to fold it away (remembered)
+      const h = ev.target.closest && ev.target.closest(".set-cols .set-sec > h2");
+      if (!h) return;
+      const sec = h.parentElement;
+      sec.classList.toggle("collapsed");
+      const folded = [...document.querySelectorAll(".set-cols .set-sec.collapsed > h2")].map((x) => x.textContent.trim());
+      saveJSON("protoart.settingsFolded", folded);
+    },
+    applySettingsFolds() {
+      // First time: only the sections you need to get started are open (This Mac, Models); the rest are folded
+      // down to their headings. Click a heading to open it; what you open or fold is remembered.
+      const saved = loadJSON("protoart.settingsFolded", null);
+      const OPEN_AT_FIRST = ["This Mac", "Model folders"];
+      const heads = [...document.querySelectorAll(".set-cols .set-sec > h2")];
+      const folded = new Set(Array.isArray(saved) ? saved
+        : heads.map((h) => h.textContent.trim()).filter((t) => !OPEN_AT_FIRST.includes(t)));
+      for (const h of heads) h.parentElement.classList.toggle("collapsed", folded.has(h.textContent.trim()));
+    },
+    // open the Settings section that holds `el` (links that jump to a setting), and remember it as open
+    settingsUnfold(el) {
+      const sec = el && el.closest(".set-sec");
+      if (!sec) return;
+      const title = sec.querySelector(":scope > h2")?.textContent.trim();
+      let saved = loadJSON("protoart.settingsFolded", null);
+      if (!Array.isArray(saved))
+        saved = [...document.querySelectorAll(".set-cols .set-sec > h2")].map((h) => h.textContent.trim())
+          .filter((t) => !["This Mac", "Models"].includes(t));
+      saveJSON("protoart.settingsFolded", saved.filter((t) => t !== title));
+      sec.classList.remove("collapsed");
+    },
+    settingsFoldAll(fold) {
+      const heads = [...document.querySelectorAll(".set-cols .set-sec > h2")];
+      for (const h of heads) h.parentElement.classList.toggle("collapsed", fold);
+      saveJSON("protoart.settingsFolded", fold ? heads.map((h) => h.textContent.trim()) : []);
+    },
+    async planSort(dir, quiet) {
+      // look first: which type folders would be used or made, and how many LoRAs would move
+      try {
+        const p = await call("lora_sort", { dir, dry_run: true });
+        if (quiet && !p.moves) return;
+        this.sortPlan = p;
+      } catch (e) {
+        if (!quiet) this.error = e.message;
+      }
+    },
+    sortPlanText(p) {
+      const parts = Object.entries(p.by_type || {}).map(([f, n]) => `${n} ${FAMILY_LABEL[f]}`);
+      return parts.length ? parts.join(", ") : "nothing";
+    },
+    async doSort() {
+      const p = this.sortPlan;
+      if (!p) return;
+      try {
+        const r = await call("lora_sort", { dir: p.dir });
+        this.sortPlan = null;
+        this.loraDirs = await call("lora_dirs_get");
+        await this.refreshLoras();
+        this.status = `Sorted ${r.moved} LoRA${r.moved === 1 ? "" : "s"} into type folders` +
+          (r.unknown.length ? ` · ${r.unknown.length} of unknown type left where they were` : "") +
+          (r.errors.length ? ` · ${r.errors.length} couldn't be moved: ${r.errors[0]}` : "");
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+    subTypes(dir) {
+      // sub-folders of this LoRA folder that have a type (shown under the folder)
+      const pre = dir.replace(/\/?$/, "/");
+      return Object.entries(this.loraDirs.families || {}).filter(([d]) => d.startsWith(pre))
+        .map(([d, f]) => ({ path: d, name: d.slice(pre.length), family: f }));
+    },
+    loraTypeText(l) {
+      const t = (l.kind === "model" ? "base model · " : "LoRA · ") + (FAMILY_LABEL[l.family] || "type unknown");
+      if (l.family_set) return `${t} · you picked it` + (l.detected_family && l.detected_family !== l.family ? ` (file looked like ${FAMILY_LABEL[l.detected_family] || "?"})` : "");
+      if (l.detected_family && l.detected_family !== l.family) return `${t} · from its folder (file looked like ${FAMILY_LABEL[l.detected_family] || "?"})`;
+      return `${t} · read from the file`;
+    },
+    async setModelFamily(m, family) {
+      // a base model file you know is SD 1.5 / SDXL (null = automatic)
+      try {
+        await call("model_family", { id: m.id, family: family || null });
+        this.models = await call("list_models");
+        this.loraFix.msg = `${m.label} → ${family ? FAMILY_LABEL[family] : "automatic"}` + (m.id === this.form.model ? " · loads as that next time" : "");
+        this.status = this.loraFix.msg;
+        if (m.id === this.form.model) this.onModelChange();
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+    typeLocked(l) {
+      // like a locked layer in Photoshop: a type you picked yourself stays locked until you unlock it
+      const v = this.typeLocks[l.key];
+      return v === undefined ? !!l.family_set : !!v;
+    },
+    toggleTypeLock(l) {
+      this.typeLocks = { ...this.typeLocks, [l.key]: !this.typeLocked(l) };
+      saveJSON("protoart.typeLocks", this.typeLocks);
+    },
+    async setLoraFamily(l, family) {
+      if (this.typeLocked(l)) return;  // 🔒: unlock it first
+      if (family) {  // picking a type locks it, so a stray click can't change it later
+        this.typeLocks = { ...this.typeLocks, [l.key]: true };
+        saveJSON("protoart.typeLocks", this.typeLocks);
+      }
+      if (l.kind === "model") return this.setModelFamily(l, family);
+      // you know better: this LoRA is SD 1.5 / SDXL / FLUX / ERNIE (null = automatic again); optionally move the file
+      try {
+        const r = await call("lora_family", { name: l.name, family: family || null, move: this.loraFix.move });
+        await this.refreshLoras();
+        const t = family ? FAMILY_LABEL[family] : "automatic";
+        const m = r.moved;
+        this.loraFix.msg = `${l.name} → ${t}` + (m && m.to ? ` · moved to ${m.to}` : m && m.skipped && family && this.loraFix.move ? ` · not moved: ${m.skipped}` : "");
+        this.status = this.loraFix.msg;
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+    fixLoraType(name, unknownOnly) {
+      // from Create's LoRA list: open Settings at "Fix a LoRA's type" with this name filled in
+      this.loraFix.q = name || "";
+      this.loraFix.unknownOnly = !!unknownOnly;
+      this.loraOpen = false;
+      this.openModelsPanel("fix");
+    },
+    enhWorkSide() {
+      // the short side the picture is worked at (same rule as the engine): "auto" = 512 px for Instant / Turbo / Fast
+      // on Macs with less than 16 GB (keeps them out of swap: less than half the work), else 768 px
+      const e = this.post.enh, ws = Number(e.work_size);
+      if (ws === 512 || ws === 768) return ws;
+      const ram = this.sys.ram_gb || 0;
+      const quick = e.turbo || e.instant || Number(e.num_inference_steps || 18) <= 10;
+      return ram > 0 && ram < 16 && quick ? 512 : 768;
+    },
+    enhOutSize(w, h, f) {
+      // what the enhancer really makes: the picture is first resized so its short side is 512 or 768 px, then × factor
+      const side = this.enhWorkSide();
+      const s = side / (Math.max(1, Math.min(w, h)) * 8);
+      return [Math.floor(Math.floor(w * s) * 8 * f), Math.floor(Math.floor(h * s) * 8 * f)];
+    },
+    pickEnhSpeed(p) {
+      Object.assign(this.post.enh, { solver: p.solver, turbo: !!p.turbo, instant: !!p.instant });
+      if (p.steps) this.post.enh.num_inference_steps = p.steps;
+    },
+    enhSpeedOn(p) {
+      const e = this.post.enh;
+      if (p.instant || e.instant) return !!p.instant === !!e.instant;
+      return !!e.turbo === !!p.turbo && (p.turbo || (e.num_inference_steps === p.steps && e.solver === p.solver));
+    },
+    async setLoraDirFamily(dir, family) {
+      this.loraDirs = await call("lora_dir_family", { dir, family: family || null });
+      await this.refreshLoras();
+      const n = this.lorasIn(dir);
+      this.status = family ? `${n} LoRA${n === 1 ? "" : "s"} in that folder now count as ${FAMILY_LABEL[family]}` : "That folder's LoRA types are read from the files again";
+    },
+    lorasIn(dir) {
+      return this.loras.filter((l) => l.file && l.file.startsWith(dir.replace(/\/?$/, "/"))).length;
+    },
+    async removeLoraDir(d) {
+      this.loraDirs = await call("lora_dirs_set", { dirs: this.loraDirs.dirs.filter((x) => x !== d) });
+      await this.refreshLoras();
+    },
+    addLora() {
+      if (!this.loraToAdd) return;
+      this.form.loras.push({ name: this.loraToAdd, weight: 1.0 });
+      this.loraToAdd = "";
+    },
+    clipSkipFor(m) {
+      // your own choice for this model if you've changed it, otherwise what the model is meant for
+      const saved = loadJSON(CLIP_KEY, {})[m.id];
+      if (saved) return saved;
+      return m.clip_skip || 1;
+    },
+    setClipSkip(v) {
+      this.form.clip_skip = v;
+      const m = this.currentModel;
+      if (!m) return;
+      const all = loadJSON(CLIP_KEY, {});
+      if (v === (m.clip_skip || 1)) delete all[m.id]; // back to the recommendation: forget the override
+      else all[m.id] = v;
+      saveJSON(CLIP_KEY, all);
+    },
+    isInstalled(m) {
+      return m.id.includes(":") || !!m.cached; // file:, tdict:, local:, hf: are yours; built-in ones once downloaded
+    },
+    downloadJob(m) {
+      return this.queue.find((j) => j.cmd === "model_download" && j.model === m.id);
+    },
+    async downloadModel(m) {
+      if (this.downloadJob(m)) return;
+      this.status = `Downloading ${m.label}…`;
+      const res = await this.runJob("model_download", { model: m.id });
+      this.models = await call("list_models");
+      if (res) this.status = res.already ? `${m.label} is already on this Mac` : `${m.label} downloaded: it's in Create's model list`;
+    },
+    useModel(m) {
+      // Models tab -> pick it and go to Create (a model that isn't downloaded yet downloads on the first Generate)
+      this.selectModel(m.id);
+      this.modelFilter = "all";
+      this.modelSearch = "";
+      this.tab = "create";
+      if (!this.isInstalled(m)) this.status = `${m.label} selected · it downloads (${Math.round(m.download_gb)} GB) the first time you press Generate`;
+    },
+    selectModel(id) {
+      if (this.form.model === id) return;
+      this.form.model = id;
+      this.onModelChange();
+    },
+    sizeWarning() {
+      const m = this.currentModel;
+      if (!m) return "";
+      const big = Math.max(this.form.width, this.form.height);
+      if (m.family === "sd15" && big > 768)
+        return "SD 1.5 is made for 512–768 px. This size is several times slower and looks worse.";
+      if (m.family !== "sd15" && big > 1280 && this.sys.ram_gb && this.sys.ram_gb < 16)
+        return "Large sizes need a lot of memory; on this Mac 1024 is the sweet spot.";
+      return "";
+    },
+    flavorName(f) {
+      return FLAVOR_LABEL[f] || "";
+    },
+    familyName(f) {
+      return FAMILY_LABEL[f] || f;
+    },
+    modelSizeText(m) {
+      if (m.id.startsWith("file:")) return "your file";
+      if (m.id.startsWith("tdict:")) return "DiffusionBee file";
+      if (m.id.startsWith("local:")) return "your file";
+      if (m.cached) return "downloaded";
+      return `${m.download_gb < 10 ? Number(m.download_gb).toFixed(1).replace(/\.0$/, "") : Math.round(m.download_gb)} GB download` + (m.disk_gb ? ` (keeps ${m.disk_gb} GB)` : "");
+    },
+    async freeOriginal(m) {
+      if (this.freeConfirm !== m.id) {
+        this.freeConfirm = m.id;
+        return;
+      }
+      this.freeConfirm = null;
+      try {
+        const res = await call("free_original", { model: m.id });
+        this.status = `Removed the original download (freed ${res.freed_gb} GB)`;
+        this.models = await call("list_models");
+        this.sys = await call("system_info");
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+
+    // -------------------------------------------------------------- tools tab
+    openInTools(r) {
+      this.tool.source = { path: r.path, image_id: r.id, width: r.width, height: r.height,
+                           label: `Library image #${r.id}` };
+      this.tool.latest = null;
+      this.detail = null;
+      this.tab = "tools";
+      this.status = `Library image #${r.id} is ready in Tools`;
+    },
+    toolDrop(e) {
+      this.tool.dragOver = false;
+      const file = [...(e.dataTransfer?.files || [])].find(isPicture);
+      if (file) this.setToolFile(window.bee.pathForFile(file), file.name);
+      else this.error = "Drop a picture (PNG, JPEG, WebP, HEIC, TIFF, AVIF, PSD, GIF, BMP or camera RAW).";
+    },
+    toolPicked(e) {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (file) this.setToolFile(window.bee.pathForFile(file), file.name);
+    },
+    // HEIC (iPhone), TIFF, camera RAW, PSD… : macOS converts them to a PNG once (cached); PNG / JPEG / WebP open as they are
+    async preparePicture(path) {
+      if (!path) return path;
+      if (DIRECT_EXT.includes(extOf(path))) return path;
+      if (!PICTURE_EXT.includes(extOf(path))) {
+        this.error = "That isn't a picture this app can open (PNG, JPEG, WebP, HEIC, TIFF, AVIF, PSD, GIF, BMP or camera RAW).";
+        return null;
+      }
+      this.status = `Opening ${path.split("/").pop()}…`;
+      try {
+        const r = await call("image_prepare", { path });
+        this.status = "";
+        return r.path;
+      } catch (e) {
+        this.error = e.message;
+        return null;
+      }
+    },
+    async setToolFile(path, name) {
+      if (!path) return;
+      this.error = "";
+      const usable = await this.preparePicture(path);
+      if (!usable) return;
+      this.closeAdjust();
+      this.tool.latest = null;
+      this.tool.source = { path: usable, image_id: null, width: 0, height: 0, label: name || path.split("/").pop() };
+    },
+    onToolImgLoad(e) {
+      if (this.tool.source && !this.tool.source.width) {
+        this.tool.source.width = e.target.naturalWidth;
+        this.tool.source.height = e.target.naturalHeight;
+      }
+    },
+    toolArgs() {
+      const s = this.tool.source;
+      return s.image_id != null ? { image_id: s.image_id } : { path: s.path };
+    },
+    async toolRun(label, args) {
+      this.tool.working = { label, started: Date.now() };
+      this.tool.latest = null;
+      try {
+        const rec = await this.runJob("postprocess", { ...this.toolArgs(), ...args });
+        if (rec) {
+          this.tool.latest = rec;
+          this.afterPost(rec);
+        }
+        return rec;
+      } finally {
+        this.tool.working = null;
+      }
+    },
+    async toolEnhance() {
+      const { seed, ...options } = this.post.enh;
+      return this.toolRun("Enhancing & upscaling", { action: "enhance", seed, options });
+    },
+    async toolRunSelected() {
+      const { do_enhance, do_faces } = this.post;
+      if (do_enhance && !do_faces) return this.toolEnhance();
+      if (do_faces && !do_enhance) return this.toolRestore();
+      const { seed, ...options } = this.post.enh;
+      return this.toolRun("Enhancing, then restoring faces", { action: "both", seed, options, strength: this.post.face_strength });
+    },
+    async toolRestore() {
+      return this.toolRun("Restoring faces", { action: "faces", strength: this.post.face_strength });
+    },
+    async toolToPrompt(mode) {
+      const res = await this.runJob("interrogate", { path: this.tool.source.path, mode, detail: "detailed" });
+      if (!res) return;
+      this.form.prompt = res.prompt;
+      this.status = "Prompt ready in the Create tab";
+    },
+
+    downloadText(m) {
+      return `${m.download_gb < 10 ? Number(m.download_gb).toFixed(1).replace(/\.0$/, "") : Math.round(m.download_gb)} GB download`;
+    },
+    roughTokens(text) {
+      // CLIP uses ~1.3 tokens per English word; good enough for a warning.
+      return Math.ceil((text || "").trim().split(/\s+/).filter(Boolean).length * 1.3);
+    },
+    modelLabel(id) {
+      return this.models.find((m) => m.id === id)?.label || id;
+    },
+
+    // -------------------------------------------------------------- generate
+    createArgs(overrides) {
+      // everything the Create tab sends; pictures, masks and ControlNet live in the Image to image tab
+      const args = JSON.parse(JSON.stringify(this.form));
+      args.init_image = "";
+      delete args.control;
+      delete args.control_image;
+      delete args.outpaint;
+      delete args.inpaint;
+      this.cleanExtras(args);
+      return Object.assign(args, overrides || {});
+    },
+    cleanExtras(args) {
+      // send only the extras that are switched on (and that this model can use)
+      const sd = ["sd15", "sdxl"].includes(this.family) && this.currentModel?.engine !== "mlx";
+      if (!sd || !args.hires?.on) delete args.hires;
+      if (!sd || !args.face_detailer?.on) delete args.face_detailer;
+      if (!sd || !args.ip_adapter?.image) delete args.ip_adapter;
+      return args;
+    },
+    async generate() {
+      if (this.loraRand.every && this.randomPool.length) await this.randomLoras(true);
+      const res = await this.runJob("generate", this.createArgs());
+      if (res) this.models = await call("list_models"); // refresh "downloaded" flags
+    },
+
+    // -------------------------------------------------------------- wildcards & prompt lists
+    async loadWildcards() {
+      try {
+        const r = await call("wildcards_list");
+        this.wild.files = r.files;
+        this.wild.folder = r.folder;
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+    async openWildcards() {
+      this.wild.open = !this.wild.open;
+      if (this.wild.open) await this.loadWildcards();
+    },
+    async previewWildcards() {
+      try {
+        this.wild.preview = await call("wildcards_preview", { text: this.form.prompt, count: 4 });
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+    insertPromptText(t) {
+      const p = (this.form.prompt || "").replace(/\s+$/, "");
+      this.form.prompt = p ? (/[,\s]$/.test(p) ? p + " " : p + ", ") + t : t;
+    },
+    onBatchFile(e) {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      const r = new FileReader();
+      r.onload = () => { this.batch.text = String(r.result || ""); };
+      r.readAsText(file);
+    },
+    queueBatch() {
+      const lines = this.batchLines;
+      const base = (this.form.prompt || "").trim();
+      for (const line of lines) {
+        const prompt = this.batch.keepPrompt && base ? `${line}, ${base}` : line;
+        this.runJob("generate", this.createArgs({ prompt })); // queued; each resolves when its job is done
+      }
+      this.status = `Queued ${lines.length} job${lines.length === 1 ? "" : "s"} from the prompt list`;
+      this.batch.open = false;
+    },
+
+    // -------------------------------------------------------------- LoRA randomizer
+    async randomLoras(quiet) {
+      const r = this.loraRand;
+      // take back the previous random pick (and the trigger words it added), keep LoRAs added by hand
+      this.form.loras = this.form.loras.filter((l) => !r.picked.includes(l.name));
+      for (const w of r.words) if (this.inPrompt(w)) this.form.prompt = this.removeWord(this.form.prompt, w);
+      r.picked = [];
+      r.words = [];
+      const pool = [...this.randomPool];
+      if (!pool.length) {
+        if (!quiet) this.status = `No ${this.familyLabel} LoRAs to pick from`;
+        return;
+      }
+      const lo = Math.max(1, Math.min(r.min, r.max)), hi = Math.max(lo, r.max);
+      const count = Math.min(pool.length, lo + Math.floor(Math.random() * (hi - lo + 1)));
+      const wlo = Math.min(r.wmin, r.wmax), whi = Math.max(r.wmin, r.wmax);
+      const added = [];
+      for (let k = 0; k < count; k++) {
+        const l = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+        const weight = Math.round((wlo + Math.random() * (whi - wlo)) * 20) / 20;
+        this.form.loras.push({ name: l.name, weight });
+        r.picked.push(l.name);
+        added.push(`${l.name} (${weight})`);
+      }
+      if (this.opts.auto_triggers) {
+        for (const name of r.picked) {
+          await this.fetchTriggers(name);
+          const words = this.activeTriggers(name).filter((w) => !this.inPrompt(w)).slice(0, 4);
+          if (words.length) {
+            this.addPromptWords(words);
+            r.words.push(...words);
+          }
+        }
+      }
+      this.status = "🎲 Random LoRAs: " + added.join(", ");
+    },
+
+    // -------------------------------------------------------------- image prompt (IP-Adapter)
+    onIpDrop(e) {
+      this.ipDragOver = false;
+      const file = [...(e.dataTransfer?.files || [])].find(isPicture);
+      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) this.form.ip_adapter.image = p; });
+    },
+    onIpPicked(e) {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) this.form.ip_adapter.image = p; });
+    },
+
+    // -------------------------------------------------------------- inpaint mask painting
+    setI2iMode(m) {
+      this.form.i2i_mode = m;
+      if (m !== "change") this.controlMap = null;
+    },
+    initMaskCanvas() {
+      const img = this.$refs.maskImg, cv = this.$refs.maskCanvas;
+      if (!img || !cv) return;
+      this.initDims = { w: img.naturalWidth, h: img.naturalHeight };
+      const scale = Math.min(1, 1024 / Math.max(img.naturalWidth, img.naturalHeight));
+      cv.width = Math.round(img.naturalWidth * scale);
+      cv.height = Math.round(img.naturalHeight * scale);
+      if (this.mask.data && this.mask.for === this.form.init_image) {
+        const prev = new Image();
+        prev.onload = () => cv.getContext("2d").drawImage(prev, 0, 0, cv.width, cv.height);
+        prev.src = this.mask.data;
+      } else {
+        this.mask.data = null;
+      }
+    },
+    maskPoint(e) {
+      const cv = this.$refs.maskCanvas, r = cv.getBoundingClientRect();
+      return { x: (e.clientX - r.left) * (cv.width / r.width), y: (e.clientY - r.top) * (cv.height / r.height),
+               k: cv.width / r.width };
+    },
+    maskDraw(a, b) {
+      const ctx = this.$refs.maskCanvas.getContext("2d");
+      ctx.globalCompositeOperation = this.mask.erase ? "destination-out" : "source-over";
+      ctx.strokeStyle = "rgba(255, 64, 129, 1)";
+      ctx.fillStyle = "rgba(255, 64, 129, 1)";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = this.mask.size * b.k;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, (this.mask.size * b.k) / 2, 0, Math.PI * 2);
+      ctx.fill();
+    },
+    maskDown(e) {
+      if (!this.$refs.maskCanvas) return;
+      e.target.setPointerCapture?.(e.pointerId);
+      this.mask.painting = true;
+      const p = this.maskPoint(e);
+      this.mask.last = p;
+      this.maskDraw(p, p);
+    },
+    maskMove(e) {
+      if (!this.mask.painting) return;
+      const p = this.maskPoint(e);
+      this.maskDraw(this.mask.last, p);
+      this.mask.last = p;
+    },
+    maskUp() {
+      if (!this.mask.painting) return;
+      this.mask.painting = false;
+      this.maskSave();
+    },
+    maskSave() {
+      const cv = this.$refs.maskCanvas;
+      if (!cv) return;
+      const ctx = cv.getContext("2d");
+      const px = ctx.getImageData(0, 0, cv.width, cv.height).data;
+      let any = false;
+      for (let i = 3; i < px.length; i += 16) if (px[i] > 32) { any = true; break; }
+      this.mask.data = any ? cv.toDataURL("image/png") : null;
+      this.mask.for = this.form.init_image;
+    },
+    maskClear() {
+      const cv = this.$refs.maskCanvas;
+      if (cv) cv.getContext("2d").clearRect(0, 0, cv.width, cv.height);
+      this.mask.data = null;
+    },
+    maskInvert() {
+      const cv = this.$refs.maskCanvas;
+      if (!cv) return;
+      const ctx = cv.getContext("2d");
+      const im = ctx.getImageData(0, 0, cv.width, cv.height);
+      const d = im.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const on = d[i + 3] > 32;
+        d[i] = 255; d[i + 1] = 64; d[i + 2] = 129; d[i + 3] = on ? 0 : 255;
+      }
+      ctx.putImageData(im, 0, 0);
+      this.maskSave();
+    },
+    onInitLoad(e) {
+      this.initDims = { w: e.target.naturalWidth, h: e.target.naturalHeight };
+    },
+    outpaintPreset(kind) {
+      const d = this.initDims || { w: 512, h: 512 };
+      const step = (v) => Math.round(v / 32) * 32;
+      if (kind === "all") Object.assign(this.form.outpaint, { left: step(d.w / 4), right: step(d.w / 4), top: step(d.h / 4), bottom: step(d.h / 4) });
+      else if (kind === "wide") Object.assign(this.form.outpaint, { left: step(d.w / 4), right: step(d.w / 4), top: 0, bottom: 0 });
+      else if (kind === "tall") Object.assign(this.form.outpaint, { left: 0, right: 0, top: step(d.h / 4), bottom: step(d.h / 4) });
+      else Object.assign(this.form.outpaint, { left: 0, right: 0, top: 0, bottom: 0 });
+    },
+
+    // -------------------------------------------------------------- comparison grid
+    cmpHelp(axis) {
+      return { cfg: "e.g. 4, 6, 8, 10  or  3-12 (+3)", steps: "e.g. 15, 25, 35", sampler: "sampler names, e.g. " + this.samplers.slice(0, 3).map((x) => x.id).join(", "),
+               seed: "e.g. 1, 2, 3, 4", clip_skip: "e.g. 1, 2", lora_weight: "e.g. 0.4, 0.7, 1.0", lora: "LoRA names, comma-separated; “none” = without",
+               strength: "e.g. 0.3, 0.5, 0.7" }[axis] || "";
+    },
+    cmpPlaceholder(axis) {
+      return { cfg: "4, 6, 8, 10", steps: "15, 25, 35", sampler: this.samplers.slice(0, 4).map((x) => x.id).join(", "), seed: "1, 2, 3, 4",
+               clip_skip: "1, 2", lora_weight: "0.4, 0.7, 1.0", lora: "none, " + this.compatibleLoras.slice(0, 2).map((l) => l.name).join(", "),
+               strength: "0.3, 0.5, 0.7" }[axis] || "";
+    },
+    cmpDefaults(which) {
+      const axis = which === "x" ? this.cmp.x : this.cmp.y;
+      if (which === "y" && this.cmp.y === this.cmp.x) this.cmp.y = "";
+      if (axis) this.cmp[which + "v"] = this.cmpPlaceholder(axis);
+    },
+    async runCompare() {
+      const base = this.createArgs({ num_images: 1 });
+      if (this.cmp.x === "strength" || this.cmp.y === "strength") {
+        // change strength only means something with a starting picture
+        if (!this.form.init_image) return (this.error = "Add a picture in Image to image to compare change strength.");
+        base.init_image = this.form.init_image;
+        base.strength = this.form.strength;
+      }
+      const res = await this.runJob("compare", {
+        base, x_axis: this.cmp.x, x_values: this.cmp.xv, y_axis: this.cmp.y || null, y_values: this.cmp.yv,
+        lora: this.cmp.lora || null, model: base.model,
+      });
+      if (res && res.grid) this.status = `Comparison grid ready (${res.images.length} pictures) · it's in the Library too`;
+    },
+
+    // -------------------------------------------------------------- jobs (one heavy job at a time)
+    async runJob(cmd, args) {
+      // Heavy work goes into the backend's queue; this resolves when the job finishes.
+      this.error = "";
+      try {
+        return await call(cmd, args);
+      } catch (e) {
+        if (!e.cancelled) this.error = e.message;
+        return null;
+      }
+    },
+    cancelJob(id) {
+      const job = this.queue.find((j) => j.id === id);
+      if (job?.state === "running") {
+        this.stopping = { ...this.stopping, [id]: Date.now() };
+        this.status = "Stopping after the current step…";
+      }
+      call("cancel_job", { job_id: id });
+    },
+    // -------------------------------------------------------------- training
+    async openTrain() {
+      this.tab = "train";
+      if (!this.train.model || !this.trainModels.some((m) => m.id === this.train.model))
+        this.train.model = (this.trainModels.find((m) => m.cached) || this.trainModels[0] || {}).id || "";
+      if (this.train.folder && !this.train.items.length) await this.trainScan();
+    },
+    async trainPickFolder() {
+      const dir = await window.bee.pickFolder({ title: "Choose a folder of training images", defaultPath: this.train.folder || undefined, button: "Use these images" });
+      const d = Array.isArray(dir) ? dir[0] : dir;
+      if (!d) return;
+      this.train.folder = d;
+      if (!this.train.name) this.train.name = d.split("/").filter(Boolean).pop().replace(/[^\w\- ]+/g, "_");
+      await this.trainScan(true);
+    },
+    async trainScan(applyPreset) {
+      try {
+        const r = await call("train_scan", { folder: this.train.folder });
+        this.train.items = r.items;
+        this.train.dirty = false;
+        if (applyPreset) this.applyTrainPreset(this.trainPresets.find((p) => p.id === this.train.preset) || this.trainPresets[1]);
+      } catch (e) {
+        this.train.items = [];
+        this.error = e.message;
+      }
+    },
+    onTrainModelChange() {
+      const ram = this.sys.ram_gb || 0;
+      if (this.trainFastErnie) {
+        this.train.resolution = ram && ram < 16 ? 512 : 768;
+        this.train.train_text_encoder = false;
+        if (ram && ram < 16) Object.assign(this.train, { rank: 8, targets: "attention" });
+      } else if (this.trainFamily === "ernie") {
+        this.train.resolution = 1024;
+        this.train.train_text_encoder = false;
+        this.train.format = "diffusers";
+      } else if (this.trainFamily === "sdxl") {
+        this.train.resolution = ram && ram < 16 ? 768 : 1024;
+        this.train.train_text_encoder = false;
+      } else if (this.train.resolution > 768) this.train.resolution = 512;
+    },
+    applyTrainPreset(p) {
+      Object.assign(this.train, { preset: p.id, steps: p.steps, lr: p.lr, rank: p.rank });
+    },
+    async trainSaveCaptions() {
+      const n = await call("train_captions_save", { items: this.train.items.map(({ path, caption }) => ({ path, caption })) });
+      this.train.dirty = false;
+      this.status = `Saved ${n} caption files`;
+    },
+    async trainAutoCaption(overwrite) {
+      if (this.train.dirty) await this.trainSaveCaptions();
+      const r = await this.runJob("train_autocaption", { folder: this.train.folder, mode: this.train.capMode, overwrite });
+      if (r) {
+        this.train.items = r.items;
+        this.status = `Captioned ${r.captioned} image${r.captioned === 1 ? "" : "s"}`;
+      }
+    },
+    async startTraining() {
+      if (this.train.dirty) await this.trainSaveCaptions();
+      this.train.result = null;
+      this.train.lossHistory = [];
+      const t = this.train;
+      const args = { model: t.model, folder: t.folder, name: t.name.trim(), trigger: t.trigger.trim(), format: t.format,
+                     precision: t.precision, save_every: t.save_every, steps: t.steps, lr: t.lr, rank: t.rank, alpha: t.rank,
+                     resolution: t.resolution, targets: t.targets, flip: t.flip, train_text_encoder: t.train_text_encoder };
+      const res = await this.runJob("train_lora", args);
+      if (res) {
+        this.train.result = res;
+        await this.refreshLoras();
+        if (res.trigger) await call("lora_triggers_save", { name: res.name, words: [res.trigger] });
+        this.status = `LoRA ${res.name} saved`;
+      }
+    },
+    setTrainMode(mode) {
+      this.train.mode = mode;
+      if (mode === "merge") return;
+      const cur = this.models.find((x) => x.id === this.train.model);
+      if (!cur || this.trainBlock(cur)) {  // keep a model this kind of training can use
+        const ok = this.models.filter((m) => !this.trainBlock(m));
+        const pick = ok.find((m) => m.id === this.form.model) || ok.find((m) => this.isInstalled(m)) || ok[0];
+        if (pick) this.train.model = pick.id;
+      }
+      this.onTrainModelChange();
+    },
+    async startEmbeddingTraining() {
+      if (this.train.dirty) await this.trainSaveCaptions();
+      this.train.result = null;
+      this.train.lossHistory = [];
+      const t = this.train, e = t.emb;
+      const args = { model: t.model, folder: t.folder, name: e.name.trim(), init_word: e.init.trim(), kind: e.kind,
+                     vectors: e.vectors, steps: e.steps, save_every: e.save_every, flip: t.flip };
+      const res = await this.runJob("train_embedding", args);
+      if (res) {
+        this.train.result = res;
+        await this.refreshEmbeddings();
+        this.status = `Embedding ${res.name} saved`;
+      }
+    },
+    useTrainedEmbedding() {
+      const r = this.train.result;
+      if (!r) return;
+      const m = this.models.find((x) => x.id === this.train.model);
+      if (m && this.form.model !== m.id) { this.form.model = m.id; this.onModelChange(); }
+      this.tab = "create";
+      if (!this.inPrompt(r.name)) this.addPromptWords([r.name]);
+    },
+    mergeAdd(l) {
+      if (!this.merge.family) this.merge.family = this.mergeFamily;
+      this.merge.items.push({ name: l.name, weight: 1 });
+      if (!this.merge.name) this.merge.name = "";
+    },
+    mergeRemove(i) {
+      this.merge.items.splice(i, 1);
+    },
+    mergeSetFamily(f) {
+      if (f !== this.mergeFamily) this.merge.items = [];
+      this.merge.family = f;
+    },
+    async startMerge() {
+      this.merge.error = "";
+      this.merge.result = null;
+      const res = await this.runJob("lora_merge", { items: this.merge.items.map((i) => ({ name: i.name, weight: Number(i.weight) })),
+                                                    name: this.merge.name.trim(), mode: this.merge.mode, rank: this.merge.rank });
+      if (res) {
+        this.merge.result = res;
+        await this.refreshLoras();
+        this.status = `Merged LoRA ${res.name} saved`;
+      } else if (this.error) {
+        this.merge.error = this.error;
+      }
+    },
+    useMergedLora() {
+      const r = this.merge.result;
+      if (!r) return;
+      this.tab = "create";
+      this.$nextTick(() => this.addLoraByName(r.name));
+    },
+    useTrainedLora() {
+      const r = this.train.result;
+      if (!r) return;
+      const m = this.models.find((x) => x.id === this.train.model);
+      if (m && this.form.model !== m.id) { this.form.model = m.id; this.onModelChange(); }
+      this.tab = "create";
+      this.$nextTick(() => this.addLoraByName(r.name));
+    },
+    filterByLora(name) {
+      this.detail = null;
+      this.lib.loras = [name];
+      this.libLoraOpen = true;
+      if (this.tab !== "library") this.openLibrary();
+      else this.queryLibrary();
+    },
+    async togglePause() {
+      const on = !this.paused;
+      this.setPaused(on);
+      this.status = on ? "Paused" : "Resuming…";
+      try {
+        const r = await call("pause", { on });
+        this.setPaused(!!(r && r.paused));
+      } catch (e) {
+        this.setPaused(!on);
+        this.error = "Couldn't " + (on ? "pause" : "resume") + ": " + e.message;
+      }
+    },
+    setPaused(on) {
+      if (on === this.paused) return;
+      if (on) {
+        this.pausedAt = Date.now();
+      } else if (this.pausedAt) {
+        // the clocks don't count paused time
+        const gap = Date.now() - this.pausedAt;
+        if (this.jobStartedAt) this.jobStartedAt += gap;
+        if (this.firstStepAt) this.firstStepAt += gap;
+        if (this.timing.lastAt) this.timing.lastAt += gap;
+        if (this.tool.working && this.tool.working.started) this.tool.working.started += gap;
+        this.pausedAt = 0;
+      }
+      this.paused = on;
+    },
+    clockNow() {
+      return this.paused && this.pausedAt ? this.pausedAt : this.now;
+    },
+    reusePrompt(r, original = false) {
+      const s = r.settings || {};
+      const text = original && s.original_prompt ? s.original_prompt : r.prompt;
+      if (!text) return;
+      this.form.prompt = text;
+      if (r.negative_prompt != null) this.form.negative_prompt = r.negative_prompt;
+      // an enhanced prompt is already detailed: don't enhance it again (the original can be)
+      if (!original && s.original_prompt && s.original_prompt !== r.prompt) this.form.enhance_prompt = false;
+      this.detail = null;
+      if (this.tab !== "create" && this.tab !== "i2i") this.tab = "create";
+      this.status = "Prompt reused: change anything you like, then Generate";
+    },
+    skipImage() {
+      call("skip_image", {});
+      this.status = "Skipping this image…";
+    },
+    stopAll() {
+      if (this.runningJob) this.stopping = { ...this.stopping, [this.runningJob.id]: Date.now() };
+      call("cancel_all");
+      this.status = "Stopping…";
+    },
+    canForceStop(job) {
+      const t = this.stopping[job.id];
+      return job.state === "running" && t && this.now - t > 4000;
+    },
+    // The engine (Python backend) stopped without being asked to. Say why in plain words and, unless it
+    // keeps happening, start it again by itself and re-add the jobs that were still waiting.
+    onEngineExit(info) {
+      this.backendDead = true;
+      const tail = (info.tail || "").replace(/\/Users\/[^/\s'"]+/g, "~").slice(-600);
+      const killed = info.signal === "SIGKILL" || info.signal === "SIGTERM";
+      const why = killed
+        ? "macOS stopped it, usually because the Mac ran out of memory. Close other big apps, use a smaller size or fewer extras (Hi-res fix and Face detailer use the most)."
+        : info.signal ? `It crashed (${info.signal}).` : `It exited (code ${info.code}).`;
+      const now = Date.now();
+      this.engineExits = this.engineExits.filter((t) => now - t < 120000).concat(now);
+      const running = this.queue.find((j) => j.state === "running");
+      if (this.engineExits.length <= 2) {
+        this.error = `The engine stopped. ${why} It has been restarted` +
+          (running ? `; the job that was running (“${running.label || running.cmd}”) didn't finish` : "") +
+          `. Details are in Settings → Backend log.\n\n${tail}`;
+        this.forceStop(); // restart and re-add waiting jobs
+      } else {
+        this.error = `The engine stopped again. ${why} It wasn't restarted automatically because this keeps happening: ` +
+          `press Restart engine (Tools or Settings) when you're ready.\n\n${tail}`;
+      }
+    },
+    async forceQuit() {
+      this.quitAsk = false;
+      if (window.bee.forceQuit) await window.bee.forceQuit();
+    },
+    async forceStop() {
+      // Kill the engine process immediately (frees all its memory), restart it, and re-add waiting jobs.
+      const waiting = this.queue.filter((j) => j.state === "queued").map((j) => jobArgs.get(j.id)).filter(Boolean);
+      for (const [id, p] of pending) {
+        if (jobArgs.has(id)) {
+          pending.delete(id);
+          jobArgs.delete(id);
+          p.reject(Object.assign(new Error("Stopped"), { cancelled: true }));
+        }
+      }
+      this.requeue = waiting;
+      this.queue = [];
+      this.progress = null;
+      this.stopping = {};
+      this.status = "Force-stopping and restarting the engine…";
+      await window.bee.restart();
+    },
+    jobProgress(job) {
+      const p = this.progress;
+      if (job.state !== "running" || !p || p.job !== job.id) return null;
+      return Math.round((((p.image - 1) + p.step / p.steps) / p.images) * 100);
+    },
+
+    // -------------------------------------------------------------- progress / ETA
+    recordPerf(job) {
+      // Learn this Mac's real speed so later estimates get better.
+      const took = (Date.now() - this.jobStartedAt) / 1000;
+      if (!this.jobStartedAt || took < 1) return;
+      const ema = (old, v) => (old == null ? v : old * 0.6 + v * 0.4);
+      if (job.cmd === "generate") {
+        const t = this.timing;
+        if (t.job === job.id && t.stepTimes.length >= 3) {
+          const sorted = [...t.stepTimes].sort((a, b) => a - b);
+          const mp = ((job.width || 1024) * (job.height || 1024)) / 1e6;
+          const p = (this.perf.models[job.model] ||= {});
+          p.sps = ema(p.sps, sorted[Math.floor(sorted.length / 2)] / 1000 / mp);
+          if (this.firstStepAt && job.model !== this.lastModel) {
+            p.load = ema(p.load, (this.firstStepAt - this.jobStartedAt) / 1000);
+          }
+        }
+        this.lastModel = job.model;
+      } else {
+        const key = job.cmd === "postprocess" ? job.action : job.cmd;
+        let v = took;
+        if (key === "enhance" && job.upscale) v /= (job.upscale / 2) ** 2;
+        this.perf.jobs[key] = ema(this.perf.jobs[key], v);
+      }
+      saveJSON(PERF_KEY, this.perf);
+    },
+    onProgress(m) {
+      if (!this.firstStepAt) this.firstStepAt = Date.now();
+      const t = this.timing;
+      const nowMs = Date.now();
+      if (t.job !== m.job) {
+        Object.assign(t, { job: m.job, image: m.image, lastAt: nowMs, stepTimes: [] });
+      } else if (t.image !== m.image) {
+        Object.assign(t, { image: m.image, lastAt: nowMs }); // new image: skip its setup time
+      } else {
+        t.stepTimes.push(nowMs - t.lastAt);
+        if (t.stepTimes.length > 30) t.stepTimes.shift();
+        t.lastAt = nowMs;
+      }
+      this.progress = m;
+    },
+    etaText(job) {
+      const e = this.jobEtas.find((x) => x.id === job.id);
+      if (!e) return "";
+      const guess = e.measured ? "" : " (rough guess until the first run)";
+      if (job.state === "running" && this.paused) return `❚❚ Paused · ~${this.formatDuration(e.remaining)} left when resumed`;
+      return job.state === "running"
+        ? `~${this.formatDuration(e.remaining)} left`
+        : `~${this.formatDuration(e.remaining)} · done in ~${this.formatDuration(e.finishIn)}${guess}`;
+    },
+    clockText(sec) {
+      sec = Math.max(0, Math.round(sec));
+      const hh = Math.floor(sec / 3600), mm = Math.floor((sec % 3600) / 60), ss = sec % 60;
+      const p2 = (n) => String(n).padStart(2, "0");
+      return hh ? `${hh}:${p2(mm)}:${p2(ss)}` : `${p2(mm)}:${p2(ss)}`;
+    },
+    formatDuration(sec) {
+      sec = Math.max(0, Math.round(sec));
+      if (sec < 60) return `${sec} s`;
+      const m = Math.floor(sec / 60), s = sec % 60;
+      return m < 60 ? `${m} min ${String(s).padStart(2, "0")} s` : `${Math.floor(m / 60)} h ${m % 60} min`;
+    },
+
+    // -------------------------------------------------------------- enhance prompt / start image
+    async enhanceNow() {
+      const res = await this.runJob("enhance_prompt", { prompt: this.form.prompt, width: this.form.width, height: this.form.height,
+                                                        model: this.form.model, family: this.family });
+      if (res) {
+        this.undoPrompt = res.original;
+        this.form.prompt = res.prompt;
+        this.status = "Prompt enhanced";
+      }
+    },
+    async loadConvertList() {
+      try {
+        const r = await call("convert_list");
+        this.conv.items = r.items;
+        this.conv.free_gb = r.free_gb;
+        if (!this.conv.out_dir) this.conv.out_dir = r.default_out;
+        if (!r.items.length) this.error = "No DiffusionBee files found (~/.diffusionbee).";
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+    convKindLabel(k) {
+      return { lora: "LoRA", checkpoint: "Model", embedding: "Embedding", controlnet: "ControlNet" }[k] || k;
+    },
+    convSelectShown(on) {
+      const shown = new Set(this.convShown.map((i) => i.file));
+      this.conv.selected = on ? [...new Set([...this.conv.selected, ...shown])] : this.conv.selected.filter((f) => !shown.has(f));
+    },
+    async convPickOut() {
+      const d = await window.bee.pickFolder({ title: "Where should converted files go?", defaultPath: this.conv.out_dir, button: "Use this folder" });
+      const dir = Array.isArray(d) ? d[0] : d;
+      if (dir) this.conv.out_dir = dir;
+    },
+    async runConvert() {
+      this.conv.result = null;
+      const r = await this.runJob("convert_tdict", { files: [...this.conv.selected], out_dir: this.conv.out_dir,
+                                                     loras_to_lora_folder: this.conv.loras_to_lora_folder });
+      if (r) {
+        this.conv.result = r;
+        this.conv.selected = [];
+        await this.refreshLoras();
+        this.models = await call("list_models");
+        this.status = `Converted ${r.converted.length} file${r.converted.length === 1 ? "" : "s"} to .safetensors`;
+      }
+    },
+    // -------------------------------------------------------------- edit in PhotoCraft (or another editor)
+    editorName() {
+      return (this.opts.editor || "PhotoCraft").replace(/^Adobe /, "").replace(/ \d{4}$/, "");
+    },
+    async editIn(r) {
+      // r: a library record ({id, path}) or any picture ({path})
+      this.error = "";
+      this.edits.notInstalled = false;
+      try {
+        const res = await call("edit_start", r.id != null ? { image_id: r.id, editor: this.opts.editor } : { path: r.path, editor: this.opts.editor });
+        this.edits.folder = res.folder;
+        const opened = await window.bee.openInEditor?.(res.file, this.opts.editor);
+        if (!opened) {
+          this.error = "Quit and reopen Protoart Studio once to enable editing (the app itself was updated).";
+          return;
+        }
+        if (!opened.ok) {
+          if (opened.notInstalled) this.edits.notInstalled = true;
+          else this.error = `Couldn't open ${this.editorName()}: ${opened.error || "unknown error"}`;
+          await call("edit_finish", { name: res.file.split("/").pop() });
+          return;
+        }
+        this.status = `Opened in ${this.editorName()}: save there (⌘S) and the edited version appears in your Library`;
+        await this.refreshEdits();
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+    async refreshEdits() {
+      try {
+        const r = await call("edit_pending");
+        this.edits.pending = r.pending;
+        this.edits.folder = r.folder;
+      } catch {
+        return;
+      }
+      this.watchEdits();
+    },
+    watchEdits() {
+      if (this.edits.pending.length && !this.edits.timer) {
+        this.edits.timer = setInterval(() => this.checkEdits(), 2500);
+      } else if (!this.edits.pending.length && this.edits.timer) {
+        clearInterval(this.edits.timer);
+        this.edits.timer = null;
+      }
+    },
+    async checkEdits() {
+      try {
+        const r = await call("edit_check");
+        this.edits.pending = r.pending;
+        if (r.imported.length) {
+          this.status = `✏️ Saved ${r.imported.length} edited version${r.imported.length === 1 ? "" : "s"} to the Library`;
+          if (this.tab === "library") this.queryLibrary();
+        }
+      } catch {
+        /* backend busy or restarting: try again next time */
+      }
+      this.watchEdits();
+    },
+    async finishEdits(name) {
+      await this.checkEdits(); // pick up a last save first
+      try {
+        this.edits.pending = (await call("edit_finish", name ? { name } : {})).pending;
+      } catch (e) {
+        this.error = e.message;
+      }
+      this.watchEdits();
+    },
+    getPhotoCraft() {
+      window.bee.openExternal?.("https://github.com/storytold/photocraft/releases");
+    },
+    askReset(kind) {
+      this.resetAsk = kind;
+    },
+    setTheme(v) {
+      this.theme = window.RackTheme ? window.RackTheme.set(v) : v;
+    },
+    async setStrictOffline(on) {
+      try {
+        const r = await call("privacy_set", { strict: !!on });
+        this.strictOffline = !!(r && r.strict);
+        this.status = this.strictOffline ? "Strict offline: the app won't go online" : "Downloads allowed again (only what you ask for)";
+      } catch (e) {
+        this.error = "Couldn't change Strict offline: " + e.message;
+      }
+    },
+    setSkin(v) {
+      this.skin = window.RackTheme && window.RackTheme.setSkin ? window.RackTheme.setSkin(v) : v;
+    },
+    async doReset(kind) {
+      this.resetAsk = "";
+      try {
+        const r = await call("settings_reset", { folders: kind === "folders", settings: kind === "settings" });
+        if (kind === "folders") {
+          this.imagesDir = await call("images_dir_get");
+          this.loraDirs = await call("lora_dirs_get");
+          this.modelDirs = await call("model_dirs_get");
+          await this.refreshLoras();
+          this.models = await call("list_models");
+          this.status = "Folder locations reset · images now go to " + r.images_dir;
+          return;
+        }
+        // settings: forget everything this window remembered, then start fresh
+        for (const k of [OPTS_KEY, FORM_KEY, CLIP_KEY, "protoart.loraRand", "beestudio.i2p", "beestudio.rnd", "protoart.train", "protoart.theme"]) {
+          try { localStorage.removeItem(k); } catch {}
+        }
+        await window.bee.resetWindow?.();
+        location.reload();
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+    selectLog() {
+      const box = this.$refs.logBox;
+      if (!box) return;
+      const range = document.createRange();
+      range.selectNodeContents(box);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      box.focus();
+    },
+    async clearLog() {
+      try {
+        await call("log_clear");
+        this.logs = "";
+        this.status = "Backend log cleared";
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+    async copyLog() {
+      const text = this.logs || "";
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        this.selectLog(); // fallback: copy the selected text
+        document.execCommand("copy");
+      }
+      this.logCopied = true;
+      setTimeout(() => (this.logCopied = false), 1800);
+    },
+    async loadLogTail() {
+      try {
+        const r = await call("log_tail", { bytes: 30000 });
+        this.logPath = r.path;
+        if (r.text !== undefined) this.logs = r.text;
+      } catch {
+        /* backend not ready yet */
+      }
+    },
+    async openI2I() {
+      this.tab = "i2i";
+      if (!["sd15", "sdxl"].includes(this.family)) {
+        // ERNIE / other models can't do image to image: switch to an SD model
+        const sd = this.models.find((m) => m.family === "sd15" && m.cached) || this.models.find((m) => m.family === "sd15")
+          || this.models.find((m) => m.family === "sdxl" && m.engine !== "mlx");
+        if (sd) {
+          this.selectModel(sd.id);
+          this.status = `Switched to ${sd.label} for image to image`;
+        }
+      }
+      if (!this.controlTypes.length) this.controlTypes = await call("control_types").catch(() => []);
+    },
+    async previewControlMap() {
+      if (!this.form.init_image || !this.form.control.type) return;
+      const r = await this.runJob("control_preview", { path: this.form.init_image, type: this.form.control.type,
+                                                       already_map: this.form.control.already_map,
+                                                       depth_model: this.form.control.depth_model || "small" });
+      if (r) this.controlMap = r.src;
+    },
+    async generateI2I() {
+      const f = this.form;
+      if (!f.init_image) return (this.error = "Add a picture first.");
+      if (f.i2i_mode === "change" && !f.i2i_use_init && !f.control.type) return (this.error = "Tick “Start from this picture”, pick a ControlNet, or both.");
+      if (!["sd15", "sdxl"].includes(this.family)) return (this.error = "Image to image works with SD 1.5 and SDXL models: pick one at the top.");
+      if (f.i2i_mode === "change" && f.control.type && this.family !== "sd15") return (this.error = "ControlNet needs an SD 1.5 model: pick one in Create.");
+      this.error = "";
+      const args = JSON.parse(JSON.stringify(f));
+      this.cleanExtras(args);
+      delete args.hires; // Hi-res fix is for making new pictures (Create)
+      args.fast = false;
+      if (f.i2i_mode === "inpaint") {
+        if (!this.mask.data || this.mask.for !== f.init_image) return (this.error = "Paint over the part you want to change first.");
+        Object.assign(args, { mask: this.mask.data, strength: f.inpaint.strength, mask_blur: f.inpaint.blur,
+                              only_masked: f.inpaint.only_masked });
+        delete args.control;
+        delete args.outpaint;
+      } else if (f.i2i_mode === "outpaint") {
+        const o = f.outpaint;
+        if (!(o.left || o.right || o.top || o.bottom)) return (this.error = "Choose how far to expand on at least one side.");
+        delete args.control;
+      } else {
+        delete args.outpaint;
+        args.control_image = f.init_image;
+        if (!f.i2i_use_init) args.init_image = "";
+        if (!f.control.type) delete args.control;
+      }
+      delete args.inpaint;
+      const res = await this.runJob("generate", args);
+      if (res) this.models = await call("list_models");
+    },
+    onStartDrop(e) {
+      this.startDragOver = false;
+      const file = [...(e.dataTransfer?.files || [])].find(isPicture);
+      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) this.form.init_image = p; });
+    },
+    onStartPicked(e) {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) this.form.init_image = p; });
+    },
+    async useAsStart(r) {
+      if (!["sd15", "sdxl"].includes(this.family)) {
+        const sd = this.models.find((m) => m.family === "sdxl") || this.models.find((m) => m.family === "sd15");
+        if (sd) this.selectModel(sd.id);
+      }
+      this.form.init_image = r.path;
+      this.form.use_init_size = true;
+      this.form.i2i_use_init = true;
+      this.controlMap = null;
+      this.detail = null;
+      this.openI2I();
+    },
+
+    // -------------------------------------------------------------- image -> prompt
+    onDrop(e) {
+      this.dragOver = false;
+      const file = [...(e.dataTransfer?.files || [])].find(isPicture);
+      if (!file) {
+        this.error = "Drop a picture (PNG, JPEG, WebP, HEIC, TIFF, AVIF, PSD, GIF, BMP or camera RAW).";
+        return;
+      }
+      this.imageToPrompt(window.bee.pathForFile(file));
+    },
+    onFilePicked(e) {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (file) this.imageToPrompt(window.bee.pathForFile(file));
+    },
+    async imageToPrompt(path) {
+      if (!path) {
+        this.error = "Couldn't read that file's location. Try saving it to disk first.";
+        return;
+      }
+      const res = await this.runJob("interrogate", { path, mode: this.i2p.mode, detail: "detailed" });
+      if (!res) return;
+      this.form.prompt = this.i2p.append && this.form.prompt.trim()
+        ? `${this.form.prompt.trim()}, ${res.prompt}` : res.prompt;
+      this.status = this.i2p.mode === "tags"
+        ? `Tagged image (${res.tags.length} tags${res.rating ? ", rating: " + res.rating : ""})`
+        : "Described image";
+    },
+
+    // -------------------------------------------------------------- random prompt
+    randomPrompt() {
+      const r = window.DanbooruPrompt.generate(this.rnd);
+      this.form.prompt = r.prompt;
+      if (r.negative) this.form.negative_prompt = r.negative;
+      if (["ernie", "flux"].includes(this.family)) this.status = `Tip: ${FAMILY_LABEL[this.family]} prefers sentences; tag prompts work best with anime SDXL/SD 1.5 models`;
+    },
+
+    // -------------------------------------------------------------- post-processing
+    async restoreFaces(r) {
+      const rec = await this.runJob("postprocess", { action: "faces", image_id: r.id, strength: this.post.face_strength });
+      if (rec) this.afterPost(rec);
+    },
+    async enhance(r) {
+      const { seed, ...options } = this.post.enh;
+      const rec = await this.runJob("postprocess", { action: "enhance", image_id: r.id, seed, options });
+      if (rec) this.afterPost(rec);
+    },
+    afterPost(rec) {
+      if (this.tab === "library") this.queryLibrary();
+      this.tool.results.unshift(rec);
+      if (this.tab !== "tools") this.detail = rec;
+      this.status = `Saved ${this.kindLabel(rec.kind).toLowerCase()} version (${rec.width}×${rec.height})`;
+    },
+    kindLabel(kind) {
+      return { generated: "Original", img2img: "Image-to-image", faces: "Face-restored", enhanced: "Enhanced",
+               depth: "Depth map", inpaint: "Inpainted", outpaint: "Expanded", grid: "Comparison grid",
+               edited: "Edited" }[kind] || kind;
+    },
+    depthModelInfo(id) {
+      return this.depthModels.find((d) => d.id === id) || this.depthModels[0];
+    },
+    async toolDepth() {
+      const { model, style } = this.post.depth;
+      return this.toolRun("Making a depth map", { action: "depth", depth_model: model, style });
+    },
+    depthToControlNet(r) {
+      // a ready-made depth map: ControlNet follows it as-is; the picture itself isn't the starting image
+      this.form.init_image = r.path;
+      this.form.i2i_use_init = false;
+      this.form.use_init_size = true;
+      this.form.control = { ...this.form.control, type: "depth", already_map: true };
+      if (r.settings?.depth?.style === "color")
+        this.status = "Tip: ControlNet expects the grey depth map; make one with Look → Grey for best results";
+      this.controlMap = null;
+      this.detail = null;
+      this.openI2I();
+    },
+    async openById(id) {
+      const found = [...this.session, ...this.lib.results].find((x) => x.id === id);
+      if (found) this.detail = found;
+      else this.error = `Image #${id} isn't loaded; find it in the Library.`;
+    },
+
+    // -------------------------------------------------------------- presets
+    async savePreset() {
+      const name = this.newPresetName.trim();
+      if (!name) return;
+      const settings = JSON.parse(JSON.stringify(this.form));
+      if (!this.presetIncludesPrompt) delete settings.prompt;
+      delete settings.seed; // presets keep the look, not one exact image
+      this.presets = await call("presets_save", { name, settings });
+      this.selectedPreset = name;
+      this.newPresetName = "";
+      this.status = `Saved preset "${name}"`;
+    },
+    async applyPreset() {
+      const p = this.presets.find((x) => x.name === this.selectedPreset);
+      if (!p) return;
+      const s = JSON.parse(JSON.stringify(p.settings));
+      this.form.model = s.model || this.form.model;
+      await this.loadSamplers(false);
+      Object.assign(this.form, s);
+      const missing = (s.loras || []).filter((l) => !this.loras.some((x) => x.name === l.name));
+      this.status = missing.length
+        ? `Preset applied, but these LoRAs are missing: ${missing.map((l) => l.name).join(", ")}`
+        : `Applied preset "${p.name}"`;
+    },
+    async deletePreset() {
+      this.presets = await call("presets_delete", { name: this.selectedPreset });
+      this.selectedPreset = "";
+    },
+
+    // -------------------------------------------------------------- library
+    async openLibrary() {
+      this.tab = "library";
+      this.libLoras = await call("library_loras");
+      await this.queryLibrary();
+    },
+    async queryLibrary(more = false) {
+      const PAGE = 120; // small pages keep older Macs smooth with big libraries
+      if (more !== true) this.loadContentStatus();
+      const rows = await call("library_query", {
+        hide_nsfw: this.hideNsfw,
+        text: this.lib.text || null, seed: String(this.lib.seed ?? "").trim() || null,
+        model: this.lib.model || null, kind: this.lib.kind || null,
+        starred_only: this.lib.starred, loras: this.lib.loras, limit: PAGE,
+        offset: more === true ? this.lib.results.length : 0,
+      });
+      this.lib.results = more === true ? this.lib.results.concat(rows) : rows;
+      this.libHasMore = rows.length === PAGE;
+    },
+    findSeed(seed) {
+      // Library -> every picture made with this seed
+      this.detail = null;
+      Object.assign(this.lib, { text: "", seed: String(seed), model: "", kind: "", starred: false, loras: [] });
+      this.tab = "library";
+      this.queryLibrary();
+    },
+    queryLibraryDebounced() {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = setTimeout(() => this.queryLibrary(), 250);
+    },
+    toggleLibLora(name) {
+      const i = this.lib.loras.indexOf(name);
+      if (i >= 0) this.lib.loras.splice(i, 1);
+      else this.lib.loras.push(name);
+      this.queryLibrary();
+    },
+    async toggleStar(r) {
+      const updated = await call("library_star", { id: r.id, starred: !r.starred });
+      for (const list of [this.session, this.lib.results]) {
+        const item = list.find((x) => x.id === r.id);
+        if (item) item.starred = updated.starred;
+      }
+      if (this.detail && this.detail.id === r.id) this.detail.starred = updated.starred;
+      if (this.tab === "library" && this.lib.starred && !updated.starred) this.queryLibrary();
+    },
+    insertQualityTags() {
+      // Pony / Illustrious / NoobAI: write their quality tags into the prompts, visible and editable
+      // (the automatic adding then sees them there and doesn't add them twice)
+      const fl = this.currentFlavor;
+      if (!fl) return;
+      const put = (text, tags) => {
+        const t = (text || "").trim();
+        return t.toLowerCase().includes(tags.split(",")[0].trim().toLowerCase()) ? t : (t ? `${tags}, ${t}` : tags);
+      };
+      this.form.prompt = put(this.form.prompt, QUALITY_TAGS[fl]);
+      this.form.negative_prompt = put(this.form.negative_prompt, QUALITY_NEG[fl]);
+      this.status = `${FLAVOR_LABEL[fl]} quality tags added to the prompt and negative prompt`;
+    },
+    // -------------------------------------------------------------- models: refresh, default, delete
+    async refreshModels() {
+      this.status = "Looking for models and LoRAs…";
+      try {
+        const [models] = await Promise.all([call("list_models"), this.refreshLoras()]);
+        this.models = models;
+        call("diffusionbee_info").then((d) => { this.dbee = d; }).catch(() => {});
+        this.status = `Found ${this.models.filter((m) => this.isInstalled(m)).length} models on this Mac and ${this.loras.length} LoRAs`;
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+    async setDefaultModel(m) {
+      this.opts.default_model = this.opts.default_model === m.id ? "" : m.id;
+      await this.saveOpts();
+      this.status = this.opts.default_model ? `${m.label} is now the default: Create starts with it` : "No default model: Create starts with the one you used last";
+    },
+    isOwnModel(m) {
+      return m.id.includes(":") && !m.id.startsWith("hf:");
+    },
+    async deleteModel(m) {
+      if (this.modelDel !== m.id) {
+        this.modelDel = m.id; // first click arms it
+        clearTimeout(this.modelDelTimer);
+        this.modelDelTimer = setTimeout(() => { this.modelDel = ""; }, 6000);
+        return;
+      }
+      this.modelDel = "";
+      if (this.isOwnModel(m)) {
+        const err = m.path ? await window.bee.trashModel(m.path) : "No file to move";
+        if (err) { this.error = `Couldn't move ${m.label} to the Trash: ${err}`; return; }
+        if (m.id.startsWith("local:")) await call("model_local_remove", { id: m.id }).catch(() => {});
+        this.status = `${m.label} moved to the Trash (put it back from the Trash if you change your mind)`;
+      } else {
+        const r = await this.runJob("model_delete", { model: m.id });
+        if (!r) return;
+        this.status = `Deleted ${m.label} · ${r.freed_gb} GB freed` + (r.kept_for.length ? ` · kept files that ${r.kept_for[0]} also uses` : "") +
+          " · it downloads again if you use it";
+      }
+      if (this.opts.default_model === m.id) { this.opts.default_model = ""; this.saveOpts(); }
+      if (this.readyModel === m.id) this.readyModel = "";
+      this.models = await call("list_models");
+      if (this.form.model === m.id && !this.isInstalled(this.models.find((x) => x.id === m.id) || {})) {
+        const next = this.models.find((x) => this.isInstalled(x) && x.enough_ram);
+        if (next) this.selectModel(next.id);
+      }
+    },
+    openDetail(r) {
+      this.detail = r;
+      this.revealDetail = false;
+    },
+    // -------------------------------------------------------------- Library: batch edit & export (+ Press)
+    bxBuiltins() {
+      return [
+        { name: "🗜 Compress (Press)", tip: "Same format and size, the smallest file that still looks the same (usually 40–70% smaller); details and location removed",
+          set: { adjust: "", format: "same", compress: "balanced", resize: { mode: "none" }, keep_meta: false, dpi: 72 } },
+        { name: "Web · 2048 px JPEG", tip: "Long side 2048 px, pressed JPEG: great for websites and sharing",
+          set: { adjust: "", format: "jpeg", compress: "balanced", resize: { mode: "long", value: 2048, no_upscale: true }, keep_meta: false, dpi: 72 } },
+        { name: "Instagram 1080", tip: "Fits 1080 × 1350 (portrait 4:5), pressed JPEG",
+          set: { adjust: "", format: "jpeg", compress: "balanced", resize: { mode: "fit", w: 1080, h: 1350, no_upscale: true }, keep_meta: false, dpi: 72 } },
+        { name: "Print · TIFF 300 dpi", tip: "Full size, lossless TIFF marked 300 dpi",
+          set: { adjust: "", format: "tiff", compress: "off", resize: { mode: "none" }, keep_meta: false, dpi: 300 } },
+      ];
+    },
+    bxCurrent() {
+      const { adjust, format, quality, compress, dpi, keep_meta, pattern, resize } = this.bx;
+      return JSON.parse(JSON.stringify({ adjust, format, quality, compress, dpi, keep_meta, pattern, resize }));
+    },
+    bxApply(set) {
+      const r = Object.assign({ mode: "none", value: 2048, w: 1080, h: 1350, no_upscale: true }, set.resize || {});
+      Object.assign(this.bx, JSON.parse(JSON.stringify(set)), { resize: r });
+    },
+    bxPresetOn(set) {
+      const cur = this.bxCurrent();
+      return ["adjust", "format", "compress", "keep_meta", "dpi"].every((k) => set[k] === undefined || cur[k] === set[k]) &&
+        (set.resize?.mode ?? "none") === cur.resize.mode;
+    },
+    openBatch(ids, preset) {
+      this.bx.ids = (ids || this.selected).slice();
+      if (!this.bx.ids.length) return;
+      this.bx.results = []; this.bx.errors = []; this.bx.done = 0; this.bx.total = 0;
+      if (preset) this.bxApply(preset.set);
+      this.bx.open = true;
+      this.$nextTick(() => document.getElementById("batch-card")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    },
+    compressOne(r) {
+      // "🗜 Compress / export" on one picture: the Library's batch panel with the Press preset
+      this.bxOne = r;
+      this.detail = null;
+      this.tab = "library";
+      this.openBatch([r.id], this.bxBuiltins()[0]);
+    },
+    async bxPickDest() {
+      const p = await window.bee.pickFolder({ title: "Where should the exported pictures go?", defaultPath: this.bx.dest, button: "Use this folder" });
+      const d = Array.isArray(p) ? p[0] : p;
+      if (d) { this.bx.dest = d; saveJSON("protoart.exportDir", d); }
+    },
+    bxAdjustSet() {
+      const a = this.bx.adjust || "";
+      if (a.startsWith("look:")) { const l = (window.ProtoAdjust?.LOOKS || []).find((x) => "look:" + x.id === a); return l ? { name: l.label, set: l.set } : null; }
+      if (a.startsWith("preset:")) { const pr = this.adjPresets.find((x) => "preset:" + x.name === a); return pr ? { name: pr.name, set: pr.set } : null; }
+      return null;
+    },
+    bxRecord(id) {
+      return this.lib.results.find((r) => r.id === id) || (this.bxOne && this.bxOne.id === id ? this.bxOne : null);
+    },
+    bxExample() {
+      const r = this.bxRecord(this.bx.ids[0]);
+      const name = r ? r.path.split("/").pop().replace(/\.[^.]+$/, "") : "picture";
+      const ext = { png: "png", jpeg: "jpg", webp: "webp", tiff: "tif" }[this.bx.format] || (r ? r.path.split(".").pop() : "png");
+      const adj = this.bxAdjustSet();
+      const out = (this.bx.pattern || "{name}").replace(/\{(name|n|date|time|model|seed|width|height|preset)\}/g, (m, k) =>
+        ({ name, n: "001", date: new Date().toISOString().slice(0, 10), time: "153000", model: r?.model ? String(r.model).split("/").pop().split(":").pop().replace(/\.[^.]+$/, "") : "",
+           seed: r?.seed ?? "", width: r?.width ?? "", height: r?.height ?? "", preset: adj ? adj.name : "" })[k]);
+      return out + "." + ext;
+    },
+    bxSizeText(bytes) {
+      return bytes > 1e6 ? (bytes / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(bytes / 1e3)) + " KB";
+    },
+    bxSaved() {
+      const a = this.bx.results.reduce((n, r) => n + (r.src_bytes || 0), 0), b = this.bx.results.reduce((n, r) => n + (r.bytes || 0), 0);
+      return { before: a, after: b, pct: a ? Math.round((1 - b / a) * 100) : 0 };
+    },
+    async bxRun() {
+      if (this.bx.running || !this.bx.ids.length) return;
+      if (!this.bx.dest) { await this.bxPickDest(); if (!this.bx.dest) return; }
+      Object.assign(this.bx, { running: true, cancel: false, done: 0, total: this.bx.ids.length, results: [], errors: [] });
+      const adj = this.bxAdjustSet();
+      let eng = null;
+      const opts = { format: this.bx.format, quality: this.bx.quality, compress: this.bx.compress, dpi: this.bx.dpi,
+                     keep_meta: this.bx.keep_meta, pattern: this.bx.pattern, resize: JSON.parse(JSON.stringify(this.bx.resize)) };
+      try {
+        if (adj) eng = new window.ProtoAdjust.AdjustEngine(document.createElement("canvas"));
+        for (const [i, id] of this.bx.ids.entries()) {
+          if (this.bx.cancel) break;
+          const r = this.bxRecord(id);
+          const args = { image_id: id, dest: this.bx.dest, opts, n: i + 1, preset: adj ? adj.name : "" };
+          try {
+            if (adj && r) {
+              // the Adjust preset / Look runs here on the graphics chip; the engine does the rest
+              await eng.setImage(await createImageBitmap(new Blob([await this.readImageBytes(r.path)])), 256);
+              const blob = await eng.exportPNG(Object.assign(window.ProtoAdjust.defaults(), JSON.parse(JSON.stringify(adj.set))));
+              const bytes = new Uint8Array(await blob.arrayBuffer());
+              try {
+                if (!window.bee.writeAdjusted) throw new Error("No handler registered");
+                args.tmp_file = await window.bee.writeAdjusted(bytes);
+              } catch (e) {
+                if (!/No handler registered/.test(String(e.message || e))) throw e;
+                let bin = "";
+                for (let k = 0; k < bytes.length; k += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(k, k + 0x8000));
+                args.data_b64 = btoa(bin);
+              }
+            }
+            this.bx.results.push(await call("export_image", args));
+          } catch (e) {
+            this.bx.errors.push(`${r ? r.path.split("/").pop() : "#" + id}: ${e.message || e}`);
+          }
+          this.bx.done = i + 1;
+        }
+      } finally {
+        if (eng) eng.destroy();
+        this.bx.running = false;
+      }
+      const s = this.bxSaved();
+      this.status = `Exported ${this.bx.results.length} picture${this.bx.results.length === 1 ? "" : "s"} to ${this.bx.dest}` +
+        (s.before && s.pct > 0 ? ` · ${this.bxSizeText(s.before)} → ${this.bxSizeText(s.after)} (${s.pct}% smaller)` : "");
+    },
+    async bxSavePreset() {
+      const name = (this.bx.presetName || "").trim();
+      if (!name) return;
+      const list = this.exportPresets.filter((x) => x.name.toLowerCase() !== name.toLowerCase());
+      list.push({ name, set: this.bxCurrent() });
+      try {
+        this.exportPresets = await call("export_presets_set", { presets: list });
+        this.bx.presetName = ""; this.bx.savingPreset = false;
+      } catch (e) { this.error = e.message; }
+    },
+    async bxDeletePreset(pr) {
+      try { this.exportPresets = await call("export_presets_set", { presets: this.exportPresets.filter((x) => x !== pr) }); }
+      catch (e) { this.error = e.message; }
+    },
+    // -------------------------------------------------------------- Create: fold sections down (like DiffusionBee)
+    cfShut(k) {
+      return !!this.cfolds[k];
+    },
+    cfToggle(k, ev) {
+      // clicks on the label's own buttons, links and fields do their own thing
+      if (ev && ev.target && ev.target.closest("button, a, input, select, textarea")) return;
+      this.cfolds = { ...this.cfolds, [k]: !this.cfolds[k] };
+      saveJSON("protoart.createFolds", this.cfolds);
+    },
+    cfAll(shut) {
+      const all = {};
+      for (const k of ["model", "prompt", "loras", "ipa", "size", "extras"]) all[k] = shut;
+      this.cfolds = all;
+      saveJSON("protoart.createFolds", all);
+    },
+    cfSummary(k) {
+      const f = this.form, cut = (t, n) => (t.length > n ? t.slice(0, n - 1) + "…" : t);
+      if (k === "model") return this.currentModel ? cut(this.currentModel.label, 46) : "none";
+      if (k === "prompt") return f.prompt ? cut(f.prompt.replace(/\s+/g, " "), 52) : "empty";
+      if (k === "loras") return f.loras.length ? cut(f.loras.map((l) => l.name).join(", "), 46) : "none";
+      if (k === "ipa") return f.ip_adapter && f.ip_adapter.image ? "on" : "none";
+      if (k === "size") return `${f.width}×${f.height} · ${f.fast && this.currentModel?.fast_mode ? "⚡ fast" : f.steps + " steps"} · CFG ${f.cfg} · ${f.num_images} image${f.num_images === 1 ? "" : "s"} · seed ${f.seed}`;
+      if (k === "extras") {
+        const on = [];
+        if (this.clipSkipOk && Number(f.clip_skip) > 1) on.push("CLIP skip " + f.clip_skip);
+        if (f.hires && f.hires.on) on.push("Hi-res ×" + f.hires.scale);
+        if (f.face_detailer && f.face_detailer.on) on.push("face detailer");
+        if (f.restore_faces) on.push("restore faces");
+        return on.length ? on.join(" · ") : "none";
+      }
+      return "";
+    },
+    // -------------------------------------------------------------- Adjust: sliders and filters on the GPU
+    // Adjust lives in the Tools tab: the picture on the left becomes the live preview, the controls are a card on the right.
+    async openAdjust(r, keepSettings = false) {
+      if (!r || !r.path) return;
+      if (!window.ProtoAdjust) { this.error = "Adjust didn't load: quit and reopen the app."; return; }
+      if (this.tab !== "tools" || !this.tool.source) {
+        // from the Library / Image to image: bring the picture into Tools first
+        if (r.id != null && (!this.tool.source || this.tool.source.path !== r.path)) this.openInTools(r);
+        else if (!this.tool.source) this.tool.source = { path: r.path, image_id: null, width: r.width || 0, height: r.height || 0, label: r.path.split("/").pop() };
+        this.tab = "tools";
+      }
+      const p = keepSettings && this.adj.p ? this.adj.p : window.ProtoAdjust.defaults();
+      Object.assign(this.adj, { open: true, rec: r, p, before: false, view: "after", busy: true, msg: "Loading the picture…", error: "",
+                                size: null, which: this.tool.latest && this.tool.latest.path === r.path ? "result" : "original" });
+      try {
+        const bmp = await createImageBitmap(new Blob([await this.readImageBytes(r.path)]));
+        await this.$nextTick();
+        const canvas = this.$refs.adjCanvas;
+        if (!canvas) throw new Error("the preview isn't on screen");
+        if (adjEngine) adjEngine.destroy();
+        adjEngine = new window.ProtoAdjust.AdjustEngine(canvas);
+        await adjEngine.setImage(bmp, 1600);
+        this.adj.size = [bmp.width, bmp.height];
+        this.adj.msg = "";
+        this.adjRender();
+        this.$nextTick(() => document.getElementById("adjust-card")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      } catch (e) {
+        this.adj.error = "Couldn't open the picture for adjusting: " + (e.message || e);
+      }
+      this.adj.busy = false;
+    },
+    async readImageBytes(path) {
+      // the window's own file reader (needs the app fully restarted after an update), else via the engine
+      const web = /\.(png|jpe?g|webp|gif|bmp)$/i.test(path);  // what the window can decode itself
+      try {
+        if (web && window.bee.readImage) return await window.bee.readImage(path);
+      } catch (e) {
+        if (!/No handler registered/.test(String(e.message || e))) throw e;
+      }
+      const r = await call("image_b64", { path });
+      return Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0));
+    },
+    closeAdjust() {
+      if (adjEngine) { adjEngine.destroy(); adjEngine = null; }
+      this.adj.open = false;
+    },
+    adjRender() {
+      if (!adjEngine || !this.adj.p) return;
+      cancelAnimationFrame(adjFrame);
+      adjFrame = requestAnimationFrame(() => {
+        const view = this.adj.before ? "before" : this.adj.view;
+        try { adjEngine.render(this.adj.p, view, this.adj.split); } catch (e) { this.adj.error = e.message; }
+      });
+    },
+    adjDefault(k) {
+      return window.ProtoAdjust.defaults()[k];
+    },
+    adjSlider(sl) {
+      return { min: sl.min ?? -1, max: sl.max ?? 1, step: sl.step ?? 0.01 };
+    },
+    adjValue(k) {
+      const v = this.adj.p[k];
+      return k === "exposure" ? (v > 0 ? "+" : "") + v.toFixed(2) : Math.round(v * 100);
+    },
+    adjSectionOn(sec) {
+      return sec.sliders.some((sl) => this.adj.p[sl.k] !== this.adjDefault(sl.k));
+    },
+    adjResetSection(sec) {
+      for (const sl of sec.sliders) this.adj.p[sl.k] = this.adjDefault(sl.k);
+    },
+    adjResetFilter(id) {
+      const f = ADJ_FILTERS[id];
+      for (const sl of f.sliders) this.adj.p[sl.k] = this.adjDefault(sl.k);
+      if (f.seg) this.adj.p[f.seg.k] = this.adjDefault(f.seg.k);
+      if (f.toggle) this.adj.p[f.toggle.k] = this.adjDefault(f.toggle.k);
+    },
+    adjToggleFilter(id) {
+      // the filter's push button: on (and its controls open) / off
+      const f = ADJ_FILTERS[id];
+      this.adj.p[f.on] = !this.adj.p[f.on];
+      this.adj.openFilter = this.adj.p[f.on] ? id : (this.adj.openFilter === id ? "" : this.adj.openFilter);
+    },
+    adjMove(id, dir) {
+      const o = this.adj.p.order.slice(), i = o.indexOf(id), j = i + dir;
+      if (j < 0 || j >= o.length) return;
+      [o[i], o[j]] = [o[j], o[i]];
+      this.adj.p.order = o;
+    },
+    adjLook(look) {
+      this.adj.p = Object.assign(window.ProtoAdjust.defaults(), look.set);
+      this.adj.openFilter = "";
+    },
+    adjLookOn(look) {
+      const d = Object.assign(window.ProtoAdjust.defaults(), look.set);
+      return Object.keys(d).every((k) => k === "order" || this.adj.p[k] === d[k]);
+    },
+    adjResetAll() {
+      this.adj.p = window.ProtoAdjust.defaults();
+      this.adj.openFilter = "";
+    },
+    // compare: Edited / Original / Split (drag the line); the \\ key flips between Edited and Original
+    adjSetView(v) {
+      this.adj.view = v;
+    },
+    adjSplitDrag(e) {
+      if (this.adj.view !== "split") return;
+      const c = this.$refs.adjCanvas;
+      if (!c) return;
+      const move = (ev) => {
+        const r = c.getBoundingClientRect();
+        this.adj.split = Math.min(1, Math.max(0, (ev.clientX - r.left) / Math.max(1, r.width)));
+      };
+      move(e);
+      const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", up);
+    },
+    adjKey(e) {
+      if (!this.adj.open || this.tab !== "tools" || e.metaKey || e.ctrlKey) return;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || "") && e.target.type !== "range") return;
+      if (e.key === "\\") { e.preventDefault(); this.adj.view = this.adj.view === "before" ? "after" : "before"; }
+    },
+    // -------------------------------------------------------------- Adjust presets (yours)
+    adjCurrentSet() {
+      const d = window.ProtoAdjust.defaults(), out = {};
+      for (const k of Object.keys(d)) {
+        if (k === "order") { if (this.adj.p.order.join() !== d.order.join()) out.order = this.adj.p.order.slice(); }
+        else if (this.adj.p[k] !== d[k]) out[k] = this.adj.p[k];
+      }
+      return out;
+    },
+    async adjSavePreset() {
+      const name = (this.adj.presetName || "").trim();
+      if (!name || !this.adjChanged()) return;
+      const list = this.adjPresets.filter((x) => x.name.toLowerCase() !== name.toLowerCase());
+      list.push({ name, set: this.adjCurrentSet() });
+      try {
+        this.adjPresets = await call("adjust_presets_set", { presets: list });
+        this.adj.presetName = "";
+        this.adj.savingPreset = false;
+        this.status = `Saved the Adjust preset “${name}”`;
+      } catch (e) {
+        this.adj.error = e.message;
+      }
+    },
+    adjApplyPreset(pr) {
+      this.adj.p = Object.assign(window.ProtoAdjust.defaults(), JSON.parse(JSON.stringify(pr.set || {})));
+      this.adj.openFilter = "";
+    },
+    adjPresetOn(pr) {
+      const d = Object.assign(window.ProtoAdjust.defaults(), pr.set || {});
+      return Object.keys(d).every((k) => (k === "order" ? d.order.join() === this.adj.p.order.join() : this.adj.p[k] === d[k]));
+    },
+    async adjDeletePreset(pr) {
+      try {
+        this.adjPresets = await call("adjust_presets_set", { presets: this.adjPresets.filter((x) => x !== pr) });
+        this.status = `Deleted the Adjust preset “${pr.name}”`;
+      } catch (e) {
+        this.adj.error = e.message;
+      }
+    },
+    adjHasLast() {
+      return !!loadJSON(ADJ_KEY, null);
+    },
+    adjUseLast() {
+      const last = loadJSON(ADJ_KEY, null);
+      if (last) this.adj.p = Object.assign(window.ProtoAdjust.defaults(), last);
+    },
+    adjChanged() {
+      return this.adj.p && window.ProtoAdjust && window.ProtoAdjust.anyOn(this.adj.p);
+    },
+    // Save one adjusted version: settings `set` applied by `engine` (its full-size picture), linked to `srcRec`.
+    async adjSaveVersion(engine, set, srcRec) {
+      const blob = await engine.exportPNG(set);
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const args = { image_id: srcRec.id ?? null, path: srcRec.path, adjust: JSON.parse(JSON.stringify(set)) };
+      try {
+        if (!window.bee.writeAdjusted) throw new Error("No handler registered");
+        args.file = await window.bee.writeAdjusted(bytes);
+      } catch (e) {
+        if (!/No handler registered/.test(String(e.message || e))) throw e;
+        let bin = "";  // the app wasn't fully restarted after the update: send the picture through the engine
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        args.data_b64 = btoa(bin);
+      }
+      const rec = await call("adjust_save", args);
+      if (rec) this.tool.results.unshift(rec);
+      return rec;
+    },
+    async adjSave(thenEnhance = false) {
+      if (!adjEngine || !this.adjChanged()) return;
+      const r = this.adj.rec, p = this.adj.p;
+      this.adj.busy = true;
+      this.adj.msg = "Applying to the full-size picture…";
+      this.adj.error = "";
+      try {
+        const rec = await this.adjSaveVersion(adjEngine, p, r);
+        saveJSON(ADJ_KEY, p);
+        this.closeAdjust();
+        if (rec && rec.id != null) {
+          this.tool.latest = rec;
+          this.status = "Adjusted copy saved to the Library (the original is unchanged)";
+          if (thenEnhance === "i2i") this.useAsStart(rec);  // Save & send to Image to image
+          else if (thenEnhance) this.adjEnhance(rec);
+        }
+      } catch (e) {
+        this.adj.error = "Couldn't save: " + (e.message || e);
+      }
+      this.adj.busy = false;
+      this.adj.msg = "";
+    },
+    adjEnhanceArgs(rec) {
+      const { seed, ...options } = this.post.enh;
+      return { ...(rec.id != null ? { image_id: rec.id } : { path: rec.path }), action: "enhance", seed, options };
+    },
+    // queue Enhance & upscale (the settings in the Enhance card) on one picture; resolves when it's done
+    async adjEnhance(rec) {
+      return this.toolRun("Enhancing the adjusted picture", this.adjEnhanceArgs(rec));
+    },
+    // -------------------------------------------------------------- several versions at once (presets in a queue)
+    adjBatchItems() {
+      const items = [];
+      for (const id of this.adj.batch) {
+        if (id === "current") { if (this.adjChanged()) items.push({ name: "current settings", set: JSON.parse(JSON.stringify(this.adj.p)) }); }
+        else {
+          const pr = this.adjPresets.find((x) => x.name === id);
+          if (pr) items.push({ name: pr.name, set: Object.assign(window.ProtoAdjust.defaults(), JSON.parse(JSON.stringify(pr.set))) });
+        }
+      }
+      return items;
+    },
+    adjBatchToggle(id) {
+      const i = this.adj.batch.indexOf(id);
+      if (i >= 0) this.adj.batch.splice(i, 1);
+      else this.adj.batch.push(id);
+    },
+    async adjBatch() {
+      const items = this.adjBatchItems();
+      if (!items.length || !adjEngine) return;
+      const src = this.adj.rec;
+      this.adj.busy = true;
+      this.adj.error = "";
+      const made = [];
+      try {
+        if (this.adj.batchEnhance && this.adj.batchOrder === "enhance_first") {
+          // AI first (once), then every version's filters on top of the enhanced picture
+          this.adj.msg = "Enhancing first (in the queue)…";
+          const enhanced = await this.adjEnhance(src);
+          if (!enhanced) throw new Error("the enhance step didn't finish");
+          const eng = new window.ProtoAdjust.AdjustEngine(document.createElement("canvas"));
+          try {
+            await eng.setImage(await createImageBitmap(new Blob([await this.readImageBytes(enhanced.path)])), 256);
+            for (const [i, it] of items.entries()) {
+              this.adj.msg = `Version ${i + 1} of ${items.length} (${it.name})…`;
+              made.push(await this.adjSaveVersion(eng, it.set, enhanced));
+            }
+          } finally {
+            eng.destroy();
+          }
+        } else {
+          for (const [i, it] of items.entries()) {
+            this.adj.msg = `Version ${i + 1} of ${items.length} (${it.name})…`;
+            made.push(await this.adjSaveVersion(adjEngine, it.set, src));
+          }
+          if (this.adj.batchEnhance) {
+            // filters first: each version goes into the queue to be enhanced (the AI enhances the filtered picture)
+            this.adj.msg = `${made.length} versions saved · enhancing each one in the queue…`;
+            this.status = `Queued Enhance & upscale for ${made.length} adjusted versions (see the queue)`;
+            const outs = await Promise.all(made.filter(Boolean).map((rec) => this.runJob("postprocess", this.adjEnhanceArgs(rec))));
+            for (const o of outs) if (o) { this.tool.results.unshift(o); this.tool.latest = o; }
+          }
+        }
+        const last = made.filter(Boolean).pop();
+        if (last && !(this.adj.batchEnhance && this.adj.batchOrder !== "enhance_first")) this.tool.latest = last;
+        this.status = `Made ${made.length} adjusted version${made.length === 1 ? "" : "s"}` +
+          (this.adj.batchEnhance ? (this.adj.batchOrder === "enhance_first" ? " of the enhanced picture" : ", each enhanced") : "") +
+          " · all in the Library";
+      } catch (e) {
+        this.adj.error = "Stopped: " + (e.message || e) + (made.length ? ` (${made.length} version${made.length === 1 ? "" : "s"} saved before that)` : "");
+      }
+      this.adj.busy = false;
+      this.adj.msg = "";
+    },
+    // -------------------------------------------------------------- speed: a model ready in memory
+    preloadModel(id) {
+      const m = this.models.find((x) => x.id === id);
+      // only models already on this Mac, only while nothing else is running, and never twice
+      if (!m || !this.isInstalled(m) || this.backendDead || this.queue.length) return;
+      if (this.readyModel === id || this.preloading === id || this.preloadAsked === id) return;
+      const loras = id === this.form.model ? this.form.loras.map((l) => ({ name: l.name, weight: l.weight })) : [];
+      this.preloadAsked = id;
+      call("preload", { model: id, loras }).catch(() => {}) // errors show when you press Generate instead
+        .finally(() => { if (this.preloadAsked === id) this.preloadAsked = ""; });
+    },
+    // -------------------------------------------------------------- content filter (NSFW)
+    safeModel(m) {
+      return !(this.hideNsfw && m.nsfw) && !(this.opts.hide_people && m.people);
+    },
+    async setHidePeople(on) {
+      // hides the models and LoRAs you tagged ● People (made of real people)
+      this.opts.hide_people = !!on;
+      await this.saveOpts();
+      if (!on) { this.status = "People models and LoRAs shown again"; return; }
+      const dropped = this.form.loras.filter((l) => this.loras.find((x) => x.name === l.name)?.people);
+      if (dropped.length) this.form.loras = this.form.loras.filter((l) => !dropped.includes(l));
+      let msg = dropped.length ? `removed ${dropped.length} People LoRA${dropped.length === 1 ? "" : "s"} from the mix` : "";
+      if (this.currentModel?.people) {
+        const next = this.models.find((m) => this.isInstalled(m) && m.enough_ram && this.safeModel(m));
+        if (next) { this.selectModel(next.id); msg = (msg ? msg + "; " : "") + "switched to " + next.label; }
+      }
+      const n = this.models.filter((m) => m.people).length + this.loras.filter((l) => l.people).length;
+      this.status = (n ? `${n} People model${n === 1 ? "" : "s"}/LoRA${n === 1 ? "" : "s"} hidden` :
+        "Nothing is tagged People yet: click the ● after a name in Create's lists to tag one") + (msg ? " · " + msg : "");
+    },
+    async markPeople(kind, item) {
+      // ● before a model or LoRA name: tag / untag it as made of real people (Hide People)
+      const name = kind === "model" ? item.id : item.name;
+      await call("content_mark", { kind, name, tag: "people", value: !item.people });
+      if (kind === "model") this.models = await call("list_models");
+      else await this.refreshLoras();
+      this.status = `${kind === "model" ? item.label : item.name}: ${item.people ? "no longer tagged People" : "tagged People"}`;
+    },
+    covered(r) {
+      return this.hideNsfw && !!r && !!r.nsfw;
+    },
+    async loadContentStatus() {
+      try {
+        Object.assign(this.content, await call("content_status"));
+      } catch { /* older backend */ }
+    },
+    async setHideNsfw(on) {
+      this.opts.hide_nsfw = !!on;
+      await this.saveOpts();
+      if (on) {
+        // leave nothing flagged in the current setup
+        const dropped = this.form.loras.filter((l) => this.loras.find((x) => x.name === l.name)?.nsfw);
+        if (dropped.length) this.form.loras = this.form.loras.filter((l) => !dropped.includes(l));
+        let msg = dropped.length ? `Removed ${dropped.length} NSFW LoRA${dropped.length === 1 ? "" : "s"} from the mix` : "";
+        if (this.currentModel?.nsfw) {
+          const safe = this.models.find((m) => !m.nsfw && this.isInstalled(m) && m.enough_ram);
+          if (safe) {
+            this.selectModel(safe.id);
+            msg = (msg ? msg + "; " : "") + "switched to " + safe.label;
+          }
+        }
+        this.status = "NSFW filter on" + (msg ? " · " + msg : "");
+      } else this.status = "NSFW filter off";
+      if (this.tab === "library") this.queryLibrary();
+    },
+    async markItem(kind, item) {
+      // ⚑ on a model or LoRA: flip what the filter thinks (your mark always wins)
+      const name = kind === "model" ? item.id : item.name;
+      const auto = !!item.nsfw_auto;
+      const want = !item.nsfw;
+      await call("content_mark", { kind, name, value: want === auto ? null : want }); // matching the guess = automatic
+      if (kind === "model") this.models = await call("list_models");
+      else await this.refreshLoras();
+      this.status = `${kind === "model" ? item.label : item.name}: ${want ? "marked NSFW" : "marked safe"}`;
+    },
+    async unmarkItem(it) {
+      await call("content_mark", { kind: it.kind, name: it.name, value: null });
+      if (it.kind === "model") this.models = await call("list_models");
+      else await this.refreshLoras();
+    },
+    async markPictures(ids, mark) {
+      // mark: true (NSFW), false (fine) or null (automatic)
+      const rows = await call("library_nsfw_mark", { ids, mark });
+      const byId = new Map(rows.filter(Boolean).map((r) => [r.id, r]));
+      for (const list of [this.session, this.lib.results]) {
+        for (const item of list) {
+          const u = byId.get(item.id);
+          if (u) Object.assign(item, { nsfw: u.nsfw, nsfw_mark: u.nsfw_mark, nsfw_score: u.nsfw_score, nsfw_prompt: u.nsfw_prompt });
+        }
+      }
+      if (this.detail && byId.has(this.detail.id)) Object.assign(this.detail, byId.get(this.detail.id));
+      this.loadContentStatus();
+      if (this.tab === "library" && this.hideNsfw && mark) this.queryLibrary();
+    },
+    nsfwReason(r) {
+      if (r.nsfw_mark === true) return "you marked it NSFW";
+      if (r.nsfw_mark === false) return "you marked it safe";
+      const why = [];
+      if (r.nsfw_prompt) why.push("the prompt asks for it");
+      if (r.nsfw_score != null && r.nsfw_score >= 0.5) why.push(`the checker is ${Math.round(r.nsfw_score * 100)}% sure`);
+      if (why.length) return "NSFW: " + why.join(" and ");
+      return r.nsfw_score != null ? `looks safe (checker ${Math.round(r.nsfw_score * 100)}%)` : "not checked by the picture checker yet";
+    },
+    async setCheckPictures(on) {
+      this.opts.check_pictures = !!on;
+      await this.saveOpts();
+      if (on && (!this.content.checker_installed || this.content.unchecked)) await this.scanPictures();
+    },
+    async scanPictures() {
+      this.content.scanning = true;
+      this.content.msg = this.content.checker_installed ? "Checking pictures…" : `Downloading the checker (~${this.content.checker_mb} MB), then checking…`;
+      const r = await this.runJob("nsfw_scan", {});
+      this.content.scanning = false;
+      if (r) {
+        this.content.msg = `Checked ${r.checked} picture${r.checked === 1 ? "" : "s"}; ${r.flagged} look NSFW` +
+          (r.missing ? ` · ${r.missing} file${r.missing === 1 ? "" : "s"} missing` : "") + (r.left ? ` · stopped with ${r.left} left` : "");
+        if (this.tab === "library") this.queryLibrary();
+      } else this.content.msg = "";
+      await this.loadContentStatus();
+    },
+    async reuse(r) {
+      const s = r.settings || {};
+      this.form.model = s.model || r.model;
+      await this.loadSamplers(false);
+      Object.assign(this.form, {
+        prompt: r.prompt, negative_prompt: r.negative_prompt, width: r.width, height: r.height,
+        steps: r.steps, cfg: r.cfg, sampler: r.sampler, seed: r.seed, enhance_prompt: false,
+        clip_skip: s.clip_skip || 1,
+        loras: JSON.parse(JSON.stringify(r.loras)), num_images: 1,
+        init_image: s.init_image || "", strength: s.strength || 0.6,
+      });
+      this.detail = null;
+      this.tab = "create";
+    },
+
+    // -------------------------------------------------------------- deleting
+    toggleSelect(r) {
+      const i = this.selected.indexOf(r.id);
+      if (i >= 0) this.selected.splice(i, 1);
+      else this.selected.push(r.id);
+    },
+    selectAll() {
+      this.selected = this.lib.results.map((r) => r.id);
+    },
+    exitSelect() {
+      this.selectMode = false;
+      this.selected = [];
+    },
+    onThumbClick(r) {
+      if (this.selectMode) this.toggleSelect(r);
+      else this.openDetail(r);
+    },
+    async askDelete(ids) {
+      if (!ids || !ids.length) return;
+      try {
+        const dry = await call("library_delete", { ids: [...ids], dry_run: true });
+        if (!dry.ids.length) {
+          this.error = "Those images are no longer in the library (refreshing).";
+          return this.queryLibrary();
+        }
+        this.confirmDel = { ids: [...ids], count: dry.ids.length, versions: dry.versions, include_versions: false };
+      } catch (e) {
+        this.error = "Couldn't delete: " + e.message;
+      }
+    },
+    async doDelete() {
+      const c = this.confirmDel;
+      this.confirmDel = null;
+      try {
+        const res = await call("library_delete", {
+          ids: c.ids, include_versions: c.include_versions, delete_files: !this.opts.trash,
+        });
+        let errors = res.errors || [];
+        if (this.opts.trash) errors = errors.concat(await window.bee.trash(res.paths));
+        const gone = new Set(res.ids);
+        this.session = this.session.filter((r) => !gone.has(r.id));
+        this.lib.results = this.lib.results.filter((r) => !gone.has(r.id));
+        this.selected = this.selected.filter((id) => !gone.has(id));
+        if (this.detail && gone.has(this.detail.id)) this.detail = null;
+        if (this.tab === "library") this.libLoras = await call("library_loras");
+        const n = res.ids.length;
+        this.status = `${this.opts.trash ? "Moved" : "Deleted"} ${n} image${n === 1 ? "" : "s"}${this.opts.trash ? " to the Trash" : ""}`;
+        if (errors.length) this.error = "Some files couldn't be removed:\n" + errors.join("\n");
+        if (!this.selected.length) this.selectMode = false;
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+
+    // -------------------------------------------------------------- image folder
+    async changeImagesDir() {
+      const picked = await window.bee.pickFolder(this.imagesDir.path);
+      if (!picked || picked === this.imagesDir.path) return;
+      try {
+        const res = await call("images_dir_set", { path: picked, move_existing: this.moveExisting });
+        this.imagesDir = await call("images_dir_get");
+        this.status = `Images will be saved to ${res.path}` + (res.moved ? ` (moved ${res.moved} existing)` : "");
+        if (res.failed?.length) this.error = "Some images couldn't be moved:\n" + res.failed.join("\n");
+        this.session = [];
+        if (this.tab === "library") this.queryLibrary();
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+    async resetImagesDir() {
+      if (this.imagesDir.path === this.imagesDir.default) return;
+      try {
+        await call("images_dir_set", { path: this.imagesDir.default, move_existing: this.moveExisting });
+        this.imagesDir = await call("images_dir_get");
+      } catch (e) {
+        this.error = e.message;
+      }
+    },
+
+    // -------------------------------------------------------------- misc
+    thumbUrl(r) {
+      return this.fileUrl(r.thumb || r.path);
+    },
+    fileUrl(p) {
+      return "file://" + encodeURI(p).replace(/#/g, "%23").replace(/\?/g, "%3F");
+    },
+    showInFolder(p) {
+      window.bee.showInFolder(p);
+    },
+    openFolder(p) {
+      if (p) window.bee.openFolder(p);
+    },
+    async saveOpts() {
+      saveJSON(OPTS_KEY, this.opts);
+      await call("set_settings", this.opts);
+    },
+    async restartBackend() {
+      this.status = "Restarting backend…";
+      await window.bee.restart();
+    },
+  },
+});
+if (window.RackParts) protoartApp.use(window.RackParts); // knobs, rotary switch and VU meter (rack.js)
+protoartApp.mount("#app");

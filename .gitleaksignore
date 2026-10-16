@@ -1,0 +1,2 @@
+# Fake key used to test that a wrong Civitai key is rejected (not a real credential)
+backend/tests/test_civitai.py:generic-api-key:155

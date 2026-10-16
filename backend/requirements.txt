@@ -1,0 +1,24 @@
+# Top-level dependencies. setup.sh installs the exact tested versions from requirements.lock.txt.
+torch>=2.6
+# ERNIE-Image support is in diffusers' main branch: pinned to the tested commit (update deliberately)
+diffusers @ git+https://github.com/huggingface/diffusers@1e004eb6ec9435349c4a6dd6d1c44c7e0fec6b40
+transformers>=5.0
+accelerate
+peft>=0.17
+safetensors
+huggingface_hub
+sentencepiece
+protobuf
+Pillow
+scipy
+torchsde
+sdnq
+# GGUF-quantized transformers (ERNIE Turbo 6-bit)
+gguf
+# Face restoration (RestoreFormer + RetinaFace detection)
+facexlib
+opencv-python
+# Finegrain Image Enhancer (same refiners version as the original app)
+refiners @ git+https://github.com/finegrain-ai/refiners@a5d3c2971b84f6faa4762b1cf5a07f4f812bb1f5
+# Image -> prompt (WD Danbooru tagger runs on ONNX Runtime; Florence-2 uses transformers)
+onnxruntime

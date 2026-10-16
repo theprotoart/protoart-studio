@@ -1,0 +1,238 @@
+"""Civitai: add models and LoRAs from civitai.com (Settings → Models → From Civitai).
+
+Paste a link to a model page (https://civitai.com/models/12345?modelVersionId=67890), a download link
+(https://civitai.com/api/download/models/67890) or a number. The app reads the model's details from Civitai's
+public API, then downloads the file straight into the right folder:
+  * LoRAs (LORA / LoCon / DoRA): the LoRA folder set to its type (SD 1.5 / SDXL / FLUX / ERNIE) — one of yours if
+    you have one, else Protoart's own;
+  * SD 1.5 / SDXL checkpoints (incl. Pony / Illustrious / NoobAI): your checkpoints folder;
+  * SD 1.5 / SDXL embeddings (Civitai calls them "Textual Inversion"): Protoart's embeddings folder.
+Trigger words and details go next to the file as <name>.civitai.info (read like any other LoRA's).
+Some downloads need a free Civitai account: paste an API key in Settings (kept on this Mac, sent only to Civitai).
+Pure Python (urllib) so it's unit-testable; network only when you ask for it.
+"""
+import json
+import os
+import re
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+API = "https://civitai.com/api/v1"
+UA = "ProtoartStudio/0.3 (+https://civitai.com)"
+
+# Civitai "baseModel" -> (family, flavour)
+_BASES = [
+    (r"^sd ?1\.[45]|^sd 1|^sd1", ("sd15", None)),
+    (r"pony", ("sdxl", "pony")),
+    (r"illustrious", ("sdxl", "illustrious")),
+    (r"noob", ("sdxl", "noobai")),
+    (r"^sdxl", ("sdxl", None)),
+    (r"^flux", ("flux", None)),
+    (r"ernie", ("ernie", None)),
+]
+LORA_TYPES = ("LORA", "LoCon", "DoRA", "LyCORIS")
+
+
+def family_of(base_model):
+    b = (base_model or "").strip().lower()
+    for pat, res in _BASES:
+        if re.search(pat, b):
+            return res
+    return (None, None)
+
+
+def parse_ref(text):
+    """-> (model_id, version_id); either may be None."""
+    t = (text or "").strip()
+    if not t:
+        raise ValueError("Paste a Civitai link (or a model number).")
+    m = re.search(r"api/download/models/(\d+)", t)
+    if m:
+        return None, int(m.group(1))
+    m = re.search(r"modelVersionId=(\d+)", t)
+    v = int(m.group(1)) if m else None
+    m = re.search(r"civitai\.(?:com|green)/models/(\d+)", t)
+    if m:
+        return int(m.group(1)), v
+    if t.isdigit():
+        return int(t), None
+    raise ValueError("That doesn't look like a Civitai link. Copy the address of the model's page "
+                     "(https://civitai.com/models/…).")
+
+
+def _get_json(url, token=None, timeout=25):
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode("utf-8", "replace"))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            raise ValueError("Civitai doesn't have that model (or it was removed).")
+        if e.code in (401, 403):
+            raise ValueError("Civitai wants you to log in for this one: add your Civitai API key in Settings → Models.")
+        raise ValueError(f"Civitai answered with an error ({e.code}). Try again in a moment.")
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise ValueError(f"Couldn't reach Civitai: {getattr(e, 'reason', e)}")
+
+
+def _pick_file(files):
+    """The model file itself: the primary .safetensors if there is one (never a pickled .pt/.ckpt when a
+    safetensors exists)."""
+    model_files = [f for f in files or [] if (f.get("type") or "Model") in ("Model", "Pruned Model")]
+    if not model_files:
+        return None
+    safe = [f for f in model_files if (f.get("metadata") or {}).get("format") == "SafeTensor"
+            or str(f.get("name", "")).lower().endswith(".safetensors")]
+    pool = safe or model_files
+    return next((f for f in pool if f.get("primary")), pool[0])
+
+
+def allowed_extensions(kind):
+    # embeddings: .pt too (most older ones only come as .pt); they're read with torch's weights-only loader,
+    # which can't run code. Everything else: .safetensors only.
+    return (".safetensors", ".pt") if kind == "embedding" else (".safetensors",)
+
+
+def describe(model, version):
+    """Turn Civitai's API answer into what the app needs. model: /models/{id} JSON (may be partial),
+    version: one entry of model['modelVersions'] or /model-versions/{id} JSON."""
+    mtype = (model.get("type") or (version.get("model") or {}).get("type") or "").strip()
+    fam, flavor = family_of(version.get("baseModel"))
+    f = _pick_file(version.get("files"))
+    kind = ("lora" if mtype in LORA_TYPES else "checkpoint" if mtype == "Checkpoint"
+            else "embedding" if mtype == "TextualInversion" else (mtype.lower() or "unknown"))
+    notes, ok = [], True
+    if f is None:
+        ok = False
+        notes.append("This version has no model file to download.")
+    elif not str(f.get("name", "")).lower().endswith(allowed_extensions(kind)):
+        ok = False
+        notes.append("Only .safetensors files are downloaded (other formats can run hidden code)."
+                     if kind != "embedding" else "Only .safetensors and .pt embeddings are downloaded.")
+    if kind == "checkpoint" and fam not in ("sd15", "sdxl"):
+        ok = False
+        notes.append(f"{version.get('baseModel') or 'This'} checkpoints can't be loaded from a single file yet: "
+                     "SD 1.5, SDXL, Pony, Illustrious and NoobAI ones can.")
+    elif kind == "embedding" and fam not in ("sd15", "sdxl"):
+        ok = False
+        notes.append(f"{version.get('baseModel') or 'This'} embeddings can't be used: SD 1.5 and SDXL ones "
+                     "(Pony, Illustrious and NoobAI included) can.")
+    elif kind == "lora" and fam is None:
+        notes.append(f"Its base model ({version.get('baseModel') or 'not given'}) isn't one this app knows; "
+                     "it's saved in your LoRA folder and its type is read from the file.")
+    elif kind not in ("lora", "checkpoint", "embedding"):
+        ok = False
+        notes.append(f"{mtype or 'This kind of file'} isn't supported yet (LoRAs, checkpoints and embeddings are).")
+    name = (model.get("name") or (version.get("model") or {}).get("name") or "civitai model").strip()
+    return {
+        "model_id": model.get("id") or version.get("modelId"), "version_id": version.get("id"),
+        "name": name, "version": version.get("name") or "", "type": mtype, "kind": kind,
+        "base_model": version.get("baseModel") or "", "family": fam, "flavor": flavor,
+        "nsfw": bool(model.get("nsfw") or (version.get("model") or {}).get("nsfw")),
+        "trained_words": [w for w in (version.get("trainedWords") or []) if isinstance(w, str)][:40],
+        "file": f and {"name": f.get("name"), "size_mb": round(float(f.get("sizeKB") or 0) / 1024, 1),
+                       "url": f.get("downloadUrl") or f"https://civitai.com/api/download/models/{version.get('id')}"},
+        "ok": ok, "notes": notes,
+        "page": f"https://civitai.com/models/{model.get('id') or version.get('modelId')}",
+    }
+
+
+def inspect(text, token=None, get=_get_json):
+    model_id, version_id = parse_ref(text)
+    if version_id and not model_id:
+        version = get(f"{API}/model-versions/{version_id}", token)
+        return describe(version.get("model") or {}, version)
+    model = get(f"{API}/models/{model_id}", token)
+    versions = model.get("modelVersions") or []
+    if not versions:
+        raise ValueError("That model has no versions to download.")
+    version = next((v for v in versions if v.get("id") == version_id), versions[0])
+    return describe(model, version)
+
+
+def safe_filename(name, exts=(".safetensors",)):
+    name = os.path.basename(str(name or "model.safetensors")).replace("\x00", "")
+    name = re.sub(r'[\\/:*?"<>|]+', "_", name).strip(" .") or "model.safetensors"
+    return name if name.lower().endswith(tuple(exts)) else name + exts[0]
+
+
+def download(info, dest_dir, token=None, progress=None, cancelled=lambda: False, stall_s=120):
+    """Download info['file'] into dest_dir (resumes a .part left by an earlier try). Never overwrites a file.
+    Writes <name>.civitai.info beside it. Returns the saved path."""
+    f = info.get("file") or {}
+    if not info.get("ok") or not f.get("url"):
+        raise ValueError(" ".join(info.get("notes") or ["Nothing to download."]))
+    os.makedirs(dest_dir, exist_ok=True)
+    final = os.path.join(dest_dir, safe_filename(f.get("name"), allowed_extensions(info.get("kind"))))
+    if os.path.exists(final):
+        raise ValueError(f"{os.path.basename(final)} is already in {dest_dir}.")
+    part = final + ".part"
+    have = os.path.getsize(part) if os.path.exists(part) else 0
+    url = f["url"]
+    if token:  # as a parameter: Civitai redirects to a storage server that rejects extra Authorization headers
+        url += ("&" if "?" in url else "?") + urllib.parse.urlencode({"token": token})
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    if token:
+        # also as a header, for civitai.com only: "unredirected", so the file server it redirects to never gets it
+        req.add_unredirected_header("Authorization", f"Bearer {token}")
+    if have:
+        req.add_header("Range", f"bytes={have}-")
+    try:
+        resp = urllib.request.urlopen(req, timeout=60)
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            if token:
+                raise ValueError(f"Civitai turned down your API key ({e.code}). It may be mistyped, "
+                                 "deleted or expired: make a new one on civitai.com (Account settings → API Keys) and "
+                                 "paste it here. Some models also need you to open their page on civitai.com once "
+                                 "(Early Access or a licence to accept) before they can be downloaded.")
+            raise ValueError("Civitai only lets signed-in accounts download this one. Paste your "
+                             "free Civitai API key below (civitai.com → Account settings → API Keys → Add API key), "
+                             "then press Download again.")
+        if e.code == 416:  # already complete
+            resp = None
+        else:
+            raise ValueError(f"Civitai answered with an error ({e.code}).")
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise ValueError(f"Couldn't reach Civitai: {getattr(e, 'reason', e)}")
+    if resp is not None:
+        ctype = resp.headers.get("Content-Type", "")
+        if "text/html" in ctype or "application/json" in ctype:
+            resp.close()  # a login page or an error message instead of the file
+            raise ValueError("Civitai sent a page instead of the file: this download probably needs your "
+                             "Civitai API key (Settings → Models).")
+        if have and resp.status != 206:
+            have = 0  # the server restarted from the beginning
+        total = int(resp.headers.get("Content-Length") or 0) + have
+        last = time.time()
+        with resp, open(part, "ab" if have else "wb") as out:
+            got = have
+            while True:
+                if cancelled():
+                    raise InterruptedError()
+                chunk = resp.read(1 << 20)
+                if not chunk:
+                    break
+                out.write(chunk)
+                got += len(chunk)
+                now = time.time()
+                if progress and now - last > 0.5:
+                    progress(got, total)
+                    last = now
+        if total and got < total:
+            raise ValueError("The download stopped before the end; press Download again to carry on.")
+    os.replace(part, final)
+    side = {"source": "civitai", "modelId": info.get("model_id"), "modelVersionId": info.get("version_id"),
+            "name": info.get("name"), "version": info.get("version"), "baseModel": info.get("base_model"),
+            "type": info.get("type"), "nsfw": info.get("nsfw"), "trainedWords": info.get("trained_words") or [],
+            "page": info.get("page")}
+    try:
+        with open(os.path.splitext(final)[0] + ".civitai.info", "w") as fh:
+            json.dump(side, fh, indent=1)
+    except OSError:
+        pass
+    return final

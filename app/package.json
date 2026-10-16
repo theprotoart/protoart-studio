@@ -1,0 +1,19 @@
+{
+  "name": "protoart-studio",
+  "productName": "Protoart Studio",
+  "version": "0.3.0",
+  "description": "Local image generation for Apple Silicon: SD 1.5, SDXL and ERNIE-Image with LoRAs, presets and a searchable library.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "electron": "44.7.0",
+    "@electron/fuses": "^1.8.0"
+  },
+  "license": "Apache-2.0"
+}

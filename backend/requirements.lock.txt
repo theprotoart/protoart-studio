@@ -1,0 +1,77 @@
+# Exact versions Protoart Studio is built and tested with (Python 3.12, Apple Silicon).
+# setup.sh installs these, so every install and every app build gets the same code.
+# To update: change requirements.txt, install, test, then regenerate this file from the working environment.
+# Next step for stronger supply-chain protection: add hashes with
+#   pip-compile --generate-hashes requirements.txt -o requirements.lock.txt   (pip-tools)
+# and install with  pip install --require-hashes -r requirements.lock.txt
+
+diffusers @ git+https://github.com/huggingface/diffusers@1e004eb6ec9435349c4a6dd6d1c44c7e0fec6b40
+refiners @ git+https://github.com/finegrain-ai/refiners@a5d3c2971b84f6faa4762b1cf5a07f4f812bb1f5
+accelerate==1.15.0
+annotated-doc==0.0.5
+anyio==4.15.1
+certifi==2026.7.22
+charset-normalizer==3.5.2
+click==8.5.0
+contourpy==1.4.0
+cycler==0.12.1
+facexlib==0.3.0
+filelock==4.1.1
+filterpy==1.4.5
+flatbuffers==25.12.19
+fonttools==4.66.1
+fsspec==2026.9.0
+gguf==0.19.0
+h11==0.16.0
+hf-xet==1.7.0
+httpcore2==2.13.1
+httpx2==2.13.1
+huggingface_hub==2.2.0
+idna==3.20
+importlib_metadata==9.0.1
+jaxtyping==0.3.11
+Jinja2==3.1.6
+kiwisolver==1.5.1
+llvmlite==0.50.0
+markdown-it-py==4.2.0
+MarkupSafe==3.0.4
+matplotlib==3.11.2
+mdurl==0.1.2
+mpmath==1.3.0
+networkx==3.7
+numba==0.68.0
+numpy==2.5.4
+onnxruntime==1.31.0
+opencv-python==5.0.0.93
+packaging==26.3
+peft==0.21.2
+pillow==12.3.0
+protobuf==7.36.2
+psutil==7.2.2
+Pygments==2.21.0
+pyparsing==3.3.3
+python-dateutil==2.9.0.post0
+PyYAML==6.0.3
+regex==2026.9.29
+requests==2.34.2
+rich==15.0.0
+safetensors==0.8.0
+scipy==1.18.1
+sdnq==0.2.8
+sentencepiece==0.2.2
+shellingham==1.5.4
+six==1.17.0
+sympy==1.14.0
+tokenizers==0.23.3
+torch==2.14.1
+torchsde==0.2.6
+torchvision==0.29.1
+tqdm==4.70.1
+trampoline==0.1.2
+transformers==5.19.0
+truststore==0.10.4
+typer==0.27.3
+typing_extensions==4.16.0
+urllib3==2.8.0
+wadler_lindig==0.1.7
+zipp==4.1.1
