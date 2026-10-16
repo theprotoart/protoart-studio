@@ -28,6 +28,70 @@ IMAGE_EXT = set(pictures.SUPPORTED)
 def _open_rgb(path):
     from PIL import Image, ImageOps
     return ImageOps.exif_transpose(Image.open(pictures.prepare(path))).convert("RGB")
+FRAMING_FILE = ".protoart_framing.json"   # per-picture framing chosen in the Train tab (beside the pictures)
+FITS = ("center", "top", "bottom", "left", "right", "pad")
+_CENTERING = {"center": (0.5, 0.5), "top": (0.5, 0.0), "bottom": (0.5, 1.0), "left": (0.0, 0.5), "right": (1.0, 0.5)}
+
+
+def square(img, res, fit=None):
+    """A res x res training picture. fit: which part to keep when cropping (center/top/bottom/left/right), or "pad"
+    to keep the whole picture and fill the sides with a blurred copy of itself (nothing cut off)."""
+    from PIL import Image, ImageFilter, ImageOps
+    fit = fit if fit in FITS else "center"
+    if fit == "pad":
+        bg = ImageOps.fit(img, (res, res), Image.LANCZOS).filter(ImageFilter.GaussianBlur(max(4, res // 24)))
+        fg = ImageOps.contain(img, (res, res), Image.LANCZOS)
+        bg.paste(fg, ((res - fg.width) // 2, (res - fg.height) // 2))
+        return bg
+    return ImageOps.fit(img, (res, res), Image.LANCZOS, centering=_CENTERING[fit])
+
+
+def load_framing(folder):
+    try:
+        data = json.loads((Path(folder) / FRAMING_FILE).read_text())
+        return {k: v for k, v in data.items() if isinstance(k, str) and v in FITS}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def save_framing(folder, framing):
+    """framing: {file name: fit}. Only names of pictures in this folder are kept; "center" (the default) isn't stored."""
+    d = Path(folder)
+    names = {p.name for p in d.iterdir() if p.suffix.lower() in IMAGE_EXT}
+    clean = {k: v for k, v in (framing or {}).items() if k in names and v in FITS and v != "center"}
+    f = d / FRAMING_FILE
+    if clean:
+        f.write_text(json.dumps(clean, indent=1))
+    elif f.exists():
+        f.unlink()
+    return len(clean)
+
+
+def save_square_copies(folder, res, framing=None, out_name=None):
+    """Write square res x res copies of every picture (with its caption) into a new folder beside it, so you can
+    see and keep exactly what training will use. The originals aren't touched. Returns the new folder."""
+    src = Path(folder)
+    framing = dict(load_framing(src), **(framing or {}))
+    out = src.parent / (out_name or f"{src.name} · square {res}")
+    k = 2
+    while out.exists():
+        out = src.parent / f"{src.name} · square {res} ({k})"
+        k += 1
+    out.mkdir(parents=True)
+    n = 0
+    for it in scan_dataset(src):
+        try:
+            img = _open_rgb(it["path"])
+        except Exception:
+            continue
+        name = Path(it["name"]).stem
+        square(img, res, framing.get(it["name"])).save(out / f"{name}.png")
+        if it["caption"]:
+            (out / f"{name}.txt").write_text(it["caption"] + "\n")
+        n += 1
+    return {"folder": str(out), "count": n}
+
+
 UNET_TARGETS = {
     "attention": ["to_q", "to_k", "to_v", "to_out.0"],
     "full": ["to_q", "to_k", "to_v", "to_out.0", "proj_in", "proj_out", "ff.net.0.proj", "ff.net.2"],
@@ -45,6 +109,7 @@ def scan_dataset(folder, limit=1000):
     if not d.is_dir():
         raise TrainError("Pick a folder of training images.")
     items = []
+    framing = load_framing(d)
     for p in sorted(d.iterdir()):
         if p.suffix.lower() in IMAGE_EXT and not p.name.startswith("."):
             cap = p.with_suffix(".txt")
@@ -62,7 +127,7 @@ def scan_dataset(folder, limit=1000):
             except Exception:
                 pass
             items.append({"path": str(p), "name": p.name, "caption": text, "has_caption": bool(text),
-                          "width": w, "height": h})
+                          "width": w, "height": h, "fit": framing.get(p.name, "center")})
             if len(items) >= limit:
                 break
     return items
@@ -253,7 +318,7 @@ def train(engine, args, emit, cancel_event, lora_dir):
                 img = _open_rgb(it["path"])
             except Exception:
                 continue
-            img = ImageOps.fit(img, (res, res), Image.LANCZOS)  # resize + centre-crop to a square
+            img = square(img, res, it.get("fit"))  # resize + crop (or pad) to a square, as framed in the Train tab
             variants = [img, ImageOps.mirror(img)] if flip else [img]
             for v in variants:
                 x = torch.from_numpy(np.asarray(v, dtype=np.float32) / 127.5 - 1.0)
@@ -492,7 +557,7 @@ def train_ernie(engine, spec, args, items, cfg, name, fmt, precision, trigger, r
                 img = _open_rgb(it["path"])
             except Exception:
                 continue
-            img = ImageOps.fit(img, (res, res), Image.LANCZOS)
+            img = square(img, res, it.get("fit"))
             for v in ([img, ImageOps.mirror(img)] if flip else [img]):
                 x = torch.from_numpy(np.asarray(v, dtype=np.float32) / 127.5 - 1.0).permute(2, 0, 1).unsqueeze(0)
                 dist = vae.encode(x.to(device, dt)).latent_dist

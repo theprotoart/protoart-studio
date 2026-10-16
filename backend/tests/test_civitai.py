@@ -164,3 +164,48 @@ class DownloadTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BlockedConnectionTests(unittest.TestCase):
+    """A firewall/VPN blocking Python ('[Errno 9] Bad file descriptor'): retry once through curl, explain if not."""
+
+    def test_red_links(self):
+        self.assertEqual(civitai.parse_ref("https://civitai.red/models/123?modelVersionId=45"), (123, 45))
+        self.assertEqual(civitai.parse_ref("https://civitai.red/api/download/models/522995?fileId=441187"), (None, 522995))
+
+    def test_blocked_is_recognised(self):
+        import errno
+        import urllib.error
+        import net
+        self.assertTrue(net.is_blocked_connection(urllib.error.URLError(OSError(errno.EBADF, "Bad file descriptor"))))
+        self.assertTrue(net.is_blocked_connection(OSError(9, "Bad file descriptor")))
+        self.assertFalse(net.is_blocked_connection(urllib.error.HTTPError("u", 404, "x", {}, None)))
+        self.assertFalse(net.is_blocked_connection(TimeoutError("timed out")))
+
+    def test_retries_through_curl_once(self):
+        import urllib.error
+        from unittest import mock
+        import net
+        calls = []
+
+        def fake_open(req, timeout=None):
+            calls.append(1)
+            if len(calls) == 1:
+                raise urllib.error.URLError(OSError(9, "Bad file descriptor"))
+            return "ok"
+        with mock.patch("urllib.request.urlopen", fake_open), mock.patch.object(net, "use_curl_for_urllib", return_value=True):
+            self.assertEqual(civitai._urlopen(object(), 5), "ok")
+        self.assertEqual(len(calls), 2)
+
+    def test_friendly_message_when_still_blocked(self):
+        import urllib.error
+        from unittest import mock
+        import net
+
+        def fake_open(req, timeout=None):
+            raise urllib.error.URLError(OSError(9, "Bad file descriptor"))
+        with mock.patch("urllib.request.urlopen", fake_open), mock.patch.object(net, "use_curl_for_urllib", return_value=False):
+            with self.assertRaises(ValueError) as cm:
+                civitai._get_json("https://civitai.com/api/v1/models/1")
+        self.assertIn("blocked", str(cm.exception))
+        self.assertIn("Retry", str(cm.exception))

@@ -65,7 +65,7 @@
               {{ m.label }}{{ m.people ? ' ●' : '' }}{{ m.nsfw ? ' ⚑' : '' }}{{ m.i2iOk ? (m.cached ? '' : ' · ' + Math.round(m.download_gb) + ' GB download') : ' — not for image to image' }}</option>
           </optgroup>
         </select>
-        <span class="hint">{{ familyLabel }}<template v-if="form.loras.length"> · {{ form.loras.length }} LoRA{{ form.loras.length === 1 ? '' : 's' }} from Create</template></span>
+        <span class="hint">{{ familyLabel }}<template v-if="form.loras.length"> · {{ form.loras.length }} LoRA{{ form.loras.length === 1 ? "" : "s" }}</template></span>
       </div>
       <!-- Tools: the engine -->
       <div v-else-if="tab==='tools'" class="slot-engine">
@@ -100,7 +100,8 @@
         <div class="slot-line">
           <label class="check"><input type="checkbox" v-model="lib.starred" @change="queryLibrary()"> ★ Starred only</label>
           <label class="check nsfw-switch" :class="{on: hideNsfw}" title="Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings."><input type="checkbox" :checked="hideNsfw" @change="setHideNsfw($event.target.checked)"> Hide NSFW</label>
-          <span class="hint">{{ lib.results.length }} image{{ lib.results.length===1?'':'s' }}<template v-if="hideNsfw && content.nsfw"> · {{ content.nsfw }} hidden</template></span>
+          <label class="check" :class="{on: opts.hide_people}" title="Hide pictures made with models or LoRAs you tagged ● People (made of real people). Same switch in Create and Settings."><input type="checkbox" :checked="opts.hide_people" @change="setHidePeople($event.target.checked)"> Hide People</label>
+          <span class="hint">{{ libShown.length }} image{{ libShown.length===1?'':'s' }}<template v-if="hideNsfw && content.nsfw"> · {{ content.nsfw }} hidden</template><template v-if="libPeopleHidden"> · {{ libPeopleHidden }} People hidden</template></span>
           <span class="spacer"></span>
           <button v-if="libLoras.length" class="ghost" :class="{on: libLoraOpen || lib.loras.length}" @click="libLoraOpen = !libLoraOpen"
                   title="Show images made with particular LoRAs">Filter by LoRA{{ lib.loras.length ? ' (' + lib.loras.length + ')' : '' }}</button>
@@ -613,6 +614,10 @@
                   :title="j.state==='running' ? 'Stop this job (the rest of the queue continues)' : 'Remove from queue'">✕</button>
         </div>
       </div>
+      <div v-if="memLow && memLowShown" class="mem-low"><span><b>Your Mac is short of memory</b>, so this will be slow:
+        only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
+        (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
+        <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
       <div v-if="error" class="error-box">{{ error }}</div>
       <div v-if="livePreviewShown" class="live-preview" :class="{covered: previewCovered}">
         <img :src="livePreview.src" alt="live preview"><span v-if="previewCovered" class="nsfw-cover">NSFW prompt · preview hidden</span>
@@ -626,11 +631,15 @@
         <div class="empty-title">Protoart Studio</div>
         <div>Your images will appear here.</div>
       </div>
-      <div class="gallery">
+      <div v-if="session.length" class="session-head hint">This session · {{ session.length }} picture{{ session.length === 1 ? '' : 's' }}
+        · <button class="link" @click="clearSession" title="Take them off this screen; they stay in the Library">clear all</button>&nbsp;<span class="hint">(they stay in the Library)</span></div>
+      <div class="gallery session-gallery">
         <figure v-for="r in session" :key="r.id" @click="openDetail(r)" :class="{covered: covered(r)}">
           <img :src="thumbUrl(r)" loading="lazy" decoding="async"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
           <span v-if="r.kind && r.kind!=='generated'" class="badge">{{ kindLabel(r.kind) }}</span>
+          <button class="close-x" @click.stop="hideFromSession(r)" title="Close: take it off this screen (it stays in the Library)">✕</button>
           <button class="star" :class="{on: r.starred}" @click.stop="toggleStar(r)" title="Star">★</button>
+          <span v-if="r.model" class="model-cap" :title="modelLabel(r.model)">{{ modelLabel(r.model) }}</span>
           <button v-if="r.prompt" class="to-i2i" @click.stop="reusePrompt(r)" title="Put this picture's prompt back in the prompt box (keeps your current model and settings)">↺ Prompt</button>
           <button v-if="r.prompt" class="to-i2i to-tools" @click.stop="reuse(r)" title="Load everything that made this picture: prompt, model, LoRAs, size, steps, sampler and seed">⚙ All settings</button>
         </figure>
@@ -724,7 +733,7 @@
     </div>
     <div v-if="selectMode" class="select-bar">
       <span>{{ selected.length }} selected</span>
-      <button class="link" @click="selectAll">Select all {{ lib.results.length }}</button>
+      <button class="link" @click="selectAll">Select all {{ libShown.length }}</button>
       <button class="link" v-if="selected.length" @click="selected=[]">Clear</button>
       <span class="spacer"></span>
       <button class="primary" :disabled="!selected.length" @click="openBatch()" title="Resize, convert, compress (Press), rename, apply an Adjust preset: all the selected pictures at once">🗂 Batch edit &amp; export…</button>
@@ -737,12 +746,12 @@
     <div class="lora-chips" v-if="libLoras.length && (libLoraOpen || lib.loras.length)">
       <span class="hint">Images that used:</span>
       <button v-if="lib.loras.length" class="link small-link" @click="lib.loras = []; queryLibrary()">clear</button>
-      <button v-for="l in libLoras" :key="l.name" class="chip" :class="{on: lib.loras.includes(l.name)}"
+      <button v-for="l in libLoraChips" :key="l.name" class="chip" :class="{on: lib.loras.includes(l.name)}"
               @click="toggleLibLora(l.name)">{{ l.name }} <small>{{ l.count }}</small></button>
     </div>
-    <div v-if="!lib.results.length" class="empty">No images match.</div>
+    <div v-if="!libShown.length" class="empty">No images match.</div>
     <div class="gallery" :class="{selecting: selectMode}">
-      <figure v-for="r in lib.results" :key="r.id" @click="onThumbClick(r)" :class="{picked: selected.includes(r.id), covered: covered(r)}">
+      <figure v-for="r in libShown" :key="r.id" @click="onThumbClick(r)" :class="{picked: selected.includes(r.id), covered: covered(r)}">
         <span v-if="selectMode" class="pick">{{ selected.includes(r.id) ? '✓' : '' }}</span>
         <img :src="thumbUrl(r)" loading="lazy" decoding="async"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
         <span v-else-if="r.nsfw && !hideNsfw" class="badge nsfw-badge" :title="nsfwReason(r)">18+</span>
@@ -790,10 +799,12 @@
     <p class="hint">Paste the link of a model page on <a href="https://civitai.com/models" target="_blank">civitai.com</a>
       (pick the version on the page first, if it has several). It downloads into the right folder for its type, with its trigger words.</p>
     <div class="row">
-      <input ref="civInput" v-model="civ.url" placeholder="https://civitai.com/models/…" @keydown.enter="civInspect" style="flex:1">
+      <input ref="civInput" v-model="civ.url" placeholder="https://civitai.com/models/… (civitai.red and download links work too)" @keydown.enter="civInspect" style="flex:1">
       <button @click="civInspect" :disabled="civ.busy || !civ.url.trim()">{{ civ.busy ? 'Checking…' : 'Check' }}</button>
+      <button v-if="civ.url || civ.found || civ.error || civ.msg" class="ghost" @click="civClear" :disabled="civ.busy" title="Empty the link and start over">Clear</button>
     </div>
-    <div v-if="civ.error && civ.needKey !== 'missing'" class="error-box">{{ civ.error }}</div>
+    <div v-if="civ.error && civ.needKey !== 'missing'" class="error-box error-retry"><span>{{ civ.error }}</span>
+      <button class="ghost" @click="civRetry" :disabled="civ.busy" title="Try the same thing again">⟳ Retry</button></div>
     <div v-if="civ.found" class="hub-card civ-card">
       <div><b>{{ civ.found.name }}</b><span v-if="civ.found.version"> · {{ civ.found.version }}</span>
         <span v-if="civ.found.nsfw" class="nsfw-flag on" title="Civitai marks this NSFW (the content filter will too)">⚑</span></div>
@@ -1017,10 +1028,12 @@
             <div class="hint">{{ toolJob ? (toolJob.state === 'running' ? etaText(toolJob) + ' · ' + formatDuration((now - tool.working.started) / 1000) + ' so far' : 'waiting in the queue · ' + etaText(toolJob)) : status }}</div>
             <div class="bar"><div :style="{width: toolPct + '%'}"></div></div>
           </div>
-          <button v-if="toolJob" class="ghost tool-stop pause-btn" :class="{on: paused}" @click="togglePause"
-                  :title="paused ? 'Carry on from exactly where it stopped' : 'Pause between tiles; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
-          <button v-if="toolJob" class="danger tool-stop" @click="cancelJob(toolJob.id)"
-                  :disabled="!!stopping[toolJob.id]">{{ stopping[toolJob.id] ? 'Stopping…' : '■ Stop' }}</button>
+          <div v-if="toolJob" class="tool-stops">
+            <button class="ghost tool-stop pause-btn" :class="{on: paused}" @click="togglePause"
+                    :title="paused ? 'Carry on from exactly where it stopped' : 'Pause between tiles; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
+            <button class="danger tool-stop" @click="cancelJob(toolJob.id)"
+                    :disabled="!!stopping[toolJob.id]">{{ stopping[toolJob.id] ? 'Stopping…' : '■ Stop' }}</button>
+          </div>
         </div>
         <template v-else-if="tool.latest">
           <img :src="fileUrl(tool.latest.path)" @click="openDetail(tool.latest)" title="Open full size">
@@ -1288,6 +1301,10 @@
 
 
       <div v-if="busy" class="hint">{{ status }}{{ queue.length > 1 ? ' · ' + queue.length + ' jobs in queue' : '' }}</div>
+      <div v-if="memLow && memLowShown" class="mem-low"><span><b>Your Mac is short of memory</b>, so this will be slow:
+        only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
+        (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
+        <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
       <div v-if="error" class="error-box">{{ error }}</div>
 
       <div v-if="tool.results.length">
@@ -1329,7 +1346,29 @@
           LoRA “{{ clipSkipHint.name }}” was trained with CLIP skip {{ clipSkipHint.value }}
           <button class="link" @click="form.clip_skip = clipSkipHint.value">use {{ clipSkipHint.value }}</button>
         </div>
-        <div class="hint">{{ familyLabel }} · ControlNet needs SD 1.5. LoRAs and the sampler are set in Create<template v-if="form.loras.length"> ({{ form.loras.length }} active)</template>.</div>
+        <div class="hint">{{ familyLabel }} · ControlNet needs SD 1.5. The sampler is set in Create.</div>
+      </div>
+
+      <div class="card i2i-loras">
+        <h3>LoRAs <span class="hint">· {{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · shared with Create</span>
+          <button v-if="form.loras.length" class="link small-link" @click="form.loras = []">clear all</button></h3>
+        <div v-for="(l, i) in form.loras" :key="l.name" class="lora-row">
+          <span class="lora-name" :title="l.name">{{ l.name }}</span>
+          <input type="range" min="-2" max="2" step="0.05" v-model.number="l.weight">
+          <input type="number" min="-5" max="5" step="0.05" v-model.number="l.weight" class="num">
+          <button class="ghost" @click="form.loras.splice(i,1)" title="Remove">✕</button>
+        </div>
+        <input class="lora-search" v-model="i2iLora.q" @focus="i2iLora.open = true"
+               :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ')'">
+        <div v-if="i2iLora.open" class="lora-list">
+          <button v-for="l in i2iShownLoras" :key="l.name" class="lora-item" @click="addLoraByName(l.name); i2iLora.q = ''">
+            <span class="l-name" :title="l.name">{{ l.name }}</span>
+            <span class="hint"><template v-if="l.flavor">{{ flavorName(l.flavor) }}{{ currentFlavor && l.flavor !== currentFlavor ? ' (may not match)' : '' }} · </template>{{ l.size_mb }} MB</span>
+          </button>
+          <div v-if="!i2iShownLoras.length" class="hint m-empty">{{ addableLoras.length ? 'No LoRAs match.' : 'No more ' + familyLabel + ' LoRAs to add.' }}</div>
+          <button class="link close-list" @click="i2iLora.open = false; i2iLora.q = ''">close list</button>
+        </div>
+        <p v-if="form.loras.length" class="hint">Trigger words and 🎲 Random LoRAs are in Create.</p>
       </div>
 
       <div class="card">
@@ -1467,6 +1506,10 @@
     </section>
 
     <section class="i2i-right">
+      <div v-if="memLow && memLowShown" class="mem-low"><span><b>Your Mac is short of memory</b>, so this will be slow:
+        only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
+        (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
+        <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
       <div v-if="error" class="error-box">{{ error }}</div>
       <div class="card i2i-preview">
         <div class="i2i-preview-head">
@@ -1769,6 +1812,39 @@
           <button class="ghost" @click="showInFolder(train.result.path)">Show in Finder</button>
         </div>
       </div>
+      <div v-if="train.items.length" class="card frame-card">
+        <h3>Square framing <span class="hint">· training uses a square of every picture
+          <template v-if="trainNotSquare()"> · {{ trainNotSquare() }} of {{ train.items.length }} aren't square</template><template v-else> · all are square already</template></span></h3>
+        <p class="hint">Choose which part of each picture to keep, or <b>Keep whole</b> to fit all of it in (the sides are filled with a soft blur of the picture).
+          What you see in each tile is what the training sees. Your original files aren't changed.</p>
+        <div class="row frame-all"><span class="hint">All pictures:</span>
+          <button v-for="f in [['center','Centre'],['top','Top'],['bottom','Bottom'],['left','Left'],['right','Right'],['pad','Keep whole']]" :key="f[0]"
+                  class="ghost small" @click="setFrameAll(f[0], false)" :title="'Set every picture to ' + f[1]">{{ f[1] }}</button>
+          <button v-if="trainNotSquare()" class="link small-link" @click="setFrameAll('pad', true)" title="Only the pictures that aren't square: keep them whole">keep the non-square ones whole</button>
+        </div>
+        <div class="frame-grid">
+          <div v-for="it in train.items" :key="it.path" class="frame-item" :class="{nonsq: it.width && it.width !== it.height}">
+            <div class="frame-box" :class="{pad: it.fit === 'pad'}">
+              <img v-if="it.fit === 'pad'" class="frame-bg" :src="fileUrl(it.path)" alt="" loading="lazy" decoding="async">
+              <img :src="fileUrl(it.path)" :style="frameStyle(it)" loading="lazy" decoding="async" :title="it.name + (it.width ? ' · ' + it.width + '×' + it.height : '')">
+            </div>
+            <select :value="it.fit || 'center'" @change="setFrame(it, $event.target.value)" :title="'How ' + it.name + ' becomes a square'">
+              <option value="center">Crop · centre</option><option value="top">Crop · top</option><option value="bottom">Crop · bottom</option>
+              <option value="left">Crop · left</option><option value="right">Crop · right</option><option value="pad">Keep whole</option>
+            </select>
+          </div>
+        </div>
+        <div class="row frame-copy">
+          <span class="hint">Save square copies (with captions) to a new folder:</span>
+          <select v-model.number="frame.size"><option :value="512">512 × 512</option><option :value="768">768 × 768</option><option :value="1024">1024 × 1024</option></select>
+          <button @click="makeSquareCopies" :disabled="frame.busy">{{ frame.busy ? 'Saving…' : 'Save copies' }}</button>
+          <template v-if="frame.copied">
+            <button class="link" @click="showInFolder(frame.copied.folder)">Show in Finder</button>
+            <button class="link" @click="useSquareCopies" title="Train on the new folder of square copies">Use that folder</button>
+          </template>
+        </div>
+        <div v-if="frame.msg" class="hint">{{ frame.msg }}</div>
+      </div>
       <div v-if="train.items.length && train.mode === 'lora'" class="card">
         <h3>Captions <span class="hint">edit, then save (written as .txt next to each image)</span></h3>
         <div class="row">
@@ -1792,7 +1868,7 @@
       <img src="assets/logo-round-512.png" alt="">
       <div>
         <h1>Protoart Studio</h1>
-        <p class="hint">Version 0.3 · AI image making that runs entirely on your Mac</p>
+        <p class="hint">Version 1.1 · AI image making that runs entirely on your Mac</p>
       </div>
     </div>
 
@@ -2272,7 +2348,11 @@
             <span class="hint">opens the Finegrain enhancer in Tools</span>
           </div>
           <div v-if="busy" class="hint">{{ status }}{{ queue.length > 1 ? ' · ' + queue.length + ' jobs in queue' : '' }}</div>
-          <div v-if="error" class="error-box">{{ error }}</div>
+          <div v-if="memLow && memLowShown" class="mem-low"><span><b>Your Mac is short of memory</b>, so this will be slow:
+        only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
+        (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
+        <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
+      <div v-if="error" class="error-box">{{ error }}</div>
         </div>
 
         <div class="row">

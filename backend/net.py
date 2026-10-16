@@ -94,6 +94,7 @@ def looks_like_missing_download(exc):
 # servers; only the program that opens the connection changes.
 CURL = "/usr/bin/curl"
 _curl_mode = None   # None = not checked yet, False = Python connects fine, True = use curl
+_urllib_curl = False  # urllib downloads already routed through curl
 
 
 def python_can_connect(host="huggingface.co", port=443, timeout=6):
@@ -235,6 +236,37 @@ def _install_curl_urllib():
     urllib.request.install_opener(urllib.request.build_opener(CurlHandler()))
 
 
+def use_curl_for_urllib():
+    """Route plain urllib downloads through curl from now on (a firewall blocked Python's own connection to a
+    site even though the first check, to huggingface.co, got through). Returns True if curl is available."""
+    global _urllib_curl
+    if not os.path.exists(CURL):
+        return False
+    if _urllib_curl:
+        return False  # already going through curl: nothing new to try
+    try:
+        _install_curl_urllib()
+    except Exception as e:
+        print("[net] couldn't route downloads through curl:", e, flush=True)
+        return False
+    _urllib_curl = True
+    print("[net] a site was blocked for Python; urllib downloads now go through curl", flush=True)
+    return True
+
+
+def is_blocked_connection(exc):
+    """True for the errors a per-app firewall or VPN gives Python ('[Errno 9] Bad file descriptor',
+    connection refused/reset before any answer), as opposed to an answer from the server."""
+    import errno
+    import urllib.error
+    if isinstance(exc, urllib.error.HTTPError):
+        return False
+    e = getattr(exc, "reason", exc)
+    return isinstance(e, OSError) and getattr(e, "errno", None) in (
+        errno.EBADF, errno.ECONNREFUSED, errno.ECONNRESET, errno.ECONNABORTED, errno.EPERM, errno.EACCES, errno.ENETUNREACH,
+        errno.EHOSTUNREACH) or any(t in str(e).lower() for t in ("bad file descriptor", "connection abort"))
+
+
 def ensure_downloads_work():
     """Called when going online: check once whether Python may connect; if not, switch to curl."""
     global _curl_mode
@@ -246,10 +278,7 @@ def ensure_downloads_work():
                 _install_curl_hf()
             except Exception as e:
                 print("[net] couldn't route Hugging Face downloads through curl:", e, flush=True)
-            try:
-                _install_curl_urllib()
-            except Exception as e:
-                print("[net] couldn't route other downloads through curl:", e, flush=True)
+            use_curl_for_urllib()
             _curl_mode = True
         else:
             _curl_mode = False

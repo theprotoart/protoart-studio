@@ -43,6 +43,14 @@ function call(cmd, args = {}) {
   });
 }
 
+// a quick command that waits on a website: give up after ms so a button can never stay stuck on "Checking…"
+function callWithin(ms, cmd, args = {}) {
+  return Promise.race([call(cmd, args), new Promise((_, rej) => setTimeout(() =>
+    rej(new Error("No answer from the website after " + Math.round(ms / 1000) + " s. Check your internet connection, then press Retry.")), ms))]);
+}
+
+const STOP_GRACE_MS = 2500; // after Stop, how long a job may take to stop by itself before it's force-stopped
+
 const FLAVOR_LABEL = { pony: "Pony", illustrious: "Illustrious", noobai: "NoobAI" };
 const QUALITY_TAGS = {
   pony: "score_9, score_8_up, score_7_up",
@@ -168,6 +176,12 @@ const protoartApp = createApp({
       models: [],
       samplers: [],
       loras: [],
+      i2iLora: { q: "", open: false },
+      frame: { size: 512, busy: false, msg: "", copied: null },  // Train tab: square framing of the pictures
+      forcing: false,
+      stopAllAt: 0,
+      memLow: null,          // other apps have the memory: shown above the pictures until closed
+      memLowShown: false,
       presets: [],
       selectedPreset: "",
       newPresetName: "",
@@ -312,6 +326,16 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Version 1.1: from our first testers' notes", items: [
+              "<b>Train → Square framing</b>: training uses a square of every picture, and now you choose which part. Each picture gets <b>Crop · centre / top / bottom / left / right</b> or <b>Keep whole</b> (all of it, with the sides filled by a soft blur), one by one or for all at once. What each tile shows is what the training sees. <b>Save copies</b> writes square 512 / 768 / 1024 copies with their captions to a new folder (your originals aren't changed).",
+              "<b>Image to image has its own LoRAs card</b>: add, remove and weigh LoRAs right there (the same LoRAs as Create, since both tabs use one model).",
+              "<b>Create: ✕ on each picture</b> takes it off the screen (it stays in the Library), and <b>clear all</b> empties the screen. The model that made each picture is written along its bottom.",
+              "<b>Tools results stay in Tools</b> (and the Library): enhanced, face-restored and depth pictures no longer appear among Create's pictures.",
+              "<b>Library → Hide People</b>, next to Hide NSFW: hides pictures made with models or LoRAs you tagged ● People.",
+              "<b>Civitai</b>: <i>civitai.red</i> links and download links work; when a firewall or VPN blocks the app (“Bad file descriptor”), it tries again through macOS's own downloader by itself. <b>⟳ Retry</b> and <b>Clear</b> buttons, and a slow or blocked Civitai no longer makes the rest of the app stop responding.",
+              "<b>“Your Mac is short of memory”</b> note: when other apps have already taken the memory, the app says so before a picture starts (that, not the model, is what made SDXL take 30–100 s a step on an 8 GB Mac with browsers open).",
+              "<b>■ Stop stops right away</b>: no more pressing <b>Force stop now</b>. If the picture hasn't stopped within a couple of seconds, the app force-stops the engine by itself (waiting jobs carry on). Training still finishes its step first, so it can save what it learned.",
+              "Tools: <b>❚❚ Pause</b> and <b>■ Stop</b> sit side by side, centred, while enhancing." ] },
             { h: "🧬 Merge LoRAs and 🔤 train embeddings", items: [
               "<b>Train → Merge LoRAs</b>: combine two or more LoRAs for the same model type into one, each at its own weight. <b>Exact</b> keeps every detail; <b>Smaller</b> makes a much smaller file that's a close match.",
               "<b>Train → Embedding</b>: teach an SD 1.5 model one new word from 5–20 pictures (textual inversion). The result is a tiny file you use by typing its name. Pause / Stop work as usual." ] },
@@ -363,6 +387,7 @@ const protoartApp = createApp({
               "Pick a <b>model</b> (filter by type or search). Not downloaded yet? It downloads once, then works offline.",
               "Type a <b>prompt</b> describing what you want, and a <b>negative prompt</b> for what to avoid.",
               "Press <b>Generate</b> or ⌘↵. Press it again to queue more jobs; each one shows its time left.",
+              "Your new pictures appear on the right with the <b>model that made them</b> along the bottom. <b>✕</b> (point at a picture) takes it off the screen and <b>clear all</b> empties it; they all stay in the Library. Pictures from Tools (enhanced, face-restored) stay in Tools and the Library.",
               "<b>Too crowded?</b> Click a section's name (Model, Prompt, LoRAs, Image prompt, Size, steps &amp; seed, Extras) to fold it down to one line, like DiffusionBee; the folded line still shows what's set (for example <i>512×768 · 25 steps · CFG 7</i>). Click again to open it. <b>collapse all / expand all</b> at the top does every section; the app remembers what you folded." ] },
             { h: "Knobs, switches & meters", items: [
               "<b>Knobs</b> (Steps, Guidance, Images): <b>drag</b> up or right to turn up, down or left to turn down; hold <b>Shift</b> while dragging for fine control. You can also <b>scroll</b> over a knob, or click it and use the <b>arrow keys</b> (Page Up / Page Down jump further, Home / End go to the lowest / highest).",
@@ -446,7 +471,8 @@ const protoartApp = createApp({
               "Drop a picture, or use <b>🖼 Img2img</b> on any Library image.",
               "The <b>model</b> for Image to image is chosen at the top of the window, next to the brand plate.",
               "<b>Change strength</b>: low (0.3) keeps most of the original, high (0.8+) changes a lot.",
-              "Pick the model right here; steps and CFG are next to it." ] },
+              "Pick the model right here; steps and CFG are next to it.",
+              "<b>LoRAs</b> card: add a LoRA (search the list), set its weight with the slider, ✕ removes it. They're the same LoRAs as in Create (both tabs share the model); trigger words and 🎲 Random LoRAs are in Create." ] },
             { h: "🖌 Inpaint", items: [
               "Choose <b>Inpaint</b>, paint over what you want to change (Paint / Erase, brush size, invert, clear), and describe what should be there.",
               "<b>Change strength</b> 0.7–0.9 replaces what's painted; 1.0 starts from scratch there. <b>Edge softness</b> blends the edges.",
@@ -472,6 +498,7 @@ const protoartApp = createApp({
           sections: [
             { h: "⏻ Engine: force stop & force quit", items: [
               "Both buttons are at the top of the window when the Tools tab is open.",
+              "<b>■ Stop</b> now really stops: if the picture hasn't stopped by itself within a couple of seconds (one step can take a minute on a busy Mac), the engine is force-stopped and restarted for you, and the jobs still waiting carry on. Training is the exception: its Stop finishes the current step so it can save what it learned, and <b>Force stop now</b> appears if you don't want to wait.",
               "<b>⟲ Force stop &amp; restart</b> stops the engine at once (it doesn't wait for the current step), frees all its memory and starts it again. The job that was running is lost; waiting jobs are added back.",
               "<b>⏻ Force quit</b> closes the whole app immediately, even in the middle of a job (it asks once to confirm).",
               "Use them when a picture takes far too long, the Mac feels frozen, or ■ Stop doesn't respond. Pictures, settings and models are never affected." ] },
@@ -530,6 +557,11 @@ const protoartApp = createApp({
               "Pick a <b>trigger word</b> that isn't a real word (e.g. <i>pxlstyle</i>): you'll type it to use the LoRA.",
               "Choose <b>what you're teaching</b> (character / person, object, art style, pose / concept): the app then shows how many pictures to collect and what to vary.",
               "<b>Picture size</b> depends on the base model: <b>512 × 512</b> for SD 1.5, <b>1024 × 1024</b> for SDXL and ERNIE (portrait and landscape shapes work too). Each picture should be at least that size on its short side; the app checks your folder and tells you which ones are too small." ] },
+            { h: "Square framing: crop or keep whole", items: [
+              "Training works on squares. Pictures that aren't square get an amber note in <b>Square framing</b> (below the training settings), and each tile shows exactly the square the training will see.",
+              "Under each picture choose <b>Crop · centre</b> (the default), <b>top</b>, <b>bottom</b>, <b>left</b> or <b>right</b> to pick the part that's kept, or <b>Keep whole</b> to fit the whole picture in (the sides are filled with a soft blur of it). <b>All pictures:</b> sets every picture at once; <b>keep the non-square ones whole</b> changes only those.",
+              "Your choices are saved with the folder (a small hidden file next to the pictures) and used by LoRA and embedding training. Your picture files aren't changed.",
+              "<b>Save copies</b> writes square 512, 768 or 1024 px copies (with their captions) into a new folder next to yours, to keep or use elsewhere; <b>Use that folder</b> trains on them." ] },
             { h: "Captions", items: [
               "Let the app caption the images (tags for anime/illustration, sentences for photos), then edit them.",
               "Describe what is <i>not</i> the thing you're teaching; the trigger word stands for what is." ] },
@@ -545,7 +577,8 @@ const protoartApp = createApp({
             { h: "Finding images", items: [
               "Search by prompt, filter by model, version type (originals, enhanced, face-restored…) or ★ starred.",
               "<b>Search by seed</b>: type a seed in the amber <b>seed</b> box to see only pictures made with it, or type a number in the search box to find that seed and prompts containing it. In a picture's details, <b>find all with this seed</b> does the same.",
-              "<b>Filter by LoRA</b> shows images made with particular LoRAs; clicking a LoRA in an image's details does the same." ] },
+              "<b>Filter by LoRA</b> shows images made with particular LoRAs; clicking a LoRA in an image's details does the same.",
+              "<b>Hide NSFW</b> covers pictures flagged NSFW; <b>Hide People</b> hides pictures made with a model or LoRA you tagged ● People (the same switch as in Create and Settings)." ] },
             { h: "Working with an image", items: [
               "Click an image to see its prompt and settings; <b>↺ Reuse prompt</b> puts just its prompt in Create (your model and settings stay), <b>Use these settings</b> loads everything. Hovering a picture shows <b>↺ Prompt</b> too.",
               "Restore faces, enhance & upscale, or <b>🖼 Send to Image to image</b> straight from there.",
@@ -668,6 +701,7 @@ const protoartApp = createApp({
               "Paused pictures keep their memory. On an 8 GB Mac, if other apps feel slow while paused, <b>■ Stop</b> instead frees it." ] },
             { h: "Generating is very slow", items: [
               "The first picture after opening the app is slower (the model loads into memory); the next ones are faster.",
+              "<b>“Your Mac is short of memory”</b> above the pictures: other apps (a browser with many tabs, Discord, other image apps) are holding the memory, so the Mac moves the model to the disk and every step waits for it. Quitting them makes SDXL several times faster (on an 8 GB Mac, about 30–100 s a step with browsers open, a handful without). The note's ✕ hides it.",
               "On 8 GB Macs: <b>SD 1.5 at 512 px</b> is quickest, <b>⚡ Fast mode</b> cuts steps to 6, ERNIE runs best on the fast engine at <b>Medium (768)</b>. Quit other apps so macOS doesn't swap.",
               "Hi-res fix, the face detailer and the image prompt each add time; turn them off for quick drafts. Turning off the live preview (Settings) helps a little." ] },
             { h: "🎚 Adjust: “No handler registered” or the preview stays black", items: [
@@ -709,6 +743,7 @@ const protoartApp = createApp({
               "<b>Before your first download:</b> sign in. Civitai only lets signed-in accounts download most files, so save your free API key once (the box in the Civitai card, or Models tab → Add from Civitai → Civitai API key). Without it you'll see the first error below.",
               "<b>“Civitai only lets signed-in accounts download this one”</b> (HTTP 401), <b>“wants you to log in”</b> or <b>“sent a page instead of the file”</b>: Civitai now asks for a free account for most downloads. A box opens right in the Civitai card: sign in on civitai.com → <b>Account settings</b> → <b>API Keys</b> → <b>Add API key</b>, copy it, paste it in the box and press <b>Save &amp; download</b>. You only do this once (it's kept on this Mac, sent only to civitai.com; also in Models tab → Add from Civitai → Civitai API key).",
               "<b>“Civitai turned down your API key”</b>: the key is mistyped, deleted or expired; make a new one and paste it. If a new key is refused too, open the model's page on civitai.com while signed in: Early Access models (supporters only for a while) and some with a licence to accept can't be downloaded until then.",
+              "<b>“Couldn't reach Civitai: the connection was blocked on this Mac”</b> (the old “[Errno 9] Bad file descriptor”): a firewall app (Little Snitch, LuLu…) or a VPN stopped the app. It already retried through macOS's own downloader; allow Protoart Studio and curl to reach civitai.com in that app, then press <b>⟳ Retry</b>. <b>Clear</b> starts over with an empty link.",
               "<b>“Couldn't reach Civitai”</b>: no internet, a VPN or a firewall app is blocking it, or Strict offline mode is on (Settings → Privacy). <b>“Civitai answered with an error (500/502/503)”</b>: Civitai itself is busy or down; try again in a few minutes.",
               "<b>“The download stopped before the end”</b>: the connection dropped. Press <b>⤓ Download</b> again: it carries on where it stopped. <b>“… is already in …”</b>: you have that file already; it's never overwritten.",
               "<b>“isn't an embedding the app can read”</b>: the file Civitai sent wasn't an SD 1.5 / SDXL embedding, so it wasn't kept.",
@@ -771,7 +806,7 @@ const protoartApp = createApp({
                            (() => { const t = loadJSON("protoart.train", {}); delete t.items; delete t.result; delete t.lossHistory; delete t.dirty; return t; })()),
       merge: { family: "", items: [], q: "", mode: "exact", rank: 32, name: "", result: null, error: "", busy: false },
       hub: { source: "", busy: false, error: "", found: null, needToken: false, token: "", tokenSet: false, msg: "" },
-      civ: { url: "", busy: false, error: "", found: null, dest: "", key: "", keySet: false, msg: "", needKey: "" },  // From Civitai     // {job, image, src}
+      civ: { url: "", busy: false, error: "", found: null, dest: "", key: "", keySet: false, msg: "", needKey: "", last: "" },  // From Civitai     // {job, image, src}
       trigInfo: {},          // lora name -> {found, suggested, saved}
       trigEdit: { name: "", text: "" },
       embeddings: [],
@@ -860,6 +895,22 @@ const protoartApp = createApp({
     },
     libModels() {
       return this.models.filter((m) => this.safeModel(m));
+    },
+    // Library pictures, minus the ones made with a model or LoRA you tagged ● People while Hide People is on
+    libShown() {
+      if (!this.opts.hide_people) return this.lib.results;
+      const pm = new Set(this.models.filter((m) => m.people).map((m) => m.id));
+      const pl = new Set(this.loras.filter((l) => l.people).map((l) => l.name));
+      if (!pm.size && !pl.size) return this.lib.results;
+      return this.lib.results.filter((r) => !pm.has(r.model) && !(r.loras || []).some((l) => pl.has(l.name)));
+    },
+    libPeopleHidden() {
+      return this.lib.results.length - this.libShown.length;
+    },
+    libLoraChips() {
+      if (!this.opts.hide_people) return this.libLoras;
+      const pl = new Set(this.loras.filter((l) => l.people).map((l) => l.name));
+      return this.libLoras.filter((l) => !pl.has(l.name));
     },
     markedItems() {
       // models and LoRAs you marked yourself (Settings → Content filter)
@@ -991,6 +1042,11 @@ const protoartApp = createApp({
     },
     shownLoras() {
       return this.filteredLoras.slice(0, 200); // render at most 200 rows at once (keeps older Macs smooth)
+    },
+    // Image to image's own LoRA picker (the same LoRAs as Create: both tabs use one model and one LoRA list)
+    i2iShownLoras() {
+      const q = this.i2iLora.q.trim().toLowerCase();
+      return this.addableLoras.filter((l) => !q || l.name.toLowerCase().includes(q)).slice(0, 200);
     },
     moreLoras() {
       return Math.max(0, this.filteredLoras.length - 200);
@@ -1491,7 +1547,10 @@ const protoartApp = createApp({
 
   async mounted() {
     window.addEventListener("keydown", (e) => this.adjKey(e));  // Adjust: \ flips Edited / Original
-    setInterval(() => { if (this.queue.length || Object.keys(this.stopping).length) this.now = Date.now(); }, 1000);
+    setInterval(() => {
+      if (this.queue.length || Object.keys(this.stopping).length) this.now = Date.now();
+      this.stopForGood();
+    }, 500);
     listeners.push(this.onEvent);
     window.bee.onLog((s) => {
       // home folders (your username) are shown as ~, like the saved log
@@ -1533,6 +1592,10 @@ const protoartApp = createApp({
         for (const id of Object.keys(this.stopping)) if (!ids.has(Number(id))) delete this.stopping[id];
       }
       if (m.type === "skipped") this.livePreview = null;
+      if (m.type === "memory_low") {
+        this.memLow = { free: m.free_gb, swap: m.swap_gb, sdxl: m.family === "sdxl" };
+        this.memLowShown = true;
+      }
       if (m.type === "train_status") {
         this.train.secPerStep = m.sec_per_step;
         const tj = this.trainJob;
@@ -1544,7 +1607,11 @@ const protoartApp = createApp({
       }
       if (m.type === "preview") this.livePreview = { job: m.job, image: m.image, src: m.src };
       if (m.type === "image") {
-        this.session.unshift(m.record);
+        // Tools results (enhance, face restore, depth) stay in Tools and the Library, not in Create's pictures
+        const fromJob = this.queue.find((j) => j.id === m.job);
+        const toolKinds = ["enhanced", "faces", "depth", "edited"];
+        const fromTools = fromJob ? fromJob.cmd === "postprocess" : toolKinds.includes(m.record.kind);
+        if (!fromTools) this.session.unshift(m.record);
         if (m.record.model && m.record.kind === "generated") this.readyModel = m.record.model;
         if (m.record.nsfw && this.hideNsfw) this.status = "A new picture is covered by the NSFW filter (click it to look)";
         this.livePreview = null;
@@ -1783,9 +1850,9 @@ const protoartApp = createApp({
     async civInspect() {
       const url = this.civ.url.trim();
       if (!url) return;
-      Object.assign(this.civ, { busy: true, error: "", found: null, msg: "" });
+      Object.assign(this.civ, { busy: true, error: "", found: null, msg: "", needKey: "", last: "inspect" });
       try {
-        const f = await call("civitai_inspect", { url });
+        const f = await callWithin(90000, "civitai_inspect", { url });
         this.civ.found = f;
         this.civ.dest = (f.destinations[0] || {}).path || "";
       } catch (e) {
@@ -1796,10 +1863,21 @@ const protoartApp = createApp({
     civJob() {
       return this.queue.find((j) => j.cmd === "civitai_download");
     },
+    // after an error: do the same thing again (Check, or Download if the model was already found)
+    civRetry() {
+      this.civ.error = "";
+      if (this.civ.last === "download" && this.civ.found) return this.civDownload();
+      return this.civInspect();
+    },
+    // start over: empty link, no card, no message
+    civClear() {
+      Object.assign(this.civ, { url: "", busy: false, error: "", found: null, dest: "", msg: "", needKey: "", last: "" });
+      this.$nextTick(() => this.$refs.civInput?.focus());
+    },
     async civDownload() {
       const f = this.civ.found;
       if (!f) return;
-      Object.assign(this.civ, { msg: "", error: "", needKey: "" });
+      Object.assign(this.civ, { msg: "", error: "", needKey: "", last: "download" });
       let r = null;
       try {
         r = await call("civitai_download", { url: this.civ.url.trim(), dest: this.civ.dest, name: f.name });
@@ -1824,7 +1902,7 @@ const protoartApp = createApp({
     },
     async civSaveKey(clear, thenDownload = false) {
       try {
-        const r = await call("civitai_key_set", { key: clear ? "" : this.civ.key, check: !clear });
+        const r = await callWithin(90000, "civitai_key_set", { key: clear ? "" : this.civ.key, check: !clear });
         this.civ.keySet = r.set;
         this.civ.key = "";
         if (r.ok === false) {
@@ -2511,7 +2589,18 @@ const protoartApp = createApp({
       return Math.ceil((text || "").trim().split(/\s+/).filter(Boolean).length * 1.3);
     },
     modelLabel(id) {
-      return this.models.find((m) => m.id === id)?.label || id;
+      const m = this.models.find((m) => m.id === id);
+      if (m) return m.label;
+      // a model that's no longer listed (or your own file): show its file name, not the whole path
+      const s = String(id || "");
+      return s.replace(/^(local|file|hub):/, "").split("/").pop() || s;
+    },
+    // Create: take a picture off this screen (it stays in the Library)
+    hideFromSession(r) {
+      this.session = this.session.filter((x) => x.id !== r.id);
+    },
+    clearSession() {
+      this.session = [];
     },
 
     // -------------------------------------------------------------- generate
@@ -2779,7 +2868,7 @@ const protoartApp = createApp({
       const job = this.queue.find((j) => j.id === id);
       if (job?.state === "running") {
         this.stopping = { ...this.stopping, [id]: Date.now() };
-        this.status = "Stopping after the current step…";
+        this.status = "Stopping…";
       }
       call("cancel_job", { job_id: id });
     },
@@ -2808,6 +2897,53 @@ const protoartApp = createApp({
         this.train.items = [];
         this.error = e.message;
       }
+    },
+    // ----------------------------------------------- Train: how each picture becomes a square
+    trainNotSquare() {
+      return this.train.items.filter((it) => it.width && it.height && it.width !== it.height).length;
+    },
+    frameStyle(it) {
+      const pos = { center: "50% 50%", top: "50% 0%", bottom: "50% 100%", left: "0% 50%", right: "100% 50%" }[it.fit || "center"];
+      return it.fit === "pad" ? { objectFit: "contain" } : { objectFit: "cover", objectPosition: pos };
+    },
+    async setFrame(it, fit) {
+      it.fit = fit;
+      await this.saveFraming();
+    },
+    async setFrameAll(fit, onlyNonSquare) {
+      for (const it of this.train.items) {
+        if (!onlyNonSquare || (it.width !== it.height)) it.fit = fit;
+      }
+      await this.saveFraming();
+    },
+    async saveFraming() {
+      const framing = Object.fromEntries(this.train.items.map((it) => [it.name, it.fit || "center"]));
+      try {
+        await call("train_framing_save", { folder: this.train.folder, framing });
+        this.frame.msg = "Framing saved · training uses it";
+      } catch (e) {
+        this.frame.msg = "";
+        this.error = e.message;
+      }
+    },
+    async makeSquareCopies() {
+      const framing = Object.fromEntries(this.train.items.map((it) => [it.name, it.fit || "center"]));
+      Object.assign(this.frame, { busy: true, msg: "", copied: null });
+      try {
+        const r = await call("train_square_copies", { folder: this.train.folder, framing, size: this.frame.size });
+        this.frame.copied = r;
+        this.frame.msg = `Saved ${r.count} square copies (${this.frame.size}×${this.frame.size}) with their captions`;
+      } catch (e) {
+        this.error = e.message;
+      }
+      this.frame.busy = false;
+    },
+    async useSquareCopies() {
+      if (!this.frame.copied) return;
+      this.train.folder = this.frame.copied.folder;
+      this.frame.copied = null;
+      this.frame.msg = "";
+      await this.trainScan(false);
     },
     onTrainModelChange() {
       const ram = this.sys.ram_gb || 0;
@@ -2982,13 +3118,29 @@ const protoartApp = createApp({
       this.status = "Skipping this image…";
     },
     stopAll() {
+      this.stopAllAt = Date.now();
       if (this.runningJob) this.stopping = { ...this.stopping, [this.runningJob.id]: Date.now() };
       call("cancel_all");
       this.status = "Stopping…";
     },
-    canForceStop(job) {
+    // Stop means stop: a job that hasn't stopped on its own a moment after Stop (a step can take a minute on
+    // a busy Mac) is force-stopped automatically: the engine restarts and the jobs still waiting carry on.
+    // Training is left to finish its step, because its Stop saves what it learned so far.
+    stopForGood() {
+      const job = this.runningJob;
+      if (!job || this.forcing) return;
       const t = this.stopping[job.id];
-      return job.state === "running" && t && this.now - t > 4000;
+      if (!t || Date.now() - t < STOP_GRACE_MS) return;
+      if (["train_lora", "train_embedding"].includes(job.cmd)) return;
+      this.forcing = true;
+      this.forceStop(!this.stopAllAt || Date.now() - this.stopAllAt > 10000)
+        .finally(() => { this.forcing = false; this.stopAllAt = 0; });
+      this.status = "Stopped";
+    },
+    canForceStop(job) {
+      // only training still offers the extra button (everything else is force-stopped by itself)
+      const t = this.stopping[job.id];
+      return job.state === "running" && t && this.now - t > 4000 && ["train_lora", "train_embedding"].includes(job.cmd);
     },
     // The engine (Python backend) stopped without being asked to. Say why in plain words and, unless it
     // keeps happening, start it again by itself and re-add the jobs that were still waiting.
@@ -3016,9 +3168,9 @@ const protoartApp = createApp({
       this.quitAsk = false;
       if (window.bee.forceQuit) await window.bee.forceQuit();
     },
-    async forceStop() {
+    async forceStop(keepWaiting = true) {
       // Kill the engine process immediately (frees all its memory), restart it, and re-add waiting jobs.
-      const waiting = this.queue.filter((j) => j.state === "queued").map((j) => jobArgs.get(j.id)).filter(Boolean);
+      const waiting = !keepWaiting ? [] : this.queue.filter((j) => j.state === "queued").map((j) => jobArgs.get(j.id)).filter(Boolean);
       for (const [id, p] of pending) {
         if (jobArgs.has(id)) {
           pending.delete(id);
@@ -4182,7 +4334,7 @@ const protoartApp = createApp({
       else this.selected.push(r.id);
     },
     selectAll() {
-      this.selected = this.lib.results.map((r) => r.id);
+      this.selected = this.libShown.map((r) => r.id);
     },
     exitSelect() {
       this.selectMode = false;

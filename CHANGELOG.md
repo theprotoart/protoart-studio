@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.1.0
+
+From the first testers' notes:
+
+- Train → Square framing: per-picture Crop centre / top / bottom / left / right or Keep whole (blurred fill), one by one
+  or for all (or only the non-square ones); tiles preview exactly what training sees. Saved per folder in
+  `.protoart_framing.json` and used by LoRA (SD 1.5 / SDXL / ERNIE fast engine) and embedding training
+  (`trainer.square`). "Save copies" writes square 512 / 768 / 1024 PNGs with captions to a new folder beside it
+- Image to image: its own LoRAs card (add / weight / remove; shares Create's LoRA list, as both tabs use one model)
+- Create: ✕ on each picture removes it from the screen (kept in the Library) and "clear all"; the model that made each
+  picture is shown along its bottom. Results of Tools jobs (enhance, faces, depth) no longer appear in Create
+- Library: Hide People switch (hides pictures made with ● People models or LoRAs) next to Hide NSFW
+- Tools: Pause and Stop grouped in one column (Stop was pushed onto a cramped second row)
+- Civitai: civitai.red links; a firewall / VPN block ("[Errno 9] Bad file descriptor", "connection abort") is retried
+  once through macOS's curl; plain-language message; ⟳ Retry and Clear; Check and key checks run beside the command
+  reader, so a slow or blocked site no longer freezes the app (they used to block every other command), and they no
+  longer switch the whole engine online; the window gives up after 90 s instead of waiting forever
+- "Your Mac is short of memory" note before SD 1.5 / SDXL pictures on Macs under 16 GB when little memory is free and
+  several GB are already swapped (an 8 GB Mac with browsers open ran SDXL at 30-100 s a step)
+- SDXL 8-bit: after the first-time conversion on Macs under 24 GB, the model is reloaded from the saved compact copy
+  (conversion leftovers no longer linger); Image to image / inpainting pipelines no longer print progress bars to the log
+- Stop: a job that hasn't stopped 2.5 s after Stop / Stop all is force-stopped automatically (engine restart; waiting
+  jobs re-added, or dropped after Stop all). Training keeps the graceful stop (it saves a checkpoint) and the Force stop
+  now button
+- Version 1.1.0
+
 ## 0.3.0
 
 - Train → Merge LoRAs (lora_merge.py): two or more LoRAs of one model type into one, each at its own weight. Exact

@@ -759,15 +759,26 @@ def handle_quick(cmd, a):
         items = [it for it in (a.get("items") or []) if isinstance(it, dict)
                  and os.path.realpath(os.path.dirname(str(it.get("path", "")))) in _train_folders]
         return trainer.save_captions(items)
+    if cmd in ("train_framing_save", "train_square_copies"):  # Train tab: how each picture is cropped to a square
+        import trainer
+        folder = os.path.realpath(str(a.get("folder")))
+        if folder not in _train_folders:
+            raise ValueError("Open the training folder in the Train tab first.")
+        framing = a.get("framing") if isinstance(a.get("framing"), dict) else {}
+        if cmd == "train_framing_save":
+            return {"saved": trainer.save_framing(folder, framing)}
+        res = int(a.get("size") or 512)
+        if res not in (512, 768, 1024):
+            raise ValueError("Pick 512, 768 or 1024.")
+        trainer.save_framing(folder, framing)
+        r = trainer.save_square_copies(folder, res, framing)
+        _train_folders.add(os.path.realpath(r["folder"]))
+        return r
     if cmd == "civitai_inspect":  # Settings → Models → From Civitai → Check
         if net.strict:
             raise ValueError("Strict offline mode is on (Settings → Privacy), so Civitai can't be checked.")
-        was = net.is_online()
-        net.set_online(True)  # (also routes through curl when a firewall blocks Python)
-        try:
-            info = civitai.inspect(a.get("url"), library.get_setting("civitai_token"))
-        finally:
-            net.set_online(was)
+        net.ensure_downloads_work()  # route through curl when a firewall blocks Python (no other change)
+        info = civitai.inspect(a.get("url"), library.get_setting("civitai_token"))
         info["destinations"] = civitai_destinations(info)
         return info
     if cmd == "civitai_key_get":
@@ -779,8 +790,7 @@ def handle_quick(cmd, a):
         library.set_setting("civitai_token", key or None)
         if key and a.get("check"):
             # check it with Civitai straight away (a signed-in-only request), so a wrong key shows up here
-            was = net.is_online()
-            net.set_online(True)
+            net.ensure_downloads_work()
             try:
                 civitai._get_json(civitai.API + "/models?limit=1&favorites=true", key)
             except ValueError as e:
@@ -788,8 +798,6 @@ def handle_quick(cmd, a):
                 if "log in" in msg:
                     msg = "Saved, but Civitai didn't accept this key: it may be mistyped or deleted. Copy it again from civitai.com (Account settings → API Keys)."
                 return {"set": True, "ok": False, "msg": msg}
-            finally:
-                net.set_online(was)
             return {"set": True, "ok": True}
         return {"set": bool(key)}
     if cmd == "hf_token_get":
@@ -1370,14 +1378,27 @@ def reader():
             # Image -> prompt is quick and the user is waiting on it, so it jumps the queue.
             jobs.put(job, front=cmd in ("interrogate", "enhance_prompt", "control_preview"))
             continue
-        try:
-            emit({"type": "result", "id": mid, "data": handle_quick(cmd, a)})
-        except KeyError:
-            emit({"type": "error", "id": mid, "msg": f"Unknown command {cmd}"})
-        except Exception as e:
-            log(traceback.format_exc())
-            emit({"type": "error", "id": mid, "msg": str(e)})
+        if cmd in NET_QUICK:  # these wait on the internet: never hold up the other buttons while they do
+            threading.Thread(target=run_quick, args=(mid, cmd, a), daemon=True).start()
+            continue
+        run_quick(mid, cmd, a)
     jobs.close()  # stdin closed: the app quit
+
+
+# quick commands that talk to a website (up to ~25 s if it's slow or blocked): run beside the reader, so the
+# app stays responsive (an unanswered Check used to leave every other button waiting)
+NET_QUICK = ("civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
+             "train_square_copies")  # (that one isn't online, but can take a while for a big folder)
+
+
+def run_quick(mid, cmd, a):
+    try:
+        emit({"type": "result", "id": mid, "data": handle_quick(cmd, a)})
+    except KeyError:
+        emit({"type": "error", "id": mid, "msg": f"Unknown command {cmd}"})
+    except Exception as e:
+        log(traceback.format_exc())
+        emit({"type": "error", "id": mid, "msg": str(e)})
 
 
 def convert_tdict_job(a, job_id):

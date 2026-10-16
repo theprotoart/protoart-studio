@@ -145,7 +145,7 @@ def train(engine, args, emit, cancel_event, out_dir):
                     img = trainer._open_rgb(it["path"])
                 except Exception:
                     continue
-                img = ImageOps.fit(img, (res, res), Image.LANCZOS)
+                img = trainer.square(img, res, it.get("fit"))
                 for v in ([img, ImageOps.mirror(img)] if flip else [img]):
                     x = torch.from_numpy(np.asarray(v, dtype=np.float32) / 127.5 - 1.0).permute(2, 0, 1).unsqueeze(0)
                     dist = vae.encode(x.to(device, wdtype)).latent_dist

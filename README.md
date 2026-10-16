@@ -20,7 +20,8 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   🎚 Adjust (Lightroom / Color Efex-style sliders and filters on the GPU), file conversion
 - **Library:** search by prompt, seed, model or LoRA; stars; ↺ reuse a picture's prompt or settings; batch edit &
   export (resize, convert, rename, Adjust looks); 🗜 compress to the smallest file that still looks the same
-- **Train:** LoRA training (SD 1.5 / SDXL; ERNIE on 32 GB+ Macs), embedding training (SD 1.5), and merging LoRAs of
+- **Train:** LoRA training (SD 1.5 / SDXL; ERNIE on 32 GB+ Macs), embedding training (SD 1.5), square crop / keep-whole
+  framing of each training picture (one by one or all at once), and merging LoRAs of
   the same type into one
 - **Models tab:** download models, add your own files or folders, Civitai and Hugging Face downloads (with optional
   sign-in keys, kept only on your Mac), ★ favourites, and a "Fix a type" tool for mislabelled files

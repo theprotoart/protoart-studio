@@ -135,6 +135,9 @@ def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, c
             img = ImageOps.exif_transpose(Image.open(__import__("pictures").prepare(it["path"]))).convert("RGB")
         except Exception:
             continue
+        if it.get("fit") and it["fit"] != "center":  # framed by hand in the Train tab: train on exactly that square
+            import trainer
+            img = trainer.square(img, res, it["fit"])
         cap = caption_for(it, trigger)
         for k, v in enumerate([img, ImageOps.mirror(img)] if flip else [img]):
             stem = f"{i:04d}_{k}"

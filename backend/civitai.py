@@ -20,7 +20,7 @@ import urllib.parse
 import urllib.request
 
 API = "https://civitai.com/api/v1"
-UA = "ProtoartStudio/0.3 (+https://civitai.com)"
+UA = "ProtoartStudio/1.1 (+https://civitai.com)"
 
 # Civitai "baseModel" -> (family, flavour)
 _BASES = [
@@ -53,7 +53,7 @@ def parse_ref(text):
         return None, int(m.group(1))
     m = re.search(r"modelVersionId=(\d+)", t)
     v = int(m.group(1)) if m else None
-    m = re.search(r"civitai\.(?:com|green)/models/(\d+)", t)
+    m = re.search(r"civitai\.(?:com|green|red)/models/(\d+)", t)
     if m:
         return int(m.group(1)), v
     if t.isdigit():
@@ -62,12 +62,35 @@ def parse_ref(text):
                      "(https://civitai.com/models/…).")
 
 
+def _urlopen(req, timeout):
+    """urllib.request.urlopen, but when a firewall/VPN blocks Python's connection ('[Errno 9] Bad file
+    descriptor'), try once more through macOS's curl (net.use_curl_for_urllib)."""
+    try:
+        return urllib.request.urlopen(req, timeout=timeout)
+    except urllib.error.HTTPError:
+        raise
+    except (urllib.error.URLError, OSError) as e:
+        import net
+        if not net.is_blocked_connection(e) or not net.use_curl_for_urllib():
+            raise
+        return urllib.request.urlopen(req, timeout=timeout)
+
+
+def _reach_error(e):
+    reason = getattr(e, "reason", e)
+    if any(t in str(reason).lower() for t in ("bad file descriptor", "connection abort", "curl couldn't connect")):
+        return ValueError("Couldn't reach Civitai: the connection was blocked on this Mac. If you use a firewall "
+                          "(Little Snitch, LuLu…) or a VPN, allow Protoart Studio (and curl) to connect to "
+                          "civitai.com, then press Retry.")
+    return ValueError(f"Couldn't reach Civitai ({reason}). Check your internet connection, then press Retry.")
+
+
 def _get_json(url, token=None, timeout=25):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
     if token:
         req.add_header("Authorization", f"Bearer {token}")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with _urlopen(req, timeout) as r:
             return json.loads(r.read().decode("utf-8", "replace"))
     except urllib.error.HTTPError as e:
         if e.code == 404:
@@ -75,8 +98,8 @@ def _get_json(url, token=None, timeout=25):
         if e.code in (401, 403):
             raise ValueError("Civitai wants you to log in for this one: add your Civitai API key in Settings → Models.")
         raise ValueError(f"Civitai answered with an error ({e.code}). Try again in a moment.")
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
-        raise ValueError(f"Couldn't reach Civitai: {getattr(e, 'reason', e)}")
+    except (urllib.error.URLError, TimeoutError, OSError, ConnectionError) as e:
+        raise _reach_error(e)
 
 
 def _pick_file(files):
@@ -182,7 +205,7 @@ def download(info, dest_dir, token=None, progress=None, cancelled=lambda: False,
     if have:
         req.add_header("Range", f"bytes={have}-")
     try:
-        resp = urllib.request.urlopen(req, timeout=60)
+        resp = _urlopen(req, 60)
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
             if token:
@@ -197,8 +220,8 @@ def download(info, dest_dir, token=None, progress=None, cancelled=lambda: False,
             resp = None
         else:
             raise ValueError(f"Civitai answered with an error ({e.code}).")
-    except (urllib.error.URLError, TimeoutError, OSError) as e:
-        raise ValueError(f"Couldn't reach Civitai: {getattr(e, 'reason', e)}")
+    except (urllib.error.URLError, TimeoutError, OSError, ConnectionError) as e:
+        raise _reach_error(e)
     if resp is not None:
         ctype = resp.headers.get("Content-Type", "")
         if "text/html" in ctype or "application/json" in ctype:

@@ -96,3 +96,41 @@ class LocalModelTests(unittest.TestCase):
             self.assertEqual((info["family"], info["kind"]), ("ernie", "folder"))
             spec = model_hub.local_to_spec(info)
             self.assertEqual(spec["local_dir"], str(folder))
+
+
+class FramingTests(unittest.TestCase):
+    """Train tab: crop each picture to a square (centre/top/bottom/left/right) or keep it whole (pad)."""
+
+    def test_square_fits(self):
+        import trainer
+        from PIL import Image
+        img = Image.new("RGB", (300, 100), (255, 0, 0))
+        img.paste((0, 0, 255), (0, 0, 100, 100))  # blue on the left third
+        self.assertEqual(trainer.square(img, 64).size, (64, 64))
+        self.assertEqual(trainer.square(img, 64, "left").getpixel((32, 32)), (0, 0, 255))
+        self.assertEqual(trainer.square(img, 64, "right").getpixel((32, 32)), (255, 0, 0))
+        padded = trainer.square(img, 60, "pad")
+        self.assertEqual(padded.size, (60, 60))
+        self.assertEqual(padded.getpixel((5, 30))[2], 255)  # whole picture kept: blue at the left edge
+
+    def test_framing_saved_and_copies(self):
+        import tempfile
+        from pathlib import Path
+        import trainer
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp) / "set"
+            d.mkdir()
+            for n in ("a", "b", "c"):
+                Image.new("RGB", (200, 120), (10, 20, 30)).save(d / f"{n}.png")
+            (d / "a.txt").write_text("a cat\n")
+            self.assertEqual(trainer.save_framing(d, {"a.png": "top", "b.png": "center", "zzz.png": "pad"}), 1)
+            items = {i["name"]: i["fit"] for i in trainer.scan_dataset(d)}
+            self.assertEqual(items, {"a.png": "top", "b.png": "center", "c.png": "center"})
+            r = trainer.save_square_copies(d, 64)
+            out = Path(r["folder"])
+            self.assertEqual(r["count"], 3)
+            self.assertEqual(Image.open(out / "a.png").size, (64, 64))
+            self.assertEqual((out / "a.txt").read_text().strip(), "a cat")
+            self.assertEqual(trainer.save_framing(d, {}), 0)
+            self.assertFalse((d / trainer.FRAMING_FILE).exists())

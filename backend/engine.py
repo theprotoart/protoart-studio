@@ -870,6 +870,21 @@ class Engine:
                     except Exception as err:  # keep going; we'll just convert again next time
                         shutil.rmtree(dest, ignore_errors=True)
                         print("[engine] couldn't save quantized copy:", err, flush=True)
+                    else:
+                        if spec.get("quantize_unet") and 0 < ram < 24:
+                            # The conversion leaves the full-size original's memory behind for a while; on smaller
+                            # Macs that made the first pictures crawl (the Mac swapped to disk). Start again from
+                            # the compact copy just saved: exactly what every later load uses.
+                            del pipe
+                            gc.collect()
+                            try:
+                                if t.backends.mps.is_available():
+                                    t.mps.empty_cache()
+                            except Exception:
+                                pass
+                            import sdnq  # noqa: F401  needed to read the saved 8-bit weights
+                            self.emit({"type": "status", "msg": f"Loading the 8-bit copy of {spec['label']}…"})
+                            pipe = cls.from_pretrained(str(dest), torch_dtype=dtype)
 
         _repair_meta_tensors(pipe)  # a weight missing from a checkpoint file would otherwise crash .to(device)
         pipe = pipe.to(device)
@@ -1373,6 +1388,19 @@ class Engine:
                                             + (f" (kept files {kept[0]} also uses)" if kept else "")})
         return {"model": model_id, "freed_gb": gb, "kept_for": kept}
 
+    def _warn_if_short_of_memory(self, family):
+        """Before an SD 1.5 / SDXL picture on a Mac under 16 GB: if other apps have already taken the memory (little
+        free, several GB already moved to disk), say so up front. That, not the model, is what makes a picture take
+        30-100 s a step instead of a few (seen on an 8 GB Mac with a browser full of tabs open)."""
+        ram = total_ram_gb()
+        if family not in ("sd15", "sdxl") or not 0 < ram < 16:
+            return
+        free, swap = _free_ram_gb(), _swap_used_gb()
+        need = 1.0 if family == "sd15" else 2.0
+        if 0 <= free < need and swap > 1.5:
+            print(f"[engine] short of memory before starting: free {free:.1f} GB, swap {swap:.1f} GB", flush=True)
+            self.emit({"type": "memory_low", "free_gb": round(free, 1), "swap_gb": round(swap, 1), "family": family})
+
     def release_memory(self):
         """Run after every job: hand cached GPU memory back to macOS (helps 8 GB Macs a lot)."""
         gc.collect()
@@ -1732,6 +1760,7 @@ class Engine:
         if scheduler is not None:
             pipe.scheduler = scheduler
         self._tune_for_size(pipe, width, height)
+        self._warn_if_short_of_memory(family)
         if ip:
             try:
                 self.pipe.set_ip_adapter_scale(float(ip.get("scale", 0.6)))
@@ -1941,10 +1970,18 @@ class Engine:
         return results
 
     # ------------------------------------------------------------ pipelines that share the loaded model
+    @staticmethod
+    def _quiet(pipe):
+        try:
+            pipe.set_progress_bar_config(disable=True)  # progress goes to the app, not to the log
+        except Exception:
+            pass
+
     def _i2i_pipe(self):
         if self.i2i_pipe is None:
             from diffusers import AutoPipelineForImage2Image
             self.i2i_pipe = AutoPipelineForImage2Image.from_pipe(self.pipe)  # shares weights: no extra memory
+            self._quiet(self.i2i_pipe)
         return self.i2i_pipe
 
     def _inpaint_pipe(self):
@@ -1952,6 +1989,7 @@ class Engine:
         if self.inp_pipe is None:
             from diffusers import AutoPipelineForInpainting
             self.inp_pipe = AutoPipelineForInpainting.from_pipe(self.pipe)
+            self._quiet(self.inp_pipe)
         return self.inp_pipe
 
     # ------------------------------------------------------------ image prompt (IP-Adapter)
