@@ -30,6 +30,12 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 
 The app's **How to** tab is the full manual, including Troubleshooting and a Disclaimer & licences page.
 
+## Community
+
+- **Download:** [GitHub Releases](https://github.com/theprotoart/protoart-studio/releases/latest)
+- **Hugging Face:** [huggingface.co/spaces/brushpenbob/protoart-studio](https://huggingface.co/spaces/brushpenbob/protoart-studio)
+- **Bugs and ideas:** [GitHub Issues](https://github.com/theprotoart/protoart-studio/issues)
+
 ## Supported Macs
 
 | | |
