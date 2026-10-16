@@ -35,6 +35,7 @@ The app's **How to** tab is the full manual, including Troubleshooting and a Dis
 - **Download:** [GitHub Releases](https://github.com/theprotoart/protoart-studio/releases/latest)
 - **Hugging Face:** [huggingface.co/spaces/brushpenbob/protoart-studio](https://huggingface.co/spaces/brushpenbob/protoart-studio)
 - **Discord:** [discord.gg/zRC6zrufYE](https://discord.gg/zRC6zrufYE) (news, help, and #ideas-and-feedback)
+- **Civitai:** [theprotoartent677](https://civitai.com/user/theprotoartent677)
 - **Bugs and ideas:** #ideas-and-feedback on Discord, or [GitHub Issues](https://github.com/theprotoart/protoart-studio/issues)
 
 ## Supported Macs
