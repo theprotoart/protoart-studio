@@ -17,7 +17,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 - **Image to image:** strength, ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile), image prompt
   (IP-Adapter), face detailer
 - **Tools:** Finegrain enhance & upscale, face restoration (RestoreFormer or CodeFormer), 🩹 remove objects (LaMa spot
-  healing), ✒️ vectorize to SVG, image → prompt (Florence-2 / WD tagger), 🎚 Adjust (Lightroom / Color Efex-style
+  healing), ✒️ vectorize to SVG, image → prompt (Qwen3.5 vision model, Florence-2 or WD tagger), 🎚 Adjust (Lightroom / Color Efex-style
   sliders and filters on the GPU), file conversion
 - **Library:** search by prompt, seed, model or LoRA; stars; ↺ reuse a picture's prompt or settings; batch edit &
   export (resize, convert, rename, Adjust looks); 🗜 compress to the smallest file that still looks the same
@@ -108,7 +108,7 @@ first time you use them, or you supply your own files. **Every model has its own
 allow commercial use, for example:
 
 - SD 1.5, Juggernaut Reborn, ControlNet 1.1: CreativeML OpenRAIL-M · SDXL: CreativeML OpenRAIL++-M
-- ERNIE-Image, FLUX.1 [schnell], IP-Adapter, Qwen2.5, WD tagger, Depth Anything V2 Small: Apache-2.0 · Florence-2: MIT
+- ERNIE-Image, FLUX.1 [schnell], IP-Adapter, Qwen2.5, WD tagger, Depth Anything V2 Small, Qwen3.5 4B: Apache-2.0 · Florence-2: MIT · mlx-vlm: MIT
 - **Non-commercial:** the enhancer's 4x-UltraSharp upscaler (CC BY-NC-SA 4.0), Depth Anything V2 Base / Large
   (CC BY-NC 4.0)
 - Models and LoRAs from Civitai: whatever their author chose (shown on the model's page)

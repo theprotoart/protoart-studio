@@ -2,6 +2,11 @@
 
 ## 1.2.0
 
+- 📝 Image → prompt "Describe": Qwen3.5 4B (Apache-2.0; `mlx-community/Qwen3.5-4B-MLX-4bit`, pinned revision 32f3e8e,
+  ~3 GB) through mlx-vlm 0.7.4 in its own environment (`~/.protoartstudio/venv-vlm`, `backend/vlm.py`); a short-lived
+  worker (`vlm_worker.py`) per picture so its memory is freed at once. Florence-2 is now "Quick"; the WD tagger "Tags".
+  The Tools module shows the written prompt
+- Header: a chrome bat-handle TIPS toggle (ON / OFF) beside bigger Power / Busy / Fault lamps
 - Tools: Remove objects paints on Tools' own picture (`tool.healing`, `toolPaintRemove`, `toolHeal`; the mask code
   follows `maskTarget()`); bigger picture caption with "✕ Remove picture" and "✏️ Edit in …" buttons; shorter modules
   (icon beside the title; Enhance's Creativity / Resemblance under fine-tune)
@@ -46,7 +51,7 @@
   settings" (`defaultPost()`, with undo)
 - Restore faces: **CodeFormer** added as a second model beside RestoreFormer, in Create, Tools and the picture details,
   with a Fidelity slider (CodeFormer only). CodeFormer code (`backend/postprocess/codeformer_arch.py`) and weights are
-  S-Lab License 1.0, non-commercial; RestoreFormer stays the default
+  S-Lab License 1.0, non-commercial; CodeFormer is the default (listed first; saved settings switched once)
 - Face models are verified against pinned SHA-256 hashes after download (and re-fetched if damaged), loaded with
   `torch.load(weights_only=True)`; the face detector is only prepared when faces are first restored
 - Restored pictures record the face model, strength and fidelity in their settings; presets keep the face model

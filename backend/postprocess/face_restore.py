@@ -40,7 +40,7 @@ RESTOREFORMER_URL = MODELS["restoreformer"]["url"]
 
 
 def model_key(name) -> str:
-    return "codeformer" if str(name or "").lower() == "codeformer" else "restoreformer"
+    return "restoreformer" if str(name or "").lower() == "restoreformer" else "codeformer"  # CodeFormer is the default
 
 
 def model_label(name) -> str:

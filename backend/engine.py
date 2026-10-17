@@ -2252,7 +2252,9 @@ class Engine:
         return self.enhancer
 
     def interrogate(self, args):
-        """Image -> prompt. args: {path, mode: 'describe'|'tags', detail, general_threshold}"""
+        """Image -> prompt. args: {path, mode: 'describe'|'quick'|'tags', detail, general_threshold}
+        describe: Qwen3.5 4B (a modern vision model, Apple GPU) writes a detailed prompt; quick: Florence-2;
+        tags: the WD tagger (Danbooru tags)."""
         from PIL import Image
         p = Path(str(args.get("path") or ""))
         if not p.is_file():
@@ -2267,7 +2269,27 @@ class Engine:
             image.load()
         except Exception:
             raise UserError("That file isn't an image Protoart Studio can read.")
-        if 0 < total_ram_gb() < 16 and args.get("mode") != "tags":
+        mode = args.get("mode") or "describe"
+        import vlm
+        if mode == "describe" and vlm.supported():
+            import net
+            # the picture reader runs as its own process: free the image model first on small Macs
+            if 0 < total_ram_gb() < 16:
+                self.unload()
+                self.prompt_enhancer = None
+                self.enhancer = None
+                self.interrogator = None
+            try:
+                text = vlm.describe(p, style="short" if args.get("detail") == "short" else "natural", emit=self.emit,
+                                    cancel_event=self.cancel_event, allow_download=net.is_online())
+            except vlm.Cancelled:
+                raise Cancelled()
+            except vlm.VlmError as e:
+                raise UserError(str(e))
+            if not text:
+                raise UserError("The picture reader didn't write anything; try again or use Quick describe.")
+            return {"prompt": text, "model": vlm.LABEL}
+        if 0 < total_ram_gb() < 16 and mode != "tags":
             # Florence-2 + an image model + the app don't fit comfortably in 8 GB together.
             self.unload()
             self.prompt_enhancer = None

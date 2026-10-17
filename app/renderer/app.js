@@ -56,7 +56,7 @@ function defaultPost() {  // Tools settings on a fresh install
   return {
     depth: { model: "small", style: "gray" },
     face_strength: 0.8,
-    face_model: "restoreformer",   // or "codeformer"
+    face_model: "codeformer",   // or "restoreformer"
     face_fidelity: 0.5,            // CodeFormer only
     do_enhance: true,
     do_faces: false,
@@ -69,7 +69,7 @@ function defaultPost() {  // Tools settings on a fresh install
 function defaultForm() {
   return { model: "sdxl", prompt: "", negative_prompt: "", width: 1024, height: 1024, steps: 30, cfg: 6,
     sampler: "", seed: -1, num_images: 1, loras: [],
-    restore_faces: false, face_strength: 0.8, face_model: "restoreformer", face_fidelity: 0.5, enhance_prompt: false, clip_skip: 1, quality_tags: true,
+    restore_faces: false, face_strength: 0.8, face_model: "codeformer", face_fidelity: 0.5, enhance_prompt: false, clip_skip: 1, quality_tags: true,
     init_image: "", strength: 0.6, use_init_size: false, size_link: false, size_ratio: 1,
     fast: false, fast_prev: null, i2i_use_init: true, control_image: "",
     control: { type: "", scale: 1.0, start: 0.0, end: 1.0, already_map: false },
@@ -244,9 +244,14 @@ const protoartApp = createApp({
       cmp: { open: false, x: "cfg", xv: "4, 6, 8, 10", y: "", yv: "", lora: "" },
       cmpAxes: { cfg: "Guidance (CFG)", steps: "Steps", sampler: "Sampler", seed: "Seed", clip_skip: "CLIP skip",
                  lora_weight: "LoRA weight", lora: "Which LoRA", strength: "Change strength (Image to image)" },
-      form: Object.assign(
-        defaultForm(), loadJSON(FORM_KEY, {})
-      ),
+      form: (() => {
+        const f = Object.assign(defaultForm(), loadJSON(FORM_KEY, {}));
+        if (!loadJSON("protoart.cfDefault", false)) {  // 1.2: CodeFormer became the default face model (once)
+          f.face_model = "codeformer";
+          saveJSON("protoart.cfDefault", true);
+        }
+        return f;
+      })(),
       dims: [512, 576, 640, 704, 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344, 1536],
       queue: [],          // jobs from the backend: running first, then queued
       progress: null,
@@ -349,6 +354,7 @@ const protoartApp = createApp({
             { h: "Version 1.2: new tools, and more of your testers' notes", items: [
               "<b>✨ Edit with words</b> (Image to image): describe a change (“make the jacket red”, “add a hat”, “turn it into a watercolour”) and FLUX.2 Klein makes just that change. Paint over a part to keep everything else exactly as it was, or add more pictures to take a style or an outfit from.",
               "<b>🎲 Random prompt speaks the model's language</b>: with FLUX, FLUX.2 or ERNIE picked it writes a scene in sentences (“Medium shot of a fisherman with a white beard, mending a net on a harbour wall at dawn…”); with SD 1.5 and SDXL it still writes tags. In Image to image, <b>FLUX.2 Klein</b> now shows at the top of the model list while Edit with words is on.",
+              "<b>📝 Image → prompt reads pictures much better</b>: <b>Describe</b> now uses <b>Qwen3.5 4B</b>, a 2026 vision model running on the Mac's GPU, which writes a detailed prompt in sentences (subject, clothes, pose, setting, light, colours, framing, style), what FLUX, FLUX.2 and ERNIE read best. The first time it sets itself up and downloads ~3 GB; then it works offline. <b>Quick</b> is the older Florence-2, and <b>Tags</b> the Danbooru tagger. <b>CodeFormer</b> is now the default face model. The <b>TIPS</b> toggle sits at the top beside the Power / Busy / Fault lamps.",
               "<b>🩹 Remove objects right in Tools</b>: press <b>🖌 Paint</b> in the Remove module, paint on the picture on the left and press <b>🩹 Remove</b> (no trip to Image to image). The <b>TIPS</b> switch beside the Power / Busy / Fault lamps at the top turns the pop-up tips on and off.",
               "<b>Tools redesigned</b>: every tool (Run chain, Enhance, Restore faces, Depth map, Remove objects, Vectorize, Image → prompt) is now a tall rack module side by side; Enhance's less-used settings are under <i>fine-tune</i>, each with its controls and its own button. <b>Sampler picks</b> show just the top two for speed and for quality (the rest are in the list).",
               "<b>New model: FLUX.2 Klein 4B</b> (Black Forest Labs, January 2026) on the ⚡ fast engine, made for 8 GB Macs: a 4.6 GB download, 4 steps a picture. It's newer than FLUX.1 Schnell and better at following long prompts and writing text in pictures. Find it in the <b>Models</b> tab under FLUX.2. It ignores the negative prompt, and FLUX.1 LoRAs don't work with it (FLUX.2 LoRAs do).",
@@ -362,7 +368,7 @@ const protoartApp = createApp({
               "<b>Civitai</b>: <b>Download</b> adds to a queue, so you can paste the next link straight away; a <b>Downloads</b> list shows them all. If you may already have the file (same Civitai version, same name or same size), it says so and asks before downloading.",
               "<b>↺ reset all</b> at the top of Create, and <b>↺ Reset Tools settings</b> in Tools: back to the starting settings, with undo. Your presets aren't touched." ] },
             { h: "A second face restorer", items: [
-              "<b>Restore faces now offers CodeFormer</b> as well as RestoreFormer, in Create, Tools and a picture's details. <b>RestoreFormer</b> stays the natural default; <b>CodeFormer</b> repairs badly blurred or damaged faces more strongly and has a <b>Fidelity</b> slider (low = cleanest face, high = keeps more of the person's own features). CodeFormer's licence allows <b>non-commercial use only</b>.",
+              "<b>Restore faces now offers CodeFormer</b> as well as RestoreFormer, in Create, Tools and a picture's details. <b>CodeFormer</b> is now the default (it's listed first); <b>RestoreFormer</b> stays as the natural, free-for-commercial-use choice. <b>CodeFormer</b> repairs badly blurred or damaged faces more strongly and has a <b>Fidelity</b> slider (low = cleanest face, high = keeps more of the person's own features). CodeFormer's licence allows <b>non-commercial use only</b>.",
               "Both face models download once, the first time you use them, and are now checked against a pinned SHA-256 before loading. A damaged or tampered file is deleted and fetched again.",
               "Each restored picture records which model, strength and fidelity were used in its settings." ] },
             { h: "Version 1.1: from our first testers' notes", items: [
@@ -485,7 +491,7 @@ const protoartApp = createApp({
               "<b>CLIP skip</b> (SD 1.5 / SDXL): reads your prompt from an earlier layer of the text encoder. <b>Off</b> is normal; <b>2</b> is what many anime-style models and LoRAs were made with and often follows their style better. 3–4 is looser.",
               "Each model starts on the CLIP skip it's meant for (marked <b>★</b>): <b>2</b> for anime-style SD 1.5 models (Anything, Counterfeit, MeinaMix…), <b>Off</b> for photo and general models. SDXL always reads prompts this way, so its scale starts at <b>Standard</b>. Change it any time; your choice is remembered for that model, and <i>use recommended</i> puts it back.",
               "If a LoRA's file says which CLIP skip it was trained with, a <i>use</i> link appears under the setting. It's saved with each image and in presets, and appears in the image's details.",
-              "<b>Restore faces</b> fixes faces right after each image is made. Choose <b>RestoreFormer</b> (natural, the default) or <b>CodeFormer</b> (stronger repair, with a <b>Fidelity</b> slider; non-commercial licence)." ] },
+              "<b>Restore faces</b> fixes faces right after each image is made. Choose <b>CodeFormer</b> (the default: stronger repair, with a <b>Fidelity</b> slider; non-commercial licence)." ] },
           ] },
         { id: "models", go: "create", icon: "🧠", title: "Models & their defaults", summary: "Why each model starts with different settings, and CLIP skip",
           sections: [
@@ -555,7 +561,7 @@ const protoartApp = createApp({
               "Speed-ups from ProtoArt Beautify (automatic): the detail add-ons are merged into the model once; the fewest tiles that fit your Mac's memory (a 768 px picture is one tile instead of many); memory handed back to macOS after every pass; the upscaler in small pieces on 8 GB Macs.",
               "The result appears under the original with the time left; <b>■ Stop</b> works within seconds." ] },
             { h: "Restore faces", items: [
-              "Fixes blurry or distorted faces. Pick the model: <b>RestoreFormer</b> is natural and faithful (the default); <b>CodeFormer</b> repairs badly blurred or damaged faces more strongly.",
+              "Fixes blurry or distorted faces. Pick the model: <b>CodeFormer</b> (the default) repairs even badly blurred or damaged faces, with a Fidelity slider (non-commercial licence); <b>RestoreFormer</b> is natural, faithful and free for commercial use.",
               "<b>Strength</b> blends the result with the original (0.7–0.8 looks most natural). <b>Fidelity</b> (CodeFormer only): low gives the cleanest face, high (0.7+) keeps more of the person's own features.",
               "Each model downloads once, the first time you use it (RestoreFormer ~280 MB, CodeFormer ~360 MB), and is checked against a pinned SHA-256. CodeFormer's licence allows <b>non-commercial use only</b>.",
               "Tick both in <b>Run on this image</b> to enhance first, then restore faces, as one finished picture." ] },
@@ -866,7 +872,7 @@ const protoartApp = createApp({
       mpanels: { own: false, civitai: false, hub: false, fix: false }, // Models tab panels (closed until you open one)
       dl: { path: "", default: "", custom: false, missing: null, free_gb: null, sizeGb: null, move: true, busy: false }, // downloaded-models folder
       modelSearch: "",
-      tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false },
+      tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false, promptText: "" },
       freeConfirm: null,
       logs: "",
       backendDead: false,
@@ -2703,10 +2709,12 @@ const protoartApp = createApp({
       return { strength: this.post.face_strength, face_model: this.post.face_model, face_fidelity: this.post.face_fidelity };
     },
     async toolToPrompt(mode) {
+      this.tool.promptText = "";
       const res = await this.runJob("interrogate", { path: this.tool.source.path, mode, detail: "detailed" });
       if (!res) return;
       this.form.prompt = res.prompt;
-      this.status = "Prompt ready in the Create tab";
+      this.tool.promptText = res.prompt;
+      this.status = "Prompt ready in the Create tab" + (res.model ? " (" + res.model + ")" : "");
     },
 
     downloadText(m) {
@@ -3763,7 +3771,7 @@ const protoartApp = createApp({
         ? `${this.form.prompt.trim()}, ${res.prompt}` : res.prompt;
       this.status = this.i2p.mode === "tags"
         ? `Tagged image (${res.tags.length} tags${res.rating ? ", rating: " + res.rating : ""})`
-        : "Described image";
+        : "Described image" + (res.model ? " with " + res.model : "");
     },
 
     // -------------------------------------------------------------- random prompt

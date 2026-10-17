@@ -1409,3 +1409,18 @@ label:has(> input[type=checkbox]:checked), [data-theme="dark"] label:has(> input
 .led.blue { background: radial-gradient(circle at 40% 35%, #23405e, #0b1a2c); }
 .led.blue.on { background: radial-gradient(circle at 40% 35%, #e0f0ff 0, #5ab4ff 35%, #0a63c0 100%); box-shadow: 0 0 5px 1px rgba(80, 170, 255, .85), 0 0 12px rgba(60, 150, 255, .45); }
 [data-theme="dark"] .rack-leds .led-switch { color: #efeadc; text-shadow: 0 -1px 0 rgba(0, 0, 0, .85); }
+/* lamp labels big enough to read */
+.rack-leds { gap: 7px; }
+.rack-leds span { font-size: 11px; gap: 8px; letter-spacing: .12em; }
+.rack-leds .led { width: 10px; height: 10px; }
+/* the TIPS panel toggle: a chrome bat-handle lever, engraved name above, ON / OFF below */
+.panel-toggle { display: grid; justify-items: center; align-content: center; gap: 2px; padding: 0 6px; cursor: pointer; user-select: none; flex: none; }
+.panel-toggle .pt-name, .panel-toggle .pt-state { font-family: var(--f-eng); font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.panel-toggle .pt-state { font-size: 9.5px; opacity: .75; }
+.panel-toggle input[type=checkbox] { transform: scale(1.3); margin: 4px 0; }
+[data-theme="dark"] .panel-toggle .pt-name, [data-theme="dark"] .panel-toggle .pt-state { color: #efeadc; text-shadow: 0 -1px 0 rgba(0, 0, 0, .85); }
+@media (max-width: 1180px) { .panel-toggle { display: none; } }
+/* Image → prompt result inside its module */
+.rack-module .mod-readout { margin-top: 6px; padding: 8px 10px; font-size: 11.5px; line-height: 1.4; max-height: 120px; overflow: auto;
+  color: var(--amber); background: #0d0b08; border-radius: 2px; box-shadow: inset 0 1px 3px #000, 0 1px 0 rgba(255, 255, 255, .3); }
+.rack-module .mod-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
