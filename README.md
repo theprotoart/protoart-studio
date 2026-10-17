@@ -11,24 +11,32 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 
 ## What it does
 
-- **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), ERNIE-Image, FLUX.1 Schnell and FLUX.2 Klein 4B;
-  LoRA stacking with per-LoRA weights, embeddings (textual inversion), 20+ samplers with recommended picks per model,
-  presets, wildcards, a random-prompt generator, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop
-- **Image to image:** strength, ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile), image prompt
+- **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), ERNIE-Image, FLUX.1 Schnell, FLUX.2 Klein 4B
+  (made for 8 GB Macs) and FLUX.1 Dev (32 GB+); LoRA stacking with per-LoRA weights (sort / filter the list, ★ favourites),
+  embeddings, VAEs (each model remembers its own; one-click recommended VAE), 20+ samplers with the top picks per model,
+  presets, 📒 saved prompts, wildcards, a random-prompt generator that writes tags or sentences to suit the model, negative
+  prompt ✨ suggest / 🎲 random matched to the model, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop, and
+  🔬 compare grids picked with keys
+- **Image to image:** ✨ Edit with words (FLUX.2 Klein: describe a change; paint to limit it; add reference pictures),
+  change / inpaint / expand / 🩹 remove, selection tools (brush, lasso, polygon lasso, magic wand, object selection),
+  ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile, and your own SD 1.5 ControlNets), image prompt
   (IP-Adapter), face detailer
-- **Tools:** Finegrain enhance & upscale, face restoration (RestoreFormer or CodeFormer), 🩹 remove objects (LaMa spot
-  healing), ✒️ vectorize to SVG, image → prompt (Qwen3.5 vision model, Florence-2 or WD tagger), 🎚 Adjust (Lightroom / Color Efex-style
-  sliders and filters on the GPU), file conversion
-- **Library:** search by prompt, seed, model or LoRA; stars; ↺ reuse a picture's prompt or settings; batch edit &
-  export (resize, convert, rename, Adjust looks); 🗜 compress to the smallest file that still looks the same
+- **Tools** (rack modules): Finegrain enhance & upscale, face restoration (CodeFormer or RestoreFormer), 🩹 remove objects
+  (paint right in Tools; smart or quick fill), ✒️ vectorize to SVG, image → prompt (Qwen3.5 vision model, Florence-2 or
+  WD tagger), depth maps, 🎚 Adjust (Lightroom / Color Efex-style), DiffusionBee file conversion, and Original / Result /
+  Split / Side-by-side views
+- **Library:** search by prompt, seed, model or LoRA; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
+  first); batch edit & export; 🗜 compress to the smallest file that still looks the same
 - **Train:** LoRA training (SD 1.5 / SDXL; ERNIE on 32 GB+ Macs), embedding training (SD 1.5), square crop / keep-whole
-  framing of each training picture (one by one or all at once), and merging LoRAs of
-  the same type into one
-- **Models tab:** download models, add your own files or folders, Civitai and Hugging Face downloads (with optional
-  sign-in keys, kept only on your Mac), ★ favourites, and a "Fix a type" tool for mislabelled files
+  framing, and merging LoRAs of the same type into one
+- **Models tab:** download models, add your own files or folders (removals locked and confirmed), Civitai downloads of
+  LoRAs, checkpoints, embeddings, VAEs and SD 1.5 ControlNets, Hugging Face downloads (sign-in keys kept only on your
+  Mac), Embeddings / VAEs / ControlNets lists, ★ favourites, and "Fix a type" for mislabelled files
 - **DiffusionBee import:** your DiffusionBee models, LoRAs and embeddings appear automatically (read in place)
-- **Content filter:** Hide NSFW / Hide People, with your own ⚑ / ● marks
-- **Looks:** Light, Dark or Match macOS, and four colour themes (Amber, Cream, Slate, Ember)
+- **Content filter:** 🛡 Safe-for-work mode (refuses adult prompts, blocks and hides NSFW), Hide NSFW / Hide People,
+  with your own ⚑ / ● marks
+- **Comfort:** tips on every button (TIPS lever), 🔔 finish sounds, Light / Dark / Match macOS and four colour themes
+  (Amber, Cream, Slate, Ember), Community & support links and a model licence table in How to
 
 The app's **How to** tab is the full manual, including Troubleshooting and a Disclaimer & licences page.
 

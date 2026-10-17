@@ -479,6 +479,10 @@ const protoartApp = createApp({
               "<b>Toggle switches</b>: lever up = on, down = off. Buttons that are on light up amber.",
               "<b>Top panel</b>: Power, Busy and Fault lights; amber clocks for the time left on the current job and on the whole queue; the <b>VU meter</b> needle shows the same progress as the progress bar, and its lamp warms up while a job runs. The clocks and meter are hidden on Library, Settings and How to." ] },
             { h: "Prompt helpers", items: [
+              "<b>Negative prompt ✨ suggest / 🎲 random</b> (next to <i>Negative prompt</i>, in Create and Image to image): writes a negative prompt that fits your prompt and model: tags for SD 1.5 / SDXL / Pony / Illustrious (with each one's own low-quality tags), plain words for ERNIE and FLUX, and the opposite of the style you asked for (a cartoon prompt avoids “realistic, photo, 3d”). 🎲 random adds a few extra fixes each time; ↩ undo puts yours back. Your embeddings stay in.",
+              "<b>🎲 Random prompt</b> and <b>✨ enhance</b> also write the matching negative prompt, unless you typed your own. With FLUX, FLUX.2 or ERNIE the random prompt is a scene written in sentences; with SD 1.5 / SDXL it's tags. Enhance writes tags for SDXL and Pony too.",
+              "<b>📒 My prompts</b> (under the prompt): <b>＋ save</b> keeps the prompt and negative prompt under a name; pick one from the list to put it back; <b>manage…</b> to use or delete them (asks first). Kept on this Mac.",
+              "<b>🎲 Random · { } Wildcards · 📋 List</b> are the three keys under the prompt: a random prompt, wildcards ({red|blue}, __name__) and a list of prompts (one job per line).",
               "<b>✨ Enhance prompt</b> turns a short idea into a full prompt in the model's style: tags for SD 1.5, a detailed description for SDXL and ERNIE (small built-in language model, ~1 GB the first time).",
               "<b>enhance now</b> (button) rewrites the prompt once, right away, and puts it in the prompt box so you can read it, edit it or <b>↩ undo</b> before generating. Best for polishing one prompt by hand.",
               "<b>Enhance prompt when generating</b> (checkbox) leaves your prompt box alone and enhances your short idea behind the scenes every time you press Generate, so each image gets a fresh variation. The prompt that was used shows under the box afterwards and is saved with the image. Best for exploring many variations; it adds a few seconds per image.",
@@ -504,6 +508,7 @@ const protoartApp = createApp({
               "<b>🙂 Face detailer</b> (like ADetailer) finds each face, redraws it at full detail with your model and prompt, and blends it back: faces stay in the picture's style. Add a face prompt (e.g. <i>detailed eyes, smile</i>) if you like.",
               "Both add time: Hi-res fix about as much as the picture itself; the face detailer a few seconds per face." ] },
             { h: "🔬 Compare settings", items: [
+              "Pick the values with the <b>blue keys</b>: every key you light up adds a column (Across) or a row (Down), and the button counts the pictures (36 at most). Each setting has its own keys (CFG, steps, samplers, seeds, CLIP skip, LoRA weights, which LoRA, change strength); <i>or type your own</i> is underneath. The blue follows your look.",
               "Makes the same picture with different settings, side by side in one labelled grid: CFG, steps, sampler, seed, CLIP skip, a LoRA's weight, which LoRA, or change strength.",
               "Pick <b>Across</b> and (optionally) <b>Down</b>, type values separated by commas, or a range like <i>3-12 (+3)</i>. Everything else (prompt, model, LoRAs, size) comes from the Create tab, with one seed for every picture.",
               "Up to 36 pictures. The grid and each picture are saved to the Library.",
@@ -525,6 +530,7 @@ const protoartApp = createApp({
               "<b>⏭ Skip image</b> skips one image of a batch, <b>■ Stop</b> stops the job, <b>Stop all</b> clears the queue (and ends a pause).",
               "Next to the model's name: <b>getting ready…</b> while it loads in the background, <b>● loaded, ready</b> when the next picture can start straight away (Settings → Speed)." ] },
             { h: "Extras", items: [
+              "<b>VAE</b> (SD 1.5 and SDXL): the part that turns the model's picture into pixels. Another VAE can fix washed-out colours or blotches. Only VAEs made for the model's type are listed, each model remembers its own, and <b>⤓ get</b> downloads the usual one in one click (vae-ft-mse for SD 1.5, SDXL fp16-fix for SDXL; MIT licence). VAEs from Civitai go to the VAE folder too.",
               "<b>CLIP skip</b> (SD 1.5 / SDXL): reads your prompt from an earlier layer of the text encoder. <b>Off</b> is normal; <b>2</b> is what many anime-style models and LoRAs were made with and often follows their style better. 3–4 is looser.",
               "Each model starts on the CLIP skip it's meant for (marked <b>★</b>): <b>2</b> for anime-style SD 1.5 models (Anything, Counterfeit, MeinaMix…), <b>Off</b> for photo and general models. SDXL always reads prompts this way, so its scale starts at <b>Standard</b>. Change it any time; your choice is remembered for that model, and <i>use recommended</i> puts it back.",
               "If a LoRA's file says which CLIP skip it was trained with, a <i>use</i> link appears under the setting. It's saved with each image and in presets, and appears in the image's details.",
@@ -550,6 +556,8 @@ const protoartApp = createApp({
         { id: "i2i", go: "i2i", icon: "🖼", title: "Image to image", summary: "Change a picture, or follow its structure with ControlNet",
           sections: [
             { h: "Starting from a picture", items: [
+              "<b>✨ Edit with words</b> uses FLUX.2 Klein (it's at the top of the model list while that mode is on). Its <i>✨ enhance now</i> turns a quick note into a clear instruction. The other modes have <b>✨ Enhance prompt</b> and the negative prompt's ✨ suggest / 🎲 random too.",
+              "Pictures made in Image to image stay in Image to image and the Library; they don't fill Create's screen.",
               "Drop a picture, or use <b>🖼 Img2img</b> on any Library image.",
               "The <b>model</b> for Image to image is chosen at the top of the window, next to the brand plate.",
               "<b>Change strength</b>: low (0.3) keeps most of the original, high (0.8+) changes a lot.",
@@ -558,6 +566,8 @@ const protoartApp = createApp({
               "<b>🩹 Remove</b>: paint over what you want gone and press 🩹 Remove; it's filled in from its surroundings (no prompt or model needed). <b>✨ Smart fill</b> handles objects, people and patterns (~208 MB download the first time); <b>⚡ Quick fill</b> is instant for dust, spots and thin lines. Cover the thing fully, a little past its edges.",
               "<b>LoRAs</b> card: add a LoRA (search the list), set its weight with the slider, ✕ removes it. They're the same LoRAs as in Create (both tabs share the model); trigger words and 🎲 Random LoRAs are in Create." ] },
             { h: "🖌 Inpaint", items: [
+              "<b>Selection tools</b> (everywhere you paint over a picture): <b>🖌 Brush</b>, <b>🧽 Erase</b>, <b>➰ Lasso</b> (draw around an area; it fills when you let go), <b>⬠ Polygon</b> (click the corners; click the first point, double-click or press Return to close), <b>🪄 Wand</b> (click a colour; the tolerance slider sets how similar), <b>⬚ Object</b> (drag a box around something and its outline is found). <b>＋ Add / － Subtract</b>, or hold ⌥ Option to subtract. Keys: B E L P W O; Esc cancels.",
+              "<b>Brush size</b>: a ring the size of the brush follows the pointer (dashed when erasing); moving the size slider shows it on the picture, and the metal well next to the slider shows the size.",
               "Choose <b>Inpaint</b>, paint over what you want to change (Paint / Erase, brush size, invert, clear), and describe what should be there.",
               "<b>Change strength</b> 0.7–0.9 replaces what's painted; 1.0 starts from scratch there. <b>Edge softness</b> blends the edges.",
               "<b>Redraw only the painted area at full detail</b> is best for small things like hands, eyes or text: it redraws a box around your strokes at full resolution and pastes it back.",
@@ -566,6 +576,7 @@ const protoartApp = createApp({
               "Choose <b>Expand</b> and how many pixels to add on each side (or use <i>make it wider / taller</i>). The new area is filled in to match.",
               "Describe the whole scene in the prompt, including what should appear around the original. Expanding a little at a time (e.g. 128–256 px) gives the best results." ] },
             { h: "ControlNet (SD 1.5)", items: [
+              "<b>Your own ControlNets</b> (SD 1.5), e.g. QR Code Monster from Civitai: paste the Civitai link in Models → Add from Civitai, then pick it in the ControlNet list. It follows your picture as it is (give it a QR code or pattern as the picture).",
               "<b>Tile</b> adds detail but keeps the picture: great with low change strength for sharpening.",
               "<b>Canny / Line art / Soft edges</b> keep the outlines; <b>Depth</b> keeps the 3-D layout; <b>Scribble</b> turns a sketch into a picture.",
               "<b>How closely to follow the map</b>: 1.0 is normal. <b>When it guides</b>: <i>Layout only</i> sets composition and leaves details free.",
@@ -581,6 +592,7 @@ const protoartApp = createApp({
         { id: "tools", go: "tools", icon: "🧰", title: "Tools", summary: "Enhance, 🎚 adjust, restore faces, 🩹 remove objects, ✒️ vectorize, image → prompt, convert files",
           sections: [
             { h: "🩹 Remove objects and ✒️ Vectorize", items: [
+              "<b>Remove objects in Tools</b>: press <b>🖌 Paint</b> in the module, paint on the picture on the left (all the selection tools work), choose <b>✨ Smart fill</b> (rebuilds what was behind it) or <b>⚡ Quick fill</b> (instant, for small spots), and press <b>🩹 Remove</b>.",
               "<b>🩹 Remove objects</b>: opens the picture in Image to image in Remove mode. Paint over what you want gone and press <b>🩹 Remove</b>; it's filled in from what's around it. The result is saved as a new picture in the Library (“Objects removed”); the original stays.",
               "<b>✒️ Vectorize</b>: makes an SVG of flat colour shapes, saved next to your pictures (Show in Finder opens it). <b>Colours</b>: fewer gives bolder, simpler shapes (logos: 2–6; illustrations: 8–16). <b>Detail</b>: Simple, Balanced or Detailed. <b>Smooth curves</b> off gives straight edges, for pixel art and geometric logos. Photos come out like a screen-printed poster.",
               "<b>↺ Reset Tools settings</b> (top of the right-hand column) puts Enhance, Restore faces, Depth and Vectorize back to their starting settings; <b>undo</b> brings yours back." ] },
@@ -591,6 +603,7 @@ const protoartApp = createApp({
               "<b>⏻ Force quit</b> closes the whole app immediately, even in the middle of a job (it asks once to confirm).",
               "Use them when a picture takes far too long, the Mac feels frozen, or ■ Stop doesn't respond. Pictures, settings and models are never affected." ] },
             { h: "Enhance & upscale", items: [
+              "<b>Compare the result</b>: after any tool, the picture window shows <b>Original / Result / Split / Side by side</b> (drag the line in Split). <b>✕ Clear results</b> takes the results off the screen (they stay in the Library). The tools are rack modules: <b>Run chain</b> does Enhance then Restore faces in one go; Enhance's less-used settings are under <i>fine-tune</i>.",
               "Redraws the image bigger with fine detail (Finegrain enhancer, about 3.5 GB the first time).",
               "<b>Creativity</b> = how much new detail it may invent. <b>Resemblance</b> = how closely it sticks to the original.",
               "<b>Look</b>: <b>Subtle / Balanced / Creative</b> set both for you. <b>Speed</b>: <b>⏩ Instant</b> (the 4× sharpening upscaler only: seconds, but no new detail), <b>🚀 Turbo</b> (a distilled few-step add-on, LCM-LoRA, ~135 MB the first time: a handful of steps and no negative-prompt pass, several times faster, slightly softer detail), <b>⚡ Fast</b> (10 steps, DPM-Solver), <b>Standard</b> (18, DDIM) or <b>★ Best</b> (30, DPM-Solver: most detail). <b>1× (refine only)</b> is quickest of all.",
@@ -625,6 +638,7 @@ const protoartApp = createApp({
               "<b>Grey</b> is what ControlNet and other apps expect; <b>Colour</b> is easier to read by eye.",
               "<b>Use as a ControlNet depth map</b> sends it to Image to image, ready to make new pictures with the same 3-D layout." ] },
             { h: "Image → prompt & converter", items: [
+              "<b>Describe</b> uses <b>Qwen3.5 4B</b>, a 2026 vision model on the Mac's GPU: a detailed prompt in sentences (subject, clothes, pose, setting, light, colours, framing, style). The first time it sets itself up and downloads ~3 GB, then it works offline. <b>Quick</b> is Florence-2 (shorter, lighter); <b>Tags</b> is the Danbooru tagger for anime models. FLUX.2 Klein can't do this: it draws pictures, it doesn't read them.",
               "Turn any image into a prompt (sentences or Danbooru tags) for the Create tab.",
               "<b>Convert DiffusionBee files</b> makes standard .safetensors copies of your old models, LoRAs and embeddings." ] },
           ] },
@@ -685,6 +699,7 @@ const protoartApp = createApp({
               "<b>JPEG</b>: finds the lowest quality that stays within this picture's own damage budget (Gentle ≈ quality 90, Balanced ≈ 85, Strong ≈ 80 on typical photos). <b>PNG</b>: lossless repacking always; with Balanced or Strong a 256-colour version when it's invisible; what's written is read back and checked pixel for pixel.",
               "One picture: <b>🗜 Compress / export…</b> in its details. Several: <b>Select</b> them and press <b>🗜 Compress</b>. It uses the Compress setting with the same format and size; change anything else in the panel before pressing Export." ] },
             { h: "Hiding NSFW pictures", items: [
+              "<b>🛡 Safe-for-work mode</b> (the 🛡 SFW switch at the top of Settings, asks first): prompts that ask for adult content are refused (checked in the engine), NSFW LoRAs, models and embeddings can't be used and disappear from the lists, NSFW pictures are hidden everywhere and can't be opened, and every new picture is checked on this Mac. An SFW lamp shows next to Power.",
               "<b>Hide NSFW</b> (at the top of Create and Library, and in Settings → Content filter) leaves NSFW pictures out of the Library and covers them in Create, Image to image and Tools. Click a covered picture to look at it. NSFW models and LoRAs are hidden from the lists too.",
               "A picture counts as NSFW when its prompt asks for it (the negative prompt doesn't count), or when the on-device <b>picture checker</b> says so (Settings → Content filter; ~340 MB download, once).",
               "Your own mark always wins: in a picture's details use <b>mark NSFW</b> / <b>mark safe</b> / <b>automatic</b>, or <b>Select</b> several and use <b>Mark NSFW</b> / <b>Mark safe</b>.",
@@ -708,6 +723,10 @@ const protoartApp = createApp({
               "<b>Sign in first (once):</b> Civitai now lets only signed-in accounts download most files. Make a free account on civitai.com, open <b>Account settings → API Keys → Add API key</b>, copy the key and paste it in the box in the Civitai card (<b>Save key only</b>, or <b>Save &amp; download</b>). The box shows until a key is saved; the key stays on this Mac and is only sent to civitai.com. Errors you may see and what they mean are in Troubleshooting → Civitai downloads.",
               "Filter by type (ERNIE, SDXL, SD 1.5) or search. <b>+ Add from your Mac</b> and <b>+ Add from Hugging Face</b> bring in models from elsewhere. In Create, the link under the model list opens this tab." ] },
             { h: "Managing your models", items: [
+              "<b>Embeddings, VAEs &amp; ControlNets</b> (bottom of the Models tab): the smaller files that work with a base model, with SD 1.5 / SDXL filters, search and Open folder.",
+              "<b>Remove</b> buttons for your own models are locked 🔒: click the lock first, then Remove (it always asks). Two of your files with the same name show the folder each is in, and “a copy” when they're the same size.",
+              "<b>LoRA list</b> (Create): sort by name A → Z / Z → A or by size, and show only one kind (.safetensors, DiffusionBee, Pony…). ★ favourites always come first.",
+              "<b>Bigger Macs</b>: FLUX.1 Dev (32 GB or more; personal use only, needs a free Hugging Face account that accepted its licence). <b>8 GB Macs</b>: FLUX.2 Klein 4B, FLUX.1 Schnell 3-bit, ERNIE-Image Turbo 4-bit and SD 1.5 work best.",
               "At the top of this tab: <b>Your model files</b> (files you added from this Mac, with Remove), <b>Add from Civitai</b>, <b>Add from Hugging Face</b> (with the models you added) and <b>Fix a type</b>. They stay folded until you click one; the + Add buttons open the right one.",
               "<b>★ Favorites</b>: click the ★ on a model (here, or when you point at it in Create's model list) to make it a favourite. Favourites are listed first in Create, and <b>★ Favorites</b> (in Create and in this tab's toolbar) shows only them. They're remembered on this Mac; the model files are never changed or copied.",
               "Markers, in the same place on every row: <b>★</b> favourite, <b>●</b> People (made of real people), <b>⚑</b> NSFW (red = marked). Lit = set; point at a row to see the unlit ones, and click to switch them. <b>Hide NSFW</b> / <b>Hide People</b> hide marked models and LoRAs everywhere, including 🎲 Random LoRAs.",
@@ -735,6 +754,7 @@ const protoartApp = createApp({
               "At the top of Settings: <b>Light / Dark / Match macOS</b> sets how bright the faceplate is; the colour buttons next to it set its theme: <b>Amber</b>, <b>Cream</b>, <b>Slate</b> or <b>Ember</b>. Both are remembered.",
               "Whatever is switched on lights up in the theme's lamp colour (amber, incandescent yellow, ivory or ember); what's off stays dark." ] },
             { h: "Finding your way around", items: [
+              "<b>TIPS</b> (the lever at the top): flip it up to see what a button does when you point at it, down to hide the tips. <b>🔔 Sounds</b> (Settings): a chime when pictures or training are finished. <b>How to → Community &amp; support</b>: Discord, contact, report a problem, updates, and the model licences.",
               "Settings starts tidy: only <b>This Mac</b> and <b>Model folders</b> are open, every other section is folded down to its heading. Click a heading to open it, click again to fold it; the app remembers. <b>fold all / open all</b> sit at the top.",
               "Links elsewhere in the app that point to a setting (for example <i>Add from Civitai</i> or <i>Fix a type</i>) open the right section for you." ] },
             { h: "Models & LoRAs", items: [
