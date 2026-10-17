@@ -2,6 +2,8 @@
 
 ## 1.2.1 (in progress)
 
+- Depth map → ControlNet: `depthToControlNet` switches to Change it and an SD 1.5 model; ControlNet guide moved to the
+  right-hand column; Library tile actions in one flex row (`.tile-acts`), 🗑 beside ★
 - Image to image → ControlNet guides (`CN_GUIDES`, `cnGuide`, `cnModelPicks`, `applyCnGuide`): what it does, the picture
   to give it, best installed models (★ by name), steps, one-click settings; QR / pattern / illusion and brightness
   ControlNets recognised by name; model groups say what they support; "Use ControlNet instead" from Edit with words

@@ -888,9 +888,11 @@
         <span v-if="r.kind && r.kind!=='generated'" class="badge">{{ kindLabel(r.kind) }}</span>
         <button class="star" :class="{on: r.starred}" @click.stop="toggleStar(r)" title="Star">★</button>
         <button v-if="!selectMode" class="to-i2i card-trash" @click.stop="askDelete([r.id])" title="Delete this picture (asks first)">🗑</button>
-        <button v-if="!selectMode && r.prompt" class="to-i2i reuse-mid" @click.stop="reusePrompt(r)" title="Reuse this picture's prompt in Create (keeps your current model and settings)">↺ Prompt</button>
-        <button v-if="!selectMode" class="to-i2i" @click.stop="useAsStart(r)" title="Send to Image to image">🖼 Img2img</button>
-        <button v-if="!selectMode" class="to-i2i to-tools" @click.stop="openInTools(r)" title="Send to Tools (enhance, restore faces, depth map, edit…)">🧰 Tools</button>
+        <div v-if="!selectMode" class="tile-acts">
+          <button class="to-i2i" @click.stop="useAsStart(r)" title="Send to Image to image">🖼 Img2img</button>
+          <button v-if="r.prompt" class="to-i2i" @click.stop="reusePrompt(r)" title="Reuse this picture's prompt in Create (keeps your current model and settings)">↺ Prompt</button>
+          <button class="to-i2i" @click.stop="openInTools(r)" title="Send to Tools (enhance, restore faces, depth map, edit…)">🧰 Tools</button>
+        </div>
       </figure>
     </div>
       <div v-if="libHasMore" class="row center"><button @click="queryLibrary(true)">Load more</button></div>
@@ -1965,20 +1967,7 @@
         <div v-if="family === 'sdxl' && controlTypesShown.length === 0" class="hint">No SDXL ControlNets yet. Add one from Civitai (Models → Add from Civitai): SDXL, Pony, Illustrious and NoobAI models use them. The built-in ones are for SD 1.5.</div>
         <div v-else-if="family === 'sdxl'" class="hint">SDXL ControlNets are big: on an 8 GB Mac expect it to be slow, and use 1024 px or less.</div>
         <template v-if="form.control.type">
-          <div v-if="cnGuide" class="cn-guide">
-            <div class="cn-guide-head"><b>{{ cnGuide.title }}</b><span class="grow"></span>
-              <button class="ghost small" @click="applyCnGuide" title="Set the strength, timing and picture settings this ControlNet works best with">Use these settings</button></div>
-            <p>{{ cnGuide.what }}</p>
-            <p><b>Your picture:</b> {{ cnGuide.picture }}</p>
-            <div class="cn-models"><span class="hint">Best models:</span>
-              <button v-for="m in cnModelPicks" :key="m.id" class="chip" :class="{on: form.model === m.id, rec: m.matched}" @click="selectModel(m.id)"
-                      :title="m.matched ? 'A good match for this ControlNet' : 'Works with this ControlNet'">{{ m.matched ? '★ ' : '' }}{{ m.label }}</button>
-              <span v-if="!cnModelPicks.length" class="hint warn">no {{ (controlTypeInfo && controlTypeInfo.family === 'sdxl') ? 'SDXL' : 'SD 1.5' }} model installed yet (Models tab)</span>
-            </div>
-            <p class="hint">{{ cnGuide.modelsText }}</p>
-            <details class="fine"><summary class="hint">how to use it, step by step</summary>
-              <ol class="cn-steps"><li v-for="(st, i) in cnGuide.steps" :key="i" v-html="st"></li></ol></details>
-          </div>
+          <div v-if="cnGuide" class="hint cn-guide-pointer">How to use {{ cnGuide.title }}, and the best models for it: on the right →</div>
           <label>How closely to follow the map <span class="hint">{{ form.control.scale.toFixed(2) }}</span></label>
           <input type="range" min="0" max="2" step="0.05" v-model.number="form.control.scale">
           <div class="hint slider-help">0.5 = loose suggestion · 1.0 = follow it (normal) · 1.5+ = follow it very strictly</div>
@@ -2073,6 +2062,20 @@
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
       <div v-if="error" class="error-box">{{ error }}</div>
+      <div v-if="form.i2i_mode === 'change' && form.control.type && cnGuide" class="card cn-guide cn-guide-card">
+        <div class="cn-guide-head"><h3>🎛 {{ cnGuide.title }} <span class="hint">· ControlNet guide</span></h3><span class="grow"></span>
+          <button class="ghost small" @click="applyCnGuide" title="Set the strength, timing and picture settings this ControlNet works best with">Use these settings</button></div>
+        <p>{{ cnGuide.what }}</p>
+        <p><b>Your picture:</b> {{ cnGuide.picture }}</p>
+        <div class="cn-models"><span class="hint">Best models:</span>
+          <button v-for="m in cnModelPicks" :key="m.id" class="chip" :class="{on: form.model === m.id, rec: m.matched}" @click="selectModel(m.id)"
+                  :title="m.matched ? 'A good match for this ControlNet' : 'Works with this ControlNet'">{{ m.matched ? '★ ' : '' }}{{ m.label }}</button>
+          <span v-if="!cnModelPicks.length" class="hint warn">no {{ (controlTypeInfo && controlTypeInfo.family === 'sdxl') ? 'SDXL' : 'SD 1.5' }} model installed yet (Models tab)</span>
+        </div>
+        <p class="hint">{{ cnGuide.modelsText }}</p>
+        <details class="fine" open><summary class="hint">how to use it, step by step</summary>
+          <ol class="cn-steps"><li v-for="(st, i) in cnGuide.steps" :key="i" v-html="st"></li></ol></details>
+      </div>
       <div class="card i2i-preview">
         <div class="i2i-preview-head">
           <h3>Preview</h3>

@@ -457,6 +457,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Coming in 1.2.1: fixes from your notes", items: [
+              "<b>Tools → Depth map → Use as a ControlNet depth map</b> now always lands in Image to image ready to go: it switches to 🔄 Change it and an SD 1.5 model (Edit with words or Inpaint used to hide the ControlNet). The <b>ControlNet guide</b> now sits in the roomy right-hand column above the preview, with its steps open. <b>Library</b>: Img2img, ↺ Prompt and Tools sit in one even row along the bottom of a picture, and 🗑 moved next to ★ so it no longer covers the picture's label.",
               "<b>ControlNet guides</b> (Image to image): pick a ControlNet and a short guide appears: what it does, what picture to give it, the <b>best models</b> you have for it (★ = a good match; click one to switch) and <b>how to use it, step by step</b>. <b>Use these settings</b> sets its strength, timing and picture options in one click. QR code / pattern / illusion ControlNets (like QR Code Monster) and brightness ones are recognised by their names. The model list now says what each group can do (image to image, inpaint, ControlNet, image prompt), and while editing with words the ControlNet card suggests which ControlNets would suit and has <b>Use ControlNet instead</b>.",
               "<b>Create and Image to image keep their own prompts</b>: each tab has its own prompt and negative prompt, so a prompt written in one no longer turns up in the other (and an ✨ enhanced prompt stays with the tab it was made in). Pictures made by <b>Tools → 🩹 Remove</b> stay in Tools and the Library instead of showing in Image to image's preview.",
               "<b>Train → leave pictures out and crop by hand</b>: the <b>✕</b> on a picture (or <i>⊘ Leave out</i> in its list) leaves it out of training without touching the file (<b>↺</b> puts it back). <b>✂ Crop by hand…</b> (or click a picture) opens it large with a square you drag to move and resize by its corner: training uses exactly that square. Pictures the window can't show (some HEIC files) get a striped tile instead of a broken one; training still reads them. The caption buttons no longer run into the next column.",
@@ -666,7 +667,7 @@ const protoartApp = createApp({
               "Choose <b>Expand</b> and how many pixels to add on each side (or use <i>make it wider / taller</i>). The new area is filled in to match.",
               "Describe the whole scene in the prompt, including what should appear around the original. Expanding a little at a time (e.g. 128–256 px) gives the best results." ] },
             { h: "ControlNet (SD 1.5, and your own SDXL ones)", items: [
-              "<b>The guide</b>: when you pick a ControlNet, a panel under it says what it does, what picture to give it, which of your models suit it best (★, click to switch) and how to use it step by step. <b>Use these settings</b> sets the strength, timing and picture options it works best with. For a <b>QR code / pattern</b> ControlNet: put the black-and-white pattern in 1 · Picture, switch <b>Start from this picture</b> off, describe a busy, detailed scene (not the pattern), strength about 1.3, <b>Mostly</b>, 768 px, ~30 steps; make a few and keep the best.",
+              "<b>The guide</b>: when you pick a ControlNet, a panel on the right (above the preview) says what it does, what picture to give it, which of your models suit it best (★, click to switch) and how to use it step by step. <b>Use these settings</b> sets the strength, timing and picture options it works best with. For a <b>QR code / pattern</b> ControlNet: put the black-and-white pattern in 1 · Picture, switch <b>Start from this picture</b> off, describe a busy, detailed scene (not the pattern), strength about 1.3, <b>Mostly</b>, 768 px, ~30 steps; make a few and keep the best.",
               "<b>Your own ControlNets</b> (SD 1.5 or SDXL), e.g. QR Code Monster or an SDXL canny / depth / openpose from Civitai: paste the Civitai link in Models → Add from Civitai, then pick it in the ControlNet list. The list shows the ones that fit the model you picked: SD 1.5 models get the built-in ones and your SD 1.5 files, SDXL / Pony / Illustrious / NoobAI models get your SDXL files. If its name says <i>canny, depth, lineart, openpose, softedge, scribble</i> or <i>tile</i>, that map is made from your picture; otherwise it follows your picture as it is (give it a QR code or pattern as the picture). SDXL ControlNets are big, so they're slow on 8 GB Macs. Control-LoRA, LLLite and Union files can't be used yet (the Models tab says so next to them).",
               "<b>Tile</b> adds detail but keeps the picture: great with low change strength for sharpening.",
               "<b>Canny / Line art / Soft edges</b> keep the outlines; <b>Depth</b> keeps the 3-D layout; <b>Scribble</b> turns a sketch into a picture.",
@@ -4843,15 +4844,26 @@ const protoartApp = createApp({
     },
     depthToControlNet(r) {
       // a ready-made depth map: ControlNet follows it as-is; the picture itself isn't the starting image
+      // (Image to image is put in 🔄 Change it with an SD 1.5 model, whatever it was doing before: the depth
+      // ControlNet needs both, and Edit with words / Inpaint would hide it)
       this.form.init_image = r.path;
       this.form.i2i_use_init = false;
       this.form.use_init_size = true;
+      this.mask.data = null;
+      this.setI2iMode("change");
       this.form.control = { ...this.form.control, type: "depth", already_map: true };
-      if (r.settings?.depth?.style === "color")
-        this.status = "Tip: ControlNet expects the grey depth map; make one with Look → Grey for best results";
       this.controlMap = null;
       this.detail = null;
+      this.tab = "i2i";
+      if (this.family !== "sd15") {
+        const sd = this.installedModels.find((m) => m.family === "sd15" && m.engine !== "mlx");
+        if (sd) this.selectModel(sd.id);
+      }
       this.openI2I();
+      this.status = r.settings?.depth?.style === "color"
+        ? "Depth map loaded. Tip: ControlNet expects the grey depth map; make one with Look → Grey for best results"
+        : "Depth map loaded as the ControlNet map: describe the new picture and press Generate";
+      this.$nextTick(() => window.scrollTo({ top: 0, behavior: "smooth" }));
     },
     async openById(id) {
       const found = [...this.session, ...this.lib.results].find((x) => x.id === id);

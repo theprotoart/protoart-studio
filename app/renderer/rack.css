@@ -1785,3 +1785,15 @@ button.cmp-key.on:hover:not(:disabled) { background: radial-gradient(ellipse at 
 .cn-off { display: grid; gap: 6px; }
 .cn-off .cn-off-tips { font-size: 12.5px; line-height: 1.45; }
 .cn-off button { justify-self: start; }
+.cn-guide-card { margin: 0 0 14px; padding: 14px 18px; }
+.cn-guide-card .cn-guide-head h3 { margin: 0; }
+.cn-guide-card p, .cn-guide-card .cn-steps { font-size: 14px; max-width: 75ch; }
+.cn-guide-card details[open] summary { margin-bottom: 4px; }
+.cn-guide-pointer { margin: 6px 0 8px; }
+/* Library tiles: the three actions in one evenly spaced row along the bottom; 🗑 sits beside ★ (top right), clear of the
+   picture's label (top left) */
+.gallery figure .tile-acts { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; justify-content: center; gap: 6px;
+  flex-wrap: wrap; opacity: 0; transition: opacity .15s; pointer-events: none; }
+.gallery figure:hover .tile-acts { opacity: 1; pointer-events: auto; }
+.gallery figure .tile-acts .to-i2i { position: static; opacity: 1; transform: none; flex: 0 1 auto; min-width: 0; white-space: nowrap; }
+.gallery figure .to-i2i.card-trash { left: auto; right: 44px; top: 8px; }
