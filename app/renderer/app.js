@@ -460,7 +460,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Coming in 1.2.1: fixes from your notes", items: [
+            { h: "1.2.1 (test version): fixes from your notes", items: [
+              "<b>Known problem in this test version</b>: your own QR / pattern ControlNets (like QR Pattern v2) can come out as a flat grey square on some Macs, and nothing is saved. It's being worked on. Other features are not affected.",
               "<b>QR code pictures came out as a flat grey square and weren't saved</b>: the very high contrast of a QR code can overflow the last stage (turning the picture into pixels) in the faster half precision Apple GPUs use. That stage now redoes just that picture at full precision when it happens, so the picture isn't lost. If the ControlNet itself overflows, the app stops at once instead of after two minutes, runs it at full precision and tries again.",
               "<b>Recommended settings for each ControlNet</b>: picking one in Image to image puts in the settings it works best with straight away (for a QR code: strength 1.3, Mostly, 30 steps, guidance 7, 512 × 512 on 8 GB Macs, <b>Start from this picture</b> off), shown in a box under the picker with <b>undo</b>. If you change something that would spoil the result (for example strength below 1 or Start from this picture on), the box turns orange and says why, with <b>Use recommended settings</b>.",
               "<b>Fixed: QR code pictures failed to start</b> with “doesn't match an SD 1.5 ControlNet's layout (52 parts missing)”. SD 1.5 ControlNets you add yourself, like the QR Pattern one, now load properly.",

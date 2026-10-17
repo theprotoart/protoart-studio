@@ -1,7 +1,9 @@
 # Changelog
 
-## 1.2.1 (in progress)
+## 1.2.1 (test version)
 
+- Known issue: user SD 1.5 QR / pattern ControlNets (QR Pattern v2) can give a flat grey result on Apple Silicon
+  (latents grow to about ±60 by the last step; the picture decodes to plain grey and isn't saved). Under investigation
 - SD 1.5 VAE decode overflowing at float16 on high-contrast results (QR codes: finite latents, black/flat picture, not
   saved): `_safe_vae_decode` re-decodes that picture at float32 when the output has NaN / inf. Flat results log the
   UNet / VAE / ControlNet dtypes and the picture's range; latents checked every step while a ControlNet runs
