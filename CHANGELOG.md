@@ -2,6 +2,9 @@
 
 ## 1.2.1 (in progress)
 
+- ⏳ Slow-settings warning before Generate on Macs under 24 GB (`slowWarnings`, `slowCheck`): ControlNet size,
+  SDXL ControlNet, full-precision SDXL, Hi-res fix with SDXL, big sizes, many SDXL pictures; one-click fixes;
+  per-warning "don't warn again" (`protoart.slowWarnOff`), reset in Settings → Speed
 - Your own ControlNets (SD 1.5 too) load through the empty-weights path, read tensor by tensor into float16
   (`controlnet._read_half`); memory released after loading; the QR guide uses 512 px on Macs under 16 GB
 - Queue: ▲ / ▼ reorder waiting jobs (`queue_move`, `JobQueue.move`); Models tab: readable ★ default tag

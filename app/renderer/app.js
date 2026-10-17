@@ -293,6 +293,7 @@ const protoartApp = createApp({
       lorasAside: loadJSON("protoart.lorasAside", {}),  // model type -> LoRAs put aside when you switched type
       frame: { size: 512, busy: false, msg: "", copied: null },  // Train tab: square framing of the pictures
       cropEd: null,
+      slowWarn: null,      // the "this will be slow on this Mac" box: {title, lines, fixes, id, resolve, mute}
       shape: { mode: "tone", thr: 128, blur: 3, invert: false, margin: true, url: "", busy: false, depth: null },  // Tools → Shape maker
       PATTERNS: window.ProtoPatterns ? window.ProtoPatterns.LIST : [],
       pat: { text: "", invert: false, last: "" },  // Image to image → QR / pattern ControlNet: the pattern picker        // Train tab → ✂ Crop by hand: {it, x, y, s, w, h} (x, y, s as in trainer.parse_box)
@@ -460,6 +461,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Coming in 1.2.1: fixes from your notes", items: [
+              "<b>⏳ “This will be slow on this Mac”</b>: before a picture starts, settings that need more memory than your Mac has get a short warning with a one-click faster choice (for example <i>Use 512 × 512</i> for a ControlNet, the 8-bit SDXL instead of full precision, or Hi-res fix off). 8 GB Macs see it for big ControlNet and SDXL jobs, 16 GB Macs only for the heaviest, and Macs with 24 GB or more never. <i>Don't warn me about this again</i> switches one off; Settings → Speed turns them back on.",
               "<b>QR / pattern ControlNets are much faster on 8 GB Macs</b>: your own ControlNet files (many are 1.4 GB, full precision) are now read straight into half precision and built without spare copies, so loading one no longer pushes the Mac into swap (30–60 s a step). <b>Use these settings</b> picks 512 × 512 on Macs under 16 GB, since a ControlNet roughly doubles the work of each step.",
               "<b>Reorder the queue</b>: ▲ and ▼ beside each waiting job move it up or down, so you choose which prompt starts next. <b>Models tab</b>: the ★ default tag is now easy to read (it glowed too brightly).",
               "<b>◐ Shape maker</b> (Tools): turns any picture into a black-and-white shape for QR / pattern ControlNets. <b>Tones</b> makes the dark parts the shape (logos, silhouettes), <b>Outline</b> its outlines, <b>Subject</b> whatever is in front (found with a depth map). Threshold / Detail / Nearness and Smooth tune it, with invert and a margin; the preview updates as you go. <b>Use as shape →</b> opens it in Image to image as the ControlNet's picture, with your QR / pattern ControlNet picked if you have one.",
@@ -624,6 +626,7 @@ const protoartApp = createApp({
               "<b>⚡ Fast mode</b> (SD 1.5 / SDXL) makes images in 6 steps. <b>Presets</b> (at the top of the window in Create) save a whole setup, LoRAs included; switch on <i>prompt</i> to save the prompt too.",
               "<b>❚❚ Pause</b> holds the picture being made at its next step (and the queue); <b>▶ Resume</b> carries on where it was, nothing lost. Memory stays in use while paused, so on an 8 GB Mac Stop frees more if you need the Mac for something else.",
               "<b>⏭ Skip image</b> skips one image of a batch, <b>■ Stop</b> stops the job, <b>Stop all</b> clears the queue (and ends a pause).",
+              "<b>⏳ This will be slow on this Mac</b>: on a Mac with less than 24 GB, pressing Generate with settings that are too heavy for its memory (a ControlNet above 512 px on 8 GB, an SDXL ControlNet, full-precision SDXL, SDXL with Hi-res fix, very big sizes) shows what will be slow and why, with buttons for the faster choice. <b>Go ahead anyway</b> starts it as it is. <i>Don't warn me about this again</i> switches that warning off; <b>Settings → Speed</b> brings them back.",
               "<b>▲ / ▼</b> beside a waiting job (point at it) move it up or down the queue: the top one starts next.",
               "<b>⤵ Run the others first</b> (top of the queue, or the ⤵ on the running job) moves the job that's running to the back of the queue, so the jobs waiting behind it run now. The pictures it already finished are kept; the rest are made when its turn comes again (the one it was in the middle of starts over).",
               "Create and Image to image each keep <b>their own prompt and negative prompt</b>: switching tabs shows that tab's own.",
@@ -3257,7 +3260,78 @@ const protoartApp = createApp({
       if (!sd || !args.ip_adapter?.image) delete args.ip_adapter;
       return args;
     },
+    // -------------------------------------------------------------- "this will be slow on this Mac"
+    // Before a picture starts: settings that need more memory than this Mac has get a short warning with a one-click
+    // faster choice. 8 GB Macs see it for big ControlNet / SDXL jobs, 16 GB Macs only for the heaviest ones, and
+    // Macs with 24 GB or more never. Each warning can be switched off ("Don't warn me about this again").
+    slowWarnings(mode) {
+      const ram = this.sys.ram_gb || 0;
+      if (!ram || ram >= 24) return [];
+      const low = ram < 12, f = this.form, m = this.currentModel || {};
+      if (m.engine === "mlx" || !["sd15", "sdxl"].includes(m.family)) return [];
+      // the size it will really be: Image to image with "Use the picture's size" uses the picture's (capped)
+      let W = f.width, H = f.height;
+      if (mode === "i2i" && f.use_init_size && this.initDims && this.initDims.w) {
+        const cap = m.family === "sdxl" ? 1024 : 768, k = Math.min(1, cap / Math.max(this.initDims.w, this.initDims.h));
+        W = Math.round(this.initDims.w * k); H = Math.round(this.initDims.h * k);
+      }
+      const px = W * H, out = [];
+      const cn = mode === "i2i" && f.i2i_mode === "change" && f.control.type;
+      const fit = (side) => {  // the same shape, its longer side at `side`
+        const k = side / Math.max(W, H);
+        return [Math.max(256, Math.round((W * k) / 64) * 64), Math.max(256, Math.round((H * k) / 64) * 64)];
+      };
+      const sizeFix = (side) => {
+        const [w, h] = fit(side);
+        return { label: `Use ${w} × ${h} (much faster)`, apply: () => { f.width = w; f.height = h; f.use_init_size = false; } };
+      };
+      if (cn && m.family === "sdxl")
+        out.push({ id: "cn_sdxl", text: `An SDXL ControlNet with an SDXL model needs more memory than ${low ? "an 8 GB" : "a 16 GB"} Mac has free, so each step can take minutes.`,
+                   fixes: px > (low ? 600e3 : 1.1e6) ? [sizeFix(low ? 768 : 1024)] : [] });
+      else if (cn && px > (low ? 350e3 : 1.0e6))
+        out.push({ id: "cn_big", text: `A ControlNet at ${W} × ${H} on ${low ? "an 8 GB" : "a 16 GB"} Mac: the ControlNet roughly doubles each step's work, so this can take a minute or more a step.`,
+                   fixes: [sizeFix(low ? 512 : 768)] });
+      if (low && m.family === "sdxl" && /fp16|full/i.test(m.id + " " + (m.label || ""))) {
+        const q = this.installedModels.find((x) => x.family === "sdxl" && /int8|8-bit/i.test(x.id + " " + x.label));
+        out.push({ id: "sdxl_full", text: "The full-precision SDXL model is about 7 GB: on an 8 GB Mac most of it ends up on the disk, which is very slow.",
+                   fixes: q ? [{ label: `Use ${q.label} (half the memory)`, apply: () => this.selectModel(q.id) }] : [] });
+      }
+      if (!cn && px > (m.family === "sdxl" ? (low ? 1.2e6 : 2.2e6) : (low ? 0.8e6 : 1.6e6)))
+        out.push({ id: "big_size", text: `${W} × ${H} is bigger than this model was made for and more than ${low ? "an 8 GB" : "a 16 GB"} Mac handles quickly.`,
+                   fixes: [sizeFix(m.family === "sdxl" ? 1024 : 768)] });
+      if (low && mode !== "i2i" && f.hires && f.hires.on && m.family === "sdxl")
+        out.push({ id: "hires_sdxl", text: "Hi-res fix with SDXL on an 8 GB Mac redraws a picture of over 2 million pixels: it can take many minutes.",
+                   fixes: [{ label: "Switch Hi-res fix off", apply: () => { f.hires.on = false; } }] });
+      if (low && (f.num_images || 1) > 4 && m.family === "sdxl" && mode !== "i2i")
+        out.push({ id: "many_sdxl", text: `${f.num_images} SDXL pictures in one go on an 8 GB Mac will keep it busy for a long time (the queue can be paused or stopped).`, fixes: [] });
+      const muted = loadJSON("protoart.slowWarnOff", {});
+      return out.filter((w) => !muted[w.id]);
+    },
+    async slowCheck(mode) {  // true = go ahead (nothing to warn about, or "Go ahead anyway" / a fix was picked)
+      const list = this.slowWarnings(mode);
+      if (!list.length) return true;
+      return new Promise((resolve) => {
+        this.slowWarn = { list, fixes: list.flatMap((w) => w.fixes), resolve, mute: false, ram: this.sys.ram_gb };
+      });
+    },
+    resetSlowWarnings() {
+      saveJSON("protoart.slowWarnOff", {});
+      this.status = "Slow-down warnings are on again";
+    },
+    answerSlow(choice) {  // choice: a fix, "go" or null (cancel)
+      const w = this.slowWarn;
+      if (!w) return;
+      this.slowWarn = null;
+      if (w.mute && choice) {
+        const muted = loadJSON("protoart.slowWarnOff", {});
+        for (const x of w.list) muted[x.id] = true;
+        saveJSON("protoart.slowWarnOff", muted);
+      }
+      if (choice && choice !== "go") choice.apply();
+      w.resolve(!!choice);
+    },
     async generate() {
+      if (!(await this.slowCheck("create"))) return;
       if (this.loraRand.every && this.randomPool.length) await this.randomLoras(true);
       const res = await this.runJob("generate", this.createArgs());
       if (res) this.models = await call("list_models"); // refresh "downloaded" flags
@@ -4782,6 +4856,7 @@ const protoartApp = createApp({
       if (!["sd15", "sdxl"].includes(this.family)) return (this.error = "Image to image works with SD 1.5 and SDXL models: pick one at the top.");
       const cnFam = f.i2i_mode === "change" && f.control.type ? (this.controlTypeInfo?.family || "sd15") : null;
       if (cnFam && cnFam !== this.family) return (this.error = `This ControlNet is made for ${cnFam === "sdxl" ? "SDXL (Pony, Illustrious, NoobAI)" : "SD 1.5"} models: pick one in the model list at the top, or another ControlNet.`);
+      if (!(await this.slowCheck("i2i"))) return;
       this.error = "";
       const args = JSON.parse(JSON.stringify(f));
       this.cleanExtras(args);

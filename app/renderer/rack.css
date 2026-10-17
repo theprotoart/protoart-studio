@@ -1817,3 +1817,7 @@ button.cmp-key.on:hover:not(:disabled) { background: radial-gradient(ellipse at 
 /* Models: the "default" tag, readable (it glowed too brightly to read) */
 .chip.static.default-chip { background: #2a2416; color: var(--amber, #ffae2b); border: 1px solid rgba(var(--glow-rgb), .55);
   box-shadow: none; text-shadow: none; filter: none; font-weight: 700; }
+/* "This will be slow on this Mac" */
+.slow-warn { max-width: 560px; }
+.slow-warn p { line-height: 1.45; }
+.slow-fixes { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 10px; }

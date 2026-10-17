@@ -2864,6 +2864,8 @@
       Show a live preview while an image is being made</label>
     <label class="check"><input type="checkbox" v-model="opts.low_memory" @change="saveOpts">
       Low-memory mode for SDXL (8-bit while loading; slightly slower)</label>
+    <div class="hint" v-if="(sys.ram_gb || 0) < 24">⏳ Before a picture starts, settings that are too heavy for this Mac's {{ sys.ram_gb }} GB get a short warning with a faster choice.
+      <button class="link" @click="resetSlowWarnings" title="Show again the warnings you switched off with “Don't warn me about this again”">show the warnings I switched off again</button></div>
     <label class="check"><input type="checkbox" v-model="opts.force_load" @change="saveOpts">
       Load anyway when a model needs more memory than this Mac has</label>
     </section>
@@ -2999,6 +3001,20 @@
   </div>
 
   <!-- ============================ ARE YOU SURE? ============================ -->
+  <div v-if="slowWarn" class="modal top" @click.self="answerSlow(null)">
+    <div class="confirm slow-warn">
+      <h3>⏳ This will be slow on this Mac <span class="hint">({{ slowWarn.ram }} GB of memory)</span></h3>
+      <p v-for="w in slowWarn.list" :key="w.id">{{ w.text }}</p>
+      <div v-if="slowWarn.fixes.length" class="slow-fixes">
+        <button v-for="(x, i) in slowWarn.fixes" :key="i" class="primary" @click="answerSlow(x)">{{ x.label }}</button>
+      </div>
+      <label class="check"><input type="checkbox" v-model="slowWarn.mute"> Don't warn me about this again</label>
+      <div class="row end">
+        <button @click="answerSlow(null)">Cancel</button>
+        <button class="ghost" @click="answerSlow('go')">Go ahead anyway</button>
+      </div>
+    </div>
+  </div>
   <div v-if="ask" class="modal top" @click.self="answerAsk(false)">
     <div class="confirm">
       <h3>{{ ask.title }}</h3>
