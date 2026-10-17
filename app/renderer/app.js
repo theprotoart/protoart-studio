@@ -271,7 +271,7 @@ const protoartApp = createApp({
       lastModel: null,
       now: Date.now(),
       i2p: Object.assign({ mode: "describe", append: false }, loadJSON("beestudio.i2p", {})),
-      rnd: Object.assign({ subject: "random", quality: "standard", detail: 2 }, loadJSON("beestudio.rnd", {})),
+      rnd: Object.assign({ subject: "random", quality: "standard", detail: 2, style: true }, loadJSON("beestudio.rnd", {})),
       post: defaultPost(),
       vecResult: null,       // the last ✒️ Vectorize result {path, shapes, colors, bytes}
       toolsUndo: null,
@@ -348,7 +348,8 @@ const protoartApp = createApp({
           sections: [
             { h: "Version 1.2: new tools, and more of your testers' notes", items: [
               "<b>✨ Edit with words</b> (Image to image): describe a change (“make the jacket red”, “add a hat”, “turn it into a watercolour”) and FLUX.2 Klein makes just that change. Paint over a part to keep everything else exactly as it was, or add more pictures to take a style or an outfit from.",
-              "<b>Tools redesigned</b>: Restore faces, Depth map, Remove objects, Vectorize and Image → prompt are now tall rack modules side by side, each with its controls and its own button. <b>Sampler picks</b> show just the top two for speed and for quality (the rest are in the list).",
+              "<b>🎲 Random prompt speaks the model's language</b>: with FLUX, FLUX.2 or ERNIE picked it writes a scene in sentences (“Medium shot of a fisherman with a white beard, mending a net on a harbour wall at dawn…”); with SD 1.5 and SDXL it still writes tags. In Image to image, <b>FLUX.2 Klein</b> now shows at the top of the model list while Edit with words is on.",
+              "<b>Tools redesigned</b>: every tool (Run chain, Enhance, Restore faces, Depth map, Remove objects, Vectorize, Image → prompt) is now a tall rack module side by side; Enhance's less-used settings are under <i>fine-tune</i>, each with its controls and its own button. <b>Sampler picks</b> show just the top two for speed and for quality (the rest are in the list).",
               "<b>New model: FLUX.2 Klein 4B</b> (Black Forest Labs, January 2026) on the ⚡ fast engine, made for 8 GB Macs: a 4.6 GB download, 4 steps a picture. It's newer than FLUX.1 Schnell and better at following long prompts and writing text in pictures. Find it in the <b>Models</b> tab under FLUX.2. It ignores the negative prompt, and FLUX.1 LoRAs don't work with it (FLUX.2 LoRAs do).",
               "<b>🩹 Remove objects</b> (spot healing, like a healing brush): in <b>Image to image</b> choose <b>🩹 Remove</b>, paint over anything you don't want (a stray object, an extra finger, text, a blemish) and press <b>🩹 Remove</b>. It's filled in from what's around it; only the painted part changes. <b>✨ Best</b> uses LaMa (a ~208 MB download the first time, then offline); <b>⚡ Quick</b> is instant for small spots and scratches. Also in <b>Tools → 🩹 Remove objects</b>.",
               "<b>✒️ Vectorize</b> (Tools): turns a picture into an SVG of flat colour shapes, for logos, icons, stickers and cut files. Choose the number of colours, the detail and smooth or sharp outlines; it opens in Illustrator, Affinity, Inkscape, Figma or Cricut.",
@@ -437,7 +438,7 @@ const protoartApp = createApp({
               "<b>✨ Enhance prompt</b> turns a short idea into a full prompt in the model's style: tags for SD 1.5, a detailed description for SDXL and ERNIE (small built-in language model, ~1 GB the first time).",
               "<b>enhance now</b> (button) rewrites the prompt once, right away, and puts it in the prompt box so you can read it, edit it or <b>↩ undo</b> before generating. Best for polishing one prompt by hand.",
               "<b>Enhance prompt when generating</b> (checkbox) leaves your prompt box alone and enhances your short idea behind the scenes every time you press Generate, so each image gets a fresh variation. The prompt that was used shows under the box afterwards and is saved with the image. Best for exploring many variations; it adds a few seconds per image.",
-              "<b>🎲 Random prompt</b> makes Danbooru-style tag prompts (subject, quality preset, detail level).",
+              "<b>🎲 Random prompt</b> fits the model: for <b>FLUX, FLUX.2 and ERNIE</b> (which read sentences) it writes a short scene description (who, what they wear and do, where, when, the light and the look); for <b>SD 1.5 and SDXL</b> it writes Danbooru-style tags with a quality preset. Pick the subject and how detailed it should be next to it.",
               "Drop an image on the prompt box to turn it into a prompt: <b>Describe</b> (sentences) or <b>Danbooru tags</b>." ] },
             { h: "Long prompts & word weights (SD 1.5 / SDXL)", items: [
               "Prompts can be as long as you like: past 75 tokens they're read in parts, so nothing is cut off. <b>BREAK</b> starts a new part.",
@@ -3640,6 +3641,11 @@ const protoartApp = createApp({
       const res = await this.runJob("generate", args);
       if (res) this.models = await call("list_models");
     },
+    pickI2iModel(id) {  // Image to image's model list: FLUX.2 Klein means ✨ Edit with words; any other model leaves it
+      if (id === "flux2_klein_mlx_q4") return this.setI2iMode("edit");
+      if (this.form.i2i_mode === "edit") this.setI2iMode("change");
+      this.selectModel(id);
+    },
     editModel() {  // the model Edit with words uses
       return this.models.find((m) => m.id === "flux2_klein_mlx_q4") || null;
     },
@@ -3729,11 +3735,18 @@ const protoartApp = createApp({
     },
 
     // -------------------------------------------------------------- random prompt
+    naturalPrompts() {  // models that read sentences get sentence prompts from 🎲 Random prompt
+      return ["ernie", "flux", "flux2"].includes(this.family);
+    },
     randomPrompt() {
+      if (this.naturalPrompts()) {
+        this.form.prompt = window.NaturalPrompt.generate(this.rnd).prompt;  // no negative: these models ignore it
+        this.status = `Random ${FAMILY_LABEL[this.family]} prompt written as sentences`;
+        return;
+      }
       const r = window.DanbooruPrompt.generate(this.rnd);
       this.form.prompt = r.prompt;
       if (r.negative) this.form.negative_prompt = r.negative;
-      if (["ernie", "flux", "flux2"].includes(this.family)) this.status = `Tip: ${FAMILY_LABEL[this.family]} prefers sentences; tag prompts work best with anime SDXL/SD 1.5 models`;
     },
 
     // -------------------------------------------------------------- post-processing

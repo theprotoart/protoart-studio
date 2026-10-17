@@ -59,13 +59,17 @@
       <!-- Image to image: the model -->
       <div v-else-if="tab==='i2i'" class="slot-model">
         <span class="eng slot-label">Model</span>
-        <select :value="form.model" @change="selectModel($event.target.value)">
+        <select :value="form.i2i_mode === 'edit' ? 'flux2_klein_mlx_q4' : form.model" @change="pickI2iModel($event.target.value)">
+          <optgroup v-if="editModel()" label="FLUX.2 (✨ Edit with words)">
+            <option value="flux2_klein_mlx_q4">FLUX.2 Klein 4B · ✨ Edit with words{{ editModel().cached ? '' : ' · ' + Math.round(editModel().download_gb) + ' GB download' }}</option>
+          </optgroup>
           <optgroup v-for="g in i2iModelGroups" :key="g.name" :label="g.name">
             <option v-for="m in g.models" :key="m.id" :value="m.id" :disabled="!m.i2iOk">
               {{ m.label }}{{ m.people ? ' ●' : '' }}{{ m.nsfw ? ' ⚑' : '' }}{{ m.i2iOk ? (m.cached ? '' : ' · ' + Math.round(m.download_gb) + ' GB download') : ' — not for image to image' }}</option>
           </optgroup>
         </select>
-        <span class="hint">{{ familyLabel }}<template v-if="form.loras.length"> · {{ form.loras.length }} LoRA{{ form.loras.length === 1 ? "" : "s" }}</template></span>
+        <span v-if="form.i2i_mode === 'edit'" class="hint">FLUX.2 · ⚡ fast engine · the other modes use {{ currentModel ? currentModel.label : 'the Create model' }}</span>
+        <span v-else class="hint">{{ familyLabel }}<template v-if="form.loras.length"> · {{ form.loras.length }} LoRA{{ form.loras.length === 1 ? "" : "s" }}</template></span>
       </div>
       <!-- Tools: the engine -->
       <div v-else-if="tab==='tools'" class="slot-engine">
@@ -272,7 +276,7 @@
           </div>
         </div>
         <div class="row small gen">
-          <button @click="randomPrompt" title="Random Danbooru-style prompt" class="gen-btn">🎲 Random prompt</button>
+          <button @click="randomPrompt" :title="naturalPrompts() ? 'A random scene written in sentences (what ' + familyLabel + ' reads best)' : 'A random Danbooru-style tag prompt'" class="gen-btn">🎲 Random prompt</button>
           <button class="ghost gen-btn" @click="openWildcards" title="{red|blue} picks one per image; __name__ picks a line from a wildcard file">{ } Wildcards</button>
           <button class="ghost gen-btn" @click="batch.open = true" title="Queue one job per line of a list of prompts">📋 Prompt list</button>
         </div>
@@ -292,15 +296,24 @@
         </div>
         <div class="gen-opts">
           <select v-model="rnd.subject" title="Subject">
+            <template v-if="naturalPrompts()">
+            <option value="random">any subject</option><option value="1girl">a woman</option><option value="1boy">a man</option>
+            <option value="2girls">two women</option><option value="1girl 1boy">a woman and a man</option><option value="scenery">a landscape</option>
+            </template>
+            <template v-else>
             <option value="random">any subject</option><option>1girl</option><option>1boy</option>
             <option>2girls</option><option>1girl 1boy</option><option value="scenery">scenery</option>
+            </template>
           </select>
-          <select v-model="rnd.quality" title="Quality tags">
+          <select v-if="!naturalPrompts()" v-model="rnd.quality" title="Quality tags">
             <option value="standard">quality: standard</option><option value="illustrious">quality: Illustrious/NoobAI</option>
             <option value="pony">quality: Pony</option><option value="none">no quality tags</option>
           </select>
           <select v-model.number="rnd.detail" title="How many tags">
             <option :value="1">simple</option><option :value="2">detailed</option><option :value="3">very detailed</option>
+          </select>
+          <select v-if="naturalPrompts()" v-model="rnd.style" title="Whether to say what the picture should look like (photo, painting, anime…)">
+            <option :value="true">with a look</option><option :value="false">no look</option>
           </select>
         </div>
         <div v-if="currentFlavor" class="row small quality-row">
@@ -1201,60 +1214,69 @@
           <span class="hint" v-if="adj.size">{{ adj.size[0] }}×{{ adj.size[1] }}</span>
         </div>
       </div>
-      <div class="card run-card">
-        <h3>▶ Run on this image</h3>
-        <div class="row">
-          <label class="check"><input type="checkbox" v-model="post.do_enhance"> ✨ Enhance &amp; upscale (grain refining)</label>
-          <label class="check"><input type="checkbox" v-model="post.do_faces"> 🙂 Restore faces</label>
-        </div>
-        <div class="row">
-          <button class="primary" :disabled="!tool.source || (!post.do_enhance && !post.do_faces)" @click="toolRunSelected">
-            {{ post.do_enhance && post.do_faces ? 'Enhance, then restore faces' : post.do_enhance ? 'Enhance' : post.do_faces ? 'Restore faces' : 'Pick at least one' }}</button>
-          <span class="hint">Settings for each are below. Both together save one finished image.</span>
-        </div>
-      </div>
-      <div class="card tool-opt" :class="{active: post.do_enhance}" @click="post.do_enhance = true"
-           :title="post.do_enhance ? '' : 'Click to use Enhance & upscale'">
-        <h3>✨ Enhance &amp; upscale <span class="hint">Finegrain Image Enhancer · ~3.5 GB first time</span></h3>
-        <div class="grid2">
-          <div><label>Upscale</label>
-            <select v-model.number="post.enh.upscale_factor"><option :value="1">1× (refine only)</option><option :value="2">2×</option><option :value="3">3×</option><option :value="4">4×</option></select></div>
-          <div><label>Steps</label><input type="number" min="4" max="50" v-model.number="post.enh.num_inference_steps"></div>
-          <div class="span2 chips enh-presets"><span class="hint">Speed:</span>
-            <button v-for="p in enhSpeed" :key="p.label" class="chip" :class="{on: enhSpeedOn(p)}"
-                    @click="pickEnhSpeed(p)" :title="p.tip">{{ p.label }}</button></div>
-          <div class="span2 chips enh-presets"><span class="hint">Work at:</span>
-            <button v-for="w in [{id: 'auto', label: 'Auto'}, {id: 512, label: '512 px'}, {id: 768, label: '768 px'}]" :key="w.id" class="chip"
-                    :class="{on: String(post.enh.work_size || 'auto') === String(w.id)}" @click="post.enh.work_size = w.id"
-                    :title="w.id === 'auto' ? 'Picks 512 px for Instant / Turbo / Fast on Macs with less than 16 GB, otherwise 768 px' : w.id === 512 ? 'Quicker and lighter on memory: less than half the work. The result is smaller (512 px short side × the upscale factor)' : 'The enhancer\'s own size: bigger result, more than twice the work'">{{ w.label }}</button>
-            <span class="hint">short side the picture is worked at · now {{ enhWorkSide() }} px</span></div>
-          <div class="span2 chips enh-presets"><span class="hint">Look:</span>
-            <button v-for="p in enhPresets" :key="p.label" class="chip"
-                    :class="{on: post.enh.denoise_strength===p.c && post.enh.controlnet_scale===p.r}"
-                    @click="post.enh.denoise_strength=p.c; post.enh.controlnet_scale=p.r" :title="p.tip">{{ p.label }}</button></div>
-          <div><label>Creativity <span class="hint">{{ post.enh.denoise_strength }}</span></label>
-            <input type="range" min="0.1" max="0.8" step="0.05" v-model.number="post.enh.denoise_strength">
-            <div class="hint slider-help">How much new detail it may invent. Low = cleaner, faithful; high = more texture and changes.</div></div>
-          <div><label>Resemblance <span class="hint">{{ post.enh.controlnet_scale }}</span></label>
-            <input type="range" min="0.2" max="1.5" step="0.05" v-model.number="post.enh.controlnet_scale">
-            <div class="hint slider-help">How tightly it sticks to the original's shapes and faces. High = stays true; low = freer.</div></div>
-          <div><label>Solver</label>
-            <select v-model="post.enh.solver"><option>DDIM</option><option>DPMSolver</option><option>Euler</option></select></div>
-          <div><label>Seed <span class="hint">-1 = random</span></label><input type="number" v-model.number="post.enh.seed"></div>
-          <div class="span2"><label>Prompt <span class="hint">blank = use the image's own prompt</span></label>
-            <input v-model="post.enh.prompt" placeholder="masterpiece, best quality, highres, …"></div>
-        </div>
-        <div class="row">
-          <button class="primary" :disabled="!tool.source" @click="toolEnhance">Enhance</button>
-          <span class="hint" v-if="tool.source && tool.source.width">→ {{ enhOutSize(tool.source.width, tool.source.height, post.enh.upscale_factor).join('×') }}
-            <template v-if="post.enh.instant"> · ⏩ Instant (sharpen only)</template><template v-else-if="post.enh.turbo"> · 🚀 Turbo</template></span>
-        </div>
-      </div>
-
       <!-- The single-job tools as tall rack modules, side by side (like 500-series studio gear) -->
       <div class="module-rack">
-        <div class="card rack-module tool-opt" :class="{active: post.do_faces}" @click="post.do_faces = true"
-             :title="post.do_faces ? '' : 'Click to use Restore faces with Run on this image'">
+        <div class="card rack-module run-module">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">▶</span>
+            <h3>Run chain</h3><span class="mod-sub">one finished picture</span></div>
+          <p class="mod-desc">Enhance, then restore faces, in one go. Each uses the settings in its own module.</p>
+          <div class="mod-switches">
+            <button class="mod-switch" :class="{on: post.do_enhance}" @click="post.do_enhance = !post.do_enhance"
+                    title="Include Enhance &amp; upscale"><i></i>✨ Enhance</button>
+            <button class="mod-switch" :class="{on: post.do_faces}" @click="post.do_faces = !post.do_faces"
+                    title="Include Restore faces"><i></i>🙂 Restore faces</button>
+          </div>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!tool.source || (!post.do_enhance && !post.do_faces)" @click="toolRunSelected">
+              {{ post.do_enhance && post.do_faces ? 'Run both' : post.do_enhance ? 'Enhance' : post.do_faces ? 'Restore faces' : 'Pick one' }}</button>
+            <span class="mod-plate">Chain · CH-0</span>
+          </div>
+        </div>
+
+        <div class="card rack-module enh-module" :class="{active: post.do_enhance}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">✨</span>
+            <h3>Enhance</h3><span class="mod-sub">sharper &amp; bigger · Finegrain</span></div>
+          <label>Upscale</label>
+          <div class="seg mod-seg">
+            <button v-for="u in [1, 2, 3, 4]" :key="u" :class="{on: post.enh.upscale_factor === u}" @click="post.enh.upscale_factor = u"
+                    :title="u === 1 ? 'Same size: refine only' : u + '× bigger'">{{ u }}×</button>
+          </div>
+          <label>Speed</label>
+          <div class="seg mod-seg mod-seg-wrap">
+            <button v-for="p in enhSpeed" :key="p.label" :class="{on: enhSpeedOn(p)}" @click="pickEnhSpeed(p)" :title="p.tip">{{ p.label }}</button>
+          </div>
+          <label>Look</label>
+          <div class="seg mod-seg">
+            <button v-for="p in enhPresets" :key="p.label" :class="{on: post.enh.denoise_strength===p.c && post.enh.controlnet_scale===p.r}"
+                    @click="post.enh.denoise_strength=p.c; post.enh.controlnet_scale=p.r" :title="p.tip">{{ p.label }}</button>
+          </div>
+          <label title="How much new detail it may invent. Low = cleaner, faithful; high = more texture and changes.">Creativity <span class="mod-val">{{ post.enh.denoise_strength }}</span></label>
+          <input type="range" min="0.1" max="0.8" step="0.05" v-model.number="post.enh.denoise_strength" title="Low = cleaner, faithful · high = more texture and changes">
+          <label title="How tightly it sticks to the original's shapes and faces. High = stays true; low = freer.">Resemblance <span class="mod-val">{{ post.enh.controlnet_scale }}</span></label>
+          <input type="range" min="0.2" max="1.5" step="0.05" v-model.number="post.enh.controlnet_scale" title="High = stays true to the original · low = freer">
+          <details class="mod-more">
+            <summary>fine-tune</summary>
+            <label>Steps</label><input type="number" min="4" max="50" v-model.number="post.enh.num_inference_steps">
+            <label>Work at <span class="mod-val">{{ enhWorkSide() }}</span></label>
+            <div class="seg mod-seg">
+              <button v-for="w in [{id: 'auto', label: 'Auto'}, {id: 512, label: '512'}, {id: 768, label: '768'}]" :key="w.id"
+                      :class="{on: String(post.enh.work_size || 'auto') === String(w.id)}" @click="post.enh.work_size = w.id"
+                      :title="w.id === 'auto' ? 'Picks 512 px for Instant / Turbo / Fast on Macs with less than 16 GB, otherwise 768 px' : w.id === 512 ? 'Quicker and lighter on memory; smaller result' : 'The enhancer\'s own size: bigger result, more than twice the work'">{{ w.label }}</button>
+            </div>
+            <label>Solver</label>
+            <select v-model="post.enh.solver"><option>DDIM</option><option>DPMSolver</option><option>Euler</option></select>
+            <label>Seed <span class="hint">-1 = random</span></label><input type="number" v-model.number="post.enh.seed">
+            <label>Prompt <span class="hint">blank = its own</span></label>
+            <input v-model="post.enh.prompt" placeholder="masterpiece, best quality…">
+          </details>
+          <div class="mod-foot">
+            <p v-if="tool.source && tool.source.width" class="mod-note">→ {{ enhOutSize(tool.source.width, tool.source.height, post.enh.upscale_factor).join(' × ') }}</p>
+            <button class="primary mod-go" :disabled="!tool.source" @click="toolEnhance">Enhance</button>
+            <span class="mod-plate">Enhancer · EN-1</span>
+          </div>
+        </div>
+
+        <div class="card rack-module" :class="{active: post.do_faces}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🙂</span>
             <h3>Restore faces</h3><span class="mod-sub">{{ post.face_model === 'codeformer' ? 'CodeFormer' : 'RestoreFormer' }}</span></div>
           <p class="mod-desc">Repairs blurry or distorted faces and eyes.</p>
@@ -2543,6 +2565,7 @@
 <script src="../node_modules/vue/dist/vue.global.prod.js"></script>
 <script src="adjust.js"></script>
 <script src="prompt_generator.js"></script>
+<script src="natural_prompt.js"></script>
 <script src="tips.js"></script>
 <script src="app.js"></script>
 </body>

@@ -2,11 +2,17 @@
 
 ## 1.2.0
 
+- 🎲 Random prompt: natural-language scenes for FLUX / FLUX.2 / ERNIE (`natural_prompt.js`, `window.NaturalPrompt`;
+  subject, detail and "with a look" options; the negative prompt is left alone); Danbooru tags stay for SD 1.5 / SDXL
+- Image to image model list: "FLUX.2 (✨ Edit with words)" group; picking it turns on Edit with words, picking another
+  model leaves it (`pickI2iModel`)
 - ✨ Edit with words (Image to image → new first mode): FLUX.2 [klein] 4B edit (`Flux2KleinEdit`, same weights) on
   the fast engine; new queued job `edit_words` (`engine.edit_words`): the picture plus up to 3 extra pictures as
   references, ~0.6 MP on 8 GB Macs (1 MP otherwise), result resized back; an optional painted area is composited over
   the untouched original with a soft edge. Saved as kind `word_edit`. The worker loads FLUX.2 as `variant="edit"`
-- Tools: Restore faces, Depth map, Remove objects, Vectorize and Image → prompt as vertical rack modules (`.module-rack`)
+- Tools: every tool is a vertical rack module (`.module-rack`): Run chain (Enhance → Restore faces), Enhance (main
+  controls up front, steps / work size / solver / seed / prompt under "fine-tune"), Restore faces, Depth map, Remove
+  objects, Vectorize, Image → prompt; Convert DiffusionBee files stays a wide unit
 - Sampler picks: at most two "Fastest" and two "Best quality" chips
 - New model: **FLUX.2 [klein] 4B** on the fast engine (`flux2_klein_mlx_q4`, family `flux2`): mflux `Flux2Klein`
   with the 4-bit conversion `ar9av/FLUX.2-klein-4B-mflux-4bit` pinned to revision 86214a1 (~4.6 GB), 4 steps, guidance 1,
