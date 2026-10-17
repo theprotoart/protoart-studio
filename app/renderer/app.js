@@ -119,6 +119,58 @@ const OPTS_KEY = "beestudio.opts";
 const PERF_KEY = "protoart.perf";
 // Tools → Patchbay: the back of the rack. Each module has an IN and an OUT jack; a cable from one module's OUT to the
 // next one's IN sets the order the picture goes through them (like an analog patchbay, or the back of Reason's rack).
+// Image to image → ControlNet: a short guide for each kind (built-in ones by id; your own files by words in the name):
+// what it does, which models suit it (matched against your installed models' names), how to use it, and the
+// settings it works best with (applied with one click).
+const CN_GUIDES = {
+  qr: { title: "QR code / pattern / illusion ControlNet",
+    what: "Hides a shape inside a picture: a QR code that still scans, a spiral, a logo, a word, a checkerboard. The scene you describe is painted so that its light and dark areas follow your pattern.",
+    picture: "Your picture is the pattern itself: black and white, high contrast, with a margin around it (a QR code, text, a logo, a spiral). It isn't the starting picture.",
+    models: /(dream ?shaper|realistic|photon|rev ?animated|deliberate|epic|juggernaut|absolute|cyber|majic|anything)/i,
+    modelsText: "SD 1.5 models with rich detail work best: DreamShaper, Realistic Vision, Photon, ReV Animated. Busy, textured scenes (a city, a forest, a market, clouds) hide the pattern better than plain ones.",
+    steps: ["Put the black-and-white pattern (or QR code) in 1 · Picture, and switch <b>Start from this picture</b> off.",
+      "Describe a detailed scene in the prompt (“an aerial view of a medieval village, intricate rooftops, autumn trees”). Don't describe the pattern.",
+      "Strength 1.1–1.5: higher keeps the pattern (a QR code scans), lower blends it in more. Start at 1.3.",
+      "When it guides: <b>Mostly</b> (0–80%) or <b>Layout only</b> for a subtler hidden shape.",
+      "Size 768 × 768, about 30 steps, guidance 7. Make a few and pick the one that scans (or looks best)."],
+    set: { scale: 1.3, start: 0, end: 0.8, use_init: false, steps: 30, cfg: 7, size: 768 } },
+  light: { title: "Brightness / illumination ControlNet",
+    what: "Uses your picture's light and dark areas as the lighting of a new picture (glowing shapes, light through a window, a word made of light).",
+    picture: "A grey-scale picture: white where the light should be, black where it's dark. Soft edges look more natural.",
+    models: /(dream ?shaper|realistic|photon|rev ?animated|epic)/i,
+    modelsText: "Realistic SD 1.5 models suit it best (Realistic Vision, Photon, DreamShaper).",
+    steps: ["Put the light map in 1 · Picture and switch <b>Start from this picture</b> off.", "Describe the scene and its light (“a dark forest at night, glowing mist”).",
+      "Strength 0.6–0.9 (it's strong), guidance Mostly."],
+    set: { scale: 0.75, start: 0, end: 0.8, use_init: false } },
+  canny: { title: "Canny edges", what: "Keeps the outlines of your picture exactly and lets everything else change: colours, materials, style, lighting.",
+    picture: "Any picture with clear shapes (a photo, a product, a building, a drawing). Preview the map: you should see clean white outlines.",
+    models: null, modelsText: "Any SD 1.5 model: pick the one with the style you want the result in.",
+    steps: ["Put the picture in 1 · Picture. Switch <b>Start from this picture</b> on to keep its colours too, off for a fresh look.",
+      "Describe the new version (“the same room as a cosy watercolour”).", "Strength 0.8–1.0, The whole time."],
+    set: { scale: 0.9, start: 0, end: 1 } },
+  depth: { title: "Depth", what: "Keeps the 3-D layout (what's near and far) and lets shapes, materials and style change more freely than Canny.",
+    picture: "Any photo or render with depth. Bigger depth models (Base, Large) read fine detail better but are slower.",
+    models: null, modelsText: "Any SD 1.5 model.", steps: ["Put the picture in 1 · Picture.", "Describe the new scene in the same layout.", "Strength 0.8–1.0, Mostly."],
+    set: { scale: 0.9, start: 0, end: 0.8 } },
+  lineart: { title: "Line art", what: "Colours and renders a drawing while keeping its lines.", picture: "A clean drawing or sketch (dark lines on white).",
+    models: /(anime|anything|counterfeit|toon|cartoon|dream ?shaper)/i, modelsText: "Anime or illustration SD 1.5 models for comics and cartoons; realistic ones to turn a drawing into a photo.",
+    steps: ["Put the drawing in 1 · Picture, <b>Start from this picture</b> off.", "Describe colours and style (“flat colours, cel shading”).", "Strength 1.0, The whole time."],
+    set: { scale: 1, start: 0, end: 1, use_init: false } },
+  scribble: { title: "Scribble", what: "Turns a rough doodle into a finished picture.", picture: "A quick sketch: dark strokes on a light background (a few lines is enough).",
+    models: null, modelsText: "Any SD 1.5 model.", steps: ["Put the scribble in 1 · Picture, <b>Start from this picture</b> off.", "Describe what the doodle is.", "Strength 0.8–1.0, Layout only for freer results."],
+    set: { scale: 0.9, start: 0, end: 0.8, use_init: false } },
+  softedge: { title: "Soft edges", what: "Like Canny but looser: keeps the main shapes and lets small details change.", picture: "Any picture.",
+    models: null, modelsText: "Any SD 1.5 model.", steps: ["Put the picture in 1 · Picture.", "Describe the new version.", "Strength 0.8, Mostly."],
+    set: { scale: 0.8, start: 0, end: 0.8 } },
+  openpose: { title: "OpenPose", what: "Copies a person's pose (body, arms, legs) into a new picture; faces, clothes and setting come from your prompt.",
+    picture: "A photo with the whole person visible. Preview the map to check the stick figure found everyone.",
+    models: null, modelsText: "Any SD 1.5 model with people in it (realistic or anime).", steps: ["Put the photo in 1 · Picture, <b>Start from this picture</b> off.", "Describe the person and setting.", "Strength 1.0, The whole time."],
+    set: { scale: 1, start: 0, end: 1, use_init: false } },
+  tile: { title: "Tile", what: "Adds detail while keeping the picture: sharpening, upscaling, cleaning up a blurry picture.", picture: "The picture you want more detail in.",
+    models: null, modelsText: "The model that made the picture (or one in the same style).", steps: ["Put the picture in 1 · Picture with <b>Start from this picture</b> on.", "Change strength 0.3–0.5 (low keeps it the same).", "ControlNet strength 1.0, The whole time; describe the picture briefly."],
+    set: { scale: 1, start: 0, end: 1, use_init: true, strength: 0.4 } },
+};
+const CN_NAME_GUIDES = [[/(qr|monster|illusion|pattern|spiral|hidden)/i, "qr"], [/(bright|illumin|light|lumin)/i, "light"]];
 const PATCH_NODES = [
   { id: "src", label: "PICTURE", sub: "your picture", out: true },
   { id: "heal", label: "REMOVE", sub: "objects", icon: "🩹", in: true, out: true },
@@ -405,6 +457,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Coming in 1.2.1: fixes from your notes", items: [
+              "<b>ControlNet guides</b> (Image to image): pick a ControlNet and a short guide appears: what it does, what picture to give it, the <b>best models</b> you have for it (★ = a good match; click one to switch) and <b>how to use it, step by step</b>. <b>Use these settings</b> sets its strength, timing and picture options in one click. QR code / pattern / illusion ControlNets (like QR Code Monster) and brightness ones are recognised by their names. The model list now says what each group can do (image to image, inpaint, ControlNet, image prompt), and while editing with words the ControlNet card suggests which ControlNets would suit and has <b>Use ControlNet instead</b>.",
               "<b>Create and Image to image keep their own prompts</b>: each tab has its own prompt and negative prompt, so a prompt written in one no longer turns up in the other (and an ✨ enhanced prompt stays with the tab it was made in). Pictures made by <b>Tools → 🩹 Remove</b> stay in Tools and the Library instead of showing in Image to image's preview.",
               "<b>Train → leave pictures out and crop by hand</b>: the <b>✕</b> on a picture (or <i>⊘ Leave out</i> in its list) leaves it out of training without touching the file (<b>↺</b> puts it back). <b>✂ Crop by hand…</b> (or click a picture) opens it large with a square you drag to move and resize by its corner: training uses exactly that square. Pictures the window can't show (some HEIC files) get a striped tile instead of a broken one; training still reads them. The caption buttons no longer run into the next column.",
               "<b>⤵ Run the others first</b> (top of the queue, or ⤵ on the running job): moves the job that's running to the back of the queue so the waiting ones run now. Pictures it already finished are kept; the one it was making starts again when its turn comes.",
@@ -613,6 +666,7 @@ const protoartApp = createApp({
               "Choose <b>Expand</b> and how many pixels to add on each side (or use <i>make it wider / taller</i>). The new area is filled in to match.",
               "Describe the whole scene in the prompt, including what should appear around the original. Expanding a little at a time (e.g. 128–256 px) gives the best results." ] },
             { h: "ControlNet (SD 1.5, and your own SDXL ones)", items: [
+              "<b>The guide</b>: when you pick a ControlNet, a panel under it says what it does, what picture to give it, which of your models suit it best (★, click to switch) and how to use it step by step. <b>Use these settings</b> sets the strength, timing and picture options it works best with. For a <b>QR code / pattern</b> ControlNet: put the black-and-white pattern in 1 · Picture, switch <b>Start from this picture</b> off, describe a busy, detailed scene (not the pattern), strength about 1.3, <b>Mostly</b>, 768 px, ~30 steps; make a few and keep the best.",
               "<b>Your own ControlNets</b> (SD 1.5 or SDXL), e.g. QR Code Monster or an SDXL canny / depth / openpose from Civitai: paste the Civitai link in Models → Add from Civitai, then pick it in the ControlNet list. The list shows the ones that fit the model you picked: SD 1.5 models get the built-in ones and your SD 1.5 files, SDXL / Pony / Illustrious / NoobAI models get your SDXL files. If its name says <i>canny, depth, lineart, openpose, softedge, scribble</i> or <i>tile</i>, that map is made from your picture; otherwise it follows your picture as it is (give it a QR code or pattern as the picture). SDXL ControlNets are big, so they're slow on 8 GB Macs. Control-LoRA, LLLite and Union files can't be used yet (the Models tab says so next to them).",
               "<b>Tile</b> adds detail but keeps the picture: great with low change strength for sharpening.",
               "<b>Canny / Line art / Soft edges</b> keep the outlines; <b>Depth</b> keeps the 3-D layout; <b>Scribble</b> turns a sketch into a picture.",
@@ -1487,8 +1541,8 @@ const protoartApp = createApp({
       const ok = (m) => (m.family === "sd15" || m.family === "sdxl") && m.engine !== "mlx";
       const mark = (list) => list.map((m) => ({ ...m, i2iOk: ok(m) }));
       return [
-        { name: "SD 1.5 (image to image + ControlNet)", models: mark(this.installedModels.filter((m) => m.family === "sd15")) },
-        { name: "SDXL (image to image + your SDXL ControlNets)", models: mark(this.installedModels.filter((m) => m.family === "sdxl")) },
+        { name: "SD 1.5 · image to image, inpaint, ControlNet (built-in + yours), image prompt (IP-Adapter)", models: mark(this.installedModels.filter((m) => m.family === "sd15")) },
+        { name: "SDXL / Pony · image to image, inpaint, image prompt (IP-Adapter), your SDXL ControlNets", models: mark(this.installedModels.filter((m) => m.family === "sdxl")) },
       ].filter((g) => g.models.length);
     },
     convShown() {
@@ -1518,6 +1572,26 @@ const protoartApp = createApp({
     controlTypesShown() {  // the ControlNets for the current model's type (SD 1.5's built-in ones, your own SD 1.5 or SDXL)
       const fam = this.family === "sdxl" ? "sdxl" : "sd15";
       return this.controlTypes.filter((t) => (t.family || "sd15") === fam || t.id === this.form.control.type);
+    },
+    cnGuide() {  // the guide for the ControlNet picked in Image to image
+      const t = this.controlTypeInfo;
+      if (!t) return null;
+      if (CN_GUIDES[t.id]) return CN_GUIDES[t.id];
+      const name = t.id.replace(/^user:/, "");
+      const hit = CN_NAME_GUIDES.find(([re]) => re.test(name));
+      if (hit) return CN_GUIDES[hit[1]];
+      if (t.makes_map && CN_GUIDES[t.makes_map]) return CN_GUIDES[t.makes_map];
+      return { title: "Your ControlNet", what: "A ControlNet you added. It follows your picture as it is (no map is made from it), so give it the kind of picture it was trained on: its Civitai page says which.",
+               picture: "The picture it expects (a pattern, a map, a sketch…).", models: null, modelsText: "Models of the same type as the ControlNet.",
+               steps: ["Put the picture in 1 · Picture.", "Start with strength 1.0 and Mostly, then adjust."], set: { scale: 1, start: 0, end: 0.8 } };
+    },
+    cnModelPicks() {  // installed models that suit the picked ControlNet (best first), for one-click switching
+      const t = this.controlTypeInfo, g = this.cnGuide;
+      if (!t || !g) return [];
+      const fam = t.family || "sd15";
+      const ok = this.installedModels.filter((m) => m.family === fam && m.engine !== "mlx");
+      const good = g.models ? ok.filter((m) => g.models.test(m.label || m.id)) : [];
+      return (good.length ? good : ok).slice(0, 4).map((m) => ({ ...m, matched: good.includes(m) }));
     },
     controlTypeInfo() {
       return this.controlTypes.find((t) => t.id === this.form.control.type);
@@ -4465,6 +4539,27 @@ const protoartApp = createApp({
         }
       }
       if (!this.controlTypes.length) this.controlTypes = await call("control_types").catch(() => []);
+    },
+    applyCnGuide() {  // ControlNet → "Use these settings": the guide's strength, timing and picture settings
+      const g = this.cnGuide;
+      if (!g || !g.set) return;
+      const c = g.set, f = this.form;
+      f.control.scale = c.scale ?? f.control.scale;
+      f.control.start = c.start ?? f.control.start;
+      f.control.end = c.end ?? f.control.end;
+      if (c.use_init != null) f.i2i_use_init = c.use_init;
+      if (c.strength != null) f.strength = c.strength;
+      if (c.steps) f.steps = c.steps;
+      if (c.cfg) f.cfg = c.cfg;
+      if (c.size && !f.use_init_size) { f.width = c.size; f.height = c.size; }
+      this.status = "ControlNet settings set for " + g.title;
+    },
+    switchToControlNet() {  // from Edit with words / Inpaint: go to Change it with an SD 1.5 model for ControlNet
+      const sd = this.installedModels.find((m) => m.family === "sd15" && m.engine !== "mlx" && m.id === this.form.model)
+        || this.installedModels.find((m) => m.family === "sd15" && m.engine !== "mlx");
+      this.setI2iMode("change");
+      if (sd && this.form.model !== sd.id) this.selectModel(sd.id);
+      this.status = sd ? `ControlNet is on: ${sd.label} (SD 1.5) is picked` : "Add an SD 1.5 model in the Models tab to use ControlNet";
     },
     async previewControlMap() {
       if (!this.form.init_image || !this.form.control.type) return;

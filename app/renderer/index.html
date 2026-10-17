@@ -90,7 +90,7 @@
       <div v-else-if="tab==='i2i'" class="slot-model">
         <span class="eng slot-label">Model</span>
         <select :value="form.i2i_mode === 'edit' ? 'flux2_klein_mlx_q4' : form.model" @change="pickI2iModel($event.target.value)">
-          <optgroup v-if="editModel()" label="FLUX.2 (✨ Edit with words)">
+          <optgroup v-if="editModel()" label="FLUX.2 · ✨ Edit with words (uses More pictures instead of image prompt / ControlNet)">
             <option value="flux2_klein_mlx_q4">FLUX.2 Klein 4B · ✨ Edit with words{{ editModel().cached ? '' : ' · ' + Math.round(editModel().download_gb) + ' GB download' }}</option>
           </optgroup>
           <optgroup v-for="g in i2iModelGroups" :key="g.name" :label="g.name">
@@ -1948,7 +1948,14 @@
         <label v-if="form.i2i_mode !== 'edit'" class="check"><input type="checkbox" v-model="form.use_init_size"> Use the picture's size (otherwise the size from Create)</label>
       </div>
 
-      <div v-if="form.i2i_mode !== 'change'" class="card hint">2 · ControlNet is off while {{ form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
+      <div v-if="form.i2i_mode !== 'change'" class="card hint cn-off">
+        <div>2 · ControlNet is off while {{ form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
+        <div v-if="form.i2i_mode === 'edit'" class="cn-off-tips">Edit with words already keeps the layout, and <b>More pictures</b> above lend it a style, an outfit or a face.
+          To make a new picture that follows this one's <b>structure</b> instead, use ControlNet with an SD 1.5 model:
+          <b>Canny</b> (outlines), <b>Depth</b> (3-D layout), <b>Line art</b> (colour a drawing), <b>OpenPose</b> (copy a pose), <b>Tile</b> (add detail)<template v-if="userControlnets.length">, or one of yours ({{ userControlnets.slice(0, 3).map((u) => u.name).join(', ') }}{{ userControlnets.length > 3 ? '…' : '' }})</template>.
+          SD 1.5 and SDXL models can also take an <b>image prompt</b> (IP-Adapter, in Create → Image prompt) that copies a picture's style or subject.</div>
+        <button v-if="form.i2i_mode === 'edit' || form.i2i_mode === 'inpaint'" class="ghost small" @click="switchToControlNet">Use ControlNet instead</button>
+      </div>
       <div v-else class="card">
         <h3>2 · ControlNet <span class="hint">{{ family === 'sdxl' ? 'SDXL' : 'SD 1.5' }} · makes the result follow the picture's structure</span></h3>
         <select v-model="form.control.type" @change="controlMap = null">
@@ -1958,6 +1965,20 @@
         <div v-if="family === 'sdxl' && controlTypesShown.length === 0" class="hint">No SDXL ControlNets yet. Add one from Civitai (Models → Add from Civitai): SDXL, Pony, Illustrious and NoobAI models use them. The built-in ones are for SD 1.5.</div>
         <div v-else-if="family === 'sdxl'" class="hint">SDXL ControlNets are big: on an 8 GB Mac expect it to be slow, and use 1024 px or less.</div>
         <template v-if="form.control.type">
+          <div v-if="cnGuide" class="cn-guide">
+            <div class="cn-guide-head"><b>{{ cnGuide.title }}</b><span class="grow"></span>
+              <button class="ghost small" @click="applyCnGuide" title="Set the strength, timing and picture settings this ControlNet works best with">Use these settings</button></div>
+            <p>{{ cnGuide.what }}</p>
+            <p><b>Your picture:</b> {{ cnGuide.picture }}</p>
+            <div class="cn-models"><span class="hint">Best models:</span>
+              <button v-for="m in cnModelPicks" :key="m.id" class="chip" :class="{on: form.model === m.id, rec: m.matched}" @click="selectModel(m.id)"
+                      :title="m.matched ? 'A good match for this ControlNet' : 'Works with this ControlNet'">{{ m.matched ? '★ ' : '' }}{{ m.label }}</button>
+              <span v-if="!cnModelPicks.length" class="hint warn">no {{ (controlTypeInfo && controlTypeInfo.family === 'sdxl') ? 'SDXL' : 'SD 1.5' }} model installed yet (Models tab)</span>
+            </div>
+            <p class="hint">{{ cnGuide.modelsText }}</p>
+            <details class="fine"><summary class="hint">how to use it, step by step</summary>
+              <ol class="cn-steps"><li v-for="(st, i) in cnGuide.steps" :key="i" v-html="st"></li></ol></details>
+          </div>
           <label>How closely to follow the map <span class="hint">{{ form.control.scale.toFixed(2) }}</span></label>
           <input type="range" min="0" max="2" step="0.05" v-model.number="form.control.scale">
           <div class="hint slider-help">0.5 = loose suggestion · 1.0 = follow it (normal) · 1.5+ = follow it very strictly</div>

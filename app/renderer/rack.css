@@ -1773,3 +1773,15 @@ button.cmp-key.on:hover:not(:disabled) { background: radial-gradient(ellipse at 
 #splash { background: radial-gradient(ellipse at 50% 42%, #2c2d31 0%, #141518 58%, #0b0b0d 100%); }
 #splash .splash-note, [data-theme="dark"] #splash .splash-note { color: #a8a59b; }
 #splash .splash-name { white-space: nowrap; font-size: clamp(17px, 2.2vw, 25px); letter-spacing: .2em; }
+/* Image to image → ControlNet guide */
+.cn-guide { margin: 8px 0 10px; padding: 10px 12px; border-radius: 4px; background: rgba(0, 0, 0, .22); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .5); }
+.cn-guide p { margin: 4px 0; font-size: 13px; line-height: 1.45; }
+.cn-guide-head { display: flex; align-items: center; gap: 8px; }
+.cn-guide-head .grow { flex: 1; }
+.cn-models { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0 2px; }
+.cn-models .chip.rec { box-shadow: 0 0 0 1px var(--amber, #ffae2b) inset; }
+.cn-steps { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.45; }
+.cn-steps li { margin: 3px 0; }
+.cn-off { display: grid; gap: 6px; }
+.cn-off .cn-off-tips { font-size: 12.5px; line-height: 1.45; }
+.cn-off button { justify-self: start; }

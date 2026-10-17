@@ -2,6 +2,9 @@
 
 ## 1.2.1 (in progress)
 
+- Image to image → ControlNet guides (`CN_GUIDES`, `cnGuide`, `cnModelPicks`, `applyCnGuide`): what it does, the picture
+  to give it, best installed models (★ by name), steps, one-click settings; QR / pattern / illusion and brightness
+  ControlNets recognised by name; model groups say what they support; "Use ControlNet instead" from Edit with words
 - Create and Image to image keep their own prompt / negative prompt (`swapPrompts`, synchronous tab watcher);
   Tools Remove results tagged `from_tools` so they stay out of Image to image's preview
 - `recommendedVae` is a computed value (it was a method, so the ⤓ get link never went away)
