@@ -1413,6 +1413,9 @@ def reader():
         if cmd == "preload" and jobs.busy_with_work():
             emit({"type": "result", "id": mid, "data": {"skipped": "busy"}})  # only uses idle time
             continue
+        if cmd in SIDE_LANE and jobs.running:  # quick Tools jobs don't wait behind a long generation
+            threading.Thread(target=run_side, args=(mid, cmd, a), daemon=True).start()
+            continue
         if cmd in HEAVY:
             job = {"id": mid, "cmd": cmd, "args": a, "label": job_label(cmd, a), "model": a.get("model")}
             jobs.make_way(None if cmd == "preload" else (a.get("model") or (a.get("base") or {}).get("model")))
@@ -1424,6 +1427,29 @@ def reader():
             continue
         run_quick(mid, cmd, a)
     jobs.close()  # stdin closed: the app quit
+
+
+# Tools jobs that run on the processor (not the graphics chip) and take seconds: while a picture is being made they
+# run beside it instead of waiting in the queue (Remove with smart fill uses LaMa on the CPU; quick fill is OpenCV).
+SIDE_LANE = ("heal",)
+
+
+def run_side(mid, cmd, a):
+    from engine import UserError
+    def side_emit(m):
+        emit(dict(m, job=mid))
+    try:
+        eng = engine()
+        if cmd == "heal":
+            data = eng.heal(a, emit=side_emit)
+        else:
+            raise KeyError(cmd)
+        emit({"type": "result", "id": mid, "data": data})
+    except UserError as e:
+        emit({"type": "error", "id": mid, "msg": str(e)})
+    except Exception as e:
+        log(traceback.format_exc())
+        emit({"type": "error", "id": mid, "msg": f"{type(e).__name__}: {e}"})
 
 
 # quick commands that talk to a website (up to ~25 s if it's slow or blocked): run beside the reader, so the

@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.1 (in progress)
+
+- Tools → Remove: `heal` runs in a side lane (`SIDE_LANE`, `run_side`) while a job is running, with its own progress
+  events (`Engine.heal(emit=…)`); LaMa is ONNX on the CPU, so it doesn't compete with the graphics chip
+- Object selection: GrabCut at ≤512 px with the mask scaled back up; "Finding the object…" on the picture; no outline
+  found → the box itself is selected
+- Marching-ants outline around the painted / selected area (`antsMake`, drawn on the selection layer at full opacity)
+- Brush-size well follows the slider over its whole range (`brushWellPx`)
+- Time left: one figure (`genLeft`) for the progress line, the queue and the TIME LEFT clock; counts down between
+  steps; per-model after-last-step time learned (`perf.models[m].tail`) instead of a fixed 2 steps
+- SDXL ControlNets: your own files (diffusers or original layout) built at their own size from the SDXL UNet config
+  (`controlnet.xl_config`, empty weights + `assign`), `StableDiffusionXLControlNet(Img2Img)Pipeline`; files are
+  inspected from their header (`inspect_file`: family, layout, unsupported Control-LoRA / LLLite / Union / T2I-Adapter);
+  a name's map word (canny, depth, lineart, openpose…) picks the control map (`guess_map`); Civitai SDXL ControlNets
+  allowed
+
 ## 1.2.0
 
 - Compare: values are picked with keys (blue, shaded to match the look; lit when picked; typing still works)

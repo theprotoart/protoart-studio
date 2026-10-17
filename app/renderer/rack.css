@@ -1519,7 +1519,7 @@ button.bat-toggle:hover:not(:disabled), button.bat-toggle:active:not(:disabled) 
   box-shadow: inset 0 3px 6px #000, inset 0 -1px 0 rgba(255, 255, 255, .08), 0 0 0 2px #2d2f33, 0 0 0 3px #a5a8ad, 0 0 0 4px #3b3d42, 0 1px 0 4px rgba(255, 255, 255, .2);
 }
 .brush-well i {
-  display: block; border-radius: 50%; max-width: 44px; max-height: 44px; transition: width .08s, height .08s;
+  display: block; border-radius: 50%; max-width: 44px; max-height: 44px; min-width: 4px; min-height: 4px; transition: width .08s, height .08s;
   background: radial-gradient(circle at 35% 30%, #fff, #d8dadd 45%, #8b8e93 100%);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .6), 0 0 6px rgba(var(--glow-rgb), .35);
 }
@@ -1590,6 +1590,10 @@ button.sel-tool:active:not(:disabled) { transform: translateY(1px); }
 .sel-opts .seg button { padding: 3px 9px; font-size: 11.5px; }
 .sel-opts input[type=range] { width: 110px; }
 .sel-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+.mask-stage canvas.sel-canvas { opacity: 1; image-rendering: pixelated; }  /* the selection outline stays crisp and fully visible */
+.stage-busy { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 4; pointer-events: none;
+  font: 600 11px var(--f-eng); letter-spacing: .14em; text-transform: uppercase; line-height: 1.2; color: var(--amber);
+  background: rgba(10, 10, 11, .86); padding: 8px 14px; border-radius: 3px; box-shadow: 0 0 0 1px #000, 0 2px 10px rgba(0, 0, 0, .6); }
 .rack-module .sel-tools { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .mask-tools .sel-tools, .mask-tools .sel-opts { flex: 1 1 100%; }
 /* Compare: value keys (blue; their shade follows the look you picked) */
@@ -1620,3 +1624,4 @@ button.cmp-key.on:hover:not(:disabled) { background: radial-gradient(ellipse at 
 .cmp-own input { width: 100%; box-sizing: border-box; margin: 4px 0 2px; }
 .tips-btn.sfw-btn.on { box-shadow: 0 0 0 1px rgba(90, 220, 90, .6), 0 0 12px rgba(90, 220, 90, .35); }
 .sfw-note { padding: 8px 12px; border-radius: 3px; background: rgba(0, 0, 0, .12); }
+.warn-text { color: #e8a33a; }

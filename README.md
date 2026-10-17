@@ -19,7 +19,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   🔬 compare grids picked with keys
 - **Image to image:** ✨ Edit with words (FLUX.2 Klein: describe a change; paint to limit it; add reference pictures),
   change / inpaint / expand / 🩹 remove, selection tools (brush, lasso, polygon lasso, magic wand, object selection),
-  ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile, and your own SD 1.5 ControlNets), image prompt
+  ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile, and your own SD 1.5 and SDXL ControlNets), image prompt
   (IP-Adapter), face detailer
 - **Tools** (rack modules): Finegrain enhance & upscale, face restoration (CodeFormer or RestoreFormer), 🩹 remove objects
   (paint right in Tools; smart or quick fill), ✒️ vectorize to SVG, image → prompt (Qwen3.5 vision model, Florence-2 or
@@ -30,7 +30,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 - **Train:** LoRA training (SD 1.5 / SDXL; ERNIE on 32 GB+ Macs), embedding training (SD 1.5), square crop / keep-whole
   framing, and merging LoRAs of the same type into one
 - **Models tab:** download models, add your own files or folders (removals locked and confirmed), Civitai downloads of
-  LoRAs, checkpoints, embeddings, VAEs and SD 1.5 ControlNets, Hugging Face downloads (sign-in keys kept only on your
+  LoRAs, checkpoints, embeddings, VAEs and SD 1.5 / SDXL ControlNets, Hugging Face downloads (sign-in keys kept only on your
   Mac), Embeddings / VAEs / ControlNets lists, ★ favourites, and "Fix a type" for mislabelled files
 - **DiffusionBee import:** your DiffusionBee models, LoRAs and embeddings appear automatically (read in place)
 - **Content filter:** 🛡 Safe-for-work mode (refuses adult prompts, blocks and hides NSFW), Hide NSFW / Hide People,

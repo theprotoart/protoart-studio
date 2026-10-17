@@ -1,11 +1,14 @@
-"""ControlNet for the Image to image tab (SD 1.5).
+"""ControlNet for the Image to image tab (SD 1.5, and your own SDXL ControlNets).
 
 A ControlNet makes the picture follow a "control map" made from your image: its edges (Canny),
 depth, line art, a scribble, or the image itself (Tile, for adding detail / upscaling).
 
 Models: your DiffusionBee ControlNets are used in place when you have them (offline); otherwise
-the official ControlNet 1.1 model is downloaded once from Hugging Face.
+the official ControlNet 1.1 model is downloaded once from Hugging Face. Your own ControlNet files
+(~/.protoartstudio/controlnets, Civitai downloads go there) can be SD 1.5 or SDXL (Pony, Illustrious and
+NoobAI use SDXL's): the file says which, and its size (full, mid or small) is read from the file too.
 """
+import os
 from pathlib import Path
 
 import numpy as np
@@ -41,15 +44,102 @@ def list_types():
     found = _dbee_items()  # scan DiffusionBee's folders once, not once per type
     out = []
     for k, (label, repo, hint, what) in TYPES.items():
-        out.append({"id": k, "label": label, "map": what, "diffusionbee": bool(_dbee_file(hint, found))})
+        out.append({"id": k, "label": label, "map": what, "diffusionbee": bool(_dbee_file(hint, found)), "family": "sd15"})
     for u in user_files():
-        out.append({"id": "user:" + u["name"], "label": u["name"] + " (your ControlNet)", "map": "your picture as it is",
-                    "user": True, "size_mb": u["size_mb"]})
+        if u.get("problem"):
+            continue  # listed in the Models tab with the reason; it can't be picked
+        m = guess_map(u["name"])
+        fam = {"sd15": "SD 1.5", "sdxl": "SDXL"}.get(u["family"], "")
+        out.append({"id": "user:" + u["name"], "label": f"{u['name']} (your {fam} ControlNet)".replace("  ", " "),
+                    "map": TYPES[m][3] if m in TYPES and m != "tile" else "your picture as it is",
+                    "user": True, "size_mb": u["size_mb"], "family": u["family"], "makes_map": m})
     return out
 
 
+# The kind of map a ControlNet file expects, from words in its name ("…canny…", "depth", "openpose"…):
+# that map is made from your picture for it, as for the built-in ones. Anything else gets the picture as it is.
+_MAP_WORDS = (("openpose", "openpose"), ("pose", "openpose"), ("canny", "canny"), ("depth", "depth"),
+              ("lineart", "lineart"), ("line_art", "lineart"), ("line-art", "lineart"), ("anime_line", "lineart"),
+              ("softedge", "softedge"), ("soft_edge", "softedge"), ("hed", "softedge"), ("pidi", "softedge"),
+              ("scribble", "scribble"), ("sketch", "scribble"), ("tile", "tile"))
+
+
+def guess_map(name):
+    import re
+    low = str(name).lower()
+    for word, kind in _MAP_WORDS:
+        if re.search(r"(^|[^a-z])" + re.escape(word), low):
+            return kind
+    return None
+
+
+_INFO = {}  # file -> (mtime, size, info) so the folder isn't re-read every time the list is shown
+
+
+def inspect_file(path):
+    """What a ControlNet file is, from its weight names and shapes (nothing is loaded):
+    {"family": "sd15"|"sdxl"|None, "layout": "diffusers"|"ldm", "problem": None or why it can't be used}."""
+    try:
+        st = os.stat(path)
+    except OSError as e:
+        return {"family": None, "layout": None, "problem": f"can't read the file ({e.strerror})"}
+    hit = _INFO.get(path)
+    if hit and hit[0] == st.st_mtime and hit[1] == st.st_size:
+        return hit[2]
+    info = _inspect(path)
+    _INFO[path] = (st.st_mtime, st.st_size, info)
+    return info
+
+
+def _shapes(path):
+    """Weight names and shapes from a .safetensors file's header (a few KB read, no weights)."""
+    import json
+    import struct
+    with open(path, "rb") as f:
+        n = struct.unpack("<Q", f.read(8))[0]
+        if not 2 <= n <= 100_000_000:
+            raise ValueError("bad header")
+        head = json.loads(f.read(n))
+    return {k: tuple(v.get("shape") or ()) for k, v in head.items() if k != "__metadata__" and isinstance(v, dict)}
+
+
+def _inspect(path):
+    try:
+        shapes = _shapes(path)
+    except Exception as e:
+        return {"family": None, "layout": None, "problem": f"not a readable .safetensors file ({e.__class__.__name__})"}
+    keys = list(shapes)
+    low = " ".join(keys[:4000]).lower()
+    if "lllite" in low:
+        return {"family": "sdxl", "layout": None, "problem": "a ControlNet-LLLite file (not supported yet)"}
+    if "task_embedding" in shapes or any(k.startswith(("spatial_ch_projs", "control_add_embedding")) for k in keys):
+        return {"family": "sdxl", "layout": None, "problem": "a ControlNet Union file (not supported yet)"}
+    if any(k.startswith(("adapter.", "body.0.")) for k in keys) and not any("zero_conv" in k or "controlnet_" in k for k in keys):
+        return {"family": None, "layout": None, "problem": "a T2I-Adapter, not a ControlNet (not supported yet)"}
+    if any(".lora_" in k or "lora_controlnet" in k or k.endswith((".up", ".down")) for k in keys):
+        return {"family": "sdxl", "layout": None, "problem": "a Control-LoRA file (not supported yet)"}
+    if any(k.startswith(("controlnet_cond_embedding.", "controlnet_down_blocks.")) for k in keys):
+        layout = "diffusers"
+    elif any("input_hint_block" in k or "zero_convs" in k for k in keys):
+        layout = "ldm"
+    else:
+        return {"family": None, "layout": None, "problem": "doesn't look like a ControlNet"}
+    dims = {shp[1] for k, shp in shapes.items() if k.endswith("attn2.to_k.weight") and len(shp) == 2}
+    if 2048 in dims or any(k.endswith(("add_embedding.linear_1.weight", "label_emb.0.0.weight")) for k in keys):
+        fam = "sdxl"
+    elif 768 in dims:
+        fam = "sd15"
+    elif 1024 in dims:
+        return {"family": None, "layout": layout, "problem": "an SD 2 ControlNet (SD 2 isn't supported)"}
+    elif not dims:
+        fam = "sdxl" if any("label_emb" in k or "add_embedding" in k for k in keys) else "sd15"
+    else:
+        return {"family": None, "layout": layout, "problem": "made for a model type this app doesn't know"}
+    return {"family": fam, "layout": layout, "problem": None}
+
+
 def user_files():
-    """Your own SD 1.5 ControlNet files (~/.protoartstudio/controlnets, Civitai downloads go there)."""
+    """Your own ControlNet files (~/.protoartstudio/controlnets, Civitai downloads go there), SD 1.5 or SDXL."""
     import paths
     d = paths.CONTROLNET_DIR
     out = []
@@ -58,14 +148,26 @@ def user_files():
             if p.name.startswith("._"):
                 continue
             try:
-                out.append({"name": p.stem, "file": str(p), "size_mb": round(p.stat().st_size / 1e6, 1)})
+                size = round(p.stat().st_size / 1e6, 1)
             except OSError:
                 continue
+            info = inspect_file(str(p))
+            out.append({"name": p.stem, "file": str(p), "size_mb": size, "family": info["family"],
+                        "layout": info["layout"], "problem": info["problem"], "map": guess_map(p.stem)})
     return out
 
 
+def family_of(kind):
+    """The model type a ControlNet works with: "sd15" (the built-in ones), or what your file is made for."""
+    if str(kind).startswith("user:"):
+        name = kind[len("user:"):]
+        return next((u["family"] for u in user_files() if u["name"] == name), None)
+    return "sd15" if kind in TYPES else None
+
+
 def is_known(kind):
-    return kind in TYPES or (str(kind).startswith("user:") and any("user:" + u["name"] == kind for u in user_files()))
+    return kind in TYPES or (str(kind).startswith("user:") and any("user:" + u["name"] == kind and not u["problem"]
+                                                                   for u in user_files()))
 
 
 def _load_user(kind, unet, dtype, emit):
@@ -74,9 +176,14 @@ def _load_user(kind, unet, dtype, emit):
     import torch
     from safetensors.torch import load_file
     name = kind[len("user:"):]
-    f = next((u["file"] for u in user_files() if u["name"] == name), None)
-    if not f:
+    u = next((u for u in user_files() if u["name"] == name), None)
+    if not u:
         raise ValueError(f"the ControlNet file “{name}” isn't in the ControlNet folder any more")
+    if u["problem"]:
+        raise ValueError(f"“{name}” is {u['problem']}")
+    f = u["file"]
+    if u["family"] == "sdxl":
+        return _load_user_xl(kind, name, f, u["layout"], unet, dtype, emit)
     emit({"type": "status", "msg": f"Loading your ControlNet {name}…"})
     ckpt = load_file(f)
     cn = diffusers.ControlNetModel.from_unet(unet)
@@ -91,6 +198,101 @@ def _load_user(kind, unet, dtype, emit):
         raise ValueError(f"“{name}” doesn't look like an SD 1.5 ControlNet ({len(missing)} parts missing)")
     if any(not torch.isfinite(p).all() for p in cn.parameters()):
         raise ValueError(f"“{name}” has broken weights")
+    LAST_SOURCE[kind] = "user"
+    return cn.to(dtype=dtype)
+
+
+def _xl_state(path, layout, layers_per_block):
+    """An SDXL ControlNet file's weights, in diffusers' layout."""
+    from safetensors.torch import load_file
+    sd = load_file(path)
+    if layout == "diffusers":
+        return sd
+    from diffusers.loaders.single_file_utils import convert_controlnet_checkpoint
+    sd = {(k[len("control_model."):] if k.startswith("control_model.") else k): v for k, v in sd.items()}
+    out = convert_controlnet_checkpoint(sd, {"layers_per_block": layers_per_block})
+    for a, b in (("label_emb.0.0", "add_embedding.linear_1"), ("label_emb.0.2", "add_embedding.linear_2")):
+        for part in ("weight", "bias"):
+            if f"{a}.{part}" in sd:
+                out[f"{b}.{part}"] = sd[f"{a}.{part}"]
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def xl_config(state, unet_config):
+    """The ControlNet's shape for SDXL: SDXL's own, with as many transformer layers per block as the file has
+    (diffusers' full, mid and small SDXL ControlNets differ only there) and its own conditioning encoder."""
+    import re
+    n_down = len(unet_config["block_out_channels"])
+    depth = [0] * n_down
+    for k in state:
+        m = re.match(r"down_blocks\.(\d+)\.attentions\.\d+\.transformer_blocks\.(\d+)\.", k)
+        if m and int(m.group(1)) < n_down:
+            depth[int(m.group(1))] = max(depth[int(m.group(1))], int(m.group(2)) + 1)
+    mid = 0
+    for k in state:
+        m = re.match(r"mid_block\.attentions\.0\.transformer_blocks\.(\d+)\.", k)
+        if m:
+            mid = max(mid, int(m.group(1)) + 1)
+    if mid and depth[-1] and mid != depth[-1]:
+        raise ValueError("its middle and last blocks have different depths, which this app can't build yet")
+    if mid and not depth[-1]:
+        depth[-1] = mid
+    down_types = tuple("CrossAttnDownBlock2D" if d else "DownBlock2D" for d in depth)
+    # conditioning encoder: conv_in, then pairs of (same, downsample) convs; its channel list is read from the file
+    cond = []
+    if "controlnet_cond_embedding.conv_in.weight" in state:
+        cond.append(int(state["controlnet_cond_embedding.conv_in.weight"].shape[0]))
+        i = 1
+        while f"controlnet_cond_embedding.blocks.{i}.weight" in state:
+            cond.append(int(state[f"controlnet_cond_embedding.blocks.{i}.weight"].shape[0]))
+            i += 2
+    cin = state.get("controlnet_cond_embedding.conv_in.weight")
+    keep = ("in_channels", "flip_sin_to_cos", "freq_shift", "only_cross_attention", "block_out_channels",
+            "layers_per_block", "downsample_padding", "mid_block_scale_factor", "act_fn", "norm_num_groups", "norm_eps",
+            "cross_attention_dim", "attention_head_dim", "num_attention_heads", "use_linear_projection", "class_embed_type",
+            "num_class_embeds", "upcast_attention", "resnet_time_scale_shift", "projection_class_embeddings_input_dim",
+            "encoder_hid_dim", "encoder_hid_dim_type", "addition_embed_type", "addition_time_embed_dim")
+    cfg = {k: unet_config[k] for k in keep if k in unet_config}
+    cfg.update(down_block_types=down_types, transformer_layers_per_block=tuple(max(1, d) for d in depth),
+               mid_block_type="UNetMidBlock2DCrossAttn" if mid else "UNetMidBlock2D")
+    if cond:
+        cfg["conditioning_embedding_out_channels"] = tuple(cond)
+    if cin is not None:
+        cfg["conditioning_channels"] = int(cin.shape[1])
+    return cfg
+
+
+def _load_user_xl(kind, name, path, layout, unet, dtype, emit):
+    """Your own SDXL ControlNet: built at the file's own size (full / mid / small) and filled with its weights.
+    Nothing is downloaded. The model is made empty first, so a 2.5 GB ControlNet doesn't need twice that in memory."""
+    import diffusers
+    import torch
+    emit({"type": "status", "msg": f"Loading your SDXL ControlNet {name}…"})
+    state = _xl_state(path, layout, int(unet.config.layers_per_block))
+    cfg = xl_config(state, dict(unet.config))
+    try:
+        from accelerate import init_empty_weights
+        with init_empty_weights():
+            cn = diffusers.ControlNetModel(**cfg)
+        empty = True
+    except ImportError:
+        cn = diffusers.ControlNetModel(**cfg)
+        empty = False
+    want = set(cn.state_dict().keys())
+    missing = sorted(want - set(state))
+    if missing:
+        print(f"[controlnet] {name}: {len(missing)} missing, e.g. {missing[:6]}", flush=True)
+        raise ValueError(f"“{name}” doesn't match an SDXL ControlNet's layout ({len(missing)} parts missing)")
+    state = {k: v.to(dtype) for k, v in state.items() if k in want}
+    try:
+        cn.load_state_dict(state, strict=True, assign=empty)
+    except RuntimeError as e:
+        print(f"[controlnet] {name}: {e}", flush=True)
+        raise ValueError(f"“{name}” has parts of a different size than this app expected, so it can't be used")
+    if any(not torch.isfinite(p).all() for p in cn.parameters()):
+        raise ValueError(f"“{name}” has broken weights")
+    print(f"[controlnet] SDXL {name}: {len(state)} weights, layers {cfg['transformer_layers_per_block']}, "
+          f"mid {cfg['mid_block_type']}", flush=True)
     LAST_SOURCE[kind] = "user"
     return cn.to(dtype=dtype)
 
@@ -171,7 +373,9 @@ def make_map(kind, image, width, height, depth_estimator=None, already_map=False
     import cv2
     from PIL import Image, ImageFilter, ImageOps
     img = image.convert("RGB").resize((width, height), Image.LANCZOS)
-    if already_map or kind == "tile" or str(kind).startswith("user:"):  # your own ControlNets follow the picture as it is
+    if str(kind).startswith("user:"):  # your own ControlNets get the map their name asks for (else the picture)
+        kind = guess_map(kind[len("user:"):]) or "tile"
+    if already_map or kind == "tile":
         return img
     arr = np.asarray(img)
     gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)

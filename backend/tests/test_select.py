@@ -33,5 +33,31 @@ class SelectObjectTests(unittest.TestCase):
         self.assertLess(abs(area - 3.1416 * 30 * 30) / (3.1416 * 30 * 30), 0.25)
 
 
+
+
+class SideLaneTests(unittest.TestCase):
+    def test_heal_runs_beside_a_job(self):
+        try:
+            import bee_backend as bb
+        except Exception as e:
+            self.skipTest(str(e))
+        self.assertIn("heal", bb.SIDE_LANE)
+        sent = []
+
+        class Eng:
+            def heal(self, a, emit=None):
+                emit({"type": "status", "msg": "Removing what you painted…"})
+                return {"id": 7, "kind": "healed"}
+
+        old_engine, old_emit = bb.engine, bb.emit
+        bb.engine, bb.emit = (lambda: Eng()), sent.append
+        try:
+            bb.run_side(42, "heal", {})
+        finally:
+            bb.engine, bb.emit = old_engine, old_emit
+        self.assertEqual(sent[0]["job"], 42)  # its own progress, not the running job's
+        self.assertEqual(sent[-1], {"type": "result", "id": 42, "data": {"id": 7, "kind": "healed"}})
+
+
 if __name__ == "__main__":
     unittest.main()

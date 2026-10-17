@@ -1073,8 +1073,9 @@ class Engine:
 
     def control_map(self, kind, image, width, height, already_map=False, depth_model="small"):
         import controlnet as cnet
-        depth = self._get_depth_estimator(depth_model) if (kind == "depth" and not already_map) else None
-        posed = self._get_pose_detector() if (kind == "openpose" and not already_map) else None
+        mk = cnet.guess_map(kind[len("user:"):]) if str(kind).startswith("user:") else kind  # your own: map from its name
+        depth = self._get_depth_estimator(depth_model) if (mk == "depth" and not already_map) else None
+        posed = self._get_pose_detector() if (mk == "openpose" and not already_map) else None
         try:
             return cnet.make_map(kind, image, width, height, depth_estimator=depth, already_map=already_map,
                                  pose_detector=posed)
@@ -1097,7 +1098,10 @@ class Engine:
             self.controlnets[kind] = cnet.load(kind, self.pipe.unet, dtype, emit=self.emit).to(self.device())
         key = (kind, img2img)
         if key not in self.cn_pipes:
-            cls = diffusers.StableDiffusionControlNetImg2ImgPipeline if img2img else diffusers.StableDiffusionControlNetPipeline
+            if self.family == "sdxl":
+                cls = diffusers.StableDiffusionXLControlNetImg2ImgPipeline if img2img else diffusers.StableDiffusionXLControlNetPipeline
+            else:
+                cls = diffusers.StableDiffusionControlNetImg2ImgPipeline if img2img else diffusers.StableDiffusionControlNetPipeline
             self.cn_pipes[key] = cls.from_pipe(self.pipe, controlnet=self.controlnets[kind])
         return self.cn_pipes[key], cmap
 
@@ -1758,13 +1762,17 @@ class Engine:
         control = args.get("control") if isinstance(args.get("control"), dict) and (args.get("control") or {}).get("type") else None
         control_src = None
         if control:
-            if family != "sd15":
-                raise UserError("ControlNet works with SD 1.5 models (pick one in the model list).")
             if mask is not None:
                 raise UserError("Inpainting/expanding and ControlNet can't be combined yet: switch one off.")
             import controlnet as cnet
             if not cnet.is_known(control["type"]):
                 raise UserError(f"Unknown ControlNet type: {control['type']}")
+            cn_fam = cnet.family_of(control["type"])
+            if not is_sd or family != cn_fam:
+                names = {"sd15": "an SD 1.5", "sdxl": "an SDXL (or Pony, Illustrious, NoobAI)"}
+                raise UserError(f"This ControlNet is made for {names.get(cn_fam, 'another type of')} model, so it can't be "
+                                f"used with {spec.get('label') or model_id}. Pick {names.get(cn_fam, 'a matching')} model, "
+                                "or a ControlNet made for this one.")
             src_path = args.get("control_image") or args.get("init_image")
             if not src_path:
                 raise UserError("Add an image for the ControlNet to follow.")
@@ -2523,11 +2531,12 @@ class Engine:
             raise UserError(f"That file isn't a {what} Protoart Studio can read.")
         return src, image
 
-    def heal(self, args):
+    def heal(self, args, emit=None):
         """🩹 Remove: fill the painted area from its surroundings (LaMa, or OpenCV's quick fill)."""
         import detailer
         import net
         import postprocess.heal as heal
+        emit = emit or self.emit  # Tools' side lane passes its own (so it doesn't take over the running job's progress)
         src, image = self._source_picture(args)
         image = image.convert("RGB")
         try:
@@ -2538,14 +2547,14 @@ class Engine:
             raise UserError("Paint over what you want to remove first.")
         method = "quick" if args.get("method") == "quick" else "lama"
         started = time.time()
-        self.emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
+        emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
         sess = None
         if method == "lama":
             if not heal.lama_downloaded():
                 if net.strict:
                     raise UserError("Remove needs a one-time download of the LaMa model (~208 MB), and Strict offline mode "
                                     "is on. Turn it off in Settings → Privacy, or pick Quick fill.")
-                self.emit({"type": "status", "msg": f"Downloading the Remove model (LaMa, ~{heal.LAMA_MB} MB, first time only)…"})
+                emit({"type": "status", "msg": f"Downloading the Remove model (LaMa, ~{heal.LAMA_MB} MB, first time only)…"})
                 net.set_online(True)
                 try:
                     sess = heal.lama_session(download=True)
@@ -2553,12 +2562,12 @@ class Engine:
                     net.set_online(False)
             else:
                 sess = heal.lama_session(download=False)
-        self.emit({"type": "status", "msg": "Removing what you painted…"})
+        emit({"type": "status", "msg": "Removing what you painted…"})
         try:
             out = heal.heal(image, mask, method=method, session=sess)
         except ValueError as e:
             raise UserError(str(e))
-        self.emit({"type": "progress", "image": 1, "images": 1, "step": 1, "steps": 1})
+        emit({"type": "progress", "image": 1, "images": 1, "step": 1, "steps": 1})
         settings = dict(src.get("settings") or {})
         settings.update({k: src.get(k) for k in ("prompt", "negative_prompt", "model", "sampler", "steps", "cfg", "seed")})
         settings["loras"] = src.get("loras") or []
@@ -2567,7 +2576,7 @@ class Engine:
         path = self._save(out, settings, suffix="healed")
         record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="healed")
         record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
-        self.emit({"type": "image", "record": record})
+        emit({"type": "image", "record": record})
         return record
 
     EDIT_MODEL = "flux2_klein_mlx_q4"

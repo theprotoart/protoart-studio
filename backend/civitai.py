@@ -150,16 +150,20 @@ def describe(model, version):
         ok = False
         notes.append(f"{version.get('baseModel') or 'This'} VAEs can't be used: SD 1.5 and SDXL ones "
                      "(Pony, Illustrious and NoobAI included) can.")
-    elif kind == "controlnet" and fam != "sd15":
+    elif kind == "controlnet" and fam not in ("sd15", "sdxl"):
         ok = False
-        notes.append(f"{version.get('baseModel') or 'This'} ControlNets can't be used yet: SD 1.5 ones can.")
+        notes.append(f"{version.get('baseModel') or 'This'} ControlNets can't be used: SD 1.5 and SDXL ones "
+                     "(Pony, Illustrious and NoobAI included) can.")
+    elif kind == "controlnet" and fam == "sdxl":
+        notes.append("SDXL ControlNets are big (often 1–2.5 GB) and slow on 8 GB Macs. Control-LoRA, LLLite and Union "
+                     "files aren't supported yet: the app checks the file after downloading and tells you.")
     elif kind == "lora" and fam is None:
         notes.append(f"Its base model ({version.get('baseModel') or 'not given'}) isn't one this app knows; "
                      "it's saved in your LoRA folder and its type is read from the file.")
     elif kind not in ("lora", "checkpoint", "embedding", "vae", "controlnet"):
         ok = False
         notes.append(f"{mtype or 'This kind of file'} isn't supported yet "
-                     "(LoRAs, checkpoints, embeddings, VAEs and SD 1.5 ControlNets are).")
+                     "(LoRAs, checkpoints, embeddings, VAEs and SD 1.5 / SDXL ControlNets are).")
     name = (model.get("name") or (version.get("model") or {}).get("name") or "civitai model").strip()
     return {
         "model_id": model.get("id") or version.get("modelId"), "version_id": version.get("id"),

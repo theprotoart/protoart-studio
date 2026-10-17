@@ -12,7 +12,9 @@ def select(image, rect, width, height):
     """image: PIL; rect: (x, y, w, h) as fractions of the picture; width/height: the painting area's size.
     Returns (data_url, found): a PNG that's pink where the object is and transparent elsewhere."""
     import cv2
-    img = image.convert("RGB").resize((int(width), int(height)), Image.LANCZOS)
+    OW, OH = int(width), int(height)
+    f = min(1.0, 512 / max(OW, OH))  # GrabCut works at up to 512 px (a second or less), the mask is scaled back up
+    img = image.convert("RGB").resize((max(8, round(OW * f)), max(8, round(OH * f))), Image.LANCZOS)
     arr = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
     W, H = img.size
     x = int(max(0, min(W - 2, rect[0] * W)))
@@ -39,7 +41,9 @@ def select(image, rect, width, height):
             keep[labels == i] = 1
     if not keep.any():
         found = False
-    rgba = np.zeros((H, W, 4), np.uint8)
+    if (W, H) != (OW, OH):  # back to the painting area's size, with smooth edges
+        keep = (cv2.resize(keep.astype(np.float32), (OW, OH), interpolation=cv2.INTER_LINEAR) >= 0.5).astype(np.uint8)
+    rgba = np.zeros((OH, OW, 4), np.uint8)
     rgba[keep == 1] = (255, 64, 129, 255)
     buf = io.BytesIO()
     Image.fromarray(rgba, "RGBA").save(buf, "PNG")

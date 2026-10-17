@@ -894,7 +894,7 @@
         </div>
       </section>
       <section class="mpanel" id="mp-civitai" :class="{open: mpanels.civitai}">
-        <h3 @click="toggleModelsPanel('civitai')"><i class="led" :class="{on: mpanels.civitai}"></i>Add from Civitai <span class="hint">· LoRAs, embeddings, VAEs, SD 1.5 ControlNets and SD 1.5 / SDXL / Pony checkpoints · {{ civ.keySet ? 'signed in (API key saved)' : 'needs a free account for most downloads' }}</span></h3>
+        <h3 @click="toggleModelsPanel('civitai')"><i class="led" :class="{on: mpanels.civitai}"></i>Add from Civitai <span class="hint">· LoRAs, embeddings, VAEs, SD 1.5 / SDXL ControlNets and SD 1.5 / SDXL / Pony checkpoints · {{ civ.keySet ? 'signed in (API key saved)' : 'needs a free account for most downloads' }}</span></h3>
         <div v-if="mpanels.civitai" class="mpanel-body">
     <p class="hint">Paste the link of a model page on <a href="https://civitai.com/models" target="_blank">civitai.com</a>
       (pick the version on the page first, if it has several). It downloads into the right folder for its type, with its trigger words.</p>
@@ -1104,7 +1104,7 @@
           <button v-for="t in [['emb', 'Embeddings', embeddings.length], ['vae', 'VAEs', vaes.length], ['cn', 'ControlNets', userControlnets.length]]" :key="t[0]"
                   :class="{on: extras.tab === t[0]}" @click="extras.tab = t[0]">{{ t[1] }} <small>{{ t[2] }}</small></button>
         </div>
-        <div v-if="extras.tab !== 'cn'" class="seg">
+        <div class="seg">
           <button v-for="f in [['', 'All'], ['sd15', 'SD 1.5'], ['sdxl', 'SDXL']]" :key="f[0]" :class="{on: extras.family === f[0]}" @click="extras.family = f[0]">{{ f[1] }}</button>
         </div>
         <input v-model="extras.q" placeholder="Search…">
@@ -1114,11 +1114,13 @@
       </div>
       <p class="hint">{{ extras.tab === 'emb' ? 'Embeddings (textual inversion) add a word to the prompt or negative prompt. Use them from Create (click one under the negative prompt).'
         : extras.tab === 'vae' ? 'Pick a VAE in Create → Extras → VAE. Civitai VAEs (e.g. vae-ft-mse-840000 for SD 1.5) download into this folder; .safetensors and .pt files work.'
-        : 'Your own SD 1.5 ControlNets (e.g. QR Code Monster from Civitai). Pick one in Image to image → ControlNet: it follows your picture as it is.' }}</p>
+        : 'Your own SD 1.5 and SDXL ControlNets from Civitai. Pick one in Image to image → ControlNet (with a model of the same type). A name with canny, depth, lineart, openpose, softedge, scribble or tile gets that map made from your picture; others follow the picture as it is.' }}</p>
       <table class="extras-table">
         <tr v-for="x in extrasShown" :key="x.file || x.name">
           <td><b>{{ x.name }}</b></td>
-          <td class="hint">{{ x.family ? familyName(x.family) : 'SD 1.5' }}<template v-if="x.size_mb"> · {{ x.size_mb }} MB</template></td>
+          <td class="hint">{{ x.family ? familyName(x.family) : (extras.tab === 'cn' ? '?' : 'SD 1.5') }}<template v-if="x.size_mb"> · {{ x.size_mb }} MB</template>
+            <template v-if="x.map"> · makes a {{ x.map }} map</template>
+            <span v-if="x.problem" class="warn-text" :title="'This file can\'t be used: it\'s ' + x.problem"> · ⚠ can't be used: {{ x.problem }}</span></td>
           <td class="hint path-cell" :title="x.file">{{ x.file }}</td>
         </tr>
         <tr v-if="!extrasShown.length"><td class="hint" colspan="3">Nothing here yet. Add from Civitai (above) or drop files into the folder.</td></tr>
@@ -1141,6 +1143,7 @@
           <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove($event); brushAt($event)" @pointerup="maskUp"
                   @pointerleave="maskUp(); brush.show = false" :style="{cursor: ['brush', 'erase'].includes(mask.tool || 'brush') ? 'none' : 'crosshair'}" @dblclick="selFinishPoly"></canvas>
           <canvas ref="selCanvas" class="sel-canvas"></canvas>
+          <span v-if="objFinding" class="stage-busy">Finding the object…</span>
           <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
              :style="{left: brush.x + 'px', top: brush.y + 'px', width: mask.size + 'px', height: mask.size + 'px'}"></i>
         </div>
@@ -1476,7 +1479,7 @@
             </div>
             <label>Brush <span class="mod-val">{{ mask.size }}</span></label>
             <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
-            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across'"><i :class="{erase: mask.erase}" :style="{width: Math.min(mask.size, 44) + 'px', height: Math.min(mask.size, 44) + 'px'}"></i></span>
+            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
             <label>Method</label>
             <div class="seg mod-seg">
               <button :class="{on: form.heal_method !== 'quick'}" @click="form.heal_method = 'lama'"
@@ -1680,6 +1683,7 @@
             <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove($event); brushAt($event)" @pointerup="maskUp"
                     @pointerleave="maskUp(); brush.show = false" :style="{cursor: ['brush', 'erase'].includes(mask.tool || 'brush') ? 'none' : 'crosshair'}" @dblclick="selFinishPoly"></canvas>
           <canvas ref="selCanvas" class="sel-canvas"></canvas>
+          <span v-if="objFinding" class="stage-busy">Finding the object…</span>
             <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
                :style="{left: brush.x + 'px', top: brush.y + 'px', width: mask.size + 'px', height: mask.size + 'px'}"></i>
           </div>
@@ -1721,7 +1725,7 @@
             </div>
             <span class="hint">brush</span>
             <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
-            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across'"><i :class="{erase: mask.erase}" :style="{width: Math.min(mask.size, 44) + 'px', height: Math.min(mask.size, 44) + 'px'}"></i></span>
+            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
             <span class="hint">{{ mask.size }}</span>
             <button class="link" @click="maskClear">clear</button>
           </div>
@@ -1755,7 +1759,7 @@
             </div>
             <span class="hint">brush</span>
             <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
-            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across'"><i :class="{erase: mask.erase}" :style="{width: Math.min(mask.size, 44) + 'px', height: Math.min(mask.size, 44) + 'px'}"></i></span>
+            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
             <span class="hint">{{ mask.size }}</span>
             <button class="link" @click="maskClear">clear</button>
           </div>
@@ -1784,7 +1788,7 @@
             </div>
             <span class="hint">brush</span>
             <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
-            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across'"><i :class="{erase: mask.erase}" :style="{width: Math.min(mask.size, 44) + 'px', height: Math.min(mask.size, 44) + 'px'}"></i></span>
+            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
             <span class="hint">{{ mask.size }}</span>
             <button class="link" @click="maskInvert">invert</button>
             <button class="link" @click="maskClear">clear</button>
@@ -1817,11 +1821,13 @@
 
       <div v-if="form.i2i_mode !== 'change'" class="card hint">2 · ControlNet is off while {{ form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
       <div v-else class="card">
-        <h3>2 · ControlNet <span class="hint">SD 1.5 · makes the result follow the picture's structure</span></h3>
+        <h3>2 · ControlNet <span class="hint">{{ family === 'sdxl' ? 'SDXL' : 'SD 1.5' }} · makes the result follow the picture's structure</span></h3>
         <select v-model="form.control.type" @change="controlMap = null">
           <option value="">None</option>
-          <option v-for="t in controlTypes" :key="t.id" :value="t.id">{{ t.label }}{{ t.diffusionbee ? ' · from DiffusionBee' : '' }}</option>
+          <option v-for="t in controlTypesShown" :key="t.id" :value="t.id">{{ t.label }}{{ t.diffusionbee ? ' · from DiffusionBee' : '' }}</option>
         </select>
+        <div v-if="family === 'sdxl' && controlTypesShown.length === 0" class="hint">No SDXL ControlNets yet. Add one from Civitai (Models → Add from Civitai): SDXL, Pony, Illustrious and NoobAI models use them. The built-in ones are for SD 1.5.</div>
+        <div v-else-if="family === 'sdxl'" class="hint">SDXL ControlNets are big: on an 8 GB Mac expect it to be slow, and use 1024 px or less.</div>
         <template v-if="form.control.type">
           <label>How closely to follow the map <span class="hint">{{ form.control.scale.toFixed(2) }}</span></label>
           <input type="range" min="0" max="2" step="0.05" v-model.number="form.control.scale">
@@ -1854,7 +1860,7 @@
             <span class="hint">{{ controlTypeInfo ? 'Map: ' + controlTypeInfo.map : '' }}</span>
           </div>
           <img v-if="controlMap" :src="controlMap" class="control-map">
-          <div v-if="family !== 'sd15'" class="hint warn">ControlNet needs an SD 1.5 model: pick one in Create (your current model is {{ familyLabel }}).</div>
+          <div v-if="controlTypeInfo && controlTypeInfo.family !== family" class="hint warn">This ControlNet is made for {{ controlTypeInfo.family === 'sdxl' ? 'SDXL (Pony, Illustrious, NoobAI)' : 'SD 1.5' }} models: pick one in the model list (your current model is {{ familyLabel }}).</div>
         </template>
       </div>
 

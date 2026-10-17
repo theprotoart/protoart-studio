@@ -259,6 +259,7 @@ const protoartApp = createApp({
         { id: "object", icon: "⬚", label: "Object", tip: "Object selection: drag a box around something and its outline is found (O)" },
       ],
       brush: { show: false, x: 0, y: 0 },
+      objFinding: false,   // object selection is working out the outline
       soundsOn: window.ProtoSound ? window.ProtoSound.enabled : true,
       LICENCES,
       loraSort: loadJSON("protoart.loraSort", "az"),   // LoRA list order
@@ -383,6 +384,12 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Coming in 1.2.1: fixes from your notes", items: [
+              "<b>🩹 Remove in Tools no longer waits</b> behind a picture being made: it runs alongside it (it uses the processor, not the graphics chip), so it takes seconds even while Create is busy.",
+              "<b>⬚ Object selection</b> shows <i>Finding the object…</i> on the picture while it works, is faster (about a second), and if it can't find a clear outline it selects the box itself so you can trim it, instead of doing nothing.",
+              "<b>Selections are easy to see</b>: everything painted or selected (brush, lasso, 🪄 wand, object) gets a black-and-white dashed outline (“marching ants”), so it shows on any picture, pink ones included. The <b>brush-size well</b> beside the slider now grows across the slider's whole range (it stopped growing at 44 before); the ring on the picture is the exact brush size.",
+              "<b>Time left agrees everywhere</b>: the TIME LEFT clock, the queue and the progress line now show the same figure. It counts down between steps, and learns how long each model takes to finish a picture after its last step (it used to guess 2 extra steps, which was minutes too much on slow models).",
+              "<b>SDXL ControlNets</b> (Pony, Illustrious and NoobAI too): download them from Civitai into the ControlNet folder and pick them in Image to image → ControlNet with an SDXL model. Full, mid and small sizes are read from the file. A name with <i>canny, depth, lineart, openpose, softedge, scribble</i> or <i>tile</i> gets that map made from your picture (SD 1.5 ones too). Control-LoRA, LLLite and Union files aren't supported yet: the Models tab says so next to the file." ] },
             { h: "Version 1.2: new tools, and more of your testers' notes", items: [
               "<b>✨ Edit with words</b> (Image to image): describe a change (“make the jacket red”, “add a hat”, “turn it into a watercolour”) and FLUX.2 Klein makes just that change. Paint over a part to keep everything else exactly as it was, or add more pictures to take a style or an outfit from.",
               "<b>🎲 Random prompt speaks the model's language</b>: with FLUX, FLUX.2 or ERNIE picked it writes a scene in sentences (“Medium shot of a fisherman with a white beard, mending a net on a harbour wall at dawn…”); with SD 1.5 and SDXL it still writes tags. In Image to image, <b>FLUX.2 Klein</b> now shows at the top of the model list while Edit with words is on.",
@@ -575,8 +582,8 @@ const protoartApp = createApp({
             { h: "↔ Expand (outpaint)", items: [
               "Choose <b>Expand</b> and how many pixels to add on each side (or use <i>make it wider / taller</i>). The new area is filled in to match.",
               "Describe the whole scene in the prompt, including what should appear around the original. Expanding a little at a time (e.g. 128–256 px) gives the best results." ] },
-            { h: "ControlNet (SD 1.5)", items: [
-              "<b>Your own ControlNets</b> (SD 1.5), e.g. QR Code Monster from Civitai: paste the Civitai link in Models → Add from Civitai, then pick it in the ControlNet list. It follows your picture as it is (give it a QR code or pattern as the picture).",
+            { h: "ControlNet (SD 1.5, and your own SDXL ones)", items: [
+              "<b>Your own ControlNets</b> (SD 1.5 or SDXL), e.g. QR Code Monster or an SDXL canny / depth / openpose from Civitai: paste the Civitai link in Models → Add from Civitai, then pick it in the ControlNet list. The list shows the ones that fit the model you picked: SD 1.5 models get the built-in ones and your SD 1.5 files, SDXL / Pony / Illustrious / NoobAI models get your SDXL files. If its name says <i>canny, depth, lineart, openpose, softedge, scribble</i> or <i>tile</i>, that map is made from your picture; otherwise it follows your picture as it is (give it a QR code or pattern as the picture). SDXL ControlNets are big, so they're slow on 8 GB Macs. Control-LoRA, LLLite and Union files can't be used yet (the Models tab says so next to them).",
               "<b>Tile</b> adds detail but keeps the picture: great with low change strength for sharpening.",
               "<b>Canny / Line art / Soft edges</b> keep the outlines; <b>Depth</b> keeps the 3-D layout; <b>Scribble</b> turns a sketch into a picture.",
               "<b>How closely to follow the map</b>: 1.0 is normal. <b>When it guides</b>: <i>Layout only</i> sets composition and leaves details free.",
@@ -875,7 +882,7 @@ const protoartApp = createApp({
               "Checkpoints smaller than 1.5 GB are treated as LoRAs/embeddings, not base models. Watched folders are re-checked every few seconds; switch tabs to refresh the list.",
               "ERNIE and other newer models need their whole model folder (the one with <i>model_index.json</i>), or add them from Hugging Face." ] },
             { h: "Image to image, inpainting and ControlNet", items: [
-              "ControlNet works with <b>SD 1.5</b> models; image to image and inpainting work with SD 1.5 and SDXL (not ERNIE).",
+              "ControlNet works with <b>SD 1.5</b> models (built-in and your own) and <b>SDXL</b> models (your own SDXL ControlNets from Civitai); image to image and inpainting work with SD 1.5 and SDXL (not ERNIE).",
               "Inpainting/Expand and ControlNet can't be used together yet: the app tells you to switch one off.",
               "<b>“Paint over the part you want to change first”</b>: paint on the picture in Inpaint mode (pink = will be redrawn). <b>OpenPose “no people found”</b>: use a picture where the whole person is clearly visible." ] },
             { h: "Prompts", items: [
@@ -1419,7 +1426,7 @@ const protoartApp = createApp({
       const mark = (list) => list.map((m) => ({ ...m, i2iOk: ok(m) }));
       return [
         { name: "SD 1.5 (image to image + ControlNet)", models: mark(this.installedModels.filter((m) => m.family === "sd15")) },
-        { name: "SDXL (image to image)", models: mark(this.installedModels.filter((m) => m.family === "sdxl")) },
+        { name: "SDXL (image to image + your SDXL ControlNets)", models: mark(this.installedModels.filter((m) => m.family === "sdxl")) },
       ].filter((g) => g.models.length);
     },
     convShown() {
@@ -1440,6 +1447,10 @@ const protoartApp = createApp({
       if (start === 0) return `Now: it guides the first ${Math.round(end * 100)}% (the layout) and then lets go, so details are freer.`;
       if (end === 1) return `Now: it starts after ${Math.round(start * 100)}%, so the overall layout is free but the finer structure follows the map.`;
       return `Now: it guides only between ${Math.round(start * 100)}% and ${Math.round(end * 100)}% of the steps.`;
+    },
+    controlTypesShown() {  // the ControlNets for the current model's type (SD 1.5's built-in ones, your own SD 1.5 or SDXL)
+      const fam = this.family === "sdxl" ? "sdxl" : "sd15";
+      return this.controlTypes.filter((t) => (t.family || "sd15") === fam || t.id === this.form.control.type);
     },
     controlTypeInfo() {
       return this.controlTypes.find((t) => t.id === this.form.control.type);
@@ -1575,22 +1586,36 @@ const protoartApp = createApp({
       }
       return a <= 32 && b <= 32 ? `${a}:${b}` : (w >= h ? `${r.toFixed(2)}:1` : `1:${(1 / r).toFixed(2)}`);
     },
+    brushWellPx() {  // the size well beside the slider: in step with the slider over its whole range (4–160)
+      return Math.round(4 + (Math.max(4, Math.min(160, this.mask.size)) - 4) * 40 / 156);
+    },
     progressPct() {
       const p = this.progress;
       if (!p || !this.runningJob || p.job !== this.runningJob.id) return 0;
       return Math.round((((p.image - 1) + p.step / p.steps) / p.images) * 100);
     },
+    genLeft(pr) {
+      // Seconds left in the running picture job, measured from its own steps: the steps still to go, plus the
+      // time each picture takes after its last step (decoding and saving, learned per model; ~2 steps until then),
+      // counting down between steps. The progress line, the queue and the TIME LEFT clock all use this one figure.
+      const times = this.timing.stepTimes;
+      if (!pr || !times.length || this.timing.job !== pr.job) return null;
+      const sorted = [...times].sort((a, b) => a - b);
+      const perStep = sorted[Math.floor(sorted.length / 2)] / 1000;
+      const job = this.queue.find((x) => x.id === pr.job);
+      const tail = (job && this.perf.models[job.model]?.tail) ?? Math.min(2 * perStep, 12);
+      const stepsLeft = (pr.steps - pr.step) + (pr.images - pr.image) * pr.steps;
+      const since = Math.max(0, (this.clockNow() - this.timing.lastAt) / 1000);
+      const stepPart = Math.max(stepsLeft ? 1 : 0, stepsLeft * perStep - since);
+      const tailPart = (pr.images - pr.image + 1) * tail - (stepsLeft ? 0 : since);
+      return { perStep, seconds: Math.max(1, stepPart + Math.max(0, tailPart)) };
+    },
     progressText() {
       const p = this.progress;
       if (!p) return this.status;
       let text = `Image ${p.image}/${p.images} · step ${p.step}/${p.steps}`;
-      const times = this.timing.stepTimes;
-      if (times.length) {
-        const sorted = [...times].sort((a, b) => a - b);
-        const perStep = sorted[Math.floor(sorted.length / 2)] / 1000;
-        const remaining = (p.steps - p.step) + (p.images - p.image) * p.steps;
-        text += ` · ${perStep.toFixed(1)} s/step · ${this.formatDuration(remaining * perStep)} left`;
-      }
+      const left = this.genLeft(p);
+      if (left) text += ` · ${left.perStep.toFixed(1)} s/step · ${this.formatDuration(left.seconds)} left`;
       return text;
     },
     jobEtas() {
@@ -1611,12 +1636,8 @@ const protoartApp = createApp({
           if (j.model !== loaded) est += p.load ?? DEFAULT_LOAD_S[fam];
           if (j.enhance) est += this.perf.jobs.enhance_prompt ?? DEFAULT_JOB_S.enhance_prompt;
           loaded = j.model;
-          if (j.state === "running" && this.progress && this.progress.job === j.id && this.timing.stepTimes.length) {
-            const pr = this.progress;
-            const sorted = [...this.timing.stepTimes].sort((a, b) => a - b);
-            const perStep = sorted[Math.floor(sorted.length / 2)] / 1000;
-            est = elapsed + perStep * ((pr.steps - pr.step) + (pr.images - pr.image) * (pr.steps + 2) + 2);
-          }
+          const left = j.state === "running" && this.progress && this.progress.job === j.id && this.genLeft(this.progress);
+          if (left) est = elapsed + left.seconds;  // the same figure the progress line shows
         } else if (j.cmd === "train_lora" || j.cmd === "train_embedding") {
           const sps = this.trainSps(this.models.find((x) => x.id === j.model)?.family || "sd15");
           const pr = this.progress;
@@ -1762,9 +1783,19 @@ const protoartApp = createApp({
       }
       if (m.type === "preview") this.livePreview = { job: m.job, image: m.image, src: m.src };
       if (m.type === "image") {
+        // learn how long a picture takes after its last step (decoding + saving) for this model's time-left figure
+        const run = this.runningJob;
+        if (run && run.cmd === "generate" && run.id === m.job && this.timing.job === m.job && this.timing.lastAt) {
+          const tail = (Date.now() - this.timing.lastAt) / 1000;
+          if (tail > 0 && tail < 600) {
+            const pm = (this.perf.models[run.model] ||= {});
+            pm.tail = pm.tail == null ? tail : pm.tail * 0.6 + tail * 0.4;
+            saveJSON(PERF_KEY, this.perf);
+          }
+        }
         // Tools results (enhance, face restore, depth) stay in Tools and the Library, not in Create's pictures
         const fromJob = this.queue.find((j) => j.id === m.job);
-        const toolKinds = ["enhanced", "faces", "depth", "edited"];
+        const toolKinds = ["enhanced", "faces", "depth", "edited", "healed", "vector"];
         const fromTools = fromJob ? fromJob.cmd === "postprocess" : toolKinds.includes(m.record.kind);
         if (!fromTools) this.session.unshift(m.record);
         if (m.record.model && m.record.kind === "generated") this.readyModel = m.record.model;
@@ -2988,9 +3019,10 @@ const protoartApp = createApp({
       if (sc) { sc.width = cv.width; sc.height = cv.height; }
       this.sel = null;
       this._wandPix = null;
+      this._ants = null;
       if (this.mask.data && this.mask.for === this.maskTarget()) {
         const prev = new Image();
-        prev.onload = () => cv.getContext("2d").drawImage(prev, 0, 0, cv.width, cv.height);
+        prev.onload = () => { cv.getContext("2d").drawImage(prev, 0, 0, cv.width, cv.height); this.maskSave(); };
         prev.src = this.mask.data;
       } else {
         this.mask.data = null;
@@ -3110,6 +3142,7 @@ const protoartApp = createApp({
       if (!c) return;
       const ctx = c.getContext("2d");
       ctx.clearRect(0, 0, c.width, c.height);
+      if (this._ants && this._ants.w === c.width && this._ants.h === c.height) ctx.putImageData(this._ants.img, 0, 0);
       const s = this.sel;
       if (!s) return;
       const k = (s.pts && s.pts[0] && s.pts[0].k) || (s.start && s.start.k) || 1;
@@ -3209,6 +3242,8 @@ const protoartApp = createApp({
     async objectSelect(x, y, w, h, sub) {  // object selection: the outline of the thing inside the box (OpenCV GrabCut)
       const cv = this.$refs.maskCanvas;
       this.status = "Finding the object…";
+      this.objFinding = true;
+      this.error = "";
       try {
         const r = await call("select_object", { path: this.maskTarget(), width: cv.width, height: cv.height,
                                                 rect: [x / cv.width, y / cv.height, w / cv.width, h / cv.height] });
@@ -3218,10 +3253,17 @@ const protoartApp = createApp({
         tmp.width = cv.width;
         tmp.height = cv.height;
         tmp.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
-        this.selStamp(tmp.getContext("2d").getImageData(0, 0, cv.width, cv.height), sub);
-        this.status = r.found ? "Object selected: fix the edges with the brush or eraser if needed" : "Couldn't separate an object there: try a tighter box";
+        if (r.found) {
+          this.selStamp(tmp.getContext("2d").getImageData(0, 0, cv.width, cv.height), sub);
+          this.status = "Object selected (outlined): fix the edges with the brush or eraser if needed";
+        } else {  // no clear outline: take the box itself, so something always happens
+          this.selFill([{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }], sub);
+          this.status = "Couldn't find a clear outline in that box, so the whole box is selected: trim it with the eraser, or drag a tighter box";
+        }
       } catch (e) {
         this.error = "Object selection failed: " + (e.message || e);
+      } finally {
+        this.objFinding = false;
       }
     },
     maskSave() {
@@ -3233,6 +3275,29 @@ const protoartApp = createApp({
       for (let i = 3; i < px.length; i += 16) if (px[i] > 32) { any = true; break; }
       this.mask.data = any ? cv.toDataURL("image/png") : null;
       this.mask.for = this.maskTarget();
+      this.antsMake(px, cv.width, cv.height);
+      this.selDraw();
+    },
+    antsMake(px, W, H) {
+      // "marching ants": a black-and-white dashed line around everything that's painted or selected, so the
+      // selection shows on any picture (the pink fill alone is hard to see on pink, red or busy pictures)
+      const out = new ImageData(W, H);
+      const d = out.data;
+      const on = (x, y) => x >= 0 && y >= 0 && x < W && y < H && px[(y * W + x) * 4 + 3] > 32;
+      const t = Math.max(1, Math.round(W / 700));  // a little thicker on big pictures
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          if (!on(x, y) || (on(x - 1, y) && on(x + 1, y) && on(x, y - 1) && on(x, y + 1))) continue;
+          const white = ((x + y) >> 2) & 1;
+          for (let dy = 0; dy < t; dy++) for (let dx = 0; dx < t; dx++) {
+            const xx = Math.min(W - 1, x + dx), yy = Math.min(H - 1, y + dy);
+            const j = (yy * W + xx) * 4;
+            const v = white ? 255 : 0;
+            d[j] = v; d[j + 1] = v; d[j + 2] = v; d[j + 3] = 255;
+          }
+        }
+      }
+      this._ants = { w: W, h: H, img: out };
     },
     cmpDrag(e) {  // Tools → Split view: drag on the picture to move the line
       const box = this.$refs.cmpSplit;
@@ -3308,6 +3373,8 @@ const protoartApp = createApp({
       const cv = this.$refs.maskCanvas;
       if (cv) cv.getContext("2d").clearRect(0, 0, cv.width, cv.height);
       this.mask.data = null;
+      this._ants = null;
+      this.selDraw();
     },
     maskInvert() {
       const cv = this.$refs.maskCanvas;
@@ -4035,7 +4102,8 @@ const protoartApp = createApp({
       }
       if (f.i2i_mode === "change" && !f.i2i_use_init && !f.control.type) return (this.error = "Tick “Start from this picture”, pick a ControlNet, or both.");
       if (!["sd15", "sdxl"].includes(this.family)) return (this.error = "Image to image works with SD 1.5 and SDXL models: pick one at the top.");
-      if (f.i2i_mode === "change" && f.control.type && this.family !== "sd15") return (this.error = "ControlNet needs an SD 1.5 model: pick one in Create.");
+      const cnFam = f.i2i_mode === "change" && f.control.type ? (this.controlTypeInfo?.family || "sd15") : null;
+      if (cnFam && cnFam !== this.family) return (this.error = `This ControlNet is made for ${cnFam === "sdxl" ? "SDXL (Pony, Illustrious, NoobAI)" : "SD 1.5"} models: pick one in the model list at the top, or another ControlNet.`);
       this.error = "";
       const args = JSON.parse(JSON.stringify(f));
       this.cleanExtras(args);
