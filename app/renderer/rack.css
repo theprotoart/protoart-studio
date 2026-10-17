@@ -1361,3 +1361,17 @@ label:has(> input[type=checkbox]:checked), [data-theme="dark"] label:has(> input
 .rack-module .mod-more > label { display: flex; justify-content: space-between; margin: 8px 0 3px; font-family: var(--f-eng); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; }
 .rack-module .mod-icon { font-size: 21px; }
 .module-rack { grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); }
+/* an even grid: 4 modules a row (2 when the window is narrow), all the same width, rows the same height */
+.tool-actions { container-type: inline-size; }
+.module-rack { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@container (max-width: 820px) { .module-rack { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.module-rack > .card.rack-module { min-height: 0; padding: 22px 13px 12px; }
+.rack-module .mod-head { padding: 4px 0 8px; margin-bottom: 6px; }
+.rack-module .mod-icon { width: 38px; height: 38px; font-size: 18px; margin-bottom: 2px; }
+.rack-module .mod-desc { font-size: 11.5px; margin-bottom: 4px; }
+.rack-module > label { margin: 8px 0 3px; }
+.rack-module .mod-foot { padding-top: 10px; }
+.rack-module .mod-go { min-height: 36px; }
+/* Convert's file list opens under the rack, full width */
+.convert-panel h3 { display: flex; align-items: center; gap: 8px; }
+.convert-panel .conv-close { margin-left: auto; }

@@ -1373,55 +1373,58 @@
             <span class="mod-plate">Prompt reader · PR-5</span>
           </div>
         </div>
+        <div class="card rack-module convert-module" :class="{active: !!conv.items}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!conv.items}"></i><span class="mod-icon">🔁</span>
+            <h3>Convert</h3><span class="mod-sub">DiffusionBee → .safetensors</span></div>
+          <p class="mod-desc" title="Makes standard .safetensors copies of your DiffusionBee models, LoRAs and embeddings, so they work in other apps too (A1111, ComfyUI, Draw Things…). Your DiffusionBee files are left as they are. Works offline.">Copies your DiffusionBee models, LoRAs and embeddings as .safetensors for other apps. Originals untouched.</p>
+          <div class="mod-foot">
+            <button class="primary mod-go" @click="conv.items ? (conv.items = null) : loadConvertList()">{{ conv.items ? 'Hide the list' : 'Show my files' }}</button>
+            <span class="mod-plate">Converter · CV-6</span>
+          </div>
+        </div>
+      </div>
+      <div v-if="conv.items" class="card convert-card convert-panel">
+        <h3>🔁 Your DiffusionBee files <span class="hint">pick what to convert · .tdict → .safetensors</span>
+          <button class="ghost small conv-close" @click="conv.items = null" title="Close the list">✕</button></h3>
+        <div class="row">
+          <input v-model="conv.search" placeholder="Search…" style="flex:1">
+          <select v-model="conv.kind" style="max-width:150px">
+            <option value="">All types</option><option value="lora">LoRAs</option><option value="checkpoint">Models</option>
+            <option value="embedding">Embeddings</option><option value="controlnet">ControlNets</option>
+          </select>
+        </div>
+        <div class="row small">
+          <button class="link" @click="convSelectShown(true)">select all shown ({{ convShown.length }})</button>
+          <button class="link" @click="convSelectShown(false)">clear</button>
+          <span class="hint">{{ conv.selected.length }} selected · {{ convSelectedSize }} · {{ conv.free_gb }} GB free</span>
+        </div>
+        <div class="conv-list">
+          <label v-for="it in convShown.slice(0, 300)" :key="it.file" class="check conv-item">
+            <input type="checkbox" :value="it.file" v-model="conv.selected">
+            <span>{{ it.name }}</span>
+            <span class="hint">{{ convKindLabel(it.kind) }}{{ it.family && it.family !== 'unknown' ? ' · ' + familyName(it.family) : '' }} · {{ it.size_mb }} MB</span>
+          </label>
+          <div v-if="convShown.length > 300" class="hint">…and {{ convShown.length - 300 }} more; search to narrow down</div>
+          <div v-if="!convShown.length" class="hint">Nothing matches.</div>
+        </div>
+        <label class="check"><input type="checkbox" v-model="conv.loras_to_lora_folder"> Put converted LoRAs in my LoRA folder (they replace the .tdict ones in the list)</label>
+        <div class="row">
+          <span class="hint">Other files go to</span>
+          <button class="link" @click="openFolder(conv.out_dir)">{{ conv.out_dir }}</button>
+          <button class="link" @click="convPickOut">change…</button>
+        </div>
+        <div class="row">
+          <button class="primary" :disabled="!conv.selected.length" @click="runConvert">Convert {{ conv.selected.length || '' }} file{{ conv.selected.length === 1 ? '' : 's' }}</button>
+          <button v-if="convJob" class="danger" @click="cancelJob(convJob.id)">■ Stop</button>
+          <span v-if="convJob" class="hint">{{ convJob.state === 'running' ? status : 'waiting in the queue' }}</span>
+        </div>
+        <div v-if="conv.result" class="hint">
+          ✅ Converted {{ conv.result.converted.length }} file{{ conv.result.converted.length === 1 ? '' : 's' }}.
+          <button class="link" @click="openFolder(conv.result.out_dir)">Open the folder</button>
+          <div v-for="e in conv.result.errors" :key="e" class="warn">⚠ {{ e }}</div>
+        </div>
       </div>
 
-      <div class="card convert-card">
-        <h3>🔁 Convert DiffusionBee files <span class="hint">.tdict → .safetensors</span></h3>
-        <p class="hint">Makes standard <code>.safetensors</code> copies of your DiffusionBee models, LoRAs and embeddings, so they work in
-          other apps too (A1111, ComfyUI, Draw Things…). Your DiffusionBee files are left as they are. Works offline.</p>
-        <div class="row" v-if="!conv.items">
-          <button @click="loadConvertList">Show my DiffusionBee files</button>
-        </div>
-        <template v-else>
-          <div class="row">
-            <input v-model="conv.search" placeholder="Search…" style="flex:1">
-            <select v-model="conv.kind" style="max-width:150px">
-              <option value="">All types</option><option value="lora">LoRAs</option><option value="checkpoint">Models</option>
-              <option value="embedding">Embeddings</option><option value="controlnet">ControlNets</option>
-            </select>
-          </div>
-          <div class="row small">
-            <button class="link" @click="convSelectShown(true)">select all shown ({{ convShown.length }})</button>
-            <button class="link" @click="convSelectShown(false)">clear</button>
-            <span class="hint">{{ conv.selected.length }} selected · {{ convSelectedSize }} · {{ conv.free_gb }} GB free</span>
-          </div>
-          <div class="conv-list">
-            <label v-for="it in convShown.slice(0, 300)" :key="it.file" class="check conv-item">
-              <input type="checkbox" :value="it.file" v-model="conv.selected">
-              <span>{{ it.name }}</span>
-              <span class="hint">{{ convKindLabel(it.kind) }}{{ it.family && it.family !== 'unknown' ? ' · ' + familyName(it.family) : '' }} · {{ it.size_mb }} MB</span>
-            </label>
-            <div v-if="convShown.length > 300" class="hint">…and {{ convShown.length - 300 }} more; search to narrow down</div>
-            <div v-if="!convShown.length" class="hint">Nothing matches.</div>
-          </div>
-          <label class="check"><input type="checkbox" v-model="conv.loras_to_lora_folder"> Put converted LoRAs in my LoRA folder (they replace the .tdict ones in the list)</label>
-          <div class="row">
-            <span class="hint">Other files go to</span>
-            <button class="link" @click="openFolder(conv.out_dir)">{{ conv.out_dir }}</button>
-            <button class="link" @click="convPickOut">change…</button>
-          </div>
-          <div class="row">
-            <button class="primary" :disabled="!conv.selected.length" @click="runConvert">Convert {{ conv.selected.length || '' }} file{{ conv.selected.length === 1 ? '' : 's' }}</button>
-            <button v-if="convJob" class="danger" @click="cancelJob(convJob.id)">■ Stop</button>
-            <span v-if="convJob" class="hint">{{ convJob.state === 'running' ? status : 'waiting in the queue' }}</span>
-          </div>
-          <div v-if="conv.result" class="hint">
-            ✅ Converted {{ conv.result.converted.length }} file{{ conv.result.converted.length === 1 ? '' : 's' }}.
-            <button class="link" @click="openFolder(conv.result.out_dir)">Open the folder</button>
-            <div v-for="e in conv.result.errors" :key="e" class="warn">⚠ {{ e }}</div>
-          </div>
-        </template>
-      </div>
 
 
 

@@ -12,7 +12,8 @@
   the untouched original with a soft edge. Saved as kind `word_edit`. The worker loads FLUX.2 as `variant="edit"`
 - Tools: every tool is a vertical rack module (`.module-rack`): Run chain (Enhance → Restore faces), Enhance (main
   controls up front, steps / work size / solver / seed / prompt under "fine-tune"), Restore faces, Depth map, Remove
-  objects, Vectorize, Image → prompt; Convert DiffusionBee files stays a wide unit
+  objects, Vectorize, Image → prompt, Convert: an even 4 × 2 grid (2 columns when narrow, container query); Convert's
+  file list opens as a full-width panel under the rack
 - Sampler picks: at most two "Fastest" and two "Best quality" chips
 - New model: **FLUX.2 [klein] 4B** on the fast engine (`flux2_klein_mlx_q4`, family `flux2`): mflux `Flux2Klein`
   with the 4-bit conversion `ar9av/FLUX.2-klein-4B-mflux-4bit` pinned to revision 86214a1 (~4.6 GB), 4 steps, guidance 1,
