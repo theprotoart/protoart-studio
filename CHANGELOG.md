@@ -2,6 +2,17 @@
 
 ## 1.2.1 (in progress)
 
+- Create and Image to image keep their own prompt / negative prompt (`swapPrompts`, synchronous tab watcher);
+  Tools Remove results tagged `from_tools` so they stay out of Image to image's preview
+- `recommendedVae` is a computed value (it was a method, so the ⤓ get link never went away)
+- Train: leave pictures out (`skip` framing, `scan_dataset(include_skipped)`), crop by hand (`box:x,y,s`,
+  `trainer.parse_box`, crop editor), striped tile for pictures the window can't show, caption buttons wrap
+- Training checks free memory and swap first on Macs under 16 GB (`Engine._room_to_train`); a missing model file
+  gets a plain message instead of diffusers' "Invalid pretrained_model_name_or_path"
+- Queue: ⤵ Run the others first (`sendBack` / `resendSentBack`; generate jobs re-queue only their unfinished images)
+- Narrow windows: Settings' Look controls drop their words under 1360 px
+- Launch screen redesigned as a rack unit powering up (lamps, VU needle, amber display, READY before fading)
+- README: screenshots (`docs/screenshots`)
 - Fix: the window went blank (and flashed during ✨ enhance now) as soon as a job reported progress: `genLeft` had been
   put among the computed values instead of the methods
 - Fast engine LoRAs: not baked on Macs under 24 GB (`mlx_worker.bake_loras`, `bake_lora=False`; override with
