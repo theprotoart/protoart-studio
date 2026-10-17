@@ -30,13 +30,40 @@ def _open_rgb(path):
     return ImageOps.exif_transpose(Image.open(pictures.prepare(path))).convert("RGB")
 FRAMING_FILE = ".protoart_framing.json"   # per-picture framing chosen in the Train tab (beside the pictures)
 FITS = ("center", "top", "bottom", "left", "right", "pad")
+SKIP = "skip"   # left out of training (the file itself stays where it is)
 _CENTERING = {"center": (0.5, 0.5), "top": (0.5, 0.0), "bottom": (0.5, 1.0), "left": (0.0, 0.5), "right": (1.0, 0.5)}
 
 
+def parse_box(fit):
+    """A square cropped by hand: "box:x,y,s" with x, y the box's top-left corner as a share of the picture's width and
+    height, and s its side as a share of the picture's shorter side (s=1: as big as fits). None if fit isn't one."""
+    if not isinstance(fit, str) or not fit.startswith("box:"):
+        return None
+    try:
+        x, y, s = (float(v) for v in fit[4:].split(","))
+    except ValueError:
+        return None
+    if not (0.02 <= s <= 1.0 and 0 <= x <= 1 and 0 <= y <= 1):
+        return None
+    return x, y, s
+
+
+def valid_fit(fit):
+    return fit in FITS or fit == SKIP or parse_box(fit) is not None
+
+
 def square(img, res, fit=None):
-    """A res x res training picture. fit: which part to keep when cropping (center/top/bottom/left/right), or "pad"
-    to keep the whole picture and fill the sides with a blurred copy of itself (nothing cut off)."""
+    """A res x res training picture. fit: which part to keep when cropping (center/top/bottom/left/right), "pad"
+    to keep the whole picture and fill the sides with a blurred copy of itself (nothing cut off), or "box:x,y,s"
+    for a square picked by hand."""
     from PIL import Image, ImageFilter, ImageOps
+    box = parse_box(fit)
+    if box:
+        w, h = img.size
+        side = max(8, round(box[2] * min(w, h)))
+        left = min(max(0, round(box[0] * w)), w - side)
+        top = min(max(0, round(box[1] * h)), h - side)
+        return img.crop((left, top, left + side, top + side)).resize((res, res), Image.LANCZOS)
     fit = fit if fit in FITS else "center"
     if fit == "pad":
         bg = ImageOps.fit(img, (res, res), Image.LANCZOS).filter(ImageFilter.GaussianBlur(max(4, res // 24)))
@@ -49,16 +76,17 @@ def square(img, res, fit=None):
 def load_framing(folder):
     try:
         data = json.loads((Path(folder) / FRAMING_FILE).read_text())
-        return {k: v for k, v in data.items() if isinstance(k, str) and v in FITS}
+        return {k: v for k, v in data.items() if isinstance(k, str) and valid_fit(v)}
     except (OSError, ValueError, AttributeError):
         return {}
 
 
 def save_framing(folder, framing):
-    """framing: {file name: fit}. Only names of pictures in this folder are kept; "center" (the default) isn't stored."""
+    """framing: {file name: fit} (a FITS name, "box:x,y,s", or "skip" to leave a picture out). Only names of pictures
+    in this folder are kept; "center" (the default) isn't stored."""
     d = Path(folder)
     names = {p.name for p in d.iterdir() if p.suffix.lower() in IMAGE_EXT}
-    clean = {k: v for k, v in (framing or {}).items() if k in names and v in FITS and v != "center"}
+    clean = {k: v for k, v in (framing or {}).items() if k in names and valid_fit(v) and v != "center"}
     f = d / FRAMING_FILE
     if clean:
         f.write_text(json.dumps(clean, indent=1))
@@ -104,7 +132,9 @@ class TrainError(Exception):
 
 
 # ------------------------------------------------------------------ dataset
-def scan_dataset(folder, limit=1000):
+def scan_dataset(folder, limit=1000, include_skipped=False):
+    """The training pictures in a folder, with their captions and framing. Pictures left out in the Train tab
+    ("skip") are only listed when include_skipped (the Train tab shows them, dimmed; training never uses them)."""
     d = Path(folder or "")
     if not d.is_dir():
         raise TrainError("Pick a folder of training images.")
@@ -126,8 +156,11 @@ def scan_dataset(folder, limit=1000):
                     w, h = im.size
             except Exception:
                 pass
+            fit = framing.get(p.name, "center")
+            if fit == SKIP and not include_skipped:
+                continue
             items.append({"path": str(p), "name": p.name, "caption": text, "has_caption": bool(text),
-                          "width": w, "height": h, "fit": framing.get(p.name, "center")})
+                          "width": w, "height": h, "fit": fit})
             if len(items) >= limit:
                 break
     return items

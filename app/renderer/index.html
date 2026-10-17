@@ -2102,9 +2102,9 @@
         </div>
         <div v-if="train.folder" class="hint">{{ train.folder }}</div>
         <template v-if="train.items.length">
-          <div class="hint">{{ train.items.length }} images · {{ trainCaptioned }} with captions
+          <div class="hint">{{ train.items.length }} images<template v-if="trainSkipped"> · {{ trainSkipped }} left out (training uses {{ train.items.length - trainSkipped }})</template> · {{ trainCaptioned }} with captions
             <span v-if="train.items.length < 10"> · 10–30 images usually work best</span></div>
-          <div class="row">
+          <div class="row wrap-row">
             <select v-model="train.capMode" style="max-width:190px">
               <option value="tags">Danbooru tags (anime/illustration)</option>
               <option value="describe">Sentences (photos/realistic)</option>
@@ -2329,14 +2329,26 @@
           <button v-if="trainNotSquare()" class="link small-link" @click="setFrameAll('pad', true)" title="Only the pictures that aren't square: keep them whole">keep the non-square ones whole</button>
         </div>
         <div class="frame-grid">
-          <div v-for="it in train.items" :key="it.path" class="frame-item" :class="{nonsq: it.width && it.width !== it.height}">
-            <div class="frame-box" :class="{pad: it.fit === 'pad'}">
-              <img v-if="it.fit === 'pad'" class="frame-bg" :src="fileUrl(it.path)" alt="" loading="lazy" decoding="async">
-              <img :src="fileUrl(it.path)" :style="frameStyle(it)" loading="lazy" decoding="async" :title="it.name + (it.width ? ' · ' + it.width + '×' + it.height : '')">
+          <div v-for="it in train.items" :key="it.path" class="frame-item"
+               :class="{nonsq: it.width && it.width !== it.height && it.fit !== 'skip', skipped: it.fit === 'skip'}">
+            <div class="frame-box" :class="{pad: it.fit === 'pad'}" @click="it.fit !== 'skip' && !it.broken && openCrop(it)"
+                 :title="it.fit === 'skip' ? it.name + ' is left out of training' : 'Click to pick the square by hand · ' + it.name + (it.width ? ' · ' + it.width + '×' + it.height : '')">
+              <div v-if="it.broken" class="frame-broken">can't show<br>{{ it.name.split('.').pop().toUpperCase() }}<br><small>training still reads it</small></div>
+              <template v-else-if="isBoxFit(it.fit)">
+                <div class="frame-crop" :style="cropBgStyle(it)"></div>
+              </template>
+              <template v-else>
+                <img v-if="it.fit === 'pad'" class="frame-bg" :src="fileUrl(it.path)" alt="" loading="lazy" decoding="async">
+                <img :src="fileUrl(it.path)" :style="frameStyle(it)" loading="lazy" decoding="async" @error="it.broken = true">
+              </template>
+              <span v-if="it.fit === 'skip'" class="frame-skip-tag">LEFT OUT</span>
+              <button class="frame-x" @click.stop="setFrame(it, it.fit === 'skip' ? 'center' : 'skip')"
+                      :title="it.fit === 'skip' ? 'Put it back in the training set' : 'Leave this picture out of training (the file stays where it is)'">{{ it.fit === 'skip' ? '↺' : '✕' }}</button>
             </div>
-            <select :value="it.fit || 'center'" @change="setFrame(it, $event.target.value)" :title="'How ' + it.name + ' becomes a square'">
+            <select :value="isBoxFit(it.fit) ? 'box' : (it.fit || 'center')" @change="pickFrame(it, $event)" :title="'How ' + it.name + ' becomes a square'">
               <option value="center">Crop · centre</option><option value="top">Crop · top</option><option value="bottom">Crop · bottom</option>
               <option value="left">Crop · left</option><option value="right">Crop · right</option><option value="pad">Keep whole</option>
+              <option value="box">✂ Crop by hand…</option><option value="skip">⊘ Leave out</option>
             </select>
           </div>
         </div>
@@ -2350,6 +2362,26 @@
           </template>
         </div>
         <div v-if="frame.msg" class="hint">{{ frame.msg }}</div>
+      </div>
+      <div v-if="cropEd" class="crop-modal" @click.self="cropEd = null" @keydown.esc="cropEd = null" tabindex="-1">
+        <div class="card crop-card">
+          <h3>✂ Crop by hand <span class="hint">{{ cropEd.it.name }} · drag the square to move it, drag its corner (or use the slider) to resize</span></h3>
+          <div class="crop-stage" ref="cropStage">
+            <img :src="fileUrl(cropEd.it.path)" draggable="false" @load="cropImgLoaded">
+            <div v-if="cropEd.w" class="crop-shade" :style="cropBoxStyle()" @pointerdown="cropDrag($event, 'move')">
+              <i class="crop-grid"></i>
+              <b class="crop-handle" @pointerdown.stop="cropDrag($event, 'size')"></b>
+            </div>
+          </div>
+          <div class="row crop-bar">
+            <label class="hint">Size</label>
+            <input type="range" min="0.1" max="1" step="0.01" v-model.number="cropEd.s" @input="cropClamp" style="flex:1">
+            <span class="hint">{{ cropPixels() }}</span>
+            <button class="ghost" @click="cropEd.s = 1; cropEd.x = cropEd.w > cropEd.h ? (1 - cropEd.h / cropEd.w) / 2 : 0; cropEd.y = cropEd.h > cropEd.w ? (1 - cropEd.w / cropEd.h) / 2 : 0">Centre, biggest</button>
+            <button class="ghost" @click="cropEd = null">Cancel</button>
+            <button class="primary" @click="cropSave">Use this square</button>
+          </div>
+        </div>
       </div>
       <div v-if="train.items.length && train.mode === 'lora'" class="card">
         <h3>Captions <span class="hint">edit, then save (written as .txt next to each image)</span></h3>

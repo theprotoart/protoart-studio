@@ -134,3 +134,20 @@ class FramingTests(unittest.TestCase):
             self.assertEqual((out / "a.txt").read_text().strip(), "a cat")
             self.assertEqual(trainer.save_framing(d, {}), 0)
             self.assertFalse((d / trainer.FRAMING_FILE).exists())
+            # left out: listed for the Train tab, never trained on or copied
+            trainer.save_framing(d, {"b.png": "skip", "c.png": "box:0.1,0,0.5"})
+            self.assertEqual([i["name"] for i in trainer.scan_dataset(d)], ["a.png", "c.png"])
+            self.assertEqual(len(trainer.scan_dataset(d, include_skipped=True)), 3)
+            self.assertEqual(trainer.save_square_copies(d, 64)["count"], 2)
+
+    def test_box_crop(self):
+        import trainer
+        from PIL import Image
+        img = Image.new("RGB", (400, 200), (255, 0, 0))
+        img.paste((0, 255, 0), (300, 100, 400, 200))  # green bottom-right corner, 100 px
+        out = trainer.square(img, 50, "box:0.75,0.5,0.5")  # the 100 px square at (300, 100)
+        self.assertEqual(out.size, (50, 50))
+        self.assertEqual(out.getpixel((25, 25)), (0, 255, 0))
+        self.assertIsNone(trainer.parse_box("box:a,b,c"))
+        self.assertTrue(trainer.valid_fit("skip"))
+        self.assertFalse(trainer.valid_fit("box:0,0,5"))

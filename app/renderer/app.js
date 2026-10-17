@@ -237,6 +237,7 @@ const protoartApp = createApp({
       i2iLora: { q: "", open: false },
       lorasAside: loadJSON("protoart.lorasAside", {}),  // model type -> LoRAs put aside when you switched type
       frame: { size: 512, busy: false, msg: "", copied: null },  // Train tab: square framing of the pictures
+      cropEd: null,        // Train tab → ✂ Crop by hand: {it, x, y, s, w, h} (x, y, s as in trainer.parse_box)
       forcing: false,
       stopAllAt: 0,
       memLow: null,          // other apps have the memory: shown above the pictures until closed
@@ -1314,6 +1315,9 @@ const protoartApp = createApp({
         if (fam === "ernie") return ram && ram < 16 ? 40 : 10;
         return ram && ram < 12 ? 4 : 2;
       };
+    },
+    trainSkipped() {
+      return this.train.items.filter((it) => it.fit === "skip").length;
     },
     trainCaptioned() {
       return this.train.items.filter((i) => (i.caption || "").trim()).length;
@@ -3751,12 +3755,102 @@ const protoartApp = createApp({
       const pos = { center: "50% 50%", top: "50% 0%", bottom: "50% 100%", left: "0% 50%", right: "100% 50%" }[it.fit || "center"];
       return it.fit === "pad" ? { objectFit: "contain" } : { objectFit: "cover", objectPosition: pos };
     },
+    isBoxFit(fit) {
+      return typeof fit === "string" && fit.startsWith("box:");
+    },
+    parseBox(fit) {
+      const v = this.isBoxFit(fit) ? fit.slice(4).split(",").map(Number) : null;
+      return v && v.length === 3 && v.every(Number.isFinite) ? { x: v[0], y: v[1], s: v[2] } : null;
+    },
+    cropBgStyle(it) {  // a tile showing just the square picked by hand
+      const b = this.parseBox(it.fit), w = it.width || 1, h = it.height || 1;
+      if (!b) return {};
+      const side = b.s * Math.min(w, h);
+      const left = Math.min(Math.max(0, b.x * w), w - side), top = Math.min(Math.max(0, b.y * h), h - side);
+      return { backgroundImage: `url("${this.fileUrl(it.path)}")`, backgroundSize: `${(w / side) * 100}% ${(h / side) * 100}%`,
+               backgroundPosition: `${w - side > 0 ? (left / (w - side)) * 100 : 0}% ${h - side > 0 ? (top / (h - side)) * 100 : 0}%` };
+    },
+    pickFrame(it, e) {
+      const v = e.target.value;
+      if (v === "box") {
+        e.target.value = this.isBoxFit(it.fit) ? "box" : (it.fit || "center");
+        return this.openCrop(it);
+      }
+      this.setFrame(it, v);
+    },
+    openCrop(it) {
+      const b = this.parseBox(it.fit);
+      this.cropEd = { it, x: b ? b.x : 0, y: b ? b.y : 0, s: b ? b.s : 1, w: 0, h: 0 };
+    },
+    cropImgLoaded(e) {
+      const c = this.cropEd;
+      if (!c) return;
+      c.w = e.target.naturalWidth;
+      c.h = e.target.naturalHeight;
+      if (!this.parseBox(c.it.fit)) {  // start from what the tile showed: the biggest square, centred
+        c.s = 1;
+        c.x = c.w > c.h ? (1 - c.h / c.w) / 2 : 0;
+        c.y = c.h > c.w ? (1 - c.w / c.h) / 2 : 0;
+      }
+      this.cropClamp();
+    },
+    cropSidePx() {
+      const c = this.cropEd;
+      return c.s * Math.min(c.w, c.h);
+    },
+    cropClamp() {
+      const c = this.cropEd;
+      if (!c || !c.w) return;
+      c.s = Math.min(1, Math.max(0.1, c.s));
+      const side = this.cropSidePx();
+      c.x = Math.min(Math.max(0, c.x), (c.w - side) / c.w);
+      c.y = Math.min(Math.max(0, c.y), (c.h - side) / c.h);
+    },
+    cropBoxStyle() {
+      const c = this.cropEd, side = this.cropSidePx();
+      return { left: c.x * 100 + "%", top: c.y * 100 + "%", width: (side / c.w) * 100 + "%", height: (side / c.h) * 100 + "%" };
+    },
+    cropPixels() {
+      const side = Math.round(this.cropSidePx());
+      return `${side} × ${side} px` + (side < 512 ? " · smaller than 512: it will be scaled up" : "");
+    },
+    cropDrag(e, mode) {
+      const stage = this.$refs.cropStage, c = this.cropEd;
+      if (!stage || !c) return;
+      e.preventDefault();
+      const r = stage.getBoundingClientRect();
+      const start = { px: e.clientX, py: e.clientY, x: c.x, y: c.y, s: c.s };
+      const move = (ev) => {
+        const dx = (ev.clientX - start.px) / r.width, dy = (ev.clientY - start.py) / r.height;
+        if (mode === "move") {
+          c.x = start.x + dx;
+          c.y = start.y + dy;
+        } else {  // the corner: grow or shrink the square, keeping its top-left corner where it is
+          const short = Math.min(c.w, c.h);
+          const grow = Math.max(dx * c.w, dy * c.h);
+          c.s = start.s + grow / short;
+        }
+        this.cropClamp();
+      };
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    },
+    async cropSave() {
+      const c = this.cropEd;
+      if (!c) return;
+      const r = (v) => Math.round(v * 10000) / 10000;
+      const it = c.it;
+      this.cropEd = null;
+      await this.setFrame(it, `box:${r(c.x)},${r(c.y)},${r(c.s)}`);
+    },
     async setFrame(it, fit) {
       it.fit = fit;
       await this.saveFraming();
     },
     async setFrameAll(fit, onlyNonSquare) {
       for (const it of this.train.items) {
+        if (it.fit === "skip") continue;  // left-out pictures stay left out
         if (!onlyNonSquare || (it.width !== it.height)) it.fit = fit;
       }
       await this.saveFraming();

@@ -1070,7 +1070,7 @@ class Engine:
             it["caption"] = res.get("prompt", "")
             trainer.save_captions([it])
             done += 1
-        return {"captioned": done, "items": trainer.scan_dataset(args.get("folder"))}
+        return {"captioned": done, "items": trainer.scan_dataset(args.get("folder"), include_skipped=True)}
 
     # ------------------------------------------------------------ ControlNet
     def _get_depth_estimator(self, size="small"):

@@ -776,9 +776,10 @@ def handle_quick(cmd, a):
         return cnet.list_types()
     if cmd == "train_scan":
         import trainer
-        items = trainer.scan_dataset(a.get("folder"))
+        items = trainer.scan_dataset(a.get("folder"), include_skipped=True)
         _train_folders.add(os.path.realpath(str(a.get("folder"))))
-        return {"items": items, "suggested_steps": trainer.suggest_steps(len(items))}
+        used = sum(1 for it in items if it["fit"] != trainer.SKIP)
+        return {"items": items, "suggested_steps": trainer.suggest_steps(used)}
     if cmd == "train_captions_save":
         import trainer
         # only caption files next to images in a training folder that was opened in the Train tab
