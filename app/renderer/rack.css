@@ -1483,3 +1483,52 @@ button.bat-toggle:hover:not(:disabled), button.bat-toggle:active:not(:disabled) 
 .prompt-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid rgba(0, 0, 0, .25); }
 .prompt-row-text { flex: 1; min-width: 0; display: grid; }
 .prompt-row-text .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Tools: compare the result with the original in the picture window (Original / Result / Split / Side by side) */
+.cmp-stage { width: 100%; display: flex; justify-content: center; align-items: center; cursor: default; }
+.cmp-stage.cmp-split { cursor: ew-resize; user-select: none; }
+.cmp-split { position: relative; display: inline-block; line-height: 0; max-width: 100%; }
+.cmp-split img { display: block; max-width: 100%; max-height: 60vh; }
+.cmp-split .cmp-over { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+.cmp-line { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #f4f1e8; box-shadow: 0 0 0 1px rgba(0, 0, 0, .6); pointer-events: none; }
+.cmp-line b { position: absolute; top: 50%; left: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #c4c7cb 50%, #6d7075); box-shadow: 0 2px 4px rgba(0, 0, 0, .6); }
+.cmp-tag { position: absolute; top: 8px; padding: 2px 8px; border-radius: 2px; font: 600 10px var(--f-eng); letter-spacing: .14em;
+  text-transform: uppercase; line-height: 1.6; color: #efeadc; background: rgba(0, 0, 0, .6); pointer-events: none; }
+.cmp-tag.left { left: 8px; } .cmp-tag.right { right: 8px; }
+.cmp-side, .cmp-stage.cmp-side { gap: 8px; }
+.cmp-stage.cmp-side figure { margin: 0; flex: 1 1 0; min-width: 0; display: grid; gap: 4px; justify-items: center; }
+.cmp-stage.cmp-side img { max-width: 100%; max-height: 52vh; display: block; }
+.cmp-stage.cmp-side figcaption { font: 600 10px var(--f-eng); letter-spacing: .14em; text-transform: uppercase; color: #cfcabd; }
+.cmp-viewbar { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; }
+.cmp-viewbar .eng { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; }
+/* brush-size ring (follows the pointer while painting) and the recessed size well next to the slider */
+.mask-stage { overflow: hidden; }
+.brush-ring {
+  position: absolute; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none; z-index: 3;
+  border: 1.5px solid rgba(255, 255, 255, .95);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .75), inset 0 0 0 1px rgba(0, 0, 0, .55), 0 0 6px rgba(var(--glow-rgb), .35);
+}
+.brush-ring::after { /* the centre point */
+  content: ""; position: absolute; left: 50%; top: 50%; width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; border-radius: 50%;
+  background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .7);
+}
+.brush-ring.erase { border-style: dashed; }
+.brush-well {
+  display: inline-grid; place-items: center; width: 52px; height: 52px; flex: none; border-radius: 50%; vertical-align: middle;
+  background: radial-gradient(circle at 50% 55%, #0c0c0d 0 58%, #1d1e21 70%);
+  box-shadow: inset 0 3px 6px #000, inset 0 -1px 0 rgba(255, 255, 255, .08), 0 0 0 2px #2d2f33, 0 0 0 3px #a5a8ad, 0 0 0 4px #3b3d42, 0 1px 0 4px rgba(255, 255, 255, .2);
+}
+.brush-well i {
+  display: block; border-radius: 50%; max-width: 44px; max-height: 44px; transition: width .08s, height .08s;
+  background: radial-gradient(circle at 35% 30%, #fff, #d8dadd 45%, #8b8e93 100%);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .6), 0 0 6px rgba(var(--glow-rgb), .35);
+}
+.brush-well i.erase { background: transparent; box-shadow: inset 0 0 0 1.5px #d8dadd, 0 0 0 1px rgba(0, 0, 0, .6); }
+.mask-tools { align-items: center; }
+.lora-sort-row { display: flex; gap: 6px; margin: 6px 0 2px; }
+.lora-sort-row select { flex: 1 1 0; min-width: 0; font-size: 12px; }
+/* How to: community & support, model licences */
+.support-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.licence-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.licence-table td { padding: 5px 8px; border-bottom: 1px solid rgba(0, 0, 0, .18); vertical-align: top; }
+.licence-table td:first-child { width: 45%; }

@@ -145,6 +145,8 @@
         </div>
         <button class="ghost tips-btn" :class="{on: opts.tooltips !== false}" @click="setTooltips(opts.tooltips === false)"
                 title="Show a short explanation when you point at a button or control (switch off once you know your way around)">💬 Tips {{ opts.tooltips === false ? 'off' : 'on' }}</button>
+        <button class="ghost tips-btn" :class="{on: soundsOn}" @click="setSounds(!soundsOn)"
+                title="Play a short chime when pictures are finished or training is done (and a low tone if something fails)">🔔 Sounds {{ soundsOn ? 'on' : 'off' }}</button>
         </div>
       </div>
       <!-- other tabs: an engraved name plate -->
@@ -417,6 +419,16 @@
                  :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ')'">
           <button class="chip" :class="{on: loraFavOnly}" @click="loraFavOnly = !loraFavOnly; loraOpen = true"
                   title="Show only your ★ favourite LoRAs (click the ★ on a LoRA to add it)">★ <small>{{ favLoras.length }}</small></button>
+        </div>
+        <div v-if="loraOpen" class="lora-sort-row">
+          <select v-model="loraSort" title="The order of the list (★ favourites always come first)">
+            <option value="az">Name A → Z</option><option value="za">Name Z → A</option>
+            <option value="big">Biggest first</option><option value="small">Smallest first</option>
+          </select>
+          <select v-model="loraKind" title="Show only one kind of LoRA">
+            <option value="">All kinds ({{ addableLoras.length }})</option>
+            <option v-for="k in loraKinds" :key="k.id" :value="k.id">{{ k.label }} ({{ k.n }})</option>
+          </select>
         </div>
         <div v-if="loraOpen" class="lora-list">
           <button v-for="l in shownLoras" :key="l.name" class="lora-item" @click="addLoraByName(l.name)">
@@ -1077,8 +1089,26 @@
         </div>
         <div v-else-if="tool.source && tool.healing" class="mask-stage tool-mask" @click.stop @dragover.stop>
           <img :src="fileUrl(tool.source.path)" @load="initMaskCanvas" ref="maskImg" draggable="false">
-          <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove" @pointerup="maskUp" @pointerleave="maskUp"
-                  :style="{cursor: 'crosshair'}"></canvas>
+          <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove($event); brushAt($event)" @pointerup="maskUp"
+                  @pointerleave="maskUp(); brush.show = false" :style="{cursor: 'none'}"></canvas>
+          <i v-show="brush.show" class="brush-ring" :class="{erase: mask.erase}"
+             :style="{left: brush.x + 'px', top: brush.y + 'px', width: mask.size + 'px', height: mask.size + 'px'}"></i>
+        </div>
+        <div v-else-if="tool.source && tool.latest && !tool.working && tool.view !== 'original'" class="cmp-stage" :class="'cmp-' + tool.view" @click.stop
+             @mousedown="tool.view === 'split' && cmpDrag($event)">
+          <template v-if="tool.view === 'side'">
+            <figure><img :src="fileUrl(tool.source.path)" alt=""><figcaption>Original</figcaption></figure>
+            <figure><img :src="fileUrl(tool.latest.path)" alt=""><figcaption>{{ kindLabel(tool.latest.kind) }}</figcaption></figure>
+          </template>
+          <div v-else class="cmp-split" ref="cmpSplit">
+            <img :src="fileUrl(tool.latest.path)" alt="" draggable="false">
+            <img v-if="tool.view === 'split'" class="cmp-over" :src="fileUrl(tool.source.path)" alt="" draggable="false"
+                 :style="{clipPath: 'inset(0 ' + ((1 - tool.split) * 100) + '% 0 0)'}">
+            <template v-if="tool.view === 'split'">
+              <i class="cmp-line" :style="{left: (tool.split * 100) + '%'}"><b></b></i>
+              <span class="cmp-tag left">Original</span><span class="cmp-tag right">{{ kindLabel(tool.latest.kind) }}</span>
+            </template>
+          </div>
         </div>
         <img v-else-if="tool.source" :src="fileUrl(tool.source.path)" @load="onToolImgLoad">
         <div v-else class="tool-empty">Drop any image here<br><span class="hint">or click to choose a file · or use “Enhance” on a library image</span></div>
@@ -1095,6 +1125,13 @@
         <span class="hint" v-else>press \ to flip</span>
         <span class="grow"></span>
         <button class="ghost small" @click="closeAdjust" title="Leave Adjust without saving (the picture stays as it was)">✕ Close Adjust</button>
+      </div>
+      <div v-if="tool.source && tool.latest && !tool.working && !adj.open && !tool.healing" class="cmp-viewbar">
+        <span class="eng">View</span>
+        <div class="seg">
+          <button v-for="v in [['original', 'Original', 'Your picture as it was'], ['result', 'Result', 'The new picture'], ['split', 'Split', 'Original on the left, result on the right: drag on the picture to move the line'], ['side', 'Side by side', 'Both pictures next to each other']]"
+                  :key="v[0]" :class="{on: tool.view === v[0]}" @click="tool.view = v[0]" :title="v[2]">{{ v[1] }}</button>
+        </div>
       </div>
       <div v-if="tool.source" class="tool-caption">
         <div class="tool-caption-name" :title="tool.source.label"><span class="eng">Original</span> {{ tool.source.label }}</div>
@@ -1128,8 +1165,8 @@
           </div>
         </div>
         <template v-else-if="tool.latest">
-          <img :src="fileUrl(tool.latest.path)" @click="openDetail(tool.latest)" title="Open full size">
-          <p class="hint">{{ kindLabel(tool.latest.kind) }} · {{ tool.latest.width }}×{{ tool.latest.height }}
+          <p class="hint"><b>Result</b> · {{ kindLabel(tool.latest.kind) }} · {{ tool.latest.width }}×{{ tool.latest.height }}
+            · <button class="link" @click="openDetail(tool.latest)">open full size</button>
             <template v-if="tool.latest.settings && tool.latest.settings.seconds"> · took {{ formatDuration(tool.latest.settings.seconds) }}</template>
             · <button class="link" @click="showInFolder(tool.latest.path)">Show in Finder</button>
             · <button class="link" @click="editIn(tool.latest)">✏️ edit in {{ editorName() }}</button></p>
@@ -1381,7 +1418,8 @@
               <button :class="{on: mask.erase}" @click="mask.erase = true">🧽 Erase</button>
             </div>
             <label>Brush <span class="mod-val">{{ mask.size }}</span></label>
-            <input type="range" min="4" max="160" step="2" v-model.number="mask.size">
+            <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
+            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across'"><i :class="{erase: mask.erase}" :style="{width: Math.min(mask.size, 44) + 'px', height: Math.min(mask.size, 44) + 'px'}"></i></span>
             <label>Method</label>
             <div class="seg mod-seg">
               <button :class="{on: form.heal_method !== 'quick'}" @click="form.heal_method = 'lama'"
@@ -1582,8 +1620,10 @@
         <div v-else-if="['inpaint', 'remove', 'edit'].includes(form.i2i_mode)" class="i2i-src mask-editor">
           <div class="mask-stage">
             <img :src="fileUrl(form.init_image)" @load="initMaskCanvas" ref="maskImg" draggable="false">
-            <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove" @pointerup="maskUp" @pointerleave="maskUp"
-                    :style="{cursor: 'crosshair'}"></canvas>
+            <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove($event); brushAt($event)" @pointerup="maskUp"
+                    @pointerleave="maskUp(); brush.show = false" :style="{cursor: 'none'}"></canvas>
+            <i v-show="brush.show" class="brush-ring" :class="{erase: mask.erase}"
+               :style="{left: brush.x + 'px', top: brush.y + 'px', width: mask.size + 'px', height: mask.size + 'px'}"></i>
           </div>
           <button class="link" @click="form.init_image = ''; controlMap = null">remove</button>
         </div>
@@ -1615,7 +1655,8 @@
               <button :class="{on: mask.erase}" @click="mask.erase = true">🧽 Erase</button>
             </div>
             <span class="hint">brush</span>
-            <input type="range" min="4" max="160" step="2" v-model.number="mask.size">
+            <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
+            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across'"><i :class="{erase: mask.erase}" :style="{width: Math.min(mask.size, 44) + 'px', height: Math.min(mask.size, 44) + 'px'}"></i></span>
             <span class="hint">{{ mask.size }}</span>
             <button class="link" @click="maskClear">clear</button>
           </div>
@@ -1641,7 +1682,8 @@
               <button :class="{on: mask.erase}" @click="mask.erase = true">🧽 Erase</button>
             </div>
             <span class="hint">brush</span>
-            <input type="range" min="4" max="160" step="2" v-model.number="mask.size">
+            <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
+            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across'"><i :class="{erase: mask.erase}" :style="{width: Math.min(mask.size, 44) + 'px', height: Math.min(mask.size, 44) + 'px'}"></i></span>
             <span class="hint">{{ mask.size }}</span>
             <button class="link" @click="maskClear">clear</button>
           </div>
@@ -1662,7 +1704,8 @@
               <button :class="{on: mask.erase}" @click="mask.erase = true">🧽 Erase</button>
             </div>
             <span class="hint">brush</span>
-            <input type="range" min="4" max="160" step="2" v-model.number="mask.size">
+            <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
+            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across'"><i :class="{erase: mask.erase}" :style="{width: Math.min(mask.size, 44) + 'px', height: Math.min(mask.size, 44) + 'px'}"></i></span>
             <span class="hint">{{ mask.size }}</span>
             <button class="link" @click="maskInvert">invert</button>
             <button class="link" @click="maskClear">clear</button>
@@ -2154,6 +2197,26 @@
         <h1>Protoart Studio</h1>
         <p class="hint">Version 1.2 · AI image making that runs entirely on your Mac</p>
       </div>
+    </div>
+
+    <div class="card support-card">
+      <h3>Community &amp; support <span class="hint">these open in your web browser and need the internet</span></h3>
+      <div class="support-buttons">
+        <button @click="openLink('discord')" title="Chat with other users, share pictures and get help">💬 Join the Discord</button>
+        <button @click="openLink('discord')" title="The quickest way to reach us: post in the #help channel">✉️ Contact us</button>
+        <button @click="openLink('issues')" title="Tell us what went wrong: what you did, what happened, and a screenshot (Settings → Show the log file helps too)">🐞 Report a problem</button>
+        <button @click="openLink('repo')" title="Source code, new versions and release notes">⬇ Updates &amp; source</button>
+      </div>
+      <p class="hint">When reporting a problem, say what you did, what happened, and add a screenshot. Never share your Civitai key or Hugging Face token.</p>
+    </div>
+
+    <div class="card licence-card">
+      <h3>📜 Model licences <span class="hint">each model has its own terms; check them before using pictures commercially</span></h3>
+      <table class="licence-table">
+        <tr v-for="l in LICENCES" :key="l.model"><td>{{ l.model }}</td><td><b>{{ l.licence }}</b><span v-if="l.note" class="hint"> · {{ l.note }}</span></td></tr>
+      </table>
+      <p class="hint">No model is included in the app: each downloads from its own page the first time you use it.
+        <button class="link" @click="openLink('notices')">Full list with links</button></p>
     </div>
 
     <h2>Quick start</h2>
@@ -2706,6 +2769,7 @@
 <script src="natural_prompt.js"></script>
 <script src="negative_prompt.js"></script>
 <script src="tips.js"></script>
+<script src="sounds.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

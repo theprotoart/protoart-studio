@@ -7,11 +7,18 @@ const pending = new Map();
 const listeners = [];
 const HEAVY = new Set(["heal", "edit_words", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare"]);
+const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
 
 window.bee.onMessage((m) => {
   if ((m.type === "result" || m.type === "error") && pending.has(m.id)) {
     const { resolve, reject } = pending.get(m.id);
+    const job = jobArgs.get(m.id);
+    if (job && window.ProtoSound) {  // 🔔 a chime when pictures or training are finished, a low tone on failure
+      if (m.type === "error" && !m.cancelled && SOUND_JOBS.has(job.cmd)) window.ProtoSound.play("error");
+      else if (m.type === "result" && /^train_(lora|embedding)$/.test(job.cmd)) window.ProtoSound.play("trained");
+      else if (m.type === "result" && SOUND_JOBS.has(job.cmd)) window.ProtoSound.play("done");
+    }
     pending.delete(m.id);
     jobArgs.delete(m.id);
     if (m.type === "result") resolve(m.data);
@@ -103,6 +110,8 @@ const SAMPLER_PICKS = {
   flux: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
   flux2: { fast: ["flow_euler"], quality: [] },
 };
+const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}];
+const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677" };
 const I2I_KINDS = ["img2img", "healed", "word_edit"];  // pictures made in Image to image
 const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "FLUX.2", sd2: "SD 2" };
 const OPTS_KEY = "beestudio.opts";
@@ -238,6 +247,11 @@ const protoartApp = createApp({
         { id: "face", label: "Face", tip: "Borrows a person's face from a close-up photo (IP-Adapter Plus Face)" },
       ],
       mask: { erase: false, size: 40, data: null, for: "", painting: false, last: null },
+      brush: { show: false, x: 0, y: 0 },
+      soundsOn: window.ProtoSound ? window.ProtoSound.enabled : true,
+      LICENCES,
+      loraSort: loadJSON("protoart.loraSort", "az"),   // LoRA list order
+      loraKind: "",                                      // LoRA list filter ('' = all)   // the brush-size ring that follows the pointer while painting
       initDims: null,
       resetUndo: null,       // Create settings before "Reset to defaults", for one undo
       quitAsk: false,        // Tools -> Force quit: waiting for confirmation
@@ -361,6 +375,7 @@ const protoartApp = createApp({
             { h: "Version 1.2: new tools, and more of your testers' notes", items: [
               "<b>✨ Edit with words</b> (Image to image): describe a change (“make the jacket red”, “add a hat”, “turn it into a watercolour”) and FLUX.2 Klein makes just that change. Paint over a part to keep everything else exactly as it was, or add more pictures to take a style or an outfit from.",
               "<b>🎲 Random prompt speaks the model's language</b>: with FLUX, FLUX.2 or ERNIE picked it writes a scene in sentences (“Medium shot of a fisherman with a white beard, mending a net on a harbour wall at dawn…”); with SD 1.5 and SDXL it still writes tags. In Image to image, <b>FLUX.2 Klein</b> now shows at the top of the model list while Edit with words is on.",
+              "<b>Compare in Tools</b>: after Enhance, Restore faces, Remove or a depth map, the picture window shows <b>Original / Result / Split / Side by side</b> (drag the line in Split). <b>Brush size</b>: a ring the size of the brush follows the pointer while you paint, and moving the size slider shows it on the picture; the metal well next to the slider shows the size too. <b>LoRA list</b>: sort A → Z, Z → A, biggest or smallest, and show only one kind (.safetensors, DiffusionBee, Pony…). <b>🔔 Sounds</b>: a chime when pictures or training are finished (switch in Settings, next to Tips). <b>How to</b> now starts with Community &amp; support (Discord, contact, report a problem) and the model licences.",
               "<b>Negative prompts that fit</b>: next to <i>Negative prompt</i> (Create and Image to image), <b>✨ suggest</b> writes one for your prompt and model type: tags for SD 1.5 / SDXL / Pony / Illustrious (with each one's low-quality tags), plain words for ERNIE and FLUX, plus the opposite of the style you asked for (a cartoon prompt avoids “realistic, photo”). <b>🎲 random</b> adds a few extra fixes each time. 🎲 Random prompt and ✨ enhance write a matching negative too, unless you typed your own. ✨ Enhance now writes tags for SDXL and Pony as well as SD 1.5, and in <b>Edit with words</b> it makes your instruction clearer. <b>📒 My prompts</b> keeps prompts you like (with their negative prompt) to use again.",
               "<b>Image to image</b> now has <b>✨ Enhance prompt</b> in its Prompt card (the same switch as in Create, plus <i>enhance now</i>), and the pictures it makes stay in Image to image and the Library instead of also filling Create's screen.",
               "<b>📝 Image → prompt reads pictures much better</b>: <b>Describe</b> now uses <b>Qwen3.5 4B</b>, a 2026 vision model running on the Mac's GPU, which writes a detailed prompt in sentences (subject, clothes, pose, setting, light, colours, framing, style), what FLUX, FLUX.2 and ERNIE read best. The first time it sets itself up and downloads ~3 GB; then it works offline. <b>Quick</b> is the older Florence-2, and <b>Tags</b> the Danbooru tagger. <b>CodeFormer</b> is now the default face model. The <b>TIPS</b> toggle sits at the top beside the Power / Busy / Fault lamps.",
@@ -881,7 +896,7 @@ const protoartApp = createApp({
       mpanels: { own: false, civitai: false, hub: false, fix: false }, // Models tab panels (closed until you open one)
       dl: { path: "", default: "", custom: false, missing: null, free_gb: null, sizeGb: null, move: true, busy: false }, // downloaded-models folder
       modelSearch: "",
-      tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false, promptText: "" },
+      tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false, promptText: "", view: "split", split: 0.5 },
       freeConfirm: null,
       logs: "",
       backendDead: false,
@@ -1103,8 +1118,19 @@ const protoartApp = createApp({
     },
     filteredLoras() {
       const q = this.loraSearch.trim().toLowerCase();
-      return this.favFirst(this.addableLoras.filter((l) => (!q || l.name.toLowerCase().includes(q))
-        && (!this.loraFavOnly || this.isFavLora(l))));
+      const k = this.loraKind;
+      return this.sortLoras(this.addableLoras.filter((l) => (!q || l.name.toLowerCase().includes(q))
+        && (!this.loraFavOnly || this.isFavLora(l)) && (!k || this.loraKindOf(l) === k || l.flavor === k)));
+    },
+    loraKinds() {  // what the LoRA list can be narrowed to: file kind, and Pony / Illustrious / NoobAI when present
+      const kinds = new Map();
+      for (const l of this.addableLoras) {
+        const t = this.loraKindOf(l);
+        kinds.set(t, (kinds.get(t) || 0) + 1);
+        if (l.flavor) kinds.set(l.flavor, (kinds.get(l.flavor) || 0) + 1);
+      }
+      const label = { safetensors: ".safetensors", diffusionbee: "DiffusionBee", ...Object.fromEntries(Object.entries(FLAVOR_LABEL)) };
+      return [...kinds.entries()].map(([id, n]) => ({ id, n, label: label[id] || id }));
     },
     shownLoras() {
       return this.filteredLoras.slice(0, 200); // render at most 200 rows at once (keeps older Macs smooth)
@@ -1112,7 +1138,7 @@ const protoartApp = createApp({
     // Image to image's own LoRA picker (the same LoRAs as Create: both tabs use one model and one LoRA list)
     i2iShownLoras() {
       const q = this.i2iLora.q.trim().toLowerCase();
-      return this.favFirst(this.addableLoras.filter((l) => !q || l.name.toLowerCase().includes(q))).slice(0, 200);
+      return this.sortLoras(this.addableLoras.filter((l) => !q || l.name.toLowerCase().includes(q))).slice(0, 200);
     },
     moreLoras() {
       return Math.max(0, this.filteredLoras.length - 200);
@@ -1610,6 +1636,7 @@ const protoartApp = createApp({
     "adj.split"() { this.adjRender(); },
     i2p: { deep: true, handler(v) { saveJSON("beestudio.i2p", v); } },
     rnd: { deep: true, handler(v) { saveJSON("beestudio.rnd", v); } },
+    loraSort(v) { saveJSON("protoart.loraSort", v); },
     loraRand: { deep: true, handler(v) { saveJSON("protoart.loraRand", v); } },
     "form.init_image"() { this.initDims = null; },
     "tool.source"() { this.tool.healing = false; },  // a new picture in Tools: stop painting on the old one
@@ -2956,6 +2983,46 @@ const protoartApp = createApp({
       for (let i = 3; i < px.length; i += 16) if (px[i] > 32) { any = true; break; }
       this.mask.data = any ? cv.toDataURL("image/png") : null;
       this.mask.for = this.maskTarget();
+    },
+    cmpDrag(e) {  // Tools → Split view: drag on the picture to move the line
+      const box = this.$refs.cmpSplit;
+      if (!box) return;
+      e.preventDefault();
+      const move = (ev) => {
+        const r = box.getBoundingClientRect();
+        this.tool.split = Math.min(1, Math.max(0, (ev.clientX - r.left) / Math.max(1, r.width)));
+      };
+      move(e);
+      const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", up);
+    },
+    brushAt(e) {  // the ring follows the pointer (in the painting area's own coordinates)
+      const cv = this.$refs.maskCanvas;
+      if (!cv) return;
+      const r = cv.getBoundingClientRect();
+      this.brush = { show: true, x: e.clientX - r.left, y: e.clientY - r.top };
+    },
+    brushPreview() {  // moving the size slider shows the ring in the middle of the picture for a moment
+      const cv = this.$refs.maskCanvas;
+      if (!cv) return;
+      const r = cv.getBoundingClientRect();
+      this.brush = { show: true, x: r.width / 2, y: r.height / 2 };
+      clearTimeout(this._brushT);
+      this._brushT = setTimeout(() => { if (!this.mask.painting) this.brush.show = false; }, 900);
+    },
+    loraKindOf(l) {
+      return /\.tdict$/i.test(l.file || "") || l.source === "diffusionbee" ? "diffusionbee" : "safetensors";
+    },
+    sortLoras(list) {  // ★ favourites first, then the chosen order (A–Z, Z–A, biggest, smallest, newest list order)
+      const by = this.loraSort;
+      const name = (l) => (l.name || "").toLowerCase();
+      let out = list.slice();
+      if (by === "az") out.sort((a, b) => name(a).localeCompare(name(b)));
+      else if (by === "za") out.sort((a, b) => name(b).localeCompare(name(a)));
+      else if (by === "big") out.sort((a, b) => (b.size_mb || 0) - (a.size_mb || 0));
+      else if (by === "small") out.sort((a, b) => (a.size_mb || 0) - (b.size_mb || 0));
+      return this.favFirst(out);
     },
     maskTarget() {  // the picture being painted on: Tools' picture, or Image to image's
       return this.tab === "tools" ? (this.tool.source?.path || "") : this.form.init_image;
@@ -4737,6 +4804,17 @@ const protoartApp = createApp({
     },
     openFolder(p) {
       if (p) window.bee.openFolder(p);
+    },
+    openLink(key) {  // opens in your web browser (needs the internet)
+      const url = LINKS[key];
+      if (url) window.bee.openExternal?.(url);
+      this.status = "Opened in your web browser";
+    },
+    setSounds(on) {
+      window.ProtoSound?.setEnabled(on);
+      this.soundsOn = !!on;
+      if (on) window.ProtoSound?.play("done");
+      this.status = on ? "🔔 A chime plays when pictures or training are finished" : "Sounds switched off";
     },
     setTooltips(on) {
       this.opts.tooltips = !!on;

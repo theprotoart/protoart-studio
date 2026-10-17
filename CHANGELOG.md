@@ -2,6 +2,12 @@
 
 ## 1.2.0
 
+- Tools: Original / Result / Split (draggable) / Side by side views in the picture window (`tool.view`, `cmpDrag`)
+- Brush-size ring following the pointer while painting (`brushAt`), shown on slider moves (`brushPreview`); a recessed
+  metal size well beside each brush slider
+- LoRA list: sort (A–Z, Z–A, biggest, smallest; favourites first) and filter by kind / flavour (`sortLoras`, `loraKinds`)
+- 🔔 Notification sounds (`sounds.js`, Web Audio, no files): finished pictures, training done, failures; Settings switch
+- How to: Community & support (Discord, contact, report a problem, updates) and a model licence table
 - Negative prompt ✨ suggest / 🎲 random (`negative_prompt.js`): tags for SD 1.5 / SDXL / Pony / Illustrious (flavour
   low-quality tags), plain words for ERNIE / FLUX, the opposite of the prompt's style, subject fixes; written
   automatically after 🎲 Random prompt and ✨ enhance unless you typed your own (`autoNegative`)
