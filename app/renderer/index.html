@@ -1563,6 +1563,34 @@
           </div>
         </div>
 
+        <div class="card rack-module shape-card" :class="{active: !!shape.url}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">◐</span>
+            <h3>Shape maker</h3><span class="mod-sub">picture → ControlNet shape</span></div>
+          <p class="mod-desc">Turns the picture into a black-and-white shape to hide inside new pictures with a QR / pattern ControlNet.</p>
+          <label>From</label>
+          <div class="seg mod-seg">
+            <button v-for="m in [['tone', 'Tones', 'Dark parts become the shape (logos, silhouettes, high-contrast pictures)'], ['edges', 'Outline', 'The outlines become the shape (line drawings, detailed pictures)'], ['subject', 'Subject', 'What\'s in front becomes the shape, found with a depth map (people, animals, objects)']]"
+                    :key="m[0]" :class="{on: shape.mode === m[0]}" @click="shapeMode(m[0])" :title="m[2]">{{ m[1] }}</button>
+          </div>
+          <label :title="shape.mode === 'subject' ? 'Higher keeps only what is closest' : 'Where light turns into dark'">{{ shape.mode === 'subject' ? 'Nearness' : shape.mode === 'edges' ? 'Detail' : 'Threshold' }} <span class="mod-val">{{ shape.thr }}</span></label>
+          <input type="range" min="10" max="245" step="1" v-model.number="shape.thr">
+          <label title="Softens the edges and drops small specks">Smooth <span class="mod-val">{{ shape.blur }}</span></label>
+          <input type="range" min="0" max="16" step="1" v-model.number="shape.blur">
+          <div class="row wrap-row">
+            <label class="check" title="Swap black and white"><input type="checkbox" v-model="shape.invert"> invert</label>
+            <label class="check" title="A white border round the shape (QR ControlNets like a margin)"><input type="checkbox" v-model="shape.margin"> margin</label>
+          </div>
+          <div class="shape-preview" :class="{busy: shape.busy}">
+            <img v-if="shape.url" :src="shape.url" alt="The shape">
+            <span v-else class="hint">{{ shape.busy ? 'Finding the subject…' : (tool.source ? 'Working…' : 'Drop a picture on the left') }}</span>
+          </div>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!shape.url || shape.busy" @click="shapeToControlNet"
+                    title="Save the shape and open it in Image to image as the picture for a QR / pattern ControlNet">Use as shape →</button>
+            <span class="mod-plate">Shaper · SH-7</span>
+          </div>
+        </div>
+
         <div class="card rack-module depth-card">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🌊</span>
             <h3>Depth map</h3><span class="mod-sub">Depth Anything V2</span></div>

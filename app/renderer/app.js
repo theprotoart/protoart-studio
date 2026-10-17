@@ -293,6 +293,7 @@ const protoartApp = createApp({
       lorasAside: loadJSON("protoart.lorasAside", {}),  // model type -> LoRAs put aside when you switched type
       frame: { size: 512, busy: false, msg: "", copied: null },  // Train tab: square framing of the pictures
       cropEd: null,
+      shape: { mode: "tone", thr: 128, blur: 3, invert: false, margin: true, url: "", busy: false, depth: null },  // Tools → Shape maker
       PATTERNS: window.ProtoPatterns ? window.ProtoPatterns.LIST : [],
       pat: { text: "", invert: false, last: "" },  // Image to image → QR / pattern ControlNet: the pattern picker        // Train tab → ✂ Crop by hand: {it, x, y, s, w, h} (x, y, s as in trainer.parse_box)
       forcing: false,
@@ -459,6 +460,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Coming in 1.2.1: fixes from your notes", items: [
+              "<b>◐ Shape maker</b> (Tools): turns any picture into a black-and-white shape for QR / pattern ControlNets. <b>Tones</b> makes the dark parts the shape (logos, silhouettes), <b>Outline</b> its outlines, <b>Subject</b> whatever is in front (found with a depth map). Threshold / Detail / Nearness and Smooth tune it, with invert and a margin; the preview updates as you go. <b>Use as shape →</b> opens it in Image to image as the ControlNet's picture, with your QR / pattern ControlNet picked if you have one.",
               "<b>Patterns for QR code ControlNets</b>: with a QR / pattern / illusion ControlNet picked, its guide (right-hand column) has a <b>Pattern</b> panel: a real, scannable <b>QR code</b> of any text or link you type, your <b>word</b> in big letters, or a ready-made shape (spiral, rings, checks, stripes, waves, sunburst, circle, heart, star, triangle), with <b>invert</b> for white on black. Click one and it becomes 1 · Picture, ready to generate; <b>Your own…</b> uses a picture of yours (a logo, a drawing, your own QR code).",
               "<b>Tools → Depth map → Use as a ControlNet depth map</b> now always lands in Image to image ready to go: it switches to 🔄 Change it and an SD 1.5 model (Edit with words or Inpaint used to hide the ControlNet). The <b>ControlNet guide</b> now sits in the roomy right-hand column above the preview, with its steps open. <b>Library</b>: Img2img, ↺ Prompt and Tools sit in one even row along the bottom of a picture, and 🗑 moved next to ★ so it no longer covers the picture's label.",
               "<b>ControlNet guides</b> (Image to image): pick a ControlNet and a short guide appears: what it does, what picture to give it, the <b>best models</b> you have for it (★ = a good match; click one to switch) and <b>how to use it, step by step</b>. <b>Use these settings</b> sets its strength, timing and picture options in one click. QR code / pattern / illusion ControlNets (like QR Code Monster) and brightness ones are recognised by their names. The model list now says what each group can do (image to image, inpaint, ControlNet, image prompt), and while editing with words the ControlNet card suggests which ControlNets would suit and has <b>Use ControlNet instead</b>.",
@@ -685,7 +687,7 @@ const protoartApp = createApp({
               "The Preview window shows the image as it forms, then the result; tick <b>compare with the original</b> to see both.",
               "<b>Use the result as the new picture</b> lets you refine it again." ] },
           ] },
-        { id: "tools", go: "tools", icon: "🧰", title: "Tools", summary: "Enhance, 🎚 adjust, restore faces, 🩹 remove objects, ✒️ vectorize, 🔌 patchbay, image → prompt, convert files",
+        { id: "tools", go: "tools", icon: "🧰", title: "Tools", summary: "Enhance, 🎚 adjust, restore faces, 🩹 remove objects, ✒️ vectorize, ◐ shape maker, 🔌 patchbay, image → prompt, convert files",
           sections: [
             { h: "🔌 Patchbay: run the tools in your own order", items: [
               "Switch on <b>PATCHBAY</b> (the toggle at the top of the right-hand column). The back of the rack appears: every tool has an <b>IN</b> and an <b>OUT</b> jack. <b>PICTURE</b> (your picture) has only an OUT, <b>RESULT</b> (the Library) only an IN.",
@@ -693,6 +695,10 @@ const protoartApp = createApp({
               "<b>Unplug</b>: drag a plug away from its jack, or double-click a cable. One cable per jack: plugging into a used jack replaces its cable. Loops aren't allowed, and <b>VECTOR</b> has to be last (it makes a drawing, not a picture). <b>↺ default</b> puts back PICTURE ▸ ENHANCE ▸ FACES ▸ RESULT; <b>clear cables</b> pulls them all out.",
               "<b>▶ Run patch</b> runs each patched tool in turn, each on the previous one's result, using that tool's own settings in its module below (upscale, face model, depth look, colours…). <b>REMOVE</b> uses what you painted on the picture: if nothing is painted yet, Run patch turns Paint on so you can paint first. Every step is saved in the Library; the last one shows in the picture window to compare. <b>■ Stop</b> stops after the current step.",
               "Your cables are remembered on this Mac, and the patchbay stays hidden until you switch it on." ] },
+            { h: "◐ Shape maker: a picture into a ControlNet shape", items: [
+              "Drop a picture in Tools and the <b>Shape maker</b> module shows it as a black-and-white shape straight away. Pick how the shape is found: <b>Tones</b> (the dark parts: good for logos, silhouettes and high-contrast pictures), <b>Outline</b> (the edges: drawings and detailed pictures) or <b>Subject</b> (what's in front, found with a depth map the first time: people, animals, objects).",
+              "<b>Threshold</b> (Tones) sets where light turns into dark, <b>Detail</b> (Outline) how many edges count, <b>Nearness</b> (Subject) how close something must be. <b>Smooth</b> softens edges and drops specks. <b>invert</b> swaps black and white; <b>margin</b> leaves a white border (QR ControlNets like one).",
+              "<b>Use as shape →</b> saves it as a 768 × 768 picture and opens Image to image with it as the ControlNet's picture (Start from this picture off), picking your QR / pattern ControlNet and a model that fits it. Describe a detailed scene and Generate: the shape appears hidden in the picture." ] },
             { h: "🩹 Remove objects and ✒️ Vectorize", items: [
               "<b>Remove objects in Tools</b>: press <b>🖌 Paint</b> in the module, paint on the picture on the left (all the selection tools work), choose <b>✨ Smart fill</b> (rebuilds what was behind it) or <b>⚡ Quick fill</b> (instant, for small spots), and press <b>🩹 Remove</b>.",
               "<b>🩹 Remove objects</b>: opens the picture in Image to image in Remove mode. Paint over what you want gone and press <b>🩹 Remove</b>; it's filled in from what's around it. The result is saved as a new picture in the Library (“Objects removed”); the original stays.",
@@ -1845,7 +1851,16 @@ const protoartApp = createApp({
     loraSort(v) { saveJSON("protoart.loraSort", v); },
     loraRand: { deep: true, handler(v) { saveJSON("protoart.loraRand", v); } },
     "form.init_image"() { this.initDims = null; },
-    "tool.source"() { this.tool.healing = false; },  // a new picture in Tools: stop painting on the old one
+    "tool.source"() {  // a new picture in Tools: stop painting on the old one; the Shape maker starts again from Light & dark
+      this.tool.healing = false;
+      this.shape.depth = null;
+      if (this.shape.mode === "subject") { this.shape.mode = "tone"; this.shape.thr = 128; }
+      this.shapeRender();
+    },  // a new picture in Tools: stop painting on the old one
+    "shape.thr"() { this.shapeRender(); },
+    "shape.blur"() { this.shapeRender(); },
+    "shape.invert"() { this.shapeRender(); },
+    "shape.margin"() { this.shapeRender(); },
     train: { deep: true, handler(v) {
       const { items, result, lossHistory, dirty, ...keep } = v;
       saveJSON("protoart.train", keep);
@@ -4544,6 +4559,133 @@ const protoartApp = createApp({
         }
       }
       if (!this.controlTypes.length) this.controlTypes = await call("control_types").catch(() => []);
+    },
+    // -------------------------------------------------------------- Tools → ◐ Shape maker
+    shapeMode(m) {
+      this.shape.mode = m;
+      this.shape.thr = m === "edges" ? 150 : 128;
+      this.shapeRender();
+    },
+    async shapePixels() {  // the source as a canvas (≤768 px): the picture itself, or its depth map for "Subject"
+      const src = this.tool.source;
+      if (!src) return null;
+      let path = src.path;
+      if (this.shape.mode === "subject") {
+        if (!this.shape.depth || this.shape.depth.for !== src.path) {
+          this.shape.busy = true;
+          try {
+            const rec = await call("postprocess", { ...this.toolArgs(), action: "depth", depth_model: "small", style: "gray", from_tools: true });
+            this.shape.depth = rec ? { for: src.path, path: rec.path } : null;
+          } catch (e) {
+            this.error = "Couldn't find the subject: " + (e.message || e);
+          } finally {
+            this.shape.busy = false;
+          }
+          if (!this.shape.depth) return null;
+        }
+        path = this.shape.depth.path;
+      }
+      if (this._shapeSrc && this._shapeSrc.path === path) return this._shapeSrc.canvas;  // moving a slider: same picture
+      const bmp = await createImageBitmap(new Blob([await this.readImageBytes(path)]));
+      const k = Math.min(1, 768 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(bmp.width * k);
+      c.height = Math.round(bmp.height * k);
+      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+      this._shapeSrc = { path, canvas: c };
+      return c;
+    },
+    async shapeRender() {
+      const sh = this.shape;
+      clearTimeout(this._shapeT);
+      this._shapeT = setTimeout(async () => {
+        try {
+          const srcCanvas = await this.shapePixels();
+          if (!srcCanvas) { sh.url = ""; return; }
+          const W = srcCanvas.width, H = srcCanvas.height;
+          const c = document.createElement("canvas");
+          c.width = W; c.height = H;
+          const g = c.getContext("2d");
+          g.filter = sh.blur && sh.mode !== "edges" ? `blur(${sh.blur * 0.6}px)` : "none";
+          g.drawImage(srcCanvas, 0, 0);
+          g.filter = "none";
+          const im = g.getImageData(0, 0, W, H), d = im.data;
+          const lum = new Float32Array(W * H);
+          for (let i = 0; i < W * H; i++) lum[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+          let on;  // true = part of the shape (drawn black)
+          if (sh.mode === "edges") {
+            const mag = new Float32Array(W * H);
+            for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+              const p = (yy, xx) => lum[yy * W + xx];
+              const gx = -p(y - 1, x - 1) - 2 * p(y, x - 1) - p(y + 1, x - 1) + p(y - 1, x + 1) + 2 * p(y, x + 1) + p(y + 1, x + 1);
+              const gy = -p(y - 1, x - 1) - 2 * p(y - 1, x) - p(y - 1, x + 1) + p(y + 1, x - 1) + 2 * p(y + 1, x) + p(y + 1, x + 1);
+              mag[y * W + x] = Math.hypot(gx, gy) / 4;
+            }
+            const cut = 255 - sh.thr;  // more detail = a lower cut
+            on = (i) => mag[i] > cut * 0.5;
+          } else if (sh.mode === "subject") {
+            on = (i) => lum[i] >= sh.thr;  // the depth map: near is bright
+          } else {
+            on = (i) => lum[i] < sh.thr;  // dark parts
+          }
+          for (let i = 0; i < W * H; i++) {
+            let v = on(i) ? 0 : 255;
+            if (sh.invert) v = 255 - v;
+            d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v;
+            d[i * 4 + 3] = 255;
+          }
+          g.putImageData(im, 0, 0);
+          if (sh.mode === "edges" && sh.blur) {  // thicken outlines a little so the ControlNet sees them
+            g.filter = `blur(${sh.blur * 0.35}px)`;
+            g.drawImage(c, 0, 0);
+            g.filter = "none";
+          }
+          // a 768 × 768 square, the shape centred, with a white (or black, inverted) margin
+          const out = document.createElement("canvas");
+          out.width = out.height = 768;
+          const o = out.getContext("2d");
+          o.fillStyle = sh.invert ? "#000" : "#fff";
+          o.fillRect(0, 0, 768, 768);
+          const room = sh.margin ? 768 * 0.82 : 768;
+          const k = Math.min(room / W, room / H);
+          const w = W * k, h = H * k;
+          o.drawImage(c, (768 - w) / 2, (768 - h) / 2, w, h);
+          this._shapeCanvas = out;
+          sh.url = out.toDataURL("image/png");
+        } catch (e) {
+          this.error = "Shape maker: " + (e.message || e);
+        }
+      }, 120);
+    },
+    async shapeToControlNet() {
+      const c = this._shapeCanvas;
+      if (!c) return;
+      try {
+        const blob = await new Promise((ok) => c.toBlob(ok, "image/png"));
+        const path = await window.bee.writeAdjusted(new Uint8Array(await blob.arrayBuffer()));
+        if (!path) throw new Error("the shape couldn't be saved");
+        this.form.init_image = path;
+        this.form.i2i_use_init = false;
+        this.form.use_init_size = true;
+        this.mask.data = null;
+        this.setI2iMode("change");
+        if (!this.controlTypes.length) this.controlTypes = await call("control_types").catch(() => []);
+        // a QR / pattern ControlNet of yours if you have one (they're the ones made for hidden shapes)
+        const qr = this.controlTypes.find((t) => t.user && CN_NAME_GUIDES[0][0].test(t.id));
+        if (qr) {
+          this.form.control = { ...this.form.control, type: qr.id, already_map: false };
+          if (this.family !== qr.family) {
+            const m = this.installedModels.find((x) => x.family === qr.family && x.engine !== "mlx");
+            if (m) this.selectModel(m.id);
+          }
+        }
+        this.controlMap = null;
+        this.openI2I();
+        this.status = qr ? `Your shape is the picture for ${qr.label}: describe a detailed scene and press Generate`
+          : "Your shape is in Image to image. Add a QR / pattern ControlNet (e.g. QR Code Monster from Civitai) to hide it in a picture";
+      } catch (e) {
+        this.error = "Couldn't use the shape: " + (e.message || e);
+      }
     },
     patternThumb(id) {  // small previews of the ready-made patterns (made once)
       this._patThumbs ||= {};

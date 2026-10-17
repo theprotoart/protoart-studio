@@ -2,6 +2,9 @@
 
 ## 1.2.1 (in progress)
 
+- Tools → ◐ Shape maker (`shapeRender`, `shapeToControlNet`): a picture into a black-and-white ControlNet shape by tones,
+  outlines (Sobel) or subject (depth map), with threshold, smoothing, invert and margin; opens in Image to image with
+  your QR / pattern ControlNet
 - QR / pattern ControlNets: a Pattern picker in the guide (`patterns.js`: QR code, word, spiral, rings, checks, stripes,
   waves, sunburst, circle, heart, star, triangle; invert; your own picture). `qr.js`: a self-contained QR encoder
   (byte mode, versions 1–40, Reed–Solomon, all 8 masks, ECC H), checked against OpenCV's QR decoder
