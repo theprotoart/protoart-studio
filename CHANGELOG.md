@@ -2,6 +2,13 @@
 
 ## 1.2.1 (in progress)
 
+- ControlNets whose numbers overflow at half precision on Apple GPUs (flat grey result, seen with QR Pattern v2):
+  NaN latents are caught after step 1 (`BrokenMaths`), the ControlNet is reloaded at float32 with `keep_finite`
+  (fp32 inputs, NaN/inf cleaned, outputs back to the UNet's dtype) and the picture is retried; `SAFE_KINDS` keeps it
+  that way for the session. The first steps' latent range is logged
+- Image to image → ControlNet: picking one applies its guide's settings (`applyCnGuide(true)` from a watcher, with
+  `undoCnGuide`); a "Recommended settings" box under the picker (`cnRecText`) warns about settings that spoil it
+  (`cnGuideOff`: Start from this picture on, strength too low, too few steps)
 - Fixed: SD 1.5 ControlNets you add yourself (e.g. QR Code Monster / QR Pattern) failed to load with “doesn't match an
   SD 1.5 ControlNet's layout (52 parts missing)”. `xl_config` no longer gives SD 1.5's last down block attention just
   because the middle block has it

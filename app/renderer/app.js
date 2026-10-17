@@ -461,6 +461,8 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Coming in 1.2.1: fixes from your notes", items: [
+              "<b>QR code pictures came out as a flat grey square</b>: on Apple GPUs some ControlNets (many QR / pattern ones) make numbers too big for half precision, and the picture collapses to one colour. The app now notices this after the first step (instead of after two minutes), runs that ControlNet at full precision and tries the same picture again; it stays that way for the rest of the session.",
+              "<b>Recommended settings for each ControlNet</b>: picking one in Image to image puts in the settings it works best with straight away (for a QR code: strength 1.3, Mostly, 30 steps, guidance 7, 512 × 512 on 8 GB Macs, <b>Start from this picture</b> off), shown in a box under the picker with <b>undo</b>. If you change something that would spoil the result (for example strength below 1 or Start from this picture on), the box turns orange and says why, with <b>Use recommended settings</b>.",
               "<b>Fixed: QR code pictures failed to start</b> with “doesn't match an SD 1.5 ControlNet's layout (52 parts missing)”. SD 1.5 ControlNets you add yourself, like the QR Pattern one, now load properly.",
               "<b>Move to Trash works for your own model files</b>: the file was moved, but the list kept showing it for a while, so it looked as if nothing happened. Now it disappears straight away (and ↻ Refresh looks in your folders again at once). Model files that were moved or renamed outside the app are no longer listed until they're back.",
               "<b>⏳ “This will be slow on this Mac”</b>: before a picture starts, settings that need more memory than your Mac has get a short warning with a one-click faster choice (for example <i>Use 512 × 512</i> for a ControlNet, the 8-bit SDXL instead of full precision, or Hi-res fix off). 8 GB Macs see it for big ControlNet and SDXL jobs, 16 GB Macs only for the heaviest, and Macs with 24 GB or more never. <i>Don't warn me about this again</i> switches one off; Settings → Speed turns them back on.",
@@ -681,6 +683,7 @@ const protoartApp = createApp({
               "Describe the whole scene in the prompt, including what should appear around the original. Expanding a little at a time (e.g. 128–256 px) gives the best results." ] },
             { h: "ControlNet (SD 1.5, and your own SDXL ones)", items: [
               "<b>QR code and pattern pictures</b>: for a QR / pattern / illusion ControlNet, the guide's <b>Pattern</b> panel makes the picture for you. Type a link or text and click <b>QR code</b> for a real QR code (made with the strongest error correction, so it still scans after being painted over; use strength 1.3 or more), click <b>Word</b> for your text in big letters, or pick a shape (spiral, rings, checks, stripes, waves, sunburst, circle, heart, star, triangle). <b>invert</b> makes white shapes on black. <b>Your own…</b> uses any picture of yours; black and white with a margin works best. Then describe a busy scene and Generate; check a QR result with your phone's camera.",
+              "<b>Recommended settings</b>: picking a ControlNet puts in the settings it works best with, shown in a box right under the picker (<b>undo</b> puts yours back). If a setting would spoil the result, the box turns orange and says which (for a QR code: <b>Start from this picture</b> on, or strength under about 1.1); <b>Use recommended settings</b> fixes it. If a QR / pattern ControlNet comes out as a flat grey square, the app runs it at full precision and tries again by itself (a little slower, the first time only).",
               "<b>The guide</b>: when you pick a ControlNet, a panel on the right (above the preview) says what it does, what picture to give it, which of your models suit it best (★, click to switch) and how to use it step by step. <b>Use these settings</b> sets the strength, timing and picture options it works best with. For a <b>QR code / pattern</b> ControlNet: put the black-and-white pattern in 1 · Picture, switch <b>Start from this picture</b> off, describe a busy, detailed scene (not the pattern), strength about 1.3, <b>Mostly</b>, 768 px, ~30 steps; make a few and keep the best.",
               "<b>Your own ControlNets</b> (SD 1.5 or SDXL), e.g. QR Code Monster or an SDXL canny / depth / openpose from Civitai: paste the Civitai link in Models → Add from Civitai, then pick it in the ControlNet list. The list shows the ones that fit the model you picked: SD 1.5 models get the built-in ones and your SD 1.5 files, SDXL / Pony / Illustrious / NoobAI models get your SDXL files. If its name says <i>canny, depth, lineart, openpose, softedge, scribble</i> or <i>tile</i>, that map is made from your picture; otherwise it follows your picture as it is (give it a QR code or pattern as the picture). SDXL ControlNets are big, so they're slow on 8 GB Macs. Control-LoRA, LLLite and Union files can't be used yet (the Models tab says so next to them).",
               "<b>Tile</b> adds detail but keeps the picture: great with low change strength for sharpening.",
@@ -1016,6 +1019,7 @@ const protoartApp = createApp({
       conv: { items: null, search: "", kind: "", selected: [], out_dir: "", free_gb: 0, loras_to_lora_folder: true, result: null },
       controlTypes: [],
       controlMap: null,
+      cnApplied: null,  // {type, before}: the guide's settings were put in when this ControlNet was picked (undo)
       i2iCompare: false,
       logPath: "",
       controlTimings: [
@@ -1607,6 +1611,31 @@ const protoartApp = createApp({
                picture: "The picture it expects (a pattern, a map, a sketch…).", models: null, modelsText: "Models of the same type as the ControlNet.",
                steps: ["Put the picture in 1 · Picture.", "Start with strength 1.0 and Mostly, then adjust."], set: { scale: 1, start: 0, end: 0.8 } };
     },
+    cnRecSize() {  // the guide's picture size on this Mac (512 under 16 GB: a ControlNet doubles each step's work)
+      const c = this.cnGuide && this.cnGuide.set;
+      if (!c || !c.size) return 0;
+      return (this.sys.ram_gb || 8) < 16 ? Math.min(c.size, 512) : c.size;
+    },
+    cnRecText() {  // the guide's settings in a few words, shown under the ControlNet picker
+      const c = this.cnGuide && this.cnGuide.set;
+      if (!c) return "";
+      const timing = (this.controlTimings.find((p) => p.start === c.start && p.end === c.end) || {}).label
+        || `${Math.round(c.start * 100)}–${Math.round(c.end * 100)}%`;
+      return [`strength ${c.scale}`, `guides: ${timing}`, c.steps ? `${c.steps} steps` : "", c.cfg ? `guidance ${c.cfg}` : "",
+              this.cnRecSize ? `${this.cnRecSize} × ${this.cnRecSize}` : "",
+              c.use_init === false ? "Start from this picture: off" : ""].filter(Boolean).join(" · ");
+    },
+    cnGuideOff() {  // settings that will spoil this ControlNet's result (shown as warnings with a one-click fix)
+      const c = this.cnGuide && this.cnGuide.set, f = this.form;
+      if (!c || !f.control.type) return [];
+      const out = [];
+      if (c.use_init === false && f.i2i_use_init)
+        out.push("<b>Start from this picture</b> is on: the picture is used as the pattern, not as the start, so switch it off");
+      if (c.scale >= 1.1 && f.control.scale < c.scale - 0.25)
+        out.push(`strength ${f.control.scale.toFixed(2)} is too weak for this one (try ${c.scale}): the pattern fades away`);
+      if (c.steps && f.steps < c.steps - 10) out.push(`${f.steps} steps is too few (try ${c.steps})`);
+      return out;
+    },
     cnModelPicks() {  // installed models that suit the picked ControlNet (best first), for one-click switching
       const t = this.controlTypeInfo, g = this.cnGuide;
       if (!t || !g) return [];
@@ -1842,6 +1871,14 @@ const protoartApp = createApp({
   },
 
   watch: {
+    // picking a ControlNet in Image to image puts in the settings it works best with (QR codes need strength 1.3,
+    // no starting picture… which is easy to miss); "undo" puts yours back
+    "form.control.type"(v, old) {
+      if (!v || v === old || this.tab !== "i2i") return;
+      this.$nextTick(() => {
+        if (this.form.control.type === v && this.cnGuide && this.cnGuide.set) this.applyCnGuide(true);
+      });
+    },
     // Create and Image to image each keep their own prompt and negative prompt: the prompt box shows the one for
     // the tab you're in (synchronous, so code that switches tab and then sets a prompt writes into the right one)
     tab: { flush: "sync", handler(v, old) {
@@ -4807,10 +4844,14 @@ const protoartApp = createApp({
         this.error = "Couldn't make that pattern: " + (e.message || e);
       }
     },
-    applyCnGuide() {  // ControlNet → "Use these settings": the guide's strength, timing and picture settings
+    applyCnGuide(auto = false) {  // ControlNet → "Use these settings": the guide's strength, timing and picture settings
       const g = this.cnGuide;
       if (!g || !g.set) return;
       const c = g.set, f = this.form;
+      this.cnApplied = { type: f.control.type, auto: auto === true,
+                         before: { scale: f.control.scale, start: f.control.start, end: f.control.end, i2i_use_init: f.i2i_use_init,
+                                   strength: f.strength, steps: f.steps, cfg: f.cfg, width: f.width, height: f.height,
+                                   use_init_size: f.use_init_size } };
       f.control.scale = c.scale ?? f.control.scale;
       f.control.start = c.start ?? f.control.start;
       f.control.end = c.end ?? f.control.end;
@@ -4819,9 +4860,19 @@ const protoartApp = createApp({
       if (c.steps) f.steps = c.steps;
       if (c.cfg) f.cfg = c.cfg;
       // big sizes cost a lot with a ControlNet on a Mac under 16 GB: 512 there (768 has 2¼ times the work)
-      const size = c.size && (this.sys.ram_gb || 8) < 16 ? Math.min(c.size, 512) : c.size;
+      const size = this.cnRecSize;
       if (size) { f.width = size; f.height = size; f.use_init_size = false; }
-      this.status = "ControlNet settings set for " + g.title;
+      this.status = "Recommended settings for " + g.title + " are in";
+    },
+    undoCnGuide() {  // put back the settings that were there before the guide's
+      const a = this.cnApplied, f = this.form;
+      if (!a) return;
+      const b = a.before;
+      Object.assign(f.control, { scale: b.scale, start: b.start, end: b.end });
+      Object.assign(f, { i2i_use_init: b.i2i_use_init, strength: b.strength, steps: b.steps, cfg: b.cfg, width: b.width,
+                         height: b.height, use_init_size: b.use_init_size });
+      this.cnApplied = null;
+      this.status = "Your own settings are back";
     },
     switchToControlNet() {  // from Edit with words / Inpaint: go to Change it with an SD 1.5 model for ControlNet
       const sd = this.installedModels.find((m) => m.family === "sd15" && m.engine !== "mlx" && m.id === this.form.model)

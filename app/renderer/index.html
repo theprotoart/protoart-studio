@@ -1999,7 +1999,17 @@
         <div v-if="family === 'sdxl' && controlTypesShown.length === 0" class="hint">No SDXL ControlNets yet. Add one from Civitai (Models → Add from Civitai): SDXL, Pony, Illustrious and NoobAI models use them. The built-in ones are for SD 1.5.</div>
         <div v-else-if="family === 'sdxl'" class="hint">SDXL ControlNets are big: on an 8 GB Mac expect it to be slow, and use 1024 px or less.</div>
         <template v-if="form.control.type">
-          <div v-if="cnGuide" class="hint cn-guide-pointer">How to use {{ cnGuide.title }}, and the best models for it: on the right →</div>
+          <div v-if="cnGuide && cnGuide.set" class="cn-rec" :class="{warn: cnGuideOff.length}">
+            <div class="cn-rec-head"><b>Recommended settings</b>
+              <span v-if="cnApplied && cnApplied.type === form.control.type && !cnGuideOff.length" class="cn-rec-ok">✓ in use</span></div>
+            <div class="cn-rec-vals">{{ cnRecText }}</div>
+            <ul v-if="cnGuideOff.length" class="cn-rec-off"><li v-for="(w, i) in cnGuideOff" :key="i" v-html="'⚠ ' + w"></li></ul>
+            <div class="row small cn-rec-acts">
+              <button v-if="cnGuideOff.length || !(cnApplied && cnApplied.type === form.control.type)" class="ghost small" @click="applyCnGuide">Use recommended settings</button>
+              <button v-if="cnApplied && cnApplied.type === form.control.type" class="link" @click="undoCnGuide" title="Put back the settings you had before">undo</button>
+              <span class="hint">step-by-step guide and best models: on the right →</span>
+            </div>
+          </div>
           <label>How closely to follow the map <span class="hint">{{ form.control.scale.toFixed(2) }}</span></label>
           <input type="range" min="0" max="2" step="0.05" v-model.number="form.control.scale">
           <div class="hint slider-help">0.5 = loose suggestion · 1.0 = follow it (normal) · 1.5+ = follow it very strictly</div>

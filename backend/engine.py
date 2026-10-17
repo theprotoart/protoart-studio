@@ -149,6 +149,10 @@ class Skipped(Exception):
     """The current image was skipped; the job carries on with its next image."""
 
 
+class BrokenMaths(Exception):
+    """The picture's numbers turned into NaN / infinity part-way (half-precision overflow): stop early, don't finish."""
+
+
 class UserError(Exception):
     """An error with a message meant for the person using the app."""
 
@@ -1106,6 +1110,7 @@ class Engine:
     def _controlnet_pipe(self, control, control_src, img2img, width, height):
         import controlnet as cnet
         import diffusers
+        import torch as t
         kind = control["type"]
         cmap = self.control_map(kind, control_src, width, height, bool(control.get("already_map")),
                                 control.get("depth_model") or "small")
@@ -1115,7 +1120,12 @@ class Engine:
                 self.cn_pipes = {}
                 self.release_memory()
             dtype = self.pipe.unet.dtype
-            self.controlnets[kind] = cnet.load(kind, self.pipe.unet, dtype, emit=self.emit).to(self.device())
+            safe = kind in cnet.SAFE_KINDS and dtype != t.float32
+            model = cnet.load(kind, self.pipe.unet, t.float32 if safe else dtype, emit=self.emit).to(self.device())
+            if safe:  # its numbers broke at half precision: this one runs at full precision
+                print(f"[controlnet] {kind}: running at full precision", flush=True)
+                cnet.keep_finite(model, dtype)
+            self.controlnets[kind] = model
             self.release_memory()  # hand back what loading it used, before the first step
         key = (kind, img2img)
         if key not in self.cn_pipes:
@@ -1936,6 +1946,14 @@ class Engine:
                     raise Cancelled()
                 if self.skip_event.is_set():
                     raise Skipped()
+                if control and step < 2:  # broken maths shows straight away: don't spend minutes on a flat picture
+                    lat = kw.get("latents")
+                    if lat is not None:
+                        ok = bool(t.isfinite(lat).all())
+                        print(f"[controlnet] step {step + 1}: picture numbers {'ok' if ok else 'broken (NaN)'}"
+                              + (f", range {float(lat.min()):.1f} to {float(lat.max()):.1f}" if ok else ""), flush=True)
+                        if not ok:
+                            raise BrokenMaths()
                 total = getattr(p, "_num_timesteps", None) or steps
                 self.emit({"type": "progress", "image": _i + 1, "images": n, "step": step + 1, "steps": total,
                            **({"phase": phase["name"]} if phase["name"] else {})})
@@ -2001,9 +2019,15 @@ class Engine:
             started = time.time()
             self.skip_event.clear()
             extras_info = {}
+            def attempt():
+                try:
+                    return pipe(**call).images[0]
+                except BrokenMaths:
+                    return None
+
             try:
-                image = pipe(**call).images[0]
-                if _looks_blank(image) and control:
+                image = attempt()
+                if (image is None or _looks_blank(image)) and control:
                     import controlnet as cnet
                     if cnet.LAST_SOURCE.get(control["type"]) == "diffusionbee":
                         # the DiffusionBee copy of this ControlNet didn't work: switch to the official model
@@ -2022,8 +2046,30 @@ class Engine:
                             call["control_image"] = control_map
                         else:
                             call["image"] = control_map
-                        image = pipe(**call).images[0]
-                if _looks_blank(image):
+                        image = attempt()
+                if (image is None or _looks_blank(image)) and control and control["type"] not in cnet.SAFE_KINDS \
+                        and self.pipe.unet.dtype != t.float32:
+                    # its numbers overflowed at half precision (common with QR / pattern ControlNets on Apple GPUs):
+                    # run the ControlNet at full precision and try the same picture again
+                    print(f"[engine] {control['type']}: flat / broken result; retrying with the ControlNet at full "
+                          "precision", flush=True)
+                    cnet.SAFE_KINDS.add(control["type"])
+                    self.controlnets.pop(control["type"], None)
+                    self.cn_pipes = {k: v for k, v in self.cn_pipes.items() if k[0] != control["type"]}
+                    self.release_memory()
+                    self.emit({"type": "status", "msg": "That ControlNet needs more precision on this Mac; trying again "
+                                                        "(it stays that way from now on)…"})
+                    pipe, control_map = self._controlnet_pipe(control, control_src, init_image is not None,
+                                                              width, height)
+                    if scheduler is not None:
+                        pipe.scheduler = scheduler
+                    call["generator"] = t.Generator("cpu").manual_seed(img_seed)
+                    if init_image is not None:
+                        call["control_image"] = control_map
+                    else:
+                        call["image"] = control_map
+                    image = attempt()
+                if image is None or _looks_blank(image):
                     # a flat grey/black result means the maths broke down (usually half-precision overflow)
                     print("[engine] result came out blank; control:", control, "family:", family, flush=True)
                     raise UserError("The result came out as a flat grey image, so it wasn't saved. "
