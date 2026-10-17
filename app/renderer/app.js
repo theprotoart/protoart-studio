@@ -132,7 +132,7 @@ const CN_GUIDES = {
       "Describe a detailed scene in the prompt (“an aerial view of a medieval village, intricate rooftops, autumn trees”). Don't describe the pattern.",
       "Strength 1.1–1.5: higher keeps the pattern (a QR code scans), lower blends it in more. Start at 1.3.",
       "When it guides: <b>Mostly</b> (0–80%) or <b>Layout only</b> for a subtler hidden shape.",
-      "Size 768 × 768, about 30 steps, guidance 7. Make a few and pick the one that scans (or looks best)."],
+      "Size 768 × 768 on Macs with 16 GB or more, 512 × 512 on 8 GB Macs (a ControlNet doubles the work of each step), about 30 steps, guidance 7. Make a few and pick the one that scans (or looks best)."],
     set: { scale: 1.3, start: 0, end: 0.8, use_init: false, steps: 30, cfg: 7, size: 768 }, patterns: true },
   light: { title: "Brightness / illumination ControlNet",
     what: "Uses your picture's light and dark areas as the lighting of a new picture (glowing shapes, light through a window, a word made of light).",
@@ -460,6 +460,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Coming in 1.2.1: fixes from your notes", items: [
+              "<b>QR / pattern ControlNets are much faster on 8 GB Macs</b>: your own ControlNet files (many are 1.4 GB, full precision) are now read straight into half precision and built without spare copies, so loading one no longer pushes the Mac into swap (30–60 s a step). <b>Use these settings</b> picks 512 × 512 on Macs under 16 GB, since a ControlNet roughly doubles the work of each step.",
               "<b>Reorder the queue</b>: ▲ and ▼ beside each waiting job move it up or down, so you choose which prompt starts next. <b>Models tab</b>: the ★ default tag is now easy to read (it glowed too brightly).",
               "<b>◐ Shape maker</b> (Tools): turns any picture into a black-and-white shape for QR / pattern ControlNets. <b>Tones</b> makes the dark parts the shape (logos, silhouettes), <b>Outline</b> its outlines, <b>Subject</b> whatever is in front (found with a depth map). Threshold / Detail / Nearness and Smooth tune it, with invert and a margin; the preview updates as you go. <b>Use as shape →</b> opens it in Image to image as the ControlNet's picture, with your QR / pattern ControlNet picked if you have one.",
               "<b>Patterns for QR code ControlNets</b>: with a QR / pattern / illusion ControlNet picked, its guide (right-hand column) has a <b>Pattern</b> panel: a real, scannable <b>QR code</b> of any text or link you type, your <b>word</b> in big letters, or a ready-made shape (spiral, rings, checks, stripes, waves, sunburst, circle, heart, star, triangle), with <b>invert</b> for white on black. Click one and it becomes 1 · Picture, ready to generate; <b>Your own…</b> uses a picture of yours (a logo, a drawing, your own QR code).",
@@ -4741,7 +4742,9 @@ const protoartApp = createApp({
       if (c.strength != null) f.strength = c.strength;
       if (c.steps) f.steps = c.steps;
       if (c.cfg) f.cfg = c.cfg;
-      if (c.size && !f.use_init_size) { f.width = c.size; f.height = c.size; }
+      // big sizes cost a lot with a ControlNet on a Mac under 16 GB: 512 there (768 has 2¼ times the work)
+      const size = c.size && (this.sys.ram_gb || 8) < 16 ? Math.min(c.size, 512) : c.size;
+      if (size) { f.width = size; f.height = size; f.use_init_size = false; }
       this.status = "ControlNet settings set for " + g.title;
     },
     switchToControlNet() {  // from Edit with words / Inpaint: go to Change it with an SD 1.5 model for ControlNet

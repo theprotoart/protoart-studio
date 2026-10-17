@@ -2,6 +2,8 @@
 
 ## 1.2.1 (in progress)
 
+- Your own ControlNets (SD 1.5 too) load through the empty-weights path, read tensor by tensor into float16
+  (`controlnet._read_half`); memory released after loading; the QR guide uses 512 px on Macs under 16 GB
 - Queue: ▲ / ▼ reorder waiting jobs (`queue_move`, `JobQueue.move`); Models tab: readable ★ default tag
 - Tools → ◐ Shape maker (`shapeRender`, `shapeToControlNet`): a picture into a black-and-white ControlNet shape by tones,
   outlines (Sobel) or subject (depth map), with threshold, smoothing, invert and margin; opens in Image to image with

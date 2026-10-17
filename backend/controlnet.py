@@ -182,30 +182,24 @@ def _load_user(kind, unet, dtype, emit):
     if u["problem"]:
         raise ValueError(f"“{name}” is {u['problem']}")
     f = u["file"]
-    if u["family"] == "sdxl":
-        return _load_user_xl(kind, name, f, u["layout"], unet, dtype, emit)
-    emit({"type": "status", "msg": f"Loading your ControlNet {name}…"})
-    ckpt = load_file(f)
-    cn = diffusers.ControlNetModel.from_unet(unet)
-    if any(k.startswith(("controlnet_down_blocks", "controlnet_cond_embedding")) for k in ckpt):
-        state = ckpt  # already in diffusers' layout
-    else:
-        from diffusers.loaders.single_file_utils import convert_controlnet_checkpoint
-        state = convert_controlnet_checkpoint(ckpt, cn.config)
-    missing, unexpected = cn.load_state_dict(state, strict=False)
-    print(f"[controlnet] {name}: {len(state)} weights, {len(missing)} missing, {len(unexpected)} unexpected", flush=True)
-    if len(missing) > 5:
-        raise ValueError(f"“{name}” doesn't look like an SD 1.5 ControlNet ({len(missing)} parts missing)")
-    if any(not torch.isfinite(p).all() for p in cn.parameters()):
-        raise ValueError(f"“{name}” has broken weights")
-    LAST_SOURCE[kind] = "user"
-    return cn.to(dtype=dtype)
+    return _load_user_xl(kind, name, f, u["layout"], unet, dtype, emit, family=u["family"])
 
 
-def _xl_state(path, layout, layers_per_block):
-    """An SDXL ControlNet file's weights, in diffusers' layout."""
-    from safetensors.torch import load_file
-    sd = load_file(path)
+def _read_half(path, dtype=None):
+    """A .safetensors file's weights, each turned into dtype (float16 on Apple GPUs) as it's read: a float32 file
+    (many Civitai ControlNets are 1.4 GB float32) then never sits in memory at full size."""
+    from safetensors import safe_open
+    out = {}
+    with safe_open(path, framework="pt") as f:
+        for k in f.keys():
+            t = f.get_tensor(k)
+            out[k] = t.to(dtype) if dtype is not None and t.is_floating_point() else t
+    return out
+
+
+def _xl_state(path, layout, layers_per_block, dtype=None):
+    """A ControlNet file's weights (SD 1.5 or SDXL), in diffusers' layout."""
+    sd = _read_half(path, dtype)
     if layout == "diffusers":
         return sd
     from diffusers.loaders.single_file_utils import convert_controlnet_checkpoint
@@ -219,7 +213,7 @@ def _xl_state(path, layout, layers_per_block):
 
 
 def xl_config(state, unet_config):
-    """The ControlNet's shape for SDXL: SDXL's own, with as many transformer layers per block as the file has
+    """The ControlNet's shape (SD 1.5 or SDXL): the UNet's own, with as many transformer layers per block as the file has
     (diffusers' full, mid and small SDXL ControlNets differ only there) and its own conditioning encoder."""
     import re
     n_down = len(unet_config["block_out_channels"])
@@ -262,13 +256,17 @@ def xl_config(state, unet_config):
     return cfg
 
 
-def _load_user_xl(kind, name, path, layout, unet, dtype, emit):
-    """Your own SDXL ControlNet: built at the file's own size (full / mid / small) and filled with its weights.
-    Nothing is downloaded. The model is made empty first, so a 2.5 GB ControlNet doesn't need twice that in memory."""
+def _load_user_xl(kind, name, path, layout, unet, dtype, emit, family="sdxl"):
+    """Your own ControlNet (SD 1.5 or SDXL): built at the file's own size (full / mid / small) and filled with its
+    weights. Nothing is downloaded. The model is made empty and the file is read straight into half precision, so a
+    big ControlNet never needs two or three copies of itself in memory while loading (on an 8 GB Mac that pushed
+    the next pictures into swap: 30–60 s a step instead of a few)."""
+    import gc
     import diffusers
     import torch
-    emit({"type": "status", "msg": f"Loading your SDXL ControlNet {name}…"})
-    state = _xl_state(path, layout, int(unet.config.layers_per_block))
+    fam = "SDXL" if family == "sdxl" else "SD 1.5"
+    emit({"type": "status", "msg": f"Loading your {fam} ControlNet {name}…"})
+    state = _xl_state(path, layout, int(unet.config.layers_per_block), dtype)
     cfg = xl_config(state, dict(unet.config))
     try:
         from accelerate import init_empty_weights
@@ -282,18 +280,26 @@ def _load_user_xl(kind, name, path, layout, unet, dtype, emit):
     missing = sorted(want - set(state))
     if missing:
         print(f"[controlnet] {name}: {len(missing)} missing, e.g. {missing[:6]}", flush=True)
-        raise ValueError(f"“{name}” doesn't match an SDXL ControlNet's layout ({len(missing)} parts missing)")
+        if len(missing) > 5:
+            raise ValueError(f"“{name}” doesn't match an {fam} ControlNet's layout ({len(missing)} parts missing)")
+        # a few parts missing (some older SD 1.5 files): start from the UNet's own weights for those, as before
+        del cn
+        gc.collect()
+        cn = diffusers.ControlNetModel.from_unet(unet).to(dtype=dtype)
+        empty = False
     state = {k: v.to(dtype) for k, v in state.items() if k in want}
     try:
-        cn.load_state_dict(state, strict=True, assign=empty)
+        cn.load_state_dict(state, strict=not missing, assign=empty)
     except RuntimeError as e:
         print(f"[controlnet] {name}: {e}", flush=True)
         raise ValueError(f"“{name}” has parts of a different size than this app expected, so it can't be used")
     if any(not torch.isfinite(p).all() for p in cn.parameters()):
         raise ValueError(f"“{name}” has broken weights")
-    print(f"[controlnet] SDXL {name}: {len(state)} weights, layers {cfg['transformer_layers_per_block']}, "
+    print(f"[controlnet] {fam} {name}: {len(state)} weights, layers {cfg['transformer_layers_per_block']}, "
           f"mid {cfg['mid_block_type']}", flush=True)
     LAST_SOURCE[kind] = "user"
+    del state
+    gc.collect()
     return cn.to(dtype=dtype)
 
 

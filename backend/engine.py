@@ -1114,6 +1114,7 @@ class Engine:
                 self.release_memory()
             dtype = self.pipe.unet.dtype
             self.controlnets[kind] = cnet.load(kind, self.pipe.unet, dtype, emit=self.emit).to(self.device())
+            self.release_memory()  # hand back what loading it used, before the first step
         key = (kind, img2img)
         if key not in self.cn_pipes:
             if self.family == "sdxl":
