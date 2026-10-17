@@ -1052,7 +1052,7 @@ select.rec-sampler { box-shadow: 0 0 0 1px rgba(120, 170, 255, .4), 0 0 8px rgba
 .tool-stops .tool-stop { min-width: 110px; justify-content: center; text-align: center; }
 /* Reuse prompt on the pictures */
 .gallery figure .to-i2i.reuse-top { top: 8px; bottom: auto; left: 8px; }
-.sampler-picks .chips { display: block; position: relative; padding-left: 96px; line-height: 0; min-height: 24px; }
+.sampler-picks .chips { display: block; position: relative; padding-left: 96px; line-height: 0; min-height: 24px; white-space: nowrap; }
 .sampler-picks .chips > .hint { position: absolute; left: 0; top: 5px; line-height: 1.2; }
 .sampler-picks .chips > .chip { margin: 0 5px 5px 0; line-height: 1.3; }
 
@@ -1264,3 +1264,75 @@ label:has(> input[type=checkbox]:checked), [data-theme="dark"] label:has(> input
 /* Tools: ✒️ Vectorize result */
 .vec-result img { display: block; width: 100%; max-height: 320px; object-fit: contain; margin-top: 8px;
   background: repeating-conic-gradient(#d9d6cf 0% 25%, #f2efe8 0% 50%) 50% / 16px 16px; border-radius: 3px; }
+
+/* ---------- Tools: single-job tools as tall rack modules, side by side (like 500-series studio gear) ---------- */
+.module-rack { display: grid; grid-template-columns: repeat(auto-fill, minmax(208px, 1fr)); gap: 10px; align-items: stretch; margin: 14px 0; }
+.module-rack > .card.rack-module {
+  display: flex; flex-direction: column; margin: 0; min-height: 430px; padding: 24px 14px 12px; position: relative;
+  /* two screws top and bottom, like a module fastened into a lunchbox rack */
+  background: var(--screw-1, none) 50% 7px / 11px 11px no-repeat, var(--screw-2, none) 50% calc(100% - 7px) / 11px 11px no-repeat,
+              linear-gradient(90deg, rgba(0, 0, 0, .22), transparent 6px, transparent calc(100% - 6px), rgba(0, 0, 0, .22)),
+              var(--plate-card);
+}
+[data-theme="light"] .module-rack > .card.rack-module {
+  background: var(--screw-1, none) 50% 7px / 11px 11px no-repeat, var(--screw-2, none) 50% calc(100% - 7px) / 11px 11px no-repeat,
+              linear-gradient(180deg, var(--stripe-1), var(--stripe-2)) 0 0 / 100% 3px no-repeat,
+              linear-gradient(90deg, rgba(0, 0, 0, .18), transparent 6px, transparent calc(100% - 6px), rgba(0, 0, 0, .18)),
+              var(--plate-card);
+}
+.rack-module .mod-head {
+  display: grid; justify-items: center; gap: 3px; padding: 6px 0 10px; margin-bottom: 8px; text-align: center;
+  border-bottom: 1px solid rgba(0, 0, 0, .35); box-shadow: var(--groove); position: relative;
+}
+.rack-module .mod-head h3 { margin: 0; font-family: var(--f-eng); font-size: 13px; letter-spacing: .16em; line-height: 1.2; }
+.rack-module .mod-sub { font-family: var(--f-eng); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+.rack-module .mod-icon {
+  width: 46px; height: 46px; display: grid; place-items: center; font-size: 22px; border-radius: 50%; margin-bottom: 4px;
+  background: radial-gradient(circle at 40% 30%, #3a3b3f, #121214 70%);
+  box-shadow: 0 0 0 2px #0b0b0c, 0 0 0 3px rgba(255, 255, 255, .35), inset 0 2px 6px rgba(0, 0, 0, .8);
+}
+.rack-module .mod-lamp {
+  position: absolute; top: 4px; right: 2px; width: 8px; height: 8px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #6b5a40, #2a2116); box-shadow: 0 0 0 1px #000, inset 0 1px 1px rgba(0, 0, 0, .6);
+}
+.rack-module .mod-lamp.on {
+  background: radial-gradient(circle at 35% 30%, var(--lit-hi), var(--lit-lo)); box-shadow: 0 0 0 1px #000, 0 0 7px rgba(var(--glow-rgb), .9);
+}
+.rack-module .mod-desc { font-size: 12px; line-height: 1.45; margin: 0 0 8px; text-align: center; opacity: .9; }
+.rack-module .mod-note { font-size: 11px; line-height: 1.35; margin: 4px 0 0; opacity: .75; text-align: center; }
+.rack-module > label, .rack-module > template > label {
+  display: flex; justify-content: space-between; align-items: baseline; margin: 10px 0 4px;
+  font-family: var(--f-eng); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+}
+.rack-module .mod-val {
+  font-family: var(--f-amber); font-size: 12px; letter-spacing: .04em; padding: 0 6px; border-radius: 2px; min-width: 34px; text-align: center;
+  color: var(--amber); background: #0d0b08; box-shadow: inset 0 1px 2px #000, 0 1px 0 rgba(255, 255, 255, .35); text-shadow: var(--amber-glow);
+}
+.rack-module input[type=range] { width: 100%; }
+.rack-module .mod-seg { display: flex; width: 100%; }
+.rack-module .mod-seg button { flex: 1 1 0; min-width: 0; padding: 5px 4px; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rack-module .mod-steps { margin: 6px 0 0; padding: 10px 12px 10px 30px; font-size: 12px; line-height: 1.7; border-radius: 3px;
+  background: rgba(0, 0, 0, .12); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .35), 0 1px 0 rgba(255, 255, 255, .3); }
+.rack-module .mod-foot { margin-top: auto; padding-top: 14px; display: grid; gap: 7px; }
+.rack-module .mod-go { width: 100%; min-height: 40px; font-size: 12px; }
+.rack-module .mod-plate {
+  justify-self: center; margin-top: 6px; padding: 2px 10px; border-radius: 2px; font-family: var(--f-eng); font-size: 9.5px;
+  letter-spacing: .2em; text-transform: uppercase; color: #d9d4c7; background: #17171a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), 0 1px 0 rgba(255, 255, 255, .4);
+}
+.rack-module .vec-result { margin-top: 10px; }
+.rack-module .vec-result img { width: 100%; max-height: 150px; object-fit: contain; border-radius: 2px; background: #fff; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .4); }
+.module-rack > .card.rack-module.tool-opt.active {
+  border-color: #7a4300; box-shadow: 0 0 0 1px rgba(var(--accent-rgb), .7), 0 0 16px rgba(var(--accent-rgb), .35), inset 0 1px 0 rgba(255, 255, 255, .8);
+}
+/* a module always works on its own (its own button); "lit" only shows it's also part of Run on this image */
+.module-rack > .card.rack-module.tool-opt:not(.active) { opacity: 1; filter: none; cursor: default; }
+.module-rack > .card.rack-module.tool-opt:not(.active) * { pointer-events: auto; }
+.rack-module .mod-seg button { padding: 5px 2px; font-size: 11px; letter-spacing: 0; }
+/* Image to image → Edit with words: extra pictures */
+.edit-refs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 6px; }
+.edit-ref { position: relative; width: 84px; height: 84px; border-radius: 3px; overflow: hidden; box-shadow: 0 0 0 1px rgba(0, 0, 0, .55), 0 2px 4px rgba(0, 0, 0, .35); }
+.edit-ref img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.edit-ref button { position: absolute; top: 3px; right: 3px; padding: 0 5px; min-height: 0; line-height: 18px; }
+.edit-ref-drop { width: 84px; height: 84px; display: grid; place-items: center; padding: 0; margin: 0; font-size: 12px; }
+.seg.i2i-modes { display: flex; flex-wrap: wrap; } .seg.i2i-modes button { flex: 1 1 auto; }

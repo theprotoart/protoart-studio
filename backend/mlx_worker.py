@@ -57,9 +57,10 @@ class Worker:
         self.f2_cache = {}   # FLUX.2: encoded prompts, so the text encoder can be dropped between prompts
 
     def load(self, repo, base="ernie-image-turbo", loras=None, low_ram=False, force=False, allow_download=False,
-             label=None, size_gb=None, revision=None):
+             label=None, size_gb=None, revision=None, variant=None):
         loras = [tuple(x) for x in (loras or [])]
-        key = (repo, base, tuple(loras))
+        variant = variant or None
+        key = (repo, base, tuple(loras), variant)
         if revision is not None or not force:
             self.revision = revision
         if self.model is not None and self.key == key and not force:
@@ -98,8 +99,10 @@ class Worker:
             config = {"schnell": ModelConfig.schnell, "dev": ModelConfig.dev, "krea-dev": ModelConfig.krea_dev}[base]()
             self.model = Flux1(model_path=path, model_config=config, **lora_kw)
         elif self.family == "flux2":
-            from mflux.models.flux2.variants import Flux2Klein
-            self.model = Flux2Klein(model_path=path, model_config=ModelConfig.flux2_klein_4b(), **lora_kw)
+            # "edit": the same weights, but it also looks at reference pictures (Image to image → Edit with words)
+            from mflux.models.flux2.variants import Flux2Klein, Flux2KleinEdit
+            cls = Flux2KleinEdit if variant == "edit" else Flux2Klein
+            self.model = cls(model_path=path, model_config=ModelConfig.flux2_klein_4b(), **lora_kw)
             self._cache_flux2_prompts(self.model)
         else:
             from mflux.models.ernie_image import ErnieImage
@@ -150,8 +153,8 @@ class Worker:
         prompt_cache = self.f2_cache if self.family == "flux2" else m.prompt_cache
         if missing and cache_key not in prompt_cache:
             # Low-memory mode dropped the text encoder after the last prompt: reload to encode this one.
-            repo, base, loras = self.key
-            self.load(repo, base, list(loras), self.low_ram, force=True, revision=self.revision)
+            repo, base, loras, variant = self.key
+            self.load(repo, base, list(loras), self.low_ram, force=True, revision=self.revision, variant=variant)
             m = self.model
         self.hooks_state = {"steps": int(a["steps"]), "preview": bool(a.get("preview")), "last": 0.0,
                             "started": time.time(), "width": int(a["width"]), "height": int(a["height"])}
@@ -159,6 +162,10 @@ class Worker:
                   width=int(a["width"]), height=int(a["height"]), guidance=cfg)
         if self.family == "ernie":
             kw["negative_prompt"] = neg
+        if a.get("image_paths"):
+            if self.family != "flux2" or (self.key and self.key[3] != "edit"):
+                raise RuntimeError("reference pictures need FLUX.2 loaded for editing")
+            kw["image_paths"] = list(a["image_paths"])
         res = m.generate_image(**kw)
         res.image.save(a["out"])
         if self.family != "flux2" and len(m.prompt_cache) > 16:
@@ -254,7 +261,7 @@ def main():
             if cmd == "load":
                 worker.load(msg["repo"], msg.get("base", "ernie-image-turbo"), msg.get("loras"), msg.get("low_ram"),
                             allow_download=bool(msg.get("allow_download")), label=msg.get("label"),
-                            size_gb=msg.get("size_gb"), revision=msg.get("revision"))
+                            size_gb=msg.get("size_gb"), revision=msg.get("revision"), variant=msg.get("variant"))
                 send({"type": "loaded"})
             elif cmd == "generate":
                 send({"type": "done", "path": worker.generate(msg)})

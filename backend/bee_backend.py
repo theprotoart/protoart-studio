@@ -161,7 +161,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("heal", "vectorize", "preload", "nsfw_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("heal", "edit_words", "vectorize", "preload", "nsfw_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -255,6 +255,8 @@ def job_label(cmd, a):
         return "Enhance prompt"
     if cmd == "heal":
         return "Remove (spot heal)" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
+    if cmd == "edit_words":
+        return "Edit with words · " + ((a.get("prompt") or "")[:40] or "FLUX.2")
     if cmd == "vectorize":
         return f"Vectorize · {a.get('colors') or 8} colours"
     return "Image → prompt (" + ("tags" if a.get("mode") == "tags" else "describe") + ")"
@@ -1485,6 +1487,8 @@ def run_job(kind, a):
         return eng.heal(a)
     if kind == "vectorize":
         return eng.vectorize(a)
+    if kind == "edit_words":
+        return eng.edit_words(a)
     return eng.generate(a, force=settings["force_load"], low_memory=settings["low_memory"])
 
 

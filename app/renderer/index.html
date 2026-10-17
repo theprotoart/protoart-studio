@@ -94,7 +94,7 @@
           </select>
           <select v-model="lib.kind" @change="queryLibrary()">
             <option value="">All versions</option><option value="generated">Originals</option>
-            <option value="img2img">Image-to-image</option><option value="faces">Face-restored</option><option value="enhanced">Enhanced</option><option value="healed">Objects removed</option>
+            <option value="img2img">Image-to-image</option><option value="faces">Face-restored</option><option value="enhanced">Enhanced</option><option value="healed">Objects removed</option><option value="word_edit">Edited with words</option>
           </select>
         </div>
         <div class="slot-line">
@@ -1251,81 +1251,105 @@
         </div>
       </div>
 
-      <div class="card tool-opt" :class="{active: post.do_faces}" @click="post.do_faces = true"
-           :title="post.do_faces ? '' : 'Click to use Restore faces'">
-        <h3>🙂 Restore faces <span class="hint">{{ post.face_model === 'codeformer' ? 'CodeFormer · non-commercial licence' : 'RestoreFormer' }}</span></h3>
-        <div class="row">
-          <span class="hint">model</span>
-          <select v-model="post.face_model" @click.stop
-                  title="RestoreFormer: natural and faithful (default). CodeFormer: stronger repair for blurry or damaged faces, non-commercial licence.">
-            <option value="restoreformer">RestoreFormer</option>
-            <option value="codeformer">CodeFormer</option>
-          </select>
-        </div>
-        <div class="row">
-          <span class="hint">strength</span>
-          <input type="range" min="0.1" max="1" step="0.05" v-model.number="post.face_strength">
-          <span class="hint">{{ post.face_strength.toFixed(2) }}</span>
+      <!-- The single-job tools as tall rack modules, side by side (like 500-series studio gear) -->
+      <div class="module-rack">
+        <div class="card rack-module tool-opt" :class="{active: post.do_faces}" @click="post.do_faces = true"
+             :title="post.do_faces ? '' : 'Click to use Restore faces with Run on this image'">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🙂</span>
+            <h3>Restore faces</h3><span class="mod-sub">{{ post.face_model === 'codeformer' ? 'CodeFormer' : 'RestoreFormer' }}</span></div>
+          <p class="mod-desc">Repairs blurry or distorted faces and eyes.</p>
+          <label>Model</label>
+          <div class="seg mod-seg" @click.stop>
+            <button :class="{on: post.face_model === 'restoreformer'}" @click="post.face_model = 'restoreformer'"
+                    title="Natural and faithful to the person (default). Free to use.">RestoreFormer</button>
+            <button :class="{on: post.face_model === 'codeformer'}" @click="post.face_model = 'codeformer'"
+                    title="Stronger repair for very blurry or damaged faces. Non-commercial licence.">CodeFormer</button>
+          </div>
+          <label>Strength <span class="mod-val">{{ post.face_strength.toFixed(2) }}</span></label>
+          <input type="range" min="0.1" max="1" step="0.05" v-model.number="post.face_strength" title="How much of the repaired face is used">
           <template v-if="post.face_model === 'codeformer'">
-            <span class="hint" title="Low: cleanest face. High: keeps more of the person's own features.">fidelity</span>
+            <label title="Low: cleanest face. High: keeps more of the person's own features.">Fidelity <span class="mod-val">{{ post.face_fidelity.toFixed(2) }}</span></label>
             <input type="range" min="0" max="1" step="0.05" v-model.number="post.face_fidelity">
-            <span class="hint">{{ post.face_fidelity.toFixed(2) }}</span>
+            <p class="mod-note">CodeFormer: non-commercial licence</p>
           </template>
-          <button :disabled="!tool.source" @click="toolRestore">Restore faces</button>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!tool.source" @click.stop="toolRestore">Restore faces</button>
+            <span class="mod-plate">Face restorer · FR-1</span>
+          </div>
         </div>
-      </div>
 
-      <div class="card depth-card">
-        <h3>🌊 Depth map <span class="hint">Depth Anything V2 · runs on this Mac</span></h3>
-        <p class="hint">Works out how far away everything in the picture is: near things bright, far things dark. Use it as a
-          ControlNet depth map in Image to image (keeps the 3-D layout while changing everything else), or for editing and 3-D work.</p>
-        <label>Model</label>
-        <div class="seg">
-          <button v-for="d in depthModels" :key="d.id" :class="{on: post.depth.model === d.id}" @click="post.depth.model = d.id"
-                  :title="d.tip">{{ d.label }} <small>{{ d.size }}</small></button>
+        <div class="card rack-module depth-card">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🌊</span>
+            <h3>Depth map</h3><span class="mod-sub">Depth Anything V2</span></div>
+          <p class="mod-desc" title="Use it as a ControlNet depth map in Image to image (keeps the 3-D layout while changing everything else), or for editing and 3-D work.">Near things bright, far things dark. For ControlNet and 3-D work.</p>
+          <label>Model</label>
+          <div class="seg mod-seg">
+            <button v-for="d in depthModels" :key="d.id" :class="{on: post.depth.model === d.id}" @click="post.depth.model = d.id"
+                    :title="d.tip + ' (' + d.size + ')'">{{ d.label }}</button>
+          </div>
+          <p class="mod-note">{{ depthModelInfo(post.depth.model).size }} · {{ depthModelInfo(post.depth.model).tip }}</p>
+          <label>Look</label>
+          <div class="seg mod-seg">
+            <button :class="{on: post.depth.style === 'gray'}" @click="post.depth.style = 'gray'" title="Black and white: what ControlNet and most apps expect">Grey</button>
+            <button :class="{on: post.depth.style === 'color'}" @click="post.depth.style = 'color'" title="Heat colours: easier to read by eye (not for ControlNet)">Colour</button>
+          </div>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!tool.source" @click="toolDepth">Make depth map</button>
+            <span class="mod-plate">Depth unit · DM-2</span>
+          </div>
         </div>
-        <div class="hint slider-help">{{ depthModelInfo(post.depth.model).tip }}</div>
-        <label>Look</label>
-        <div class="seg">
-          <button :class="{on: post.depth.style === 'gray'}" @click="post.depth.style = 'gray'" title="Black and white: what ControlNet and most apps expect">Grey</button>
-          <button :class="{on: post.depth.style === 'color'}" @click="post.depth.style = 'color'" title="Heat colours: easier to read by eye (not for ControlNet)">Colour</button>
-        </div>
-        <div class="row">
-          <button class="primary" :disabled="!tool.source" @click="toolDepth">Make depth map</button>
-          <span class="hint">Saved to the Library, linked to the original</span>
-        </div>
-      </div>
 
-      <div class="card heal-card">
-        <h3>🩹 Remove objects <span class="hint">spot healing · like a healing brush</span></h3>
-        <p class="hint">Paint over anything you don't want (a stray object, an extra finger, text, a blemish) and it's filled in from
-          what's around it. Opens the picture in Image to image, where you paint.</p>
-        <div class="row">
-          <button class="primary" :disabled="!tool.source" @click="openRemove(tool.source)">🩹 Paint what to remove…</button>
+        <div class="card rack-module heal-card">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🩹</span>
+            <h3>Remove objects</h3><span class="mod-sub">spot healing</span></div>
+          <p class="mod-desc">Paint over anything you don't want (a stray object, an extra finger, text, a blemish) and it's filled in from what's around it.</p>
+          <ol class="mod-steps">
+            <li>Press the button below</li>
+            <li>Paint over what should go</li>
+            <li>Press 🩹 Remove</li>
+          </ol>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!tool.source" @click="openRemove(tool.source)">Paint what to remove…</button>
+            <span class="mod-plate">Healer · RM-3</span>
+          </div>
         </div>
-      </div>
 
-      <div class="card vec-card">
-        <h3>✒️ Vectorize <span class="hint">picture → SVG of flat colour shapes</span></h3>
-        <p class="hint">For logos, icons, stickers, cut files and flat illustrations: the SVG scales to any size without blur and
-          opens in Illustrator, Affinity, Inkscape, Figma or Cricut. Photos become a poster-like look.</p>
-        <label>Colours <span class="hint">{{ post.vec.colors }} · fewer = simpler, bolder shapes</span></label>
-        <input type="range" min="2" max="24" step="1" v-model.number="post.vec.colors">
-        <label>Detail</label>
-        <div class="seg">
-          <button v-for="d in [['low','Simple'],['medium','Balanced'],['high','Detailed']]" :key="d[0]" :class="{on: post.vec.detail === d[0]}"
-                  @click="post.vec.detail = d[0]" :title="{low: 'Fewest, smoothest shapes: logos and icons', medium: 'A good balance for most pictures', high: 'Keeps small details: illustrations (bigger file)'}[d[0]]">{{ d[1] }}</button>
+        <div class="card rack-module vec-card">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">✒️</span>
+            <h3>Vectorize</h3><span class="mod-sub">picture → SVG</span></div>
+          <p class="mod-desc" title="The SVG scales to any size without blur and opens in Illustrator, Affinity, Inkscape, Figma or Cricut. Photos become a poster-like look.">Flat colour shapes for logos, icons, stickers and cut files.</p>
+          <label>Colours <span class="mod-val">{{ post.vec.colors }}</span></label>
+          <input type="range" min="2" max="24" step="1" v-model.number="post.vec.colors" title="Fewer = simpler, bolder shapes">
+          <label>Detail</label>
+          <div class="seg mod-seg">
+            <button v-for="d in [['low','Simple'],['medium','Balanced'],['high','Detailed']]" :key="d[0]" :class="{on: post.vec.detail === d[0]}"
+                    @click="post.vec.detail = d[0]" :title="{low: 'Fewest, smoothest shapes: logos and icons', medium: 'A good balance for most pictures', high: 'Keeps small details: illustrations (bigger file)'}[d[0]]">{{ d[1] }}</button>
+          </div>
+          <label>Outlines</label>
+          <div class="seg mod-seg">
+            <button :class="{on: post.vec.smooth}" @click="post.vec.smooth = true" title="Curved outlines, like drawn with a pen tool">Smooth</button>
+            <button :class="{on: !post.vec.smooth}" @click="post.vec.smooth = false" title="Straight edges: pixel art and geometric logos">Sharp</button>
+          </div>
+          <div v-if="vecResult" class="vec-result">
+            <img :src="fileUrl(vecResult.path)" alt="Vector result">
+            <p class="mod-note">{{ vecResult.shapes }} shapes · {{ vecResult.colors }} colours · {{ Math.round(vecResult.bytes / 1024) }} KB
+              · <button class="link" @click="showInFolder(vecResult.path)">Show in Finder</button></p>
+          </div>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!tool.source || !!vecJob" @click="toolVectorize">{{ vecJob ? 'Tracing…' : 'Vectorize' }}</button>
+            <span class="mod-plate">Vector tracer · VT-4</span>
+          </div>
         </div>
-        <label class="check" title="Curved outlines (like drawn with a pen tool). Off: straight edges, for pixel art and geometric logos">
-          <input type="checkbox" v-model="post.vec.smooth"> Smooth curves</label>
-        <div class="row">
-          <button class="primary" :disabled="!tool.source || !!vecJob" @click="toolVectorize">{{ vecJob ? 'Tracing…' : '✒️ Vectorize' }}</button>
-          <span class="hint">Saved as .svg next to your pictures</span>
-        </div>
-        <div v-if="vecResult" class="vec-result">
-          <img :src="fileUrl(vecResult.path)" alt="Vector result">
-          <p class="hint">{{ vecResult.shapes }} shapes · {{ vecResult.colors }} colours · {{ Math.round(vecResult.bytes / 1024) }} KB
-            · <button class="link" @click="showInFolder(vecResult.path)">Show in Finder</button></p>
+
+        <div class="card rack-module prompt-card">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">📝</span>
+            <h3>Image → prompt</h3><span class="mod-sub">reads the picture</span></div>
+          <p class="mod-desc">Writes a prompt from the picture and puts it in Create's prompt box.</p>
+          <div class="mod-foot mod-foot-2">
+            <button class="primary mod-go" :disabled="!tool.source" @click="toolToPrompt('describe')" title="A sentence describing the picture (Florence-2): for FLUX, ERNIE and SDXL">Describe</button>
+            <button class="mod-go" :disabled="!tool.source" @click="toolToPrompt('tags')" title="A list of anime-style tags: for Pony, Illustrious and SD 1.5 anime models">Danbooru tags</button>
+            <span class="mod-plate">Prompt reader · PR-5</span>
+          </div>
         </div>
       </div>
 
@@ -1377,14 +1401,6 @@
         </template>
       </div>
 
-      <div class="card">
-        <h3>📝 Image → prompt</h3>
-        <div class="row">
-          <button :disabled="!tool.source" @click="toolToPrompt('describe')">Describe (Florence-2)</button>
-          <button :disabled="!tool.source" @click="toolToPrompt('tags')">Danbooru tags</button>
-        </div>
-        <p class="hint">Puts the result in the Create tab's prompt box.</p>
-      </div>
 
 
       <div v-if="busy" class="hint">{{ status }}{{ queue.length > 1 ? ' · ' + queue.length + ' jobs in queue' : '' }}</div>
@@ -1411,7 +1427,13 @@
   <!-- ============================ IMAGE TO IMAGE ============================ -->
   <main v-if="tab==='i2i'" class="i2i">
     <section class="i2i-left">
-      <div class="card">
+      <div v-if="form.i2i_mode === 'edit'" class="card edit-model-card">
+        <h3>✨ Edit with words <span class="hint">FLUX.2 Klein 4B · ⚡ fast engine · whatever model Create has</span></h3>
+        <p class="hint">Say what to change and it changes just that, keeping the rest of the picture: “make the jacket red”,
+          “add sunglasses”, “replace the sky with a sunset”, “turn it into a watercolour painting”, “remove the people in the background”.</p>
+        <p v-if="editModel() && !editModel().cached" class="hint warn">The first edit downloads FLUX.2 Klein (~{{ editModel().download_gb }} GB), then it works offline.</p>
+      </div>
+      <div v-if="form.i2i_mode !== 'edit'" class="card">
         <h3>Steps &amp; guidance <span class="hint">{{ currentModel ? currentModel.label : '' }} · model is chosen at the top</span></h3>
         <div class="grid2 i2i-model-opts">
           <div class="span2 knob-row">
@@ -1436,7 +1458,7 @@
         <div class="hint">{{ familyLabel }} · ControlNet needs SD 1.5. The sampler is set in Create.</div>
       </div>
 
-      <div class="card i2i-loras">
+      <div v-if="form.i2i_mode !== 'edit'" class="card i2i-loras">
         <h3>LoRAs <span class="hint">· {{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · shared with Create</span>
           <button v-if="form.loras.length" class="link small-link" @click="form.loras = []">clear all</button></h3>
         <div v-for="(l, i) in form.loras" :key="l.name" class="lora-row">
@@ -1465,7 +1487,7 @@
              @click="$refs.startPick.click()">
           Drop a picture here <span class="hint">(or click to choose · or “Send to Image to image” on any library picture)</span>
         </div>
-        <div v-else-if="form.i2i_mode === 'inpaint' || form.i2i_mode === 'remove'" class="i2i-src mask-editor">
+        <div v-else-if="['inpaint', 'remove', 'edit'].includes(form.i2i_mode)" class="i2i-src mask-editor">
           <div class="mask-stage">
             <img :src="fileUrl(form.init_image)" @load="initMaskCanvas" ref="maskImg" draggable="false">
             <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove" @pointerup="maskUp" @pointerleave="maskUp"
@@ -1479,6 +1501,7 @@
         </div>
         <input ref="startPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onStartPicked">
         <div class="seg i2i-modes">
+          <button :class="{on: form.i2i_mode === 'edit'}" @click="setI2iMode('edit')" title="Describe a change in words (FLUX.2 Klein): “make the jacket red”, “add a hat”, “make it a watercolour”">✨ Edit with words</button>
           <button :class="{on: form.i2i_mode === 'change'}" @click="setI2iMode('change')" title="Change the whole picture, keep as much as you like">🔄 Change it</button>
           <button :class="{on: form.i2i_mode === 'inpaint'}" @click="setI2iMode('inpaint')" title="Paint over a part and redraw only that part">🖌 Inpaint</button>
           <button :class="{on: form.i2i_mode === 'outpaint'}" @click="setI2iMode('outpaint')" title="Make the picture bigger and fill in the new area">↔ Expand</button>
@@ -1490,6 +1513,32 @@
             <label>Change strength <span class="hint">{{ form.strength.toFixed(2) }} · low = keep more of the original</span></label>
             <input type="range" min="0.05" max="1" step="0.05" v-model.number="form.strength">
           </template>
+        </template>
+        <template v-else-if="form.i2i_mode === 'edit'">
+          <div class="hint">Describe the change in <b>3 · Prompt</b>. <b>Optional:</b> paint over the part that may change, and
+            everything else stays exactly as it is (best for small, precise edits).</div>
+          <div class="mask-tools">
+            <div class="seg">
+              <button :class="{on: !mask.erase}" @click="mask.erase = false">🖌 Paint</button>
+              <button :class="{on: mask.erase}" @click="mask.erase = true">🧽 Erase</button>
+            </div>
+            <span class="hint">brush</span>
+            <input type="range" min="4" max="160" step="2" v-model.number="mask.size">
+            <span class="hint">{{ mask.size }}</span>
+            <button class="link" @click="maskClear">clear</button>
+          </div>
+          <label>More pictures <span class="hint">optional · up to 3 · a style, an object, an outfit or a person to use</span></label>
+          <div class="edit-refs">
+            <div v-for="(r, i) in form.edit_refs" :key="r" class="edit-ref">
+              <img :src="fileUrl(r)" alt="">
+              <button class="ghost small" @click="form.edit_refs.splice(i, 1)" title="Don't use this picture">✕</button>
+            </div>
+            <div v-if="(form.edit_refs || []).length < 3" class="start-drop edit-ref-drop" :class="{over: editRefOver}"
+                 @dragover.prevent="editRefOver = true" @dragleave="editRefOver = false" @drop.prevent="onEditRefDrop"
+                 @click="$refs.editRefPick.click()" title="Then say how to use it, e.g. “paint it in the style of the second picture”">+ add</div>
+            <input ref="editRefPick" type="file" multiple accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="onEditRefPicked">
+          </div>
+          <div v-if="(form.edit_refs || []).length" class="hint">Refer to them in the prompt as “the second picture”, “the third picture”.</div>
         </template>
         <template v-else-if="form.i2i_mode === 'remove'">
           <div class="hint">Paint over what you want gone (cover it fully, a little past its edges), then press <b>🩹 Remove</b>.
@@ -1548,10 +1597,10 @@
           </div>
           <div class="hint" v-if="outpaintSize">New size: {{ outpaintSize }}. Describe the whole scene in the prompt (what should appear around it).</div>
         </template>
-        <label class="check"><input type="checkbox" v-model="form.use_init_size"> Use the picture's size (otherwise the size from Create)</label>
+        <label v-if="form.i2i_mode !== 'edit'" class="check"><input type="checkbox" v-model="form.use_init_size"> Use the picture's size (otherwise the size from Create)</label>
       </div>
 
-      <div v-if="form.i2i_mode !== 'change'" class="card hint">2 · ControlNet is off while {{ form.i2i_mode === 'remove' ? 'removing' : 'inpainting or expanding' }}.</div>
+      <div v-if="form.i2i_mode !== 'change'" class="card hint">2 · ControlNet is off while {{ form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
       <div v-else class="card">
         <h3>2 · ControlNet <span class="hint">SD 1.5 · makes the result follow the picture's structure</span></h3>
         <select v-model="form.control.type" @change="controlMap = null">
@@ -1596,14 +1645,17 @@
 
       <div class="card">
         <h3>3 · Prompt</h3>
-        <textarea class="tape" v-model="form.prompt" rows="3" placeholder="What the result should look like…"></textarea>
+        <textarea class="tape" v-model="form.prompt" rows="3"
+                  :placeholder="form.i2i_mode === 'edit' ? 'The change, in a sentence: make the jacket red · add a hat · turn it into a watercolour…' : 'What the result should look like…'"></textarea>
+        <template v-if="form.i2i_mode !== 'edit'">
         <label>Negative prompt</label>
         <textarea class="tape tape-neg" v-model="form.negative_prompt" rows="2" placeholder="What to avoid…"></textarea>
+        </template>
         <div class="hint">LoRAs, sampler, image prompt, face detailer and wildcards: <button class="link" @click="tab='create'">set in Create</button> (they apply here too)</div>
       </div>
 
       <div class="actions" :class="{busy}">
-        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
+        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
         <div v-if="busy" class="stop-group">
           <button v-if="runningJob || queue.length" class="ghost pause-btn" :class="{on: paused}" @click="togglePause"
                   :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>

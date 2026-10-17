@@ -1191,7 +1191,7 @@ class Engine:
         except mlx_engine.EngineError as e:
             raise UserError(str(e))
 
-    def _mlx_load(self, spec, lora_reqs, allow_download=True):
+    def _mlx_load(self, spec, lora_reqs, allow_download=True, variant=None):
         """Get a fast-engine (MLX) model ready in its worker process. Returns this Mac's RAM in GB.
         The worker keeps the model loaded; asking again for the same model and LoRAs costs nothing."""
         import mlx_engine
@@ -1228,7 +1228,7 @@ class Engine:
             raise Cancelled()
         load_started = time.time()
         self.mlx.request({"cmd": "load", "repo": spec["mlx_repo"], "base": spec.get("mlx_base"),
-                          "revision": spec.get("mlx_revision"),
+                          "revision": spec.get("mlx_revision"), "variant": variant,
                           "label": spec["label"], "size_gb": spec.get("download_gb"),
                           "loras": loras, "low_ram": 0 < ram < 20,
                           "allow_download": bool(allow_download) and net.is_online()},
@@ -2455,6 +2455,106 @@ class Engine:
         path = self._save(out, settings, suffix="healed")
         record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="healed")
         record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
+        self.emit({"type": "image", "record": record})
+        return record
+
+    EDIT_MODEL = "flux2_klein_mlx_q4"
+
+    def edit_words(self, args):
+        """✨ Edit with words (Image to image): FLUX.2 [klein] changes the picture as described. Optional: a painted
+        area (only that part changes; the rest stays exactly as it was) and more pictures to take a style, an object
+        or an outfit from."""
+        import detailer
+        import mlx_engine
+        from PIL import Image, ImageFilter
+        spec = all_models().get(self.EDIT_MODEL)
+        if spec is None:
+            raise UserError("Edit with words needs the FLUX.2 Klein model, which isn't in this version.")
+        prompt = (args.get("prompt") or "").strip()
+        if not prompt:
+            raise UserError("Describe the change in the prompt, e.g. “make the jacket red” or “turn it into a watercolour”.")
+        src, image = self._source_picture(args)
+        image = image.convert("RGB")
+        mask = None
+        if args.get("mask"):
+            try:
+                mask = detailer.decode_mask(args.get("mask"), image.size)
+            except Exception:
+                raise UserError("Couldn't read the painted area.")
+            if not mask.getbbox():
+                mask = None
+        refs = [r for r in (args.get("refs") or []) if isinstance(r, str) and r][:3]
+        ram = total_ram_gb()
+        side = 768 if 0 < ram < 12 else 1024
+        scale = min(1.5, side / max(1.0, (image.width * image.height) ** 0.5))
+        width = max(256, int(image.width * scale) // 16 * 16)
+        height = max(256, int(image.height * scale) // 16 * 16)
+        steps = max(1, min(12, int(args.get("steps") or spec["defaults"]["steps"])))
+        seed = int(args.get("seed") if args.get("seed") not in (None, "", -1) else random.randint(0, 2**32 - 1)) % 2**32
+        started = time.time()
+        if self.cancel_event.is_set():
+            raise Cancelled()
+        try:
+            self._mlx_load(spec, [], variant="edit")
+            self.loaded_key = None
+            self.family = spec["family"]
+            tmp = paths.HOME / "tmp"
+            tmp.mkdir(parents=True, exist_ok=True)
+            first = tmp / f"edit_src_{os.getpid()}.png"
+            image.save(first)
+            ref_files = [str(first)]
+            import pictures
+            for i, r in enumerate(refs):
+                try:
+                    from PIL import ImageOps
+                    im = ImageOps.exif_transpose(Image.open(pictures.prepare(r))).convert("RGB")
+                except Exception:
+                    raise UserError(f"Couldn't read the extra picture: {os.path.basename(r)}")
+                p = tmp / f"edit_ref_{os.getpid()}_{i}.png"
+                im.save(p)
+                ref_files.append(str(p))
+            out = tmp / f"edit_out_{os.getpid()}.png"
+            self.emit({"type": "status", "msg": "Editing with FLUX.2 Klein (fast engine)…"})
+
+            def on_event(ev):
+                if ev.get("type") == "progress":
+                    self.emit({"type": "progress", "image": 1, "images": 1, "step": ev["step"], "steps": ev["steps"]})
+                elif ev.get("type") == "preview":
+                    self.emit({"type": "preview", "image": 1, "src": ev["src"]})
+                elif ev.get("type") == "status":
+                    self.emit(ev)
+
+            try:
+                self.mlx.request({"cmd": "generate", "prompt": prompt, "negative_prompt": None, "width": width,
+                                  "height": height, "steps": steps, "cfg": 1.0, "seed": seed, "out": str(out),
+                                  "preview": self.previews, "image_paths": ref_files}, on_event=on_event)
+                result = Image.open(out).convert("RGB")
+            finally:
+                for f in [out, *map(Path, ref_files)]:
+                    try:
+                        Path(f).unlink()
+                    except OSError:
+                        pass
+        except mlx_engine.CancelledError:
+            raise Cancelled()
+        except mlx_engine.EngineError as e:
+            raise UserError(str(e))
+        result = result.resize(image.size, Image.LANCZOS)
+        if mask is not None:
+            # only the painted area changes, with a soft edge; everything else is the untouched original
+            m = mask.convert("L").point(lambda v: 255 if v > 127 else 0).filter(ImageFilter.MaxFilter(5))
+            m = m.filter(ImageFilter.GaussianBlur(max(2, min(image.size) // 200)))
+            result = Image.composite(result, image, m)
+        secs = time.time() - started
+        print(f"[timing] edit with words: {secs:.1f}s for {steps} steps at {width}x{height}", flush=True)
+        settings = {"model": self.EDIT_MODEL, "prompt": prompt, "negative_prompt": "", "width": result.width,
+                    "height": result.height, "steps": steps, "cfg": 1.0, "sampler": "flow_euler", "seed": seed,
+                    "engine": "mlx", "loras": [], "seconds": round(secs, 1),
+                    "edit": {"painted": mask is not None, "extra_pictures": len(refs)}}
+        path = self._save(result, settings, suffix="wordedit")
+        record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="word_edit")
+        record["thumb"] = str(thumbs.make(record["id"], path, result) or "") or None
+        record = self._content_check(record, result)
         self.emit({"type": "image", "record": record})
         return record
 

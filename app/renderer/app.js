@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["heal", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["heal", "edit_words", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
 
@@ -77,6 +77,7 @@ function defaultForm() {
     face_detailer: { on: false, strength: 0.4, prompt: "" },
     ip_adapter: { image: "", kind: "style", scale: 0.6 },
     heal_method: "lama",
+    edit_refs: [],      // ✨ Edit with words: extra pictures to take a style, object or outfit from
     i2i_mode: "change", inpaint: { strength: 0.85, blur: 4, only_masked: false },
     outpaint: { left: 0, right: 0, top: 0, bottom: 0 } };
 }
@@ -260,7 +261,7 @@ const protoartApp = createApp({
       pausedAt: 0,
       requeue: [],           // jobs to re-send after a Force stop restart
       libHasMore: false,
-      startDragOver: false,
+      startDragOver: false, editRefOver: false,
       lastEnhanced: null,
       undoPrompt: null,
       timing: { job: null, image: 0, lastAt: 0, stepTimes: [] },
@@ -346,6 +347,8 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Version 1.2: new tools, and more of your testers' notes", items: [
+              "<b>✨ Edit with words</b> (Image to image): describe a change (“make the jacket red”, “add a hat”, “turn it into a watercolour”) and FLUX.2 Klein makes just that change. Paint over a part to keep everything else exactly as it was, or add more pictures to take a style or an outfit from.",
+              "<b>Tools redesigned</b>: Restore faces, Depth map, Remove objects, Vectorize and Image → prompt are now tall rack modules side by side, each with its controls and its own button. <b>Sampler picks</b> show just the top two for speed and for quality (the rest are in the list).",
               "<b>New model: FLUX.2 Klein 4B</b> (Black Forest Labs, January 2026) on the ⚡ fast engine, made for 8 GB Macs: a 4.6 GB download, 4 steps a picture. It's newer than FLUX.1 Schnell and better at following long prompts and writing text in pictures. Find it in the <b>Models</b> tab under FLUX.2. It ignores the negative prompt, and FLUX.1 LoRAs don't work with it (FLUX.2 LoRAs do).",
               "<b>🩹 Remove objects</b> (spot healing, like a healing brush): in <b>Image to image</b> choose <b>🩹 Remove</b>, paint over anything you don't want (a stray object, an extra finger, text, a blemish) and press <b>🩹 Remove</b>. It's filled in from what's around it; only the painted part changes. <b>✨ Best</b> uses LaMa (a ~208 MB download the first time, then offline); <b>⚡ Quick</b> is instant for small spots and scratches. Also in <b>Tools → 🩹 Remove objects</b>.",
               "<b>✒️ Vectorize</b> (Tools): turns a picture into an SVG of flat colour shapes, for logos, icons, stickers and cut files. Choose the number of colours, the detail and smooth or sharp outlines; it opens in Illustrator, Affinity, Inkscape, Figma or Cricut.",
@@ -506,6 +509,7 @@ const protoartApp = createApp({
               "The <b>model</b> for Image to image is chosen at the top of the window, next to the brand plate.",
               "<b>Change strength</b>: low (0.3) keeps most of the original, high (0.8+) changes a lot.",
               "Pick the model right here; steps and CFG are next to it.",
+              "<b>✨ Edit with words</b> (FLUX.2 Klein): describe the change in the prompt — “make the jacket red”, “add sunglasses”, “replace the sky with a sunset”, “turn it into a watercolour” — and press <b>✨ Edit</b>. It keeps the rest of the picture. Paint over a part first and only that part can change (everything else stays exactly as it was): best for precise edits. Add up to 3 <b>more pictures</b> to borrow from (“dress her in the outfit from the second picture”, “paint it in the style of the second picture”). It always uses FLUX.2 Klein, whatever model Create has (4.6 GB the first time), takes about as long as one FLUX.2 picture, and ignores LoRAs and the negative prompt.",
               "<b>🩹 Remove</b>: paint over what you want gone and press 🩹 Remove; it's filled in from its surroundings (no prompt or model needed). <b>✨ Best (LaMa)</b> handles objects, people and patterns (~208 MB download the first time); <b>⚡ Quick</b> is instant for dust, spots and thin lines. Cover the thing fully, a little past its edges.",
               "<b>LoRAs</b> card: add a LoRA (search the list), set its weight with the slider, ✕ removes it. They're the same LoRAs as in Create (both tabs share the model); trigger words and 🎲 Random LoRAs are in Create." ] },
             { h: "🖌 Inpaint", items: [
@@ -1359,7 +1363,7 @@ const protoartApp = createApp({
       return this.controlTypes.find((t) => t.id === this.form.control.type);
     },
     i2iResults() {
-      return this.session.filter((r) => r.kind === "img2img" || r.kind === "healed");
+      return this.session.filter((r) => ["img2img", "healed", "word_edit"].includes(r.kind));
     },
     i2iLatest() {
       return this.i2iResults[0] || null;
@@ -2035,8 +2039,9 @@ const protoartApp = createApp({
       const fam = this.currentFlavor && this.family === "sdxl" ? "anime_xl" : this.family;
       const p = SAMPLER_PICKS[fam] || { fast: [], quality: [] };
       const by = Object.fromEntries((this.samplers || []).map((x) => [x.id, x]));
-      const fast = p.fast.map((id) => by[id]).filter(Boolean);
-      const quality = p.quality.map((id) => by[id]).filter(Boolean);
+      // only the top two of each, so the choice stays simple; the others are under "All other samplers"
+      const fast = p.fast.map((id) => by[id]).filter(Boolean).slice(0, 2);
+      const quality = p.quality.map((id) => by[id]).filter(Boolean).slice(0, 2);
       const shown = new Set([...fast, ...quality].map((x) => x.id));
       return { fast, quality, rest: (this.samplers || []).filter((x) => !shown.has(x.id)),
                qualityOnly: quality.filter((x) => !fast.some((f) => f.id === x.id)) };
@@ -3599,6 +3604,14 @@ const protoartApp = createApp({
         await this.runJob("heal", { init_image: f.init_image, mask: this.mask.data, method: f.heal_method || "lama" });
         return;
       }
+      if (f.i2i_mode === "edit") {  // ✨ FLUX.2 Klein, whatever model Create has
+        if (!(f.prompt || "").trim()) return (this.error = "Describe the change in the prompt, e.g. “make the jacket red” or “turn it into a watercolour”.");
+        this.error = "";
+        const painted = this.mask.data && this.mask.for === f.init_image ? this.mask.data : null;
+        await this.runJob("edit_words", { init_image: f.init_image, prompt: f.prompt, mask: painted,
+                                          refs: (f.edit_refs || []).slice(0, 3), seed: f.seed });
+        return;
+      }
       if (f.i2i_mode === "change" && !f.i2i_use_init && !f.control.type) return (this.error = "Tick “Start from this picture”, pick a ControlNet, or both.");
       if (!["sd15", "sdxl"].includes(this.family)) return (this.error = "Image to image works with SD 1.5 and SDXL models: pick one at the top.");
       if (f.i2i_mode === "change" && f.control.type && this.family !== "sd15") return (this.error = "ControlNet needs an SD 1.5 model: pick one in Create.");
@@ -3626,6 +3639,25 @@ const protoartApp = createApp({
       delete args.inpaint;
       const res = await this.runJob("generate", args);
       if (res) this.models = await call("list_models");
+    },
+    editModel() {  // the model Edit with words uses
+      return this.models.find((m) => m.id === "flux2_klein_mlx_q4") || null;
+    },
+    async addEditRefs(files) {
+      for (const file of files) {
+        if ((this.form.edit_refs || []).length >= 3) break;
+        const p = await this.preparePicture(window.bee.pathForFile(file));
+        if (p) this.form.edit_refs = [...(this.form.edit_refs || []), p];
+      }
+    },
+    onEditRefDrop(e) {
+      this.editRefOver = false;
+      this.addEditRefs([...(e.dataTransfer?.files || [])].filter(isPicture));
+    },
+    onEditRefPicked(e) {
+      const files = [...(e.target.files || [])];
+      e.target.value = "";
+      this.addEditRefs(files);
     },
     onStartDrop(e) {
       this.startDragOver = false;
@@ -3723,7 +3755,7 @@ const protoartApp = createApp({
     kindLabel(kind) {
       return { generated: "Original", img2img: "Image-to-image", faces: "Face-restored", enhanced: "Enhanced",
                depth: "Depth map", inpaint: "Inpainted", outpaint: "Expanded", grid: "Comparison grid",
-               edited: "Edited", healed: "Objects removed" }[kind] || kind;
+               edited: "Edited", healed: "Objects removed", word_edit: "Edited with words" }[kind] || kind;
     },
     depthModelInfo(id) {
       return this.depthModels.find((d) => d.id === id) || this.depthModels[0];
