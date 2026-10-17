@@ -1492,6 +1492,11 @@ const protoartApp = createApp({
       if (end === 1) return `Now: it starts after ${Math.round(start * 100)}%, so the overall layout is free but the finer structure follows the map.`;
       return `Now: it guides only between ${Math.round(start * 100)}% and ${Math.round(end * 100)}% of the steps.`;
     },
+    recommendedVae() {
+      const r = { sd15: { name: "vae-ft-mse-840000-ema-pruned", label: "vae-ft-mse (SD 1.5)", mb: 335 },
+                  sdxl: { name: "sdxl-vae-fp16-fix", label: "SDXL fp16-fix", mb: 335 } }[this.family];
+      return r && !this.vaes.some((v) => v.name === r.name) ? r : null;
+    },
     controlTypesShown() {  // the ControlNets for the current model's type (SD 1.5's built-in ones, your own SD 1.5 or SDXL)
       const fam = this.family === "sdxl" ? "sdxl" : "sd15";
       return this.controlTypes.filter((t) => (t.family || "sd15") === fam || t.id === this.form.control.type);
@@ -1723,13 +1728,16 @@ const protoartApp = createApp({
   },
 
   watch: {
-    tab(v, old) {
+    // Create and Image to image each keep their own prompt and negative prompt: the prompt box shows the one for
+    // the tab you're in (synchronous, so code that switches tab and then sets a prompt writes into the right one)
+    tab: { flush: "sync", handler(v, old) {
+      this.swapPrompts(v === "i2i" ? "i2i" : "create");
       if (v === "settings") { this.loadFolders(false); this.$nextTick(() => this.applySettingsFolds()); }
       // leaving Tools drops Adjust's GPU preview; coming back reloads it with the same settings
       if (old === "tools" && this.adj.open && adjEngine) { adjEngine.destroy(); adjEngine = null; }
       if (v === "tools" && this.adj.open && !adjEngine && this.adj.rec && !this.adj.busy)
         this.$nextTick(() => this.openAdjust(this.adj.rec, true));
-    },
+    } },
     form: { deep: true, handler(v) { saveJSON(FORM_KEY, v); } },
     "adj.p": { deep: true, handler() { this.adjRender(); } },
     "adj.before"() { this.adjRender(); },
@@ -1756,6 +1764,7 @@ const protoartApp = createApp({
       this.stopForGood();
     }, 500);
     listeners.push(this.onEvent);
+    this.swapPrompts(this.tab === "i2i" ? "i2i" : "create");  // a window reloaded while in Image to image
     window.bee.onLog((s) => {
       // home folders (your username) are shown as ~, like the saved log
       this.logs = (this.logs + String(s).replace(/\/Users\/[^/\s'"]+/g, "~")).slice(-20000);
@@ -1767,6 +1776,20 @@ const protoartApp = createApp({
   },
 
   methods: {
+    swapPrompts(to) {
+      const f = this.form;
+      const owner = f.prompt_owner === "i2i" ? "i2i" : "create";
+      if (to === owner) return;
+      if (to === "i2i") {
+        f.create_prompt = f.prompt; f.create_negative = f.negative_prompt;
+        f.prompt = f.i2i_prompt || ""; f.negative_prompt = f.i2i_negative || "";
+      } else {
+        f.i2i_prompt = f.prompt; f.i2i_negative = f.negative_prompt;
+        f.prompt = f.create_prompt || ""; f.negative_prompt = f.create_negative || "";
+      }
+      f.prompt_owner = to;
+      this.lastEnhanced = null;  // an enhanced prompt belongs to the tab it was made in
+    },
     // -------------------------------------------------------------- startup
     onEvent(m) {
       if (m.type === "ready") { this.setPaused(false); return this.init(); }
@@ -1822,9 +1845,12 @@ const protoartApp = createApp({
           }
         }
         // Tools results (enhance, face restore, depth) stay in Tools and the Library, not in Create's pictures
+        // (a Remove from Tools is tagged from_tools: Image to image's 🩹 Remove makes the same kind of picture)
         const fromJob = this.queue.find((j) => j.id === m.job);
-        const toolKinds = ["enhanced", "faces", "depth", "edited", "healed", "vector"];
-        const fromTools = fromJob ? fromJob.cmd === "postprocess" : toolKinds.includes(m.record.kind);
+        const sent = jobArgs.get(m.job);
+        const toolKinds = ["enhanced", "faces", "depth", "edited", "vector"];
+        const fromTools = sent ? (sent.cmd === "postprocess" || sent.cmd === "vectorize" || !!sent.args.from_tools)
+          : fromJob ? fromJob.cmd === "postprocess" : toolKinds.includes(m.record.kind);
         if (!fromTools) this.session.unshift(m.record);
         if (m.record.model && m.record.kind === "generated") this.readyModel = m.record.model;
         if (m.record.nsfw && this.hideNsfw) this.status = "A new picture is covered by the NSFW filter (click it to look)";
@@ -3020,7 +3046,7 @@ const protoartApp = createApp({
           this.tool.working = { label: `Patch ${k + 1}/${steps.length} · ${this.patchStepLabel(id)}`, started: Date.now() };
           let rec = null;
           if (id === "heal") {
-            rec = await this.runJob("heal", { ...cur, mask, method: this.form.heal_method || "lama" });
+            rec = await this.runJob("heal", { ...cur, mask, method: this.form.heal_method || "lama", from_tools: true });
           } else if (id === "faces") {
             rec = await this.runJob("postprocess", { ...cur, action: "faces", ...this.faceArgs() });
           } else if (id === "enhance") {
@@ -3566,7 +3592,7 @@ const protoartApp = createApp({
       this.tool.working = { label: "Removing what you painted", started: Date.now() };
       this.tool.latest = null;
       try {
-        const rec = await this.runJob("heal", { ...this.toolArgs(), mask, method: this.form.heal_method || "lama" });
+        const rec = await this.runJob("heal", { ...this.toolArgs(), mask, method: this.form.heal_method || "lama", from_tools: true });
         if (rec) {
           this.tool.latest = rec;
           this.afterPost(rec);
@@ -4363,11 +4389,6 @@ const protoartApp = createApp({
       if (!this.form.model) return;
       this.vaeByModel = { ...(this.vaeByModel || {}), [this.form.model]: this.form.vae || "" };
       saveJSON("protoart.vaeByModel", this.vaeByModel);
-    },
-    recommendedVae() {
-      const r = { sd15: { name: "vae-ft-mse-840000-ema-pruned", label: "vae-ft-mse (SD 1.5)", mb: 335 },
-                  sdxl: { name: "sdxl-vae-fp16-fix", label: "SDXL fp16-fix", mb: 335 } }[this.family];
-      return r && !this.vaes.some((v) => v.name === r.name) ? r : null;
     },
     async getRecommendedVae() {
       const fam = this.family;

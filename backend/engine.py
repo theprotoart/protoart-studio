@@ -930,6 +930,10 @@ class Engine:
                         quantization_config=SDNQConfig(weights_dtype="int8"))
                 pipe = _from_tdict(cls, spec["tdict"], **tkw)
             elif spec.get("file"):
+                if not os.path.isfile(spec["file"]):
+                    raise UserError(f"The model file isn't there any more: {spec['file']}. It may have been moved, renamed "
+                                    "or deleted (or it's on a drive that isn't connected). Models tab → ↻ Refresh updates "
+                                    "the list.")
                 import local_configs
                 rcp = local_configs.ensure(family)  # your own checkpoint: load fully offline
                 fkw = {"config": rcp, "local_files_only": True}
@@ -1007,6 +1011,7 @@ class Engine:
             self.mlx.stop()
         self.unload()  # start from a clean model (no fused LoRAs left in its weights) and free memory
         self.drop_helpers()
+        self._room_to_train()
         try:
             return trainer.train(self, args, self.emit, self.cancel_event, paths.LORAS_DIR)
         except trainer._Cancelled:
@@ -1015,6 +1020,18 @@ class Engine:
             raise UserError(str(e))
         finally:
             self.unload()  # training modifies the loaded model; always start fresh afterwards
+
+    def _room_to_train(self, need_gb=1.5):
+        """Training holds a model and its working memory for many minutes. On a Mac under 16 GB with too little
+        memory free it would push macOS into heavy swapping, which can freeze the whole Mac: say so instead."""
+        if not (0 < total_ram_gb() < 16):
+            return
+        gc.collect()
+        free, swap = _free_ram_gb(), _swap_used_gb()
+        if 0 <= free < need_gb and swap > 2:
+            raise UserError(f"Only {free:.1f} GB of memory is free and {swap:.1f} GB is already on the disk, so "
+                            "starting training now could make the whole Mac freeze. Quit the apps you aren't "
+                            "using (web browsers, Discord, Claude, other image apps), then press Train again.")
 
     def train_embedding(self, args):
         """Train an embedding (textual inversion) on SD 1.5: Train tab → Embedding."""
@@ -1025,6 +1042,7 @@ class Engine:
             self.mlx.stop()
         self.unload()
         self.drop_helpers()
+        self._room_to_train()
         try:
             return ti_trainer.train(self, args, self.emit, self.cancel_event, embeddings.own_dir())
         except trainer._Cancelled:
