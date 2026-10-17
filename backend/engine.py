@@ -328,6 +328,37 @@ def _looks_blank(image):
         return False
 
 
+def _safe_vae_decode(vae):
+    """SD 1.5's VAE in half precision can overflow on very high-contrast pictures (QR codes, hard black-and-white
+    patterns): the picture is fine but turns into NaN while it's made into pixels, and comes out black or flat.
+    When that happens, decode that one picture again at full precision (no need to make it again)."""
+    if vae is None or getattr(vae, "_protoart_safe", False):
+        return
+    import torch
+    run = vae.decode
+
+    def decode(z, *args, **kwargs):
+        out = run(z, *args, **kwargs)
+        sample = out[0] if isinstance(out, tuple) else getattr(out, "sample", None)
+        if sample is None or bool(torch.isfinite(sample).all()) or vae.dtype == torch.float32:
+            return out
+        print("[engine] VAE: half precision overflowed while making the pixels; decoding at full precision",
+              flush=True)
+        was = vae.dtype
+        vae.to(torch.float32)
+        try:
+            out = run(z.float(), *args, **kwargs)
+        finally:
+            vae.to(was)
+        if isinstance(out, tuple):
+            return tuple(o.to(was) if torch.is_tensor(o) else o for o in out)
+        out.sample = out.sample.to(was)
+        return out
+
+    vae.decode = decode
+    vae._protoart_safe = True
+
+
 class _TextModelAlias:
     """Stands in for `text_encoder.text_model`. Newer transformers (5.x) flattened CLIPTextModel, so the
     final layer norm sits on the model itself, but diffusers' CLIP-skip code still looks for
@@ -1127,6 +1158,7 @@ class Engine:
                 cnet.keep_finite(model, dtype)
             self.controlnets[kind] = model
             self.release_memory()  # hand back what loading it used, before the first step
+        _safe_vae_decode(getattr(self.pipe, "vae", None))
         key = (kind, img2img)
         if key not in self.cn_pipes:
             if self.family == "sdxl":
@@ -1946,12 +1978,14 @@ class Engine:
                     raise Cancelled()
                 if self.skip_event.is_set():
                     raise Skipped()
-                if control and step < 2:  # broken maths shows straight away: don't spend minutes on a flat picture
+                if control:  # broken maths: stop at once instead of spending minutes on a flat picture
                     lat = kw.get("latents")
                     if lat is not None:
                         ok = bool(t.isfinite(lat).all())
-                        print(f"[controlnet] step {step + 1}: picture numbers {'ok' if ok else 'broken (NaN)'}"
-                              + (f", range {float(lat.min()):.1f} to {float(lat.max()):.1f}" if ok else ""), flush=True)
+                        if step < 2 or not ok or step + 1 == steps:
+                            print(f"[controlnet] step {step + 1}: picture numbers {'ok' if ok else 'broken (NaN)'}"
+                                  + (f", range {float(lat.min()):.1f} to {float(lat.max()):.1f}" if ok else ""),
+                                  flush=True)
                         if not ok:
                             raise BrokenMaths()
                 total = getattr(p, "_num_timesteps", None) or steps
@@ -2047,8 +2081,19 @@ class Engine:
                         else:
                             call["image"] = control_map
                         image = attempt()
+                cn_now = self.controlnets.get(control["type"]) if control else None
+                if (image is None or _looks_blank(image)) and control:
+                    try:
+                        import numpy as np
+                        a_ = np.asarray(image.convert("RGB")) if image is not None else None
+                        print(f"[engine] flat result: unet {self.pipe.unet.dtype}, vae {self.pipe.vae.dtype}, controlnet "
+                              f"{getattr(cn_now, 'dtype', None)}, picture "
+                              + ("not made (numbers broke)" if a_ is None else
+                                 f"mean {a_.mean():.1f}, min {a_.min()}, max {a_.max()}"), flush=True)
+                    except Exception as e:
+                        print("[engine] flat result (no details):", e, flush=True)
                 if (image is None or _looks_blank(image)) and control and control["type"] not in cnet.SAFE_KINDS \
-                        and self.pipe.unet.dtype != t.float32:
+                        and getattr(cn_now, "dtype", t.float32) != t.float32:
                     # its numbers overflowed at half precision (common with QR / pattern ControlNets on Apple GPUs):
                     # run the ControlNet at full precision and try the same picture again
                     print(f"[engine] {control['type']}: flat / broken result; retrying with the ControlNet at full "

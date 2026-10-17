@@ -2,6 +2,9 @@
 
 ## 1.2.1 (in progress)
 
+- SD 1.5 VAE decode overflowing at float16 on high-contrast results (QR codes: finite latents, black/flat picture, not
+  saved): `_safe_vae_decode` re-decodes that picture at float32 when the output has NaN / inf. Flat results log the
+  UNet / VAE / ControlNet dtypes and the picture's range; latents checked every step while a ControlNet runs
 - ControlNets whose numbers overflow at half precision on Apple GPUs (flat grey result, seen with QR Pattern v2):
   NaN latents are caught after step 1 (`BrokenMaths`), the ControlNet is reloaded at float32 with `keep_finite`
   (fp32 inputs, NaN/inf cleaned, outputs back to the UNet's dtype) and the picture is retried; `SAFE_KINDS` keeps it
