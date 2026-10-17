@@ -2,6 +2,12 @@
 
 ## 1.2.0
 
+- A FLUX.1 LoRA can't be loaded into FLUX.2 (or the other way) even when its type was set by hand (checked against the
+  file); the fast engine's "could not be applied" error is explained in plain words (`mlx_engine.friendly`)
+- Two of your model files with the same name are told apart in the lists ("· in “SD1”", "· a copy")
+- Remove buttons for added models are locked (🔒) until unlocked, and every remove asks first (`confirmAsk`)
+- Library cards: 🗑 delete at the top left (asks first), ↺ Prompt at the bottom; Tools: ✕ Clear results
+- Tips also for the toggle labels (Start from this picture, Use the picture's size, append, …)
 - Image to image: ✨ Enhance prompt switch and "enhance now" in its Prompt card (not for Edit with words or Remove);
   its results (img2img, healed, word_edit) no longer appear in Create's session list (`createSession`, `I2I_KINDS`);
   Create's "clear all" leaves them alone

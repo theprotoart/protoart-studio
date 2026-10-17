@@ -805,7 +805,8 @@
         <span v-else-if="r.nsfw && !hideNsfw" class="badge nsfw-badge" :title="nsfwReason(r)">18+</span>
         <span v-if="r.kind && r.kind!=='generated'" class="badge">{{ kindLabel(r.kind) }}</span>
         <button class="star" :class="{on: r.starred}" @click.stop="toggleStar(r)" title="Star">★</button>
-        <button v-if="!selectMode && r.prompt" class="to-i2i reuse-top" @click.stop="reusePrompt(r)" title="Reuse this picture's prompt in Create (keeps your current model and settings)">↺ Prompt</button>
+        <button v-if="!selectMode" class="to-i2i card-trash" @click.stop="askDelete([r.id])" title="Delete this picture (asks first)">🗑</button>
+        <button v-if="!selectMode && r.prompt" class="to-i2i reuse-mid" @click.stop="reusePrompt(r)" title="Reuse this picture's prompt in Create (keeps your current model and settings)">↺ Prompt</button>
         <button v-if="!selectMode" class="to-i2i" @click.stop="useAsStart(r)" title="Send to Image to image">🖼 Img2img</button>
         <button v-if="!selectMode" class="to-i2i to-tools" @click.stop="openInTools(r)" title="Send to Tools (enhance, restore faces, depth map, edit…)">🧰 Tools</button>
       </figure>
@@ -834,7 +835,11 @@
     <table v-if="localModels.length || modelDirs.dirs.length">
       <tr v-for="m in localModels" :key="m.id"><td>{{ m.label }}</td>
         <td class="hint">{{ familyName(m.family) }}<template v-if="m.class_name && m.family === 'other'"> ({{ m.class_name }})</template> · {{ m.file || m.local_dir || '' }}</td>
-        <td><button v-if="isAddedLocal(m.id)" class="ghost small" @click="removeLocalModel(m.id)">Remove</button>
+        <td class="rm-cell"><template v-if="isAddedLocal(m.id)">
+              <button class="ghost small lock-btn" :class="{on: !unlocked[m.id]}" @click="unlocked[m.id] = !unlocked[m.id]"
+                      :title="unlocked[m.id] ? 'Unlocked: Remove works. Click to lock again.' : 'Locked so it can\'t be removed by accident. Click to unlock.'">{{ unlocked[m.id] ? '🔓' : '🔒' }}</button>
+              <button class="ghost small" :disabled="!unlocked[m.id]" @click="removeLocalModel(m.id)"
+                      title="Take it off the list (the file itself stays on your Mac)">Remove</button></template>
             <span v-else class="hint">in a watched folder</span></td></tr>
     </table>
     <div class="row"><button class="ghost" @click="refreshModels">↻ Refresh model and LoRA lists</button>
@@ -964,7 +969,9 @@
     <table v-if="addedModels.length">
       <tr v-for="m in addedModels" :key="m.id"><td>{{ m.label }}</td>
         <td class="hint">{{ familyName(m.family) }} · {{ m.cached ? 'downloaded' : Math.round(m.download_gb) + ' GB download' }}</td>
-        <td><button class="ghost small" @click="hubRemove(m)">Remove</button></td></tr>
+        <td class="rm-cell"><button class="ghost small lock-btn" :class="{on: !unlocked[m.id]}" @click="unlocked[m.id] = !unlocked[m.id]"
+                    :title="unlocked[m.id] ? 'Unlocked: Remove works. Click to lock again.' : 'Locked so it can\'t be removed by accident. Click to unlock.'">{{ unlocked[m.id] ? '🔓' : '🔒' }}</button>
+          <button class="ghost small" :disabled="!unlocked[m.id]" @click="hubRemove(m)">Remove</button></td></tr>
     </table>
         </div>
       </section>
@@ -1480,7 +1487,8 @@
       <div v-if="error" class="error-box">{{ error }}</div>
 
       <div v-if="tool.results.length">
-        <h3>Results</h3>
+        <h3 class="results-head">Results <button class="ghost small" @click="tool.results = []; tool.latest = null"
+            title="Take the results off this screen (they stay in the Library)">✕ Clear results</button></h3>
         <div class="gallery">
           <figure v-for="r in tool.results" :key="r.id" @click="openDetail(r)" :class="{covered: covered(r)}">
             <img :src="thumbUrl(r)" loading="lazy" decoding="async"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
@@ -2543,6 +2551,18 @@
       <div class="row end">
         <button @click="confirmDel=null">Cancel</button>
         <button class="danger" @click="doDelete">{{ opts.trash ? 'Move to Trash' : 'Delete permanently' }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ ARE YOU SURE? ============================ -->
+  <div v-if="ask" class="modal top" @click.self="answerAsk(false)">
+    <div class="confirm">
+      <h3>{{ ask.title }}</h3>
+      <p>{{ ask.text }}</p>
+      <div class="row end">
+        <button @click="answerAsk(false)">Cancel</button>
+        <button class="danger" @click="answerAsk(true)">{{ ask.ok }}</button>
       </div>
     </div>
   </div>

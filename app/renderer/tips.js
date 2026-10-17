@@ -102,6 +102,19 @@
     "danbooru tags": "List anime-style tags for the picture",
     "turn off compare": "Back to making single pictures",
     "untag": "Remove the People tag",
+    "start from this picture (image-to-image)": "On: the result starts from your picture (Change strength says how much may change). Off: only ControlNet follows it",
+    "use the picture's size (otherwise the size from create)": "On: the result has your picture's size and shape. Off: the size set in Create is used",
+    "append": "Add the new prompt after the one already in the box, instead of replacing it",
+    "smooth curves": "Curved outlines; off gives straight edges",
+    "redraw only the painted area at full detail": "Redraws a box around the paint at full resolution, then pastes it back: best for hands, eyes or a logo",
+    "move the file into that type's folder": "When you pick a type, the file moves into the LoRA folder set to that type",
+    "show unknown type": "List LoRAs the app couldn't identify",
+    "show all": "List every LoRA",
+    "new random mix every time i press generate": "Each Generate picks a new set of random LoRAs",
+    "✨ enhance prompt when generating": "Before each picture, a small language model turns your prompt into a detailed one",
+    "hide nsfw": "Cover pictures, LoRAs and models marked NSFW",
+    "hide people": "Hide pictures, LoRAs and models tagged with real people",
+    "incl. prompt": "Also save the prompt in the preset",
   };
 
   let enabled = true;
@@ -133,7 +146,7 @@
       node.removeAttribute("title");  // so macOS doesn't show its own, slower tip as well
     }
     if (node.dataset.tip) return node.dataset.tip;
-    if (node.tagName === "BUTTON") {
+    if (node.tagName === "BUTTON" || node.tagName === "LABEL") {
       const label = (node.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
       return BY_TEXT[label] || "";
     }
@@ -156,7 +169,7 @@
   }
 
   document.addEventListener("mouseover", (e) => {
-    const node = e.target.closest && e.target.closest("[title], [data-tip], button");
+    const node = e.target.closest && e.target.closest("[title], [data-tip], button, label.check");
     if (!node || node === current) return;
     hide();
     const text = textFor(node);

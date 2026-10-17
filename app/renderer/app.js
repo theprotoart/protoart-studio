@@ -279,6 +279,8 @@ const protoartApp = createApp({
       i2p: Object.assign({ mode: "describe", append: false }, loadJSON("beestudio.i2p", {})),
       rnd: Object.assign({ subject: "random", quality: "standard", detail: 2, style: true }, loadJSON("beestudio.rnd", {})),
       post: defaultPost(),
+      ask: null,             // the "Are you sure?" box (confirmAsk)
+      unlocked: {},          // model rows unlocked for Remove (locked by default)
       vecResult: null,       // the last ✒️ Vectorize result {path, shapes, colors, bytes}
       toolsUndo: null,
       libLoras: [],
@@ -1842,7 +1844,19 @@ const protoartApp = createApp({
       this.status = (this.status ? this.status + " · " : "") +
         `Also using ${add.length === 1 ? "that folder" : add.length + " folders"} for LoRAs (${n} found; listed in Settings → LoRA folders)`;
     },
+    confirmAsk(title, text, ok = "Remove") {  // a "Are you sure?" box with Cancel; resolves true / false
+      return new Promise((resolve) => { this.ask = { title, text, ok, resolve }; });
+    },
+    answerAsk(yes) {
+      const a = this.ask;
+      this.ask = null;
+      if (a) a.resolve(!!yes);
+    },
     async removeLocalModel(id) {
+      const m = this.models.find((x) => x.id === id);
+      if (!(await this.confirmAsk(`Remove “${m ? m.label : "this model"}”?`,
+        "It's taken off the list. The file itself stays where it is on your Mac; you can add it again any time."))) return;
+      this.unlocked[id] = false;
       const local = await call("model_local_remove", { id });
       this.modelDirs = { ...this.modelDirs, local };
       this.models = await call("list_models");
@@ -1892,6 +1906,7 @@ const protoartApp = createApp({
       } catch { /* nothing to add */ }
     },
     async removeModelDir(d) {
+      if (!(await this.confirmAsk("Stop watching this folder?", d + "\n\nIts models leave the list; the files stay where they are."))) return;
       this.modelDirs = await call("model_dirs_set", { dirs: this.modelDirs.dirs.filter((x) => x !== d) });
       this.models = await call("list_models");
     },
@@ -2015,6 +2030,8 @@ const protoartApp = createApp({
       }
     },
     async hubRemove(m) {
+      if (!(await this.confirmAsk(`Remove “${m.label}”?`, "It's taken off your model list. Downloaded files are kept until you delete them in the Models tab."))) return;
+      this.unlocked[m.id] = false;
       await call("model_remove", { id: m.id });
       this.models = await call("list_models");
       if (this.form.model === m.id) {
@@ -2329,6 +2346,7 @@ const protoartApp = createApp({
       this.embMsg = `Added ${picked.length} folder${picked.length === 1 ? "" : "s"} · ${this.embeddings.length} embeddings in total`;
     },
     async removeEmbeddingDir(d) {
+      if (!(await this.confirmAsk("Stop using this embeddings folder?", d + "\n\nIts embeddings leave the list; the files stay where they are."))) return;
       this.embDirs = await call("embedding_dirs_set", { dirs: (this.embDirs.dirs || []).filter((x) => x !== d) });
       await this.refreshEmbeddings();
     },
@@ -2536,6 +2554,7 @@ const protoartApp = createApp({
       return this.loras.filter((l) => l.file && l.file.startsWith(dir.replace(/\/?$/, "/"))).length;
     },
     async removeLoraDir(d) {
+      if (!(await this.confirmAsk("Stop using this LoRA folder?", d + "\n\nIts LoRAs leave the list; the files stay where they are."))) return;
       this.loraDirs = await call("lora_dirs_set", { dirs: this.loraDirs.dirs.filter((x) => x !== d) });
       await this.refreshLoras();
     },

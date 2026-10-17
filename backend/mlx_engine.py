@@ -28,6 +28,17 @@ class EngineError(Exception):
     pass
 
 
+def friendly(msg):
+    """Turn the fast engine's technical errors into something a person can act on."""
+    import re
+    m = re.search(r"layers named by (.+?) could not be applied", msg or "")
+    if m:
+        return (f"The LoRA “{m.group(1).rsplit('.', 1)[0]}” doesn't fit this model (it was made for a different model "
+                "type, e.g. FLUX.1 instead of FLUX.2). Remove it from the LoRA list, or check its type in "
+                "Models → Fix a type.")
+    return msg
+
+
 class CancelledError(Exception):
     pass
 
@@ -189,7 +200,7 @@ class MlxEngine:
             if t == "error":
                 if ev.get("cancelled"):
                     raise CancelledError()
-                raise EngineError(ev.get("msg") or "fast engine error")
+                raise EngineError(friendly(ev.get("msg")) or "fast engine error")
             if t == "exit":
                 self.proc = None
                 if sent_cancel:

@@ -470,7 +470,32 @@ def all_models():
                           min_ram_gb=16 if fam == "sdxl" else 8, low_memory_min_ram_gb=8 if fam == "sdxl" else None)
         elif spec and spec.get("family") == fam:
             m[mid] = dict(spec, family_set=True)
+    _tell_apart(m)
     return m
+
+
+def _tell_apart(m):
+    """Two of your model files with the same name (e.g. photon_v1 in two folders) would look identical in the
+    lists: add the folder each is in, and say when they're the same size (most likely the same file twice)."""
+    from collections import defaultdict
+    by_label = defaultdict(list)
+    for k, v in m.items():
+        if v.get("file") and ":" in k:
+            by_label[v["label"]].append(k)
+    for label, keys in by_label.items():
+        if len(keys) < 2:
+            continue
+        sizes = {}
+        for k in keys:
+            try:
+                sizes[k] = os.path.getsize(m[k]["file"])
+            except OSError:
+                sizes[k] = None
+        for k in keys:
+            folder = os.path.basename(os.path.dirname(m[k]["file"])) or "/"
+            same = sum(1 for o in keys if o != k and sizes[o] and sizes[o] == sizes[k]) > 0
+            m[k] = dict(m[k], label=f"{label} · in “{folder}”" + (" · a copy" if same else ""),
+                        duplicate_of=[o for o in keys if o != k])
 
 
 class Engine:
@@ -1219,6 +1244,12 @@ class Engine:
             info = available.get(r["name"])
             if info is None or info["family"] not in (fam, "unknown") or not info["file"].endswith(".safetensors"):
                 raise UserError(f"LoRA '{r['name']}' can't be used with {fam_name}.")
+            # FLUX.1 and FLUX.2 LoRAs look alike; a type picked by hand can be wrong: the file itself decides
+            other = {"flux2": "flux", "flux": "flux2"}.get(fam)
+            if other and info.get("detected_family") == other:
+                raise UserError(f"LoRA '{r['name']}' was made for {'FLUX.1' if other == 'flux' else 'FLUX.2'}, so it "
+                                f"can't be used with {fam_name}. If its type was set by hand, set it back in Models → "
+                                "Fix a type, or pick a matching model.")
             loras.append([info["file"], float(r.get("weight", 1.0))])
         if not mlx_engine.installed():
             if not net.is_online():

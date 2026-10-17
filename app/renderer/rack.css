@@ -1462,3 +1462,11 @@ button.bat-toggle:hover:not(:disabled), button.bat-toggle:active:not(:disabled) 
 .i2i-src { text-align: center; }
 .i2i-src img, .i2i-src.mask-editor .mask-stage img { width: auto; max-width: 100%; max-height: 420px; margin: 0 auto; object-fit: contain; }
 .i2i-src.mask-editor .mask-stage { margin: 0 auto; }
+/* picture cards: delete at the top left, prompt at the bottom centre */
+.gallery figure .to-i2i.card-trash { top: 8px; bottom: auto; left: 8px; padding: 2px 7px; }
+.gallery figure .to-i2i.reuse-mid { left: 50%; transform: translateX(-50%); bottom: 8px; }
+.gallery figure .to-i2i.reuse-mid:active:not(:disabled) { transform: translateX(-50%) translateY(1px); }
+.rm-cell { white-space: nowrap; display: flex; gap: 6px; align-items: center; }
+.results-head { display: flex; align-items: center; gap: 10px; }
+.results-head button { margin-left: auto; text-transform: none; letter-spacing: normal; }
+.confirm p { white-space: pre-line; }
