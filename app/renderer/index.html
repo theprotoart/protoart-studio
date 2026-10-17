@@ -147,6 +147,8 @@
                 title="Show a short explanation when you point at a button or control (switch off once you know your way around)">💬 Tips {{ opts.tooltips === false ? 'off' : 'on' }}</button>
         <button class="ghost tips-btn" :class="{on: soundsOn}" @click="setSounds(!soundsOn)"
                 title="Play a short chime when pictures are finished or training is done (and a low tone if something fails)">🔔 Sounds {{ soundsOn ? 'on' : 'off' }}</button>
+        <button class="ghost tips-btn sfw-btn" :class="{on: opts.sfw_mode}" @click="setSfwMode(!opts.sfw_mode)"
+                :title="opts.sfw_mode ? 'Safe-for-work mode is on: click to switch it off (asks first)' : 'Safe-for-work mode: refuse adult prompts, hide and block NSFW pictures, LoRAs and models (asks first)'">🛡 SFW {{ opts.sfw_mode ? 'on' : 'off' }}</button>
         </div>
       </div>
       <!-- other tabs: an engraved name plate -->
@@ -629,10 +631,18 @@
               <select v-model="cmp.x" @change="cmpDefaults('x')"><option v-for="(lbl, k) in cmpAxes" :key="k" :value="k">{{ lbl }}</option></select></div>
             <div><label>Down <span class="hint">optional</span></label>
               <select v-model="cmp.y" @change="cmpDefaults('y')"><option value="">—</option><option v-for="(lbl, k) in cmpAxes" :key="k" :value="k" :disabled="k === cmp.x">{{ lbl }}</option></select></div>
-            <div class="span2"><label>Values across <span class="hint">{{ cmpHelp(cmp.x) }}</span></label>
-              <input v-model="cmp.xv" :placeholder="cmpPlaceholder(cmp.x)"></div>
-            <div v-if="cmp.y" class="span2"><label>Values down <span class="hint">{{ cmpHelp(cmp.y) }}</span></label>
-              <input v-model="cmp.yv" :placeholder="cmpPlaceholder(cmp.y)"></div>
+            <div class="span2"><label>Values across <span class="hint">click to pick · {{ cmpList('xv').length }} picked</span></label>
+              <div class="cmp-keys">
+                <button v-for="o in cmpOptions(cmp.x)" :key="o.v" class="cmp-key" :class="{on: cmpHas('xv', o.v)}" @click="cmpToggle('xv', o.v, cmp.x)" :title="o.title || ''">{{ o.label }}</button>
+              </div>
+              <details class="cmp-own"><summary class="hint">or type your own</summary>
+              <input v-model="cmp.xv" :placeholder="cmpPlaceholder(cmp.x)"><span class="hint">{{ cmpHelp(cmp.x) }}</span></details></div>
+            <div v-if="cmp.y" class="span2"><label>Values down <span class="hint">click to pick · {{ cmpList('yv').length }} picked</span></label>
+              <div class="cmp-keys">
+                <button v-for="o in cmpOptions(cmp.y)" :key="o.v" class="cmp-key" :class="{on: cmpHas('yv', o.v)}" @click="cmpToggle('yv', o.v, cmp.y)" :title="o.title || ''">{{ o.label }}</button>
+              </div>
+              <details class="cmp-own"><summary class="hint">or type your own</summary>
+              <input v-model="cmp.yv" :placeholder="cmpPlaceholder(cmp.y)"><span class="hint">{{ cmpHelp(cmp.y) }}</span></details></div>
             <div v-if="['lora_weight','lora'].includes(cmp.x) || ['lora_weight','lora'].includes(cmp.y)" class="span2">
               <label>Which LoRA <span class="hint">{{ cmp.x === 'lora' || cmp.y === 'lora' ? 'is swapped for each value (“none” = without it)' : 'gets the different weights' }}</span></label>
               <select v-model="cmp.lora"><option value="">{{ form.loras.length ? 'all active LoRAs' : '(add a LoRA above)' }}</option>
@@ -2564,20 +2574,10 @@
     </section>
     <section class="set-sec">
     <h2>Content filter (NSFW)</h2>
-    <div class="sfw-box" :class="{on: opts.sfw_mode}">
-      <button class="bat-toggle" :class="{on: opts.sfw_mode}" role="switch" :aria-checked="!!opts.sfw_mode" @click="setSfwMode(!opts.sfw_mode)"
-              :title="opts.sfw_mode ? 'Safe-for-work mode is on: flip down to switch it off (asks first)' : 'Flip up to turn on safe-for-work mode (asks first)'">
-        <span class="bt-name">SFW</span>
-        <span class="bt-switch"><i class="bt-plate"></i><i class="bt-nut"></i><i class="bt-lever"></i><i class="bt-ball"></i></span>
-        <span class="bt-state">{{ opts.sfw_mode ? 'On' : 'Off' }}</span>
-      </button>
-      <div>
-        <b>🛡 Safe-for-work mode</b>
-        <p class="hint">For work, school, streaming or sharing a screen: prompts that ask for adult content are refused (checked in the
-          engine, not just on screen), NSFW LoRAs, models and embeddings can't be used and disappear from the lists, NSFW pictures
-          are hidden everywhere and can't be opened, and every new picture is checked on this Mac. An <b>SFW</b> lamp shows at the top while it's on.</p>
-      </div>
-    </div>
+    <p class="sfw-note"><b>🛡 Safe-for-work mode</b> is {{ opts.sfw_mode ? 'on' : 'off' }}: switch it with <b>🛡 SFW</b> at the top of this page.
+      While it's on, prompts that ask for adult content are refused (checked in the engine, not just on screen), NSFW LoRAs, models and
+      embeddings can't be used and disappear from the lists, NSFW pictures are hidden everywhere and can't be opened, and every new
+      picture is checked on this Mac. An <b>SFW</b> lamp shows next to Power while it's on.</p>
     <label class="check nsfw-switch" :class="{on: hideNsfw}"><input type="checkbox" :checked="hideNsfw" @change="setHideNsfw($event.target.checked)">
       Hide NSFW pictures, models and LoRAs</label>
     <p class="hint">The same switch is at the top of Create and Library. When it's on: NSFW pictures are left out of the Library

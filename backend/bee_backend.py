@@ -1471,7 +1471,7 @@ def sfw_check(kind, a):
     if not settings.get("sfw_mode") or kind not in ("generate", "edit_words", "enhance_prompt"):
         return
     from engine import UserError
-    off = " (Safe-for-work mode is on; it can be switched off in Settings → Content filter.)"
+    off = " (Safe-for-work mode is on; switch it off with 🛡 SFW at the top of Settings.)"
     texts = a.get("prompt")
     for t in (texts if isinstance(texts, list) else [texts]):
         if content.prompt_flag(t):

@@ -2,6 +2,8 @@
 
 ## 1.2.0
 
+- Compare: values are picked with keys (blue, shaded to match the look; lit when picked; typing still works)
+- 🛡 SFW switch moved to the top of Settings, beside Tips and Sounds
 - Selection tools wherever you paint a mask: Brush, Erase, Lasso, Polygonal lasso, Magic wand (tolerance, connected
   area, pixels read from the file), Object selection (box → OpenCV GrabCut, `select_object.py`, no download); Add /
   Subtract (⌥), keys B E L P W O, Esc / Enter; dashed outlines drawn on their own layer

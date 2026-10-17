@@ -387,7 +387,7 @@ const protoartApp = createApp({
               "<b>✨ Edit with words</b> (Image to image): describe a change (“make the jacket red”, “add a hat”, “turn it into a watercolour”) and FLUX.2 Klein makes just that change. Paint over a part to keep everything else exactly as it was, or add more pictures to take a style or an outfit from.",
               "<b>🎲 Random prompt speaks the model's language</b>: with FLUX, FLUX.2 or ERNIE picked it writes a scene in sentences (“Medium shot of a fisherman with a white beard, mending a net on a harbour wall at dawn…”); with SD 1.5 and SDXL it still writes tags. In Image to image, <b>FLUX.2 Klein</b> now shows at the top of the model list while Edit with words is on.",
               "<b>Selection tools</b> wherever you paint over a picture (Inpaint, Remove, Edit with words, Tools → Remove objects): <b>🖌 Brush</b>, <b>🧽 Erase</b>, <b>➰ Lasso</b> (draw around an area), <b>⬠ Polygon</b> (click the corners), <b>🪄 Wand</b> (click a colour; set the tolerance) and <b>⬚ Object</b> (drag a box and the object's outline is found). <b>＋ Add / － Subtract</b> (or hold ⌥ Option); keys B E L P W O; Esc cancels. <b>VAE</b>: each model remembers its VAE, only matching ones are listed, and <b>⤓ get</b> downloads the recommended one. <b>Random / Wildcards / List</b> are now three keys.",
-              "<b>🛡 Safe-for-work mode</b> (Settings → Content filter): refuses prompts that ask for adult content, NSFW LoRAs and models, hides NSFW pictures everywhere (they can't be opened) and checks every new picture on this Mac. An SFW lamp shows at the top. <b>VAEs</b>: download them from Civitai (or drop files in the VAE folder) and pick one in Create → Extras → VAE (SD 1.5 and SDXL). <b>Your own ControlNets</b> (SD 1.5, e.g. QR Code Monster from Civitai) appear in Image to image → ControlNet and follow your picture as it is. The <b>Models</b> tab lists <b>Embeddings, VAEs &amp; ControlNets</b> with filters. <b>FLUX.1 Dev</b> (higher quality FLUX, 25 steps) is in the Models tab for Macs with 32 GB or more; it's free for personal use only (non-commercial licence) and needs a free Hugging Face account.",
+              "<b>🛡 Safe-for-work mode</b> (Settings, the 🛡 SFW switch at the top): refuses prompts that ask for adult content, NSFW LoRAs and models, hides NSFW pictures everywhere (they can't be opened) and checks every new picture on this Mac. An SFW lamp shows at the top. <b>VAEs</b>: download them from Civitai (or drop files in the VAE folder) and pick one in Create → Extras → VAE (SD 1.5 and SDXL). <b>Your own ControlNets</b> (SD 1.5, e.g. QR Code Monster from Civitai) appear in Image to image → ControlNet and follow your picture as it is. The <b>Models</b> tab lists <b>Embeddings, VAEs &amp; ControlNets</b> with filters. <b>FLUX.1 Dev</b> (higher quality FLUX, 25 steps) is in the Models tab for Macs with 32 GB or more; it's free for personal use only (non-commercial licence) and needs a free Hugging Face account.",
               "<b>Compare in Tools</b>: after Enhance, Restore faces, Remove or a depth map, the picture window shows <b>Original / Result / Split / Side by side</b> (drag the line in Split). <b>Brush size</b>: a ring the size of the brush follows the pointer while you paint, and moving the size slider shows it on the picture; the metal well next to the slider shows the size too. <b>LoRA list</b>: sort A → Z, Z → A, biggest or smallest, and show only one kind (.safetensors, DiffusionBee, Pony…). <b>🔔 Sounds</b>: a chime when pictures or training are finished (switch in Settings, next to Tips). <b>How to</b> now starts with Community &amp; support (Discord, contact, report a problem) and the model licences.",
               "<b>Negative prompts that fit</b>: next to <i>Negative prompt</i> (Create and Image to image), <b>✨ suggest</b> writes one for your prompt and model type: tags for SD 1.5 / SDXL / Pony / Illustrious (with each one's low-quality tags), plain words for ERNIE and FLUX, plus the opposite of the style you asked for (a cartoon prompt avoids “realistic, photo”). <b>🎲 random</b> adds a few extra fixes each time. 🎲 Random prompt and ✨ enhance write a matching negative too, unless you typed your own. ✨ Enhance now writes tags for SDXL and Pony as well as SD 1.5, and in <b>Edit with words</b> it makes your instruction clearer. <b>📒 My prompts</b> keeps prompts you like (with their negative prompt) to use again.",
               "<b>Image to image</b> now has <b>✨ Enhance prompt</b> in its Prompt card (the same switch as in Create, plus <i>enhance now</i>), and the pictures it makes stay in Image to image and the Library instead of also filling Create's screen.",
@@ -3315,6 +3315,38 @@ const protoartApp = createApp({
     },
 
     // -------------------------------------------------------------- comparison grid
+    // Compare: the values as keys to click (each picked key = one column / row of the grid)
+    cmpOptions(axis) {
+      const nums = (list) => list.map((v) => ({ v: String(v), label: String(v) }));
+      switch (axis) {
+        case "cfg": return nums([1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15]);
+        case "steps": return nums([4, 8, 10, 15, 20, 25, 30, 40, 50]);
+        case "sampler": return (this.samplers || []).slice(0, 16).map((x) => ({ v: x.id, label: x.label, title: x.id }));
+        case "seed": return nums([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+        case "clip_skip": return nums([1, 2, 3, 4]);
+        case "lora_weight": return nums([0.2, 0.4, 0.6, 0.8, 1, 1.2, 1.4]);
+        case "strength": return nums([0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]);
+        case "lora": return [{ v: "none", label: "none", title: "without the LoRA" },
+          ...[...new Set([...this.form.loras.map((l) => l.name), ...this.compatibleLoras.slice(0, 15).map((l) => l.name)])]
+            .map((n) => ({ v: n, label: n.length > 18 ? n.slice(0, 17) + "…" : n, title: n }))];
+        default: return [];
+      }
+    },
+    cmpList(which) {
+      return String(this.cmp[which] || "").split(",").map((x) => x.trim()).filter(Boolean);
+    },
+    cmpHas(which, v) {
+      return this.cmpList(which).some((x) => x === v || (Number(x) === Number(v) && x !== "" && !isNaN(Number(x)) && !isNaN(Number(v))));
+    },
+    cmpToggle(which, v, axisKey) {
+      const axis = this.cmp[axisKey];
+      const order = this.cmpOptions(axis).map((o) => o.v);
+      let list = this.cmpList(which);
+      if (this.cmpHas(which, v)) list = list.filter((x) => !(x === v || (!isNaN(Number(x)) && Number(x) === Number(v))));
+      else list.push(v);
+      list.sort((a, b) => { const i = order.indexOf(a), j = order.indexOf(b); return (i < 0 ? 999 : i) - (j < 0 ? 999 : j); });
+      this.cmp[which] = list.join(", ");
+    },
     cmpHelp(axis) {
       return { cfg: "e.g. 4, 6, 8, 10  or  3-12 (+3)", steps: "e.g. 15, 25, 35", sampler: "sampler names, e.g. " + this.samplers.slice(0, 3).map((x) => x.id).join(", "),
                seed: "e.g. 1, 2, 3, 4", clip_skip: "e.g. 1, 2", lora_weight: "e.g. 0.4, 0.7, 1.0", lora: "LoRA names, comma-separated; “none” = without",
