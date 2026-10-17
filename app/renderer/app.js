@@ -103,6 +103,7 @@ const SAMPLER_PICKS = {
   flux: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
   flux2: { fast: ["flow_euler"], quality: [] },
 };
+const I2I_KINDS = ["img2img", "healed", "word_edit"];  // pictures made in Image to image
 const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "FLUX.2", sd2: "SD 2" };
 const OPTS_KEY = "beestudio.opts";
 const PERF_KEY = "protoart.perf";
@@ -354,6 +355,7 @@ const protoartApp = createApp({
             { h: "Version 1.2: new tools, and more of your testers' notes", items: [
               "<b>✨ Edit with words</b> (Image to image): describe a change (“make the jacket red”, “add a hat”, “turn it into a watercolour”) and FLUX.2 Klein makes just that change. Paint over a part to keep everything else exactly as it was, or add more pictures to take a style or an outfit from.",
               "<b>🎲 Random prompt speaks the model's language</b>: with FLUX, FLUX.2 or ERNIE picked it writes a scene in sentences (“Medium shot of a fisherman with a white beard, mending a net on a harbour wall at dawn…”); with SD 1.5 and SDXL it still writes tags. In Image to image, <b>FLUX.2 Klein</b> now shows at the top of the model list while Edit with words is on.",
+              "<b>Image to image</b> now has <b>✨ Enhance prompt</b> in its Prompt card (the same switch as in Create, plus <i>enhance now</i>), and the pictures it makes stay in Image to image and the Library instead of also filling Create's screen.",
               "<b>📝 Image → prompt reads pictures much better</b>: <b>Describe</b> now uses <b>Qwen3.5 4B</b>, a 2026 vision model running on the Mac's GPU, which writes a detailed prompt in sentences (subject, clothes, pose, setting, light, colours, framing, style), what FLUX, FLUX.2 and ERNIE read best. The first time it sets itself up and downloads ~3 GB; then it works offline. <b>Quick</b> is the older Florence-2, and <b>Tags</b> the Danbooru tagger. <b>CodeFormer</b> is now the default face model. The <b>TIPS</b> toggle sits at the top beside the Power / Busy / Fault lamps.",
               "<b>🩹 Remove objects right in Tools</b>: press <b>🖌 Paint</b> in the Remove module, paint on the picture on the left and press <b>🩹 Remove</b> (no trip to Image to image). The <b>TIPS</b> switch beside the Power / Busy / Fault lamps at the top turns the pop-up tips on and off.",
               "<b>Tools redesigned</b>: every tool (Run chain, Enhance, Restore faces, Depth map, Remove objects, Vectorize, Image → prompt) is now a tall rack module side by side; Enhance's less-used settings are under <i>fine-tune</i>, each with its controls and its own button. <b>Sampler picks</b> show just the top two for speed and for quality (the rest are in the list).",
@@ -1370,8 +1372,11 @@ const protoartApp = createApp({
     controlTypeInfo() {
       return this.controlTypes.find((t) => t.id === this.form.control.type);
     },
+    createSession() {  // Create's pictures: Image to image's results stay in Image to image (and the Library)
+      return this.session.filter((r) => !I2I_KINDS.includes(r.kind));
+    },
     i2iResults() {
-      return this.session.filter((r) => ["img2img", "healed", "word_edit"].includes(r.kind));
+      return this.session.filter((r) => I2I_KINDS.includes(r.kind));
     },
     i2iLatest() {
       return this.i2iResults[0] || null;
@@ -2735,8 +2740,8 @@ const protoartApp = createApp({
     hideFromSession(r) {
       this.session = this.session.filter((x) => x.id !== r.id);
     },
-    clearSession() {
-      this.session = [];
+    clearSession() {  // Create's "clear all": Image to image's results stay where they are
+      this.session = this.session.filter((r) => I2I_KINDS.includes(r.kind));
     },
 
     // -------------------------------------------------------------- generate

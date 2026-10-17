@@ -674,15 +674,15 @@
           · image {{ progress.image }}/{{ progress.images }} · step {{ progress.step }}/{{ progress.steps }}</template>
         </div>
       </div>
-      <div v-if="!session.length && !busy" class="empty">
+      <div v-if="!createSession.length && !busy" class="empty">
         <img src="assets/logo-round-512.png" class="empty-logo" alt="">
         <div class="empty-title">Protoart Studio</div>
         <div>Your images will appear here.</div>
       </div>
-      <div v-if="session.length" class="session-head hint">This session · {{ session.length }} picture{{ session.length === 1 ? '' : 's' }}
+      <div v-if="createSession.length" class="session-head hint">This session · {{ createSession.length }} picture{{ createSession.length === 1 ? '' : 's' }}
         · <button class="link" @click="clearSession" title="Take them off this screen; they stay in the Library">clear all</button>&nbsp;<span class="hint">(they stay in the Library)</span></div>
       <div class="gallery session-gallery">
-        <figure v-for="r in session" :key="r.id" @click="openDetail(r)" :class="{covered: covered(r)}">
+        <figure v-for="r in createSession" :key="r.id" @click="openDetail(r)" :class="{covered: covered(r)}">
           <img :src="thumbUrl(r)" loading="lazy" decoding="async"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
           <span v-if="r.kind && r.kind!=='generated'" class="badge">{{ kindLabel(r.kind) }}</span>
           <button class="close-x" @click.stop="hideFromSession(r)" title="Close: take it off this screen (it stays in the Library)">✕</button>
@@ -1717,6 +1717,16 @@
         <h3>3 · Prompt</h3>
         <textarea class="tape" v-model="form.prompt" rows="3"
                   :placeholder="form.i2i_mode === 'edit' ? 'The change, in a sentence: make the jacket red · add a hat · turn it into a watercolour…' : 'What the result should look like…'"></textarea>
+        <div v-if="form.i2i_mode !== 'edit' && form.i2i_mode !== 'remove'" class="row small i2i-enhance">
+          <label class="check" title="Before each picture, a small language model turns your prompt into a detailed one (the same switch as in Create)">
+            <input type="checkbox" v-model="form.enhance_prompt"> ✨ Enhance prompt when generating</label>
+          <button class="link" @click="enhanceNow" :disabled="!form.prompt.trim()" title="Rewrite the prompt now, so you can read and edit it first">enhance now</button>
+        </div>
+        <div v-if="lastEnhanced && form.i2i_mode !== 'edit'" class="enhanced-note">
+          <span class="hint">Enhanced:</span> {{ lastEnhanced.prompt }}
+          <button class="link" @click="form.prompt = lastEnhanced.prompt; form.enhance_prompt = false">use as my prompt</button>
+          <button class="link" @click="lastEnhanced = null">hide</button>
+        </div>
         <template v-if="form.i2i_mode !== 'edit'">
         <label>Negative prompt</label>
         <textarea class="tape tape-neg" v-model="form.negative_prompt" rows="2" placeholder="What to avoid…"></textarea>

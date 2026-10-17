@@ -2,6 +2,9 @@
 
 ## 1.2.0
 
+- Image to image: ✨ Enhance prompt switch and "enhance now" in its Prompt card (not for Edit with words or Remove);
+  its results (img2img, healed, word_edit) no longer appear in Create's session list (`createSession`, `I2I_KINDS`);
+  Create's "clear all" leaves them alone
 - 📝 Image → prompt "Describe": Qwen3.5 4B (Apache-2.0; `mlx-community/Qwen3.5-4B-MLX-4bit`, pinned revision 32f3e8e,
   ~3 GB) through mlx-vlm 0.7.4 in its own environment (`~/.protoartstudio/venv-vlm`, `backend/vlm.py`); a short-lived
   worker (`vlm_worker.py`) per picture so its memory is freed at once. Florence-2 is now "Quick"; the WD tagger "Tags".
