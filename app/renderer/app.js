@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["heal", "edit_words", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
@@ -891,6 +891,7 @@ const protoartApp = createApp({
       trigEdit: { name: "", text: "" },
       embeddings: [],
       vaes: [],
+      vaeByModel: loadJSON("protoart.vaeByModel", {}),   // model id -> the VAE you picked for it
       vaeFolder: "",
       userControlnets: [],
       controlnetFolder: "",
@@ -2253,6 +2254,7 @@ const protoartApp = createApp({
     async onModelChange() {
       const m = this.currentModel;
       if (!m) return;
+      this.pickVaeFor(m);
       if (this.opts.preload_on_pick) {
         clearTimeout(this.preloadTimer); // wait until you've settled on one
         this.preloadTimer = setTimeout(() => this.preloadModel(this.form.model), 1200);
@@ -3802,6 +3804,33 @@ const protoartApp = createApp({
       delete args.inpaint;
       const res = await this.runJob("generate", args);
       if (res) this.models = await call("list_models");
+    },
+    // VAE: each model remembers the VAE you used with it; a VAE made for another model type is never kept
+    pickVaeFor(m) {
+      const saved = (this.vaeByModel || {})[m.id];
+      const ok = (name) => this.vaes.some((v) => v.name === name && v.family === m.family);
+      this.form.vae = saved && ok(saved) ? saved : "";  // never a VAE made for another model type
+    },
+    rememberVae() {
+      if (!this.form.model) return;
+      this.vaeByModel = { ...(this.vaeByModel || {}), [this.form.model]: this.form.vae || "" };
+      saveJSON("protoart.vaeByModel", this.vaeByModel);
+    },
+    recommendedVae() {
+      const r = { sd15: { name: "vae-ft-mse-840000-ema-pruned", label: "vae-ft-mse (SD 1.5)", mb: 335 },
+                  sdxl: { name: "sdxl-vae-fp16-fix", label: "SDXL fp16-fix", mb: 335 } }[this.family];
+      return r && !this.vaes.some((v) => v.name === r.name) ? r : null;
+    },
+    async getRecommendedVae() {
+      const fam = this.family;
+      const row = await this.runJob("vae_get", { family: fam });
+      if (!row) return;
+      await this.refreshExtras(false);
+      if (this.family === fam) {
+        this.form.vae = row.name;
+        this.rememberVae();
+      }
+      this.status = `${row.name} is ready and picked for this model`;
     },
     async refreshExtras(all = true) {
       const [v, c] = await Promise.all([call("list_vaes").catch(() => null), call("list_controlnets").catch(() => null)]);

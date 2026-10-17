@@ -161,7 +161,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("heal", "edit_words", "vectorize", "preload", "nsfw_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -255,6 +255,8 @@ def job_label(cmd, a):
         return "Enhance prompt"
     if cmd == "heal":
         return "Remove (spot heal)" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
+    if cmd == "vae_get":
+        return "Download the recommended VAE"
     if cmd == "edit_words":
         return "Edit with words · " + ((a.get("prompt") or "")[:40] or "FLUX.2")
     if cmd == "vectorize":
@@ -1526,6 +1528,12 @@ def run_job(kind, a):
         return eng.vectorize(a)
     if kind == "edit_words":
         return eng.edit_words(a)
+    if kind == "vae_get":
+        import vaes
+        from engine import UserError
+        if net.strict:
+            raise UserError("Strict offline mode is on (Settings → Privacy): turn it off to download the VAE.")
+        return vaes.get_recommended(a.get("family"), emit=eng.emit)
     return eng.generate(a, force=settings["force_load"], low_memory=settings["low_memory"])
 
 

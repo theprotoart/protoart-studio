@@ -295,10 +295,10 @@
             <div v-for="(p, k) in wild.preview" :key="k" class="hint">• {{ p }}</div>
           </div>
         </div>
-        <div class="row small gen">
-          <button @click="randomPrompt" :title="naturalPrompts() ? 'A random scene written in sentences (what ' + familyLabel + ' reads best)' : 'A random Danbooru-style tag prompt'" class="gen-btn">🎲 Random prompt</button>
-          <button class="ghost gen-btn" @click="openWildcards" title="{red|blue} picks one per image; __name__ picks a line from a wildcard file">{ } Wildcards</button>
-          <button class="ghost gen-btn" @click="batch.open = true" title="Queue one job per line of a list of prompts">📋 Prompt list</button>
+        <div class="gen-keys">
+          <button class="gen-key" @click="randomPrompt" :title="naturalPrompts() ? 'A random scene written in sentences (what ' + familyLabel + ' reads best)' : 'A random Danbooru-style tag prompt'"><span>🎲</span><b>Random</b></button>
+          <button class="gen-key" :class="{on: wild.open}" @click="openWildcards" title="Wildcards: {red|blue} picks one per image; __name__ picks a line from a wildcard file"><span>{ }</span><b>Wildcards</b></button>
+          <button class="gen-key" :class="{on: batch.open}" @click="batch.open = true" title="Prompt list: queue one job per line of a list of prompts"><span>📋</span><b>List</b></button>
         </div>
         <div v-if="wild.open" class="wild-panel">
           <div class="hint">
@@ -573,11 +573,12 @@
         </div>
         <div v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="vae-row">
           <span class="clip-label" title="The VAE turns the model's internal picture into pixels. Another VAE can fix washed-out colours or blotches (e.g. vae-ft-mse for SD 1.5).">VAE</span>
-          <select v-model="form.vae" title="Use a VAE file instead of the model's own (Models tab → VAEs; Civitai VAEs download there)">
+          <select v-model="form.vae" @change="rememberVae" title="Use a VAE file instead of the model's own. Only VAEs made for this model type are listed, and each model remembers its own choice.">
             <option value="">the model's own</option>
             <option v-for="v in compatibleVaes" :key="v.name" :value="v.name">{{ v.name }}</option>
           </select>
-          <span v-if="!compatibleVaes.length" class="hint">none for {{ familyLabel }} yet: add some in the Models tab</span>
+          <button v-if="recommendedVae" class="link" @click="getRecommendedVae"
+                  :title="'Download ' + recommendedVae.label + ' (~' + recommendedVae.mb + ' MB, MIT licence) and use it with this model'">⤓ get {{ recommendedVae.label }}</button>
         </div>
         <template v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'">
           <label class="check" title="Make the picture at the model's natural size, then redraw it bigger so the detail is real (no doubled heads)">

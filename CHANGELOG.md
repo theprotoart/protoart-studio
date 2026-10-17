@@ -2,6 +2,10 @@
 
 ## 1.2.0
 
+- VAE: each model remembers its VAE (`protoart.vaeByModel`), a VAE for another model type is never kept, and Create
+  offers the recommended one in one click (`vae_get`: vae-ft-mse-840000 for SD 1.5, sdxl-vae-fp16-fix for SDXL, MIT,
+  pinned revisions)
+- Create: 🎲 Random / { } Wildcards / 📋 List as three bevelled keys in one row
 - 🛡 Safe-for-work mode (`settings.sfw_mode`, `bee_backend.sfw_check`): adult prompts, NSFW-marked or -named LoRAs and
   models refused in the engine; NSFW hidden and not openable; every picture checked; SFW lamp
 - VAEs: Civitai "VAE" downloads to `~/.protoartstudio/vaes` (`vaes.py`), Create → Extras → VAE swaps the pipeline's VAE

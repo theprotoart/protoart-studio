@@ -45,6 +45,43 @@ def list_vaes():
     return out
 
 
+# The usual VAE for each model type (both MIT licence), offered as one click in Create → VAE.
+RECOMMENDED = {
+    "sd15": {"repo": "stabilityai/sd-vae-ft-mse-original", "revision": "19abcd2d75bb1b188ea5fad5c80799b59c1ef974",
+             "files": ["vae-ft-mse-840000-ema-pruned.safetensors"], "name": "vae-ft-mse-840000-ema-pruned", "mb": 335,
+             "why": "sharper faces and fewer washed-out colours than SD 1.5's own"},
+    "sdxl": {"repo": "madebyollin/sdxl-vae-fp16-fix", "revision": "6d1073461cd0b5a6ea4fda10b812e3d9d58a8330",
+             "files": ["sdxl_vae.safetensors", "sdxl.vae.safetensors"], "name": "sdxl-vae-fp16-fix", "mb": 335,
+             "why": "the SDXL VAE fixed to work in half precision (no black or speckled pictures)"},
+}
+
+
+def get_recommended(family, emit=lambda m: None):
+    """Download the recommended VAE for SD 1.5 or SDXL into the VAE folder (once). Returns its row."""
+    import shutil
+    from huggingface_hub import hf_hub_download
+    rec = RECOMMENDED.get(family)
+    if rec is None:
+        raise ValueError("there's no recommended VAE for this model type")
+    have = find(rec["name"])
+    if have:
+        return have
+    emit({"type": "status", "msg": f"Downloading {rec['name']} (~{rec['mb']} MB, first time only)…"})
+    last = None
+    for fname in rec["files"]:
+        try:
+            src = hf_hub_download(rec["repo"], fname, revision=rec["revision"])
+            break
+        except Exception as e:  # the file may have another name in this repository: try the next
+            last = e
+    else:
+        raise last
+    paths.VAE_DIR.mkdir(parents=True, exist_ok=True)
+    dest = paths.VAE_DIR / (rec["name"] + ".safetensors")
+    shutil.copyfile(src, dest)
+    return find(rec["name"])
+
+
 def find(name):
     return next((v for v in list_vaes() if v["name"] == name), None)
 
