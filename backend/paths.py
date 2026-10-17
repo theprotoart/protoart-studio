@@ -24,10 +24,12 @@ MODELS_DIR = HOME / "models"  # user-supplied .safetensors checkpoints
 DB_PATH = HOME / "library.sqlite"
 WEIGHTS_DIR = HOME / "weights"  # RestoreFormer + face detector weights
 QUANT_DIR = HOME / "quantized"  # 8-bit copies Protoart Studio makes itself (e.g. SDXL)
+VAE_DIR = HOME / "vaes"  # VAE files (from Civitai or your own) for SD 1.5 / SDXL
+CONTROLNET_DIR = HOME / "controlnets"  # your own SD 1.5 ControlNet files (e.g. QR Code Monster from Civitai)
 
 
 def ensure_dirs():
-    for d in (HOME, IMAGES_DIR, LORAS_DIR, MODELS_DIR, WEIGHTS_DIR, QUANT_DIR):
+    for d in (HOME, IMAGES_DIR, LORAS_DIR, MODELS_DIR, WEIGHTS_DIR, QUANT_DIR, VAE_DIR, CONTROLNET_DIR):
         d.mkdir(parents=True, exist_ok=True)
 
 

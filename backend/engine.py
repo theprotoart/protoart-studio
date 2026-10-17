@@ -98,6 +98,18 @@ MODELS = {
         "download_gb": 18.0, "engine_gb": 1.5, "min_ram_gb": 32, "license": "Apache-2.0",
         "defaults": {"width": 1024, "height": 1024, "steps": 4, "cfg": 0.0},
     },
+    # FLUX.1 [dev] by Black Forest Labs: higher quality than Schnell (25 steps), for Macs with lots of memory. The
+    # official files (gated: accept the licence on Hugging Face and save a token in Settings → Models) are shrunk to
+    # 8-bit by the fast engine as they load. FLUX.1 [dev] Non-Commercial License: pictures for personal use only.
+    "flux_dev_mlx_q8": {
+        "label": "FLUX.1 Dev · 8-bit · ⚡ fast engine (32 GB Macs, non-commercial licence)", "family": "flux",
+        "quant": "Q8 MLX", "engine": "mlx", "mlx_repo": "black-forest-labs/FLUX.1-dev", "mlx_base": "dev",
+        "mlx_quantize": 8, "mlx_patterns": ["model_index.json", "transformer/*", "text_encoder/*", "text_encoder_2/*",
+                                             "tokenizer/*", "tokenizer_2/*", "vae/*", "scheduler/*"],
+        "download_gb": 33.5, "engine_gb": 1.5, "min_ram_gb": 32, "license": "FLUX.1 [dev] Non-Commercial",
+        "gated": True,
+        "defaults": {"width": 1024, "height": 1024, "steps": 25, "cfg": 3.5},
+    },
     # FLUX.2 [klein] 4B by Black Forest Labs (Apache-2.0, January 2026): a newer, smaller FLUX that follows
     # prompts and writes text better than FLUX.1 Schnell, in 4 steps. Its text encoder is Qwen3 (sentences in
     # many languages). A community 4-bit MLX conversion (~4.6 GB), pinned to one revision so the files can't
@@ -616,7 +628,8 @@ class Engine:
         from huggingface_hub import hf_hub_download, snapshot_download
         jobs = []
         if spec.get("engine") == "mlx":
-            jobs.append(lambda: snapshot_download(spec["mlx_repo"], revision=spec.get("mlx_revision")))
+            jobs.append(lambda: snapshot_download(spec["mlx_repo"], revision=spec.get("mlx_revision"),
+                                                      allow_patterns=spec.get("mlx_patterns")))
         elif spec.get("gguf_file"):
             jobs.append(lambda: hf_hub_download(spec["gguf_repo"], spec["gguf_file"]))
             jobs.append(lambda: snapshot_download(spec["repo"], ignore_patterns=["transformer/*", "pe/*", "pe_tokenizer/*"]))
@@ -730,6 +743,13 @@ class Engine:
         if spec.get("file") or spec.get("tdict") or spec.get("local_dir"):
             return True
         if spec.get("engine") == "mlx":
+            if spec.get("mlx_patterns"):
+                try:
+                    from huggingface_hub import snapshot_download
+                    snapshot_download(spec["mlx_repo"], local_files_only=True, allow_patterns=spec["mlx_patterns"])
+                    return True
+                except Exception:
+                    return False
             return self._is_cached(spec["mlx_repo"], revision=spec.get("mlx_revision"))
         if spec.get("hub_file"):
             from huggingface_hub import try_to_load_from_cache
@@ -1260,6 +1280,7 @@ class Engine:
         load_started = time.time()
         self.mlx.request({"cmd": "load", "repo": spec["mlx_repo"], "base": spec.get("mlx_base"),
                           "revision": spec.get("mlx_revision"), "variant": variant,
+                          "quantize": spec.get("mlx_quantize"), "patterns": spec.get("mlx_patterns"),
                           "label": spec["label"], "size_gb": spec.get("download_gb"),
                           "loras": loras, "low_ram": 0 < ram < 20,
                           "allow_download": bool(allow_download) and net.is_online()},
@@ -1742,7 +1763,7 @@ class Engine:
             if mask is not None:
                 raise UserError("Inpainting/expanding and ControlNet can't be combined yet: switch one off.")
             import controlnet as cnet
-            if control["type"] not in cnet.TYPES:
+            if not cnet.is_known(control["type"]):
                 raise UserError(f"Unknown ControlNet type: {control['type']}")
             src_path = args.get("control_image") or args.get("init_image")
             if not src_path:
@@ -1814,6 +1835,7 @@ class Engine:
         self.load(model_id, force=force, low_memory=low_memory)
         if self.cancel_event.is_set():  # stopped while the model was loading
             raise Cancelled()
+        self._apply_vae(args.get("vae"), family)
         fast = bool(args.get("fast")) and family in FAST_LORAS and mask is None
         extra = [(FAST_ADAPTER, self._fast_lora_file(family), 1.0, "Fast mode (LCM)")] if fast else None
         self.apply_loras(args.get("loras") or [], extra=extra)
@@ -2010,6 +2032,7 @@ class Engine:
                 "width": image.width, "height": image.height, "steps": steps, "cfg": cfg,
                 "sampler": sampler_id, "seed": img_seed, **({"fast": True} if fast else {}),
                 **({"clip_skip": clip_skip} if is_sd else {}),
+                **({"vae": args.get("vae")} if is_sd and args.get("vae") else {}),
                 "loras": [{"name": l["name"], "weight": float(l.get("weight", 1.0))} for l in args.get("loras") or []],
                 "seconds": round(time.time() - started, 1),
             }
@@ -2053,6 +2076,41 @@ class Engine:
             pipe.set_progress_bar_config(disable=True)  # progress goes to the app, not to the log
         except Exception:
             pass
+
+    def _apply_vae(self, name, family):
+        """Use a VAE file instead of the model's own (Create → VAE). The model's own is kept and put back when
+        you pick "the model's own" again; a new model always starts with its own."""
+        if family not in ("sd15", "sdxl") or self.pipe is None or not hasattr(self.pipe, "vae"):
+            return
+        want = name or None
+        st = getattr(self, "_vae_state", None)
+        if not st or st[0] != id(self.pipe):  # (an id, not the pipeline itself, so an unloaded model can be freed)
+            st = (id(self.pipe), None, self.pipe.vae)
+        if st[1] == want:
+            self._vae_state = st
+            return
+        orig = st[2]
+        if want is None:
+            self.pipe.vae = orig
+        else:
+            import vaes
+            v = vaes.find(want)
+            if v is None:
+                raise UserError(f"The VAE “{want}” isn't in the VAE folder any more: pick another in Create.")
+            if v["family"] != family:
+                raise UserError(f"The VAE “{want}” is for {'SDXL' if v['family'] == 'sdxl' else 'SD 1.5'} models, and this "
+                                f"is {'an SDXL' if family == 'sdxl' else 'an SD 1.5'} model: pick a matching VAE (or the model's own).")
+            self.emit({"type": "status", "msg": f"Loading the VAE {want}…"})
+            try:
+                vae = vaes.build(v["file"], orig)
+            except ValueError as e:
+                raise UserError(str(e) + ".")
+            self.pipe.vae = vae.to(device=orig.device, dtype=orig.dtype)
+        # pipelines made from this one hold the old VAE: make them again when needed
+        self.i2i_pipe = None
+        self.inp_pipe = None
+        self.cn_pipes = {}
+        self._vae_state = (id(self.pipe), want, orig)
 
     def _i2i_pipe(self):
         if self.i2i_pipe is None:

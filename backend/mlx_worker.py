@@ -54,15 +54,19 @@ class Worker:
         self.low_ram = False
         self.family = "ernie"
         self.revision = None
+        self.quantize = None
+        self.patterns = None
         self.f2_cache = {}   # FLUX.2: encoded prompts, so the text encoder can be dropped between prompts
 
     def load(self, repo, base="ernie-image-turbo", loras=None, low_ram=False, force=False, allow_download=False,
-             label=None, size_gb=None, revision=None, variant=None):
+             label=None, size_gb=None, revision=None, variant=None, quantize=None, patterns=None):
         loras = [tuple(x) for x in (loras or [])]
         variant = variant or None
         key = (repo, base, tuple(loras), variant)
         if revision is not None or not force:
             self.revision = revision
+        if not force:
+            self.quantize, self.patterns = quantize, patterns
         if self.model is not None and self.key == key and not force:
             return
         import mlx.core as mx
@@ -78,7 +82,8 @@ class Worker:
         if "/" in repo and not os.path.exists(repo):
             from huggingface_hub import snapshot_download
             try:
-                path = snapshot_download(repo, local_files_only=True, revision=self.revision)
+                path = snapshot_download(repo, local_files_only=True, revision=self.revision,
+                                         allow_patterns=getattr(self, "patterns", None))
             except Exception:
                 if not allow_download:
                     raise RuntimeError(f"offline: {name} isn't downloaded yet")
@@ -87,7 +92,7 @@ class Worker:
                 os.environ["HF_HUB_OFFLINE"] = "0"
                 send({"type": "status", "msg": f"Downloading {name} (first time only, ~{size_gb or '?'} GB)…"})
                 try:
-                    path = snapshot_download(repo, revision=self.revision)
+                    path = snapshot_download(repo, revision=self.revision, allow_patterns=getattr(self, "patterns", None))
                 finally:
                     hc.HF_HUB_OFFLINE = True
                     os.environ["HF_HUB_OFFLINE"] = "1"
@@ -97,7 +102,8 @@ class Worker:
         if self.family == "flux":
             from mflux.models.flux.variants.txt2img.flux import Flux1
             config = {"schnell": ModelConfig.schnell, "dev": ModelConfig.dev, "krea-dev": ModelConfig.krea_dev}[base]()
-            self.model = Flux1(model_path=path, model_config=config, **lora_kw)
+            q = getattr(self, "quantize", None)  # official full-size files: shrink while loading (FLUX.1 Dev)
+            self.model = Flux1(model_path=path, model_config=config, **({"quantize": int(q)} if q else {}), **lora_kw)
         elif self.family == "flux2":
             # "edit": the same weights, but it also looks at reference pictures (Image to image → Edit with words)
             from mflux.models.flux2.variants import Flux2Klein, Flux2KleinEdit
@@ -261,7 +267,8 @@ def main():
             if cmd == "load":
                 worker.load(msg["repo"], msg.get("base", "ernie-image-turbo"), msg.get("loras"), msg.get("low_ram"),
                             allow_download=bool(msg.get("allow_download")), label=msg.get("label"),
-                            size_gb=msg.get("size_gb"), revision=msg.get("revision"), variant=msg.get("variant"))
+                            size_gb=msg.get("size_gb"), revision=msg.get("revision"), variant=msg.get("variant"),
+                            quantize=msg.get("quantize"), patterns=msg.get("patterns"))
                 send({"type": "loaded"})
             elif cmd == "generate":
                 send({"type": "done", "path": worker.generate(msg)})

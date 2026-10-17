@@ -42,7 +42,57 @@ def list_types():
     out = []
     for k, (label, repo, hint, what) in TYPES.items():
         out.append({"id": k, "label": label, "map": what, "diffusionbee": bool(_dbee_file(hint, found))})
+    for u in user_files():
+        out.append({"id": "user:" + u["name"], "label": u["name"] + " (your ControlNet)", "map": "your picture as it is",
+                    "user": True, "size_mb": u["size_mb"]})
     return out
+
+
+def user_files():
+    """Your own SD 1.5 ControlNet files (~/.protoartstudio/controlnets, Civitai downloads go there)."""
+    import paths
+    d = paths.CONTROLNET_DIR
+    out = []
+    if d.is_dir():
+        for p in sorted(d.rglob("*.safetensors")):
+            if p.name.startswith("._"):
+                continue
+            try:
+                out.append({"name": p.stem, "file": str(p), "size_mb": round(p.stat().st_size / 1e6, 1)})
+            except OSError:
+                continue
+    return out
+
+
+def is_known(kind):
+    return kind in TYPES or (str(kind).startswith("user:") and any("user:" + u["name"] == kind for u in user_files()))
+
+
+def _load_user(kind, unet, dtype, emit):
+    """Your own ControlNet file, converted in place (no download): the same way DiffusionBee's are read."""
+    import diffusers
+    import torch
+    from safetensors.torch import load_file
+    name = kind[len("user:"):]
+    f = next((u["file"] for u in user_files() if u["name"] == name), None)
+    if not f:
+        raise ValueError(f"the ControlNet file “{name}” isn't in the ControlNet folder any more")
+    emit({"type": "status", "msg": f"Loading your ControlNet {name}…"})
+    ckpt = load_file(f)
+    cn = diffusers.ControlNetModel.from_unet(unet)
+    if any(k.startswith(("controlnet_down_blocks", "controlnet_cond_embedding")) for k in ckpt):
+        state = ckpt  # already in diffusers' layout
+    else:
+        from diffusers.loaders.single_file_utils import convert_controlnet_checkpoint
+        state = convert_controlnet_checkpoint(ckpt, cn.config)
+    missing, unexpected = cn.load_state_dict(state, strict=False)
+    print(f"[controlnet] {name}: {len(state)} weights, {len(missing)} missing, {len(unexpected)} unexpected", flush=True)
+    if len(missing) > 5:
+        raise ValueError(f"“{name}” doesn't look like an SD 1.5 ControlNet ({len(missing)} parts missing)")
+    if any(not torch.isfinite(p).all() for p in cn.parameters()):
+        raise ValueError(f"“{name}” has broken weights")
+    LAST_SOURCE[kind] = "user"
+    return cn.to(dtype=dtype)
 
 
 def _dbee_items():
@@ -77,6 +127,8 @@ def is_cached(kind):
 def load(kind, unet, dtype, emit=lambda m: None):
     """Return a diffusers ControlNetModel for this kind (SD 1.5)."""
     import diffusers
+    if str(kind).startswith("user:"):
+        return _load_user(kind, unet, dtype, emit)
     label, repo, hint, _ = TYPES[kind]
     dbee = None if kind in SKIP_DBEE else _dbee_file(hint)
     if dbee:
@@ -119,7 +171,7 @@ def make_map(kind, image, width, height, depth_estimator=None, already_map=False
     import cv2
     from PIL import Image, ImageFilter, ImageOps
     img = image.convert("RGB").resize((width, height), Image.LANCZOS)
-    if already_map or kind == "tile":
+    if already_map or kind == "tile" or str(kind).startswith("user:"):  # your own ControlNets follow the picture as it is
         return img
     arr = np.asarray(img)
     gray = cv2.cvtColor(arr, cv2.COLOR_RGB2GRAY)

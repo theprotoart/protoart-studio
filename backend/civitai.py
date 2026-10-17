@@ -128,7 +128,8 @@ def describe(model, version):
     fam, flavor = family_of(version.get("baseModel"))
     f = _pick_file(version.get("files"))
     kind = ("lora" if mtype in LORA_TYPES else "checkpoint" if mtype == "Checkpoint"
-            else "embedding" if mtype == "TextualInversion" else (mtype.lower() or "unknown"))
+            else "embedding" if mtype == "TextualInversion" else "vae" if mtype.upper() == "VAE"
+            else "controlnet" if mtype.lower() == "controlnet" else (mtype.lower() or "unknown"))
     notes, ok = [], True
     if f is None:
         ok = False
@@ -145,12 +146,20 @@ def describe(model, version):
         ok = False
         notes.append(f"{version.get('baseModel') or 'This'} embeddings can't be used: SD 1.5 and SDXL ones "
                      "(Pony, Illustrious and NoobAI included) can.")
+    elif kind == "vae" and fam not in ("sd15", "sdxl"):
+        ok = False
+        notes.append(f"{version.get('baseModel') or 'This'} VAEs can't be used: SD 1.5 and SDXL ones "
+                     "(Pony, Illustrious and NoobAI included) can.")
+    elif kind == "controlnet" and fam != "sd15":
+        ok = False
+        notes.append(f"{version.get('baseModel') or 'This'} ControlNets can't be used yet: SD 1.5 ones can.")
     elif kind == "lora" and fam is None:
         notes.append(f"Its base model ({version.get('baseModel') or 'not given'}) isn't one this app knows; "
                      "it's saved in your LoRA folder and its type is read from the file.")
-    elif kind not in ("lora", "checkpoint", "embedding"):
+    elif kind not in ("lora", "checkpoint", "embedding", "vae", "controlnet"):
         ok = False
-        notes.append(f"{mtype or 'This kind of file'} isn't supported yet (LoRAs, checkpoints and embeddings are).")
+        notes.append(f"{mtype or 'This kind of file'} isn't supported yet "
+                     "(LoRAs, checkpoints, embeddings, VAEs and SD 1.5 ControlNets are).")
     name = (model.get("name") or (version.get("model") or {}).get("name") or "civitai model").strip()
     return {
         "model_id": model.get("id") or version.get("modelId"), "version_id": version.get("id"),

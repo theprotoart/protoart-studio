@@ -51,6 +51,7 @@ when you first use them, and each comes with its own licence that you accept by 
 | ERNIE-Image | Apache-2.0 |
 | FLUX.1 [schnell] (Black Forest Labs; MLX conversions by mflux-community) | Apache-2.0 |
 | Qwen3.5 4B (Alibaba Qwen; 4-bit MLX conversion [mlx-community/Qwen3.5-4B-MLX-4bit](https://huggingface.co/mlx-community/Qwen3.5-4B-MLX-4bit), downloaded on first use, not bundled) | Apache-2.0 |
+| FLUX.1 [dev] (Black Forest Labs, official gated files, offered for Macs with 32 GB+) | FLUX.1 [dev] Non-Commercial License |
 | FLUX.2 [klein] 4B ([black-forest-labs/FLUX.2-klein-4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B); 4-bit MLX conversion [ar9av/FLUX.2-klein-4B-mflux-4bit](https://huggingface.co/ar9av/FLUX.2-klein-4B-mflux-4bit), downloaded on first use, not bundled) | Apache-2.0 (the original model). The conversion's model card carries a FLUX.1-dev non-commercial tag; check it before commercial use |
 | Juggernaut Reborn (enhancer) | CreativeML OpenRAIL-M |
 | 4x-UltraSharp (enhancer upscaler) | CC BY-NC-SA 4.0 (non-commercial) |

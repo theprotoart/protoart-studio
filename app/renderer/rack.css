@@ -1532,3 +1532,18 @@ button.bat-toggle:hover:not(:disabled), button.bat-toggle:active:not(:disabled) 
 .licence-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .licence-table td { padding: 5px 8px; border-bottom: 1px solid rgba(0, 0, 0, .18); vertical-align: top; }
 .licence-table td:first-child { width: 45%; }
+/* Safe-for-work mode */
+.sfw-box { display: flex; gap: 14px; align-items: center; padding: 10px 14px; margin: 6px 0 14px; border-radius: 3px;
+  background: rgba(0, 0, 0, .14); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .35), 0 1px 0 rgba(255, 255, 255, .3); }
+.sfw-box.on { box-shadow: inset 0 1px 3px rgba(0, 0, 0, .35), 0 0 0 1px rgba(90, 220, 90, .45); }
+.sfw-box .bat-toggle { display: grid; }
+.nsfw-switch.locked { opacity: .85; cursor: default; }
+/* Create → VAE; Models → Embeddings, VAEs & ControlNets */
+.vae-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.vae-row select { flex: 1; min-width: 0; }
+.extras-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0; }
+.extras-bar input { max-width: 220px; }
+.extras-bar .grow { flex: 1; }
+.extras-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.extras-table td { padding: 5px 8px; border-bottom: 1px solid rgba(0, 0, 0, .18); }
+.extras-table .path-cell { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

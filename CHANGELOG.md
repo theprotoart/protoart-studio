@@ -2,6 +2,15 @@
 
 ## 1.2.0
 
+- 🛡 Safe-for-work mode (`settings.sfw_mode`, `bee_backend.sfw_check`): adult prompts, NSFW-marked or -named LoRAs and
+  models refused in the engine; NSFW hidden and not openable; every picture checked; SFW lamp
+- VAEs: Civitai "VAE" downloads to `~/.protoartstudio/vaes` (`vaes.py`), Create → Extras → VAE swaps the pipeline's VAE
+  (`engine._apply_vae`, LDM files converted in place, no download); recorded in the picture's settings
+- Your own SD 1.5 ControlNets: Civitai "Controlnet" downloads to `~/.protoartstudio/controlnets`, listed as `user:<name>`
+  ControlNet types, converted in place like DiffusionBee's; they follow the picture as it is
+- Models tab: Embeddings, VAEs & ControlNets section (filter by type, search, open folder)
+- FLUX.1 Dev catalog entry (`flux_dev_mlx_q8`): official gated files (only the diffusers parts), 8-bit while loading
+  (`mlx_quantize`, `mlx_patterns`), 32 GB+, FLUX.1 [dev] Non-Commercial License
 - Tools: Original / Result / Split (draggable) / Side by side views in the picture window (`tool.view`, `cmpDrag`)
 - Brush-size ring following the pointer while painting (`brushAt`), shown on slider moves (`brushPreview`); a recessed
   metal size well beside each brush slider

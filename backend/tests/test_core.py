@@ -410,11 +410,17 @@ class SamplerTests(unittest.TestCase):
         import engine
         import preview
         flux = {k: v for k, v in engine.MODELS.items() if v["family"] == "flux"}
-        self.assertEqual(len(flux), 3)
-        for v in flux.values():
+        self.assertEqual(len(flux), 4)  # Schnell 3/4/8-bit + Dev
+        for k, v in flux.items():
             self.assertEqual(v["engine"], "mlx")
-            self.assertEqual(v["mlx_base"], "schnell")
-            self.assertEqual(v["defaults"]["steps"], 4)
+            if k.startswith("flux_schnell"):
+                self.assertEqual(v["mlx_base"], "schnell")
+                self.assertEqual(v["defaults"]["steps"], 4)
+        dev = engine.MODELS["flux_dev_mlx_q8"]
+        self.assertEqual(dev["mlx_base"], "dev")
+        self.assertGreaterEqual(dev["min_ram_gb"], 32)
+        self.assertIn("Non-Commercial", dev["license"])
+        self.assertNotIn("flux1-dev.safetensors", " ".join(dev["mlx_patterns"]))  # not the 23 GB single file too
         # FLUX packs 2x2 patches of 16 channels into 64 numbers per token
         h, w = 64, 96
         lat = np.random.rand(16, h // 8, w // 8).astype(np.float32)

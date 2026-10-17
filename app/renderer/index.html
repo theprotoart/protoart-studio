@@ -47,7 +47,7 @@
             <option v-for="p in presets" :key="p.id" :value="p.name">{{ p.name }}</option>
           </select>
           <button class="ghost" :disabled="!selectedPreset" @click="deletePreset" title="Delete preset">🗑</button>
-          <label class="check nsfw-switch" :class="{on: hideNsfw}" title="Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings."><input type="checkbox" :checked="hideNsfw" @change="setHideNsfw($event.target.checked)"> Hide NSFW</label>
+          <label class="check nsfw-switch" :class="{on: hideNsfw, locked: opts.sfw_mode}" :title="opts.sfw_mode ? 'Safe-for-work mode is on: NSFW stays hidden (Settings → Content filter)' : 'Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings.'"><input type="checkbox" :checked="hideNsfw" :disabled="opts.sfw_mode" @change="setHideNsfw($event.target.checked)"> {{ opts.sfw_mode ? '🛡 SFW' : 'Hide NSFW' }}</label>
         </div>
         <div class="slot-line">
           <input v-model="newPresetName" placeholder="Save current settings as…" @keyup.enter="savePreset">
@@ -103,7 +103,7 @@
         </div>
         <div class="slot-line">
           <label class="check"><input type="checkbox" v-model="lib.starred" @change="queryLibrary()"> ★ Starred only</label>
-          <label class="check nsfw-switch" :class="{on: hideNsfw}" title="Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings."><input type="checkbox" :checked="hideNsfw" @change="setHideNsfw($event.target.checked)"> Hide NSFW</label>
+          <label class="check nsfw-switch" :class="{on: hideNsfw, locked: opts.sfw_mode}" :title="opts.sfw_mode ? 'Safe-for-work mode is on: NSFW stays hidden (Settings → Content filter)' : 'Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings.'"><input type="checkbox" :checked="hideNsfw" :disabled="opts.sfw_mode" @change="setHideNsfw($event.target.checked)"> {{ opts.sfw_mode ? '🛡 SFW' : 'Hide NSFW' }}</label>
           <label class="check" :class="{on: opts.hide_people}" title="Hide pictures made with models or LoRAs you tagged ● People (made of real people). Same switch in Create and Settings."><input type="checkbox" :checked="opts.hide_people" @change="setHidePeople($event.target.checked)"> Hide People</label>
           <span class="hint">{{ libShown.length }} image{{ libShown.length===1?'':'s' }}<template v-if="hideNsfw && content.nsfw"> · {{ content.nsfw }} hidden</template><template v-if="libPeopleHidden"> · {{ libPeopleHidden }} People hidden</template></span>
           <span class="spacer"></span>
@@ -160,6 +160,7 @@
         <span title="Engine running"><i class="led green" :class="{on: !backendDead}"></i>Power</span>
         <span title="Working on a job"><i class="led amber" :class="{on: busy, blink: !!runningJob}"></i>Busy</span>
         <span title="Something went wrong (details in the window or in Settings → Backend log)"><i class="led red" :class="{on: backendDead || !!error}"></i>Fault</span>
+        <span v-if="opts.sfw_mode" title="Safe-for-work mode is on (Settings → Content filter)"><i class="led green on"></i>SFW</span>
       </div>
       <button class="bat-toggle" :class="{on: opts.tooltips !== false}" role="switch" :aria-checked="opts.tooltips !== false"
               @click="setTooltips(opts.tooltips === false)"
@@ -570,6 +571,14 @@
           LoRA “{{ clipSkipHint.name }}” was trained with CLIP skip {{ clipSkipHint.value }}
           <button class="link" @click="form.clip_skip = clipSkipHint.value">use {{ clipSkipHint.value }}</button>
         </div>
+        <div v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="vae-row">
+          <span class="clip-label" title="The VAE turns the model's internal picture into pixels. Another VAE can fix washed-out colours or blotches (e.g. vae-ft-mse for SD 1.5).">VAE</span>
+          <select v-model="form.vae" title="Use a VAE file instead of the model's own (Models tab → VAEs; Civitai VAEs download there)">
+            <option value="">the model's own</option>
+            <option v-for="v in compatibleVaes" :key="v.name" :value="v.name">{{ v.name }}</option>
+          </select>
+          <span v-if="!compatibleVaes.length" class="hint">none for {{ familyLabel }} yet: add some in the Models tab</span>
+        </div>
         <template v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'">
           <label class="check" title="Make the picture at the model's natural size, then redraw it bigger so the detail is real (no doubled heads)">
             <input type="checkbox" v-model="form.hires.on"> 🔍 Hi-res fix <span class="hint">sharp large images · {{ hiresTarget }}</span></label>
@@ -874,7 +883,7 @@
         </div>
       </section>
       <section class="mpanel" id="mp-civitai" :class="{open: mpanels.civitai}">
-        <h3 @click="toggleModelsPanel('civitai')"><i class="led" :class="{on: mpanels.civitai}"></i>Add from Civitai <span class="hint">· LoRAs, embeddings and SD 1.5 / SDXL / Pony checkpoints · {{ civ.keySet ? 'signed in (API key saved)' : 'needs a free account for most downloads' }}</span></h3>
+        <h3 @click="toggleModelsPanel('civitai')"><i class="led" :class="{on: mpanels.civitai}"></i>Add from Civitai <span class="hint">· LoRAs, embeddings, VAEs, SD 1.5 ControlNets and SD 1.5 / SDXL / Pony checkpoints · {{ civ.keySet ? 'signed in (API key saved)' : 'needs a free account for most downloads' }}</span></h3>
         <div v-if="mpanels.civitai" class="mpanel-body">
     <p class="hint">Paste the link of a model page on <a href="https://civitai.com/models" target="_blank">civitai.com</a>
       (pick the version on the page first, if it has several). It downloads into the right folder for its type, with its trigger words.</p>
@@ -1075,6 +1084,35 @@
       </div>
     </section>
     <div v-if="!shopModels.length" class="empty">No models match.</div>
+
+    <!-- Embeddings, VAEs and ControlNets: the smaller files that go with a model -->
+    <section class="card extras-card">
+      <h3>Embeddings, VAEs &amp; ControlNets <span class="hint">the smaller files that work with a base model</span></h3>
+      <div class="extras-bar">
+        <div class="seg">
+          <button v-for="t in [['emb', 'Embeddings', embeddings.length], ['vae', 'VAEs', vaes.length], ['cn', 'ControlNets', userControlnets.length]]" :key="t[0]"
+                  :class="{on: extras.tab === t[0]}" @click="extras.tab = t[0]">{{ t[1] }} <small>{{ t[2] }}</small></button>
+        </div>
+        <div v-if="extras.tab !== 'cn'" class="seg">
+          <button v-for="f in [['', 'All'], ['sd15', 'SD 1.5'], ['sdxl', 'SDXL']]" :key="f[0]" :class="{on: extras.family === f[0]}" @click="extras.family = f[0]">{{ f[1] }}</button>
+        </div>
+        <input v-model="extras.q" placeholder="Search…">
+        <span class="grow"></span>
+        <button class="ghost" @click="openFolder(extrasFolder)" title="Open the folder in Finder: drop files in, then press Refresh">Open folder</button>
+        <button class="ghost" @click="refreshExtras">↻ Refresh</button>
+      </div>
+      <p class="hint">{{ extras.tab === 'emb' ? 'Embeddings (textual inversion) add a word to the prompt or negative prompt. Use them from Create (click one under the negative prompt).'
+        : extras.tab === 'vae' ? 'Pick a VAE in Create → Extras → VAE. Civitai VAEs (e.g. vae-ft-mse-840000 for SD 1.5) download into this folder; .safetensors and .pt files work.'
+        : 'Your own SD 1.5 ControlNets (e.g. QR Code Monster from Civitai). Pick one in Image to image → ControlNet: it follows your picture as it is.' }}</p>
+      <table class="extras-table">
+        <tr v-for="x in extrasShown" :key="x.file || x.name">
+          <td><b>{{ x.name }}</b></td>
+          <td class="hint">{{ x.family ? familyName(x.family) : 'SD 1.5' }}<template v-if="x.size_mb"> · {{ x.size_mb }} MB</template></td>
+          <td class="hint path-cell" :title="x.file">{{ x.file }}</td>
+        </tr>
+        <tr v-if="!extrasShown.length"><td class="hint" colspan="3">Nothing here yet. Add from Civitai (above) or drop files into the folder.</td></tr>
+      </table>
+    </section>
   </main>
 
   <!-- ============================ TOOLS ============================ -->
@@ -2495,6 +2533,20 @@
     </section>
     <section class="set-sec">
     <h2>Content filter (NSFW)</h2>
+    <div class="sfw-box" :class="{on: opts.sfw_mode}">
+      <button class="bat-toggle" :class="{on: opts.sfw_mode}" role="switch" :aria-checked="!!opts.sfw_mode" @click="setSfwMode(!opts.sfw_mode)"
+              :title="opts.sfw_mode ? 'Safe-for-work mode is on: flip down to switch it off (asks first)' : 'Flip up to turn on safe-for-work mode (asks first)'">
+        <span class="bt-name">SFW</span>
+        <span class="bt-switch"><i class="bt-plate"></i><i class="bt-nut"></i><i class="bt-lever"></i><i class="bt-ball"></i></span>
+        <span class="bt-state">{{ opts.sfw_mode ? 'On' : 'Off' }}</span>
+      </button>
+      <div>
+        <b>🛡 Safe-for-work mode</b>
+        <p class="hint">For work, school, streaming or sharing a screen: prompts that ask for adult content are refused (checked in the
+          engine, not just on screen), NSFW LoRAs, models and embeddings can't be used and disappear from the lists, NSFW pictures
+          are hidden everywhere and can't be opened, and every new picture is checked on this Mac. An <b>SFW</b> lamp shows at the top while it's on.</p>
+      </div>
+    </div>
     <label class="check nsfw-switch" :class="{on: hideNsfw}"><input type="checkbox" :checked="hideNsfw" @change="setHideNsfw($event.target.checked)">
       Hide NSFW pictures, models and LoRAs</label>
     <p class="hint">The same switch is at the top of Create and Library. When it's on: NSFW pictures are left out of the Library
@@ -2695,7 +2747,7 @@
     <div class="detail">
       <div class="detail-img" :class="{covered: covered(detail) && !revealDetail}">
         <img :src="fileUrl(detail.path)">
-        <button v-if="covered(detail) && !revealDetail" class="nsfw-reveal" @click="revealDetail = true">Hidden by the NSFW filter · Show picture</button>
+        <button v-if="covered(detail) && !revealDetail" class="nsfw-reveal" :disabled="opts.sfw_mode" @click="revealDetail = true">{{ opts.sfw_mode ? 'Hidden by safe-for-work mode' : 'Hidden by the NSFW filter · Show picture' }}</button>
       </div>
       <div class="meta">
         <p class="prompt">{{ detail.prompt }}</p>

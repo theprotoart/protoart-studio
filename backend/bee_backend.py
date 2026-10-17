@@ -160,7 +160,7 @@ def engine():
 
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
-            "embed_meta": "details", "check_pictures": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
+            "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
 HEAVY = ("heal", "edit_words", "vectorize", "preload", "nsfw_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
@@ -751,6 +751,12 @@ def handle_quick(cmd, a):
                             "size_mb": i.get("size_mb")})
         return {"items": out, "default_out": str(paths.HOME / "converted"), "free_gb": round(
             __import__("shutil").disk_usage(paths.HOME).free / 2**30, 1)}
+    if cmd == "list_vaes":
+        import vaes
+        return {"vaes": vaes.list_vaes(), "folder": str(paths.VAE_DIR)}
+    if cmd == "list_controlnets":
+        import controlnet as cnet
+        return {"controlnets": cnet.user_files(), "folder": str(paths.CONTROLNET_DIR)}
     if cmd == "control_types":
         import controlnet as cnet
         return cnet.list_types()
@@ -1230,6 +1236,10 @@ def civitai_destinations(info):
         out.append({"path": embeddings.own_dir(), "label": "Protoart's embeddings folder"})
         out += [{"path": d, "label": os.path.basename(d.rstrip("/")) + " (your embeddings folder)"}
                 for d in embeddings.EXTRA_DIRS if os.path.isdir(d)]
+    elif info.get("kind") == "vae":
+        out.append({"path": str(paths.VAE_DIR), "label": "Protoart's VAE folder"})
+    elif info.get("kind") == "controlnet":
+        out.append({"path": str(paths.CONTROLNET_DIR), "label": "Protoart's ControlNet folder"})
     elif info.get("kind") == "checkpoint":
         out.append({"path": str(paths.MODELS_DIR), "label": "Your checkpoints (Protoart)"})
         out += [{"path": d, "label": os.path.basename(d.rstrip("/")) + " (watched models folder)"}
@@ -1442,7 +1452,34 @@ def convert_tdict_job(a, job_id):
     return {"converted": done, "errors": errors, "out_dir": out_dir}
 
 
+def sfw_check(kind, a):
+    """Safe-for-work mode: refuse prompts that ask for adult content, and LoRAs or models marked (or named) NSFW."""
+    if not settings.get("sfw_mode") or kind not in ("generate", "edit_words", "enhance_prompt"):
+        return
+    from engine import UserError
+    off = " (Safe-for-work mode is on; it can be switched off in Settings → Content filter.)"
+    texts = a.get("prompt")
+    for t in (texts if isinstance(texts, list) else [texts]):
+        if content.prompt_flag(t):
+            raise UserError("This prompt asks for adult content, so it wasn't made." + off)
+    marks = content.load_marks()
+    names = [l.get("name") for l in (a.get("loras") or []) if isinstance(l, dict)]
+    if names:
+        rows = {r["name"]: r for r in loras.all_loras(paths.LORAS_DIR)}
+        for n in names:
+            mark = (marks.get("loras") or {}).get(n)
+            auto = bool(rows.get(n, {}).get("nsfw_auto")) or content.name_flag(n)
+            if mark is True or (mark is None and auto):
+                raise UserError(f"The LoRA “{n}” is marked NSFW, so it can't be used." + off)
+    mid = a.get("model")
+    if kind == "generate" and mid:
+        mark = (marks.get("models") or {}).get(mid)
+        if mark is True or (mark is None and content.name_flag(mid)):
+            raise UserError("This model is marked NSFW, so it can't be used." + off)
+
+
 def run_job(kind, a):
+    sfw_check(kind, a)
     if kind == "convert_tdict":
         return convert_tdict_job(a, jobs.running["id"] if jobs.running else None)
     eng = engine()
@@ -1514,7 +1551,7 @@ def main():
                                  max(50, min(100, int(settings["jpeg_quality"] or 92))))
             eng.previews = bool(settings.get("previews", True))
             eng.embed_meta = "none" if settings.get("embed_meta") == "none" else "details"
-            eng.check_pictures = bool(settings.get("check_pictures"))
+            eng.check_pictures = bool(settings.get("check_pictures") or settings.get("sfw_mode"))
             try:
                 data = run_job(kind, a)  # offline first: uses only what's already on this Mac
             except Cancelled:

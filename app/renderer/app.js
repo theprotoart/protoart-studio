@@ -76,6 +76,7 @@ function defaultPost() {  // Tools settings on a fresh install
 function defaultForm() {
   return { model: "sdxl", prompt: "", negative_prompt: "", width: 1024, height: 1024, steps: 30, cfg: 6,
     sampler: "", seed: -1, num_images: 1, loras: [],
+    vae: "",
     restore_faces: false, face_strength: 0.8, face_model: "codeformer", face_fidelity: 0.5, enhance_prompt: false, clip_skip: 1, quality_tags: true,
     init_image: "", strength: 0.6, use_init_size: false, size_link: false, size_ratio: 1,
     fast: false, fast_prev: null, i2i_use_init: true, control_image: "",
@@ -313,7 +314,7 @@ const protoartApp = createApp({
                             // speed: get a model ready before you press Generate ("last" = the one you last used)
                             preload_start: "last", preload_on_pick: true,
                             // content filter (off until you turn it on)
-                            hide_nsfw: false, check_pictures: false, hide_people: false,
+                            hide_nsfw: false, check_pictures: false, hide_people: false, sfw_mode: false,
                             tooltips: true,       // quick tips when pointing at buttons (Settings → Look)
                             default_model: "" },   // the model Create starts with (Models tab → ☆ Default)
         loadJSON(OPTS_KEY, {})),
@@ -375,6 +376,7 @@ const protoartApp = createApp({
             { h: "Version 1.2: new tools, and more of your testers' notes", items: [
               "<b>✨ Edit with words</b> (Image to image): describe a change (“make the jacket red”, “add a hat”, “turn it into a watercolour”) and FLUX.2 Klein makes just that change. Paint over a part to keep everything else exactly as it was, or add more pictures to take a style or an outfit from.",
               "<b>🎲 Random prompt speaks the model's language</b>: with FLUX, FLUX.2 or ERNIE picked it writes a scene in sentences (“Medium shot of a fisherman with a white beard, mending a net on a harbour wall at dawn…”); with SD 1.5 and SDXL it still writes tags. In Image to image, <b>FLUX.2 Klein</b> now shows at the top of the model list while Edit with words is on.",
+              "<b>🛡 Safe-for-work mode</b> (Settings → Content filter): refuses prompts that ask for adult content, NSFW LoRAs and models, hides NSFW pictures everywhere (they can't be opened) and checks every new picture on this Mac. An SFW lamp shows at the top. <b>VAEs</b>: download them from Civitai (or drop files in the VAE folder) and pick one in Create → Extras → VAE (SD 1.5 and SDXL). <b>Your own ControlNets</b> (SD 1.5, e.g. QR Code Monster from Civitai) appear in Image to image → ControlNet and follow your picture as it is. The <b>Models</b> tab lists <b>Embeddings, VAEs &amp; ControlNets</b> with filters. <b>FLUX.1 Dev</b> (higher quality FLUX, 25 steps) is in the Models tab for Macs with 32 GB or more; it's free for personal use only (non-commercial licence) and needs a free Hugging Face account.",
               "<b>Compare in Tools</b>: after Enhance, Restore faces, Remove or a depth map, the picture window shows <b>Original / Result / Split / Side by side</b> (drag the line in Split). <b>Brush size</b>: a ring the size of the brush follows the pointer while you paint, and moving the size slider shows it on the picture; the metal well next to the slider shows the size too. <b>LoRA list</b>: sort A → Z, Z → A, biggest or smallest, and show only one kind (.safetensors, DiffusionBee, Pony…). <b>🔔 Sounds</b>: a chime when pictures or training are finished (switch in Settings, next to Tips). <b>How to</b> now starts with Community &amp; support (Discord, contact, report a problem) and the model licences.",
               "<b>Negative prompts that fit</b>: next to <i>Negative prompt</i> (Create and Image to image), <b>✨ suggest</b> writes one for your prompt and model type: tags for SD 1.5 / SDXL / Pony / Illustrious (with each one's low-quality tags), plain words for ERNIE and FLUX, plus the opposite of the style you asked for (a cartoon prompt avoids “realistic, photo”). <b>🎲 random</b> adds a few extra fixes each time. 🎲 Random prompt and ✨ enhance write a matching negative too, unless you typed your own. ✨ Enhance now writes tags for SDXL and Pony as well as SD 1.5, and in <b>Edit with words</b> it makes your instruction clearer. <b>📒 My prompts</b> keeps prompts you like (with their negative prompt) to use again.",
               "<b>Image to image</b> now has <b>✨ Enhance prompt</b> in its Prompt card (the same switch as in Create, plus <i>enhance now</i>), and the pictures it makes stay in Image to image and the Library instead of also filling Create's screen.",
@@ -888,6 +890,11 @@ const protoartApp = createApp({
       trigInfo: {},          // lora name -> {found, suggested, saved}
       trigEdit: { name: "", text: "" },
       embeddings: [],
+      vaes: [],
+      vaeFolder: "",
+      userControlnets: [],
+      controlnetFolder: "",
+      extras: { tab: "emb", family: "", q: "" },   // Models tab → Embeddings, VAEs & ControlNets
       loraDirs: { dirs: [], default: "" },
       embDirs: { dirs: [], default: "" },
       embMsg: "",
@@ -969,7 +976,7 @@ const protoartApp = createApp({
       return this.models.filter((m) => (this.isInstalled(m) || m.id === this.form.model) && this.safeModel(m));
     },
     hideNsfw() {
-      return !!this.opts.hide_nsfw;
+      return !!this.opts.hide_nsfw || !!this.opts.sfw_mode;  // safe-for-work mode always hides
     },
     libModels() {
       return this.models.filter((m) => this.safeModel(m));
@@ -1405,6 +1412,19 @@ const protoartApp = createApp({
     controlTypeInfo() {
       return this.controlTypes.find((t) => t.id === this.form.control.type);
     },
+    compatibleVaes() {
+      return this.vaes.filter((v) => v.family === this.family);
+    },
+    extrasFolder() {
+      return this.extras.tab === "vae" ? this.vaeFolder : this.extras.tab === "cn" ? this.controlnetFolder : (this.embDirs?.default || "");
+    },
+    extrasShown() {
+      const q = this.extras.q.trim().toLowerCase();
+      const list = this.extras.tab === "vae" ? this.vaes : this.extras.tab === "cn" ? this.userControlnets : this.embeddings;
+      return (list || []).filter((x) => (!q || (x.name || "").toLowerCase().includes(q))
+        && (this.extras.tab === "cn" || !this.extras.family || x.family === this.extras.family)
+        && !(this.hideNsfw && x.nsfw_auto)).slice(0, 400);
+    },
     createSession() {  // Create's pictures: Image to image's results stay in Image to image (and the Library)
       return this.session.filter((r) => !I2I_KINDS.includes(r.kind));
     },
@@ -1732,6 +1752,7 @@ const protoartApp = createApp({
         await this.refreshLoras();
         call("diffusionbee_info").then((d) => { this.dbee = d; }).catch(() => {});
         call("list_embeddings").then((e) => { this.embeddings = e; }).catch(() => {});
+        this.refreshExtras(false);
         call("embedding_dirs_get").then((d) => { this.embDirs = d; }).catch(() => {});
         call("adjust_presets_get").then((d) => { this.adjPresets = Array.isArray(d) ? d : []; }).catch(() => {});
         call("lora_dirs_get").then((d) => { this.loraDirs = d; }).catch(() => {});
@@ -2025,8 +2046,11 @@ const protoartApp = createApp({
       this.models = await call("list_models");
       await this.refreshLoras();
       await this.refreshEmbeddings();
+      await this.refreshExtras();
       this.status = this.civ.msg + (r.kind === "lora" ? " · it's in the LoRA list"
-        : r.kind === "embedding" ? " · click it above the negative prompt (with a model of its type)" : " · it's in Create's model list");
+        : r.kind === "embedding" ? " · click it above the negative prompt (with a model of its type)"
+        : r.kind === "vae" ? " · pick it in Create → Extras → VAE"
+        : r.kind === "controlnet" ? " · pick it in Image to image → ControlNet" : " · it's in Create's model list");
     },
     async civSaveKey(clear, thenDownload = false) {
       try {
@@ -3779,6 +3803,15 @@ const protoartApp = createApp({
       const res = await this.runJob("generate", args);
       if (res) this.models = await call("list_models");
     },
+    async refreshExtras(all = true) {
+      const [v, c] = await Promise.all([call("list_vaes").catch(() => null), call("list_controlnets").catch(() => null)]);
+      if (v) { this.vaes = v.vaes; this.vaeFolder = v.folder; }
+      if (c) { this.userControlnets = c.controlnets; this.controlnetFolder = c.folder; }
+      if (all) {
+        this.embeddings = await call("list_embeddings").catch(() => this.embeddings);
+        this.controlTypes = await call("control_types").catch(() => this.controlTypes);
+      }
+    },
     pickI2iModel(id) {  // Image to image's model list: FLUX.2 Klein means ✨ Edit with words; any other model leaves it
       if (id === "flux2_klein_mlx_q4") return this.setI2iMode("edit");
       if (this.form.i2i_mode === "edit") this.setI2iMode("change");
@@ -4128,6 +4161,10 @@ const protoartApp = createApp({
       }
     },
     openDetail(r) {
+      if (this.opts.sfw_mode && r && r.nsfw) {
+        this.status = "Hidden by safe-for-work mode";
+        return;
+      }
       this.detail = r;
       this.revealDetail = false;
     },
@@ -4624,7 +4661,25 @@ const protoartApp = createApp({
         Object.assign(this.content, await call("content_status"));
       } catch { /* older backend */ }
     },
+    async setSfwMode(on) {
+      const ok = on
+        ? await this.confirmAsk("Turn on safe-for-work mode?",
+            "Prompts that ask for adult content are refused, NSFW pictures, LoRAs, models and embeddings are hidden everywhere " +
+            "(and can't be opened), and every new picture is checked on this Mac. Good for work, school and sharing a screen.", "Turn on")
+        : await this.confirmAsk("Turn off safe-for-work mode?",
+            "Adult prompts, NSFW LoRAs and models will be allowed again. Hide NSFW stays as you set it.", "Turn off");
+      if (!ok) return;
+      this.opts.sfw_mode = !!on;
+      if (on) await this.setHideNsfw(true);  // drop NSFW LoRAs from the mix, switch away from an NSFW model
+      await this.saveOpts();
+      if (on && !this.opts.check_pictures) await this.setCheckPictures(true);
+      this.status = on ? "Safe-for-work mode is on" : "Safe-for-work mode is off";
+    },
     async setHideNsfw(on) {
+      if (!on && this.opts.sfw_mode) {
+        this.status = "Safe-for-work mode keeps NSFW hidden (switch it off in Settings → Content filter)";
+        return;
+      }
       this.opts.hide_nsfw = !!on;
       await this.saveOpts();
       if (on) {
