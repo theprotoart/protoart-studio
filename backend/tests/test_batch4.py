@@ -2,6 +2,7 @@
 import os
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 
@@ -160,6 +161,23 @@ class XlConfigTests(unittest.TestCase):
         cfg = controlnet.xl_config(small, unet)
         self.assertEqual(cfg["transformer_layers_per_block"], (1, 1, 1))
         self.assertEqual(cfg["mid_block_type"], "UNetMidBlock2D")
+
+    def test_sd15_last_block_stays_plain(self):
+        """SD 1.5 (e.g. the QR Pattern ControlNet): attention in down blocks 0-2 and the middle, none in block 3.
+        Block 3 must stay a plain DownBlock2D, or loading asks for 52 parts the file doesn't have."""
+        T = lambda *s: types.SimpleNamespace(shape=s)
+        unet = {"block_out_channels": [320, 640, 1280, 1280], "layers_per_block": 2, "cross_attention_dim": 768}
+        st = {"controlnet_cond_embedding.conv_in.weight": T(16, 3, 3, 3)}
+        for b in range(3):
+            for a in range(2):
+                st[f"down_blocks.{b}.attentions.{a}.transformer_blocks.0.attn1.to_q.weight"] = T(1, 1)
+        st["mid_block.attentions.0.transformer_blocks.0.attn1.to_q.weight"] = T(1, 1)
+        import controlnet
+        cfg = controlnet.xl_config(st, unet)
+        self.assertEqual(cfg["down_block_types"],
+                         ("CrossAttnDownBlock2D", "CrossAttnDownBlock2D", "CrossAttnDownBlock2D", "DownBlock2D"))
+        self.assertEqual(cfg["transformer_layers_per_block"], (1, 1, 1, 1))
+        self.assertEqual(cfg["mid_block_type"], "UNetMidBlock2DCrossAttn")
 
 
 if __name__ == "__main__":

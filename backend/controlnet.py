@@ -229,9 +229,12 @@ def xl_config(state, unet_config):
             mid = max(mid, int(m.group(1)) + 1)
     if mid and depth[-1] and mid != depth[-1]:
         raise ValueError("its middle and last blocks have different depths, which this app can't build yet")
-    if mid and not depth[-1]:
-        depth[-1] = mid
+    # SD 1.5: the last down block has no attention but the middle block does, so only the middle block's depth
+    # goes in the last slot (diffusers reads the middle block's depth from there); the down block stays plain
     down_types = tuple("CrossAttnDownBlock2D" if d else "DownBlock2D" for d in depth)
+    layers = [max(1, d) for d in depth]
+    if mid and not depth[-1]:
+        layers[-1] = mid
     # conditioning encoder: conv_in, then pairs of (same, downsample) convs; its channel list is read from the file
     cond = []
     if "controlnet_cond_embedding.conv_in.weight" in state:
@@ -247,7 +250,7 @@ def xl_config(state, unet_config):
             "num_class_embeds", "upcast_attention", "resnet_time_scale_shift", "projection_class_embeddings_input_dim",
             "encoder_hid_dim", "encoder_hid_dim_type", "addition_embed_type", "addition_time_embed_dim")
     cfg = {k: unet_config[k] for k in keep if k in unet_config}
-    cfg.update(down_block_types=down_types, transformer_layers_per_block=tuple(max(1, d) for d in depth),
+    cfg.update(down_block_types=down_types, transformer_layers_per_block=tuple(layers),
                mid_block_type="UNetMidBlock2DCrossAttn" if mid else "UNetMidBlock2D")
     if cond:
         cfg["conditioning_embedding_out_channels"] = tuple(cond)

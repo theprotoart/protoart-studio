@@ -2,6 +2,9 @@
 
 ## 1.2.1 (in progress)
 
+- Fixed: SD 1.5 ControlNets you add yourself (e.g. QR Code Monster / QR Pattern) failed to load with “doesn't match an
+  SD 1.5 ControlNet's layout (52 parts missing)”. `xl_config` no longer gives SD 1.5's last down block attention just
+  because the middle block has it
 - Models → Move to Trash: the list is refreshed at once (`list_models {fresh}` skips the 10 s folder-scan cache);
   your own model files that no longer exist aren't listed; Trash errors scroll the message into view
 - ⏳ Slow-settings warning before Generate on Macs under 24 GB (`slowWarnings`, `slowCheck`): ControlNet size,
