@@ -117,6 +117,21 @@ const I2I_KINDS = ["img2img", "healed", "word_edit"];  // pictures made in Image
 const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "FLUX.2", sd2: "SD 2" };
 const OPTS_KEY = "beestudio.opts";
 const PERF_KEY = "protoart.perf";
+// Tools → Patchbay: the back of the rack. Each module has an IN and an OUT jack; a cable from one module's OUT to the
+// next one's IN sets the order the picture goes through them (like an analog patchbay, or the back of Reason's rack).
+const PATCH_NODES = [
+  { id: "src", label: "PICTURE", sub: "your picture", out: true },
+  { id: "heal", label: "REMOVE", sub: "objects", icon: "🩹", in: true, out: true },
+  { id: "faces", label: "FACES", sub: "restore", icon: "🙂", in: true, out: true },
+  { id: "enhance", label: "ENHANCE", sub: "& upscale", icon: "✨", in: true, out: true },
+  { id: "depth", label: "DEPTH", sub: "map", icon: "🌊", in: true, out: true },
+  { id: "vector", label: "VECTOR", sub: "SVG", icon: "✒️", in: true, out: true },
+  { id: "result", label: "RESULT", sub: "to Library", in: true },
+];
+const PATCH_X = (i) => 78 + i * 140;           // jack columns in the panel's own 1000-wide drawing
+const PATCH_IN_Y = 118, PATCH_OUT_Y = 206;
+const CABLE_COLOURS = ["#c8372d", "#e0882a", "#2f7fc1", "#3d9a4b", "#d9b52c", "#8a4fb5"];
+const PATCH_DEFAULT = [{ from: "src", to: "enhance", c: 0 }, { from: "enhance", to: "faces", c: 1 }, { from: "faces", to: "result", c: 2 }];
 // Starting guesses (seconds per step per megapixel) until this Mac has real measurements.
 const DEFAULT_SPS_PER_MP = { sd15: 2.4, sdxl: 3.5, ernie: 9, flux: 12, flux2: 7 };
 const DEFAULT_LOAD_S = { sd15: 15, sdxl: 30, ernie: 60, flux: 60, flux2: 40 };
@@ -943,6 +958,11 @@ const protoartApp = createApp({
       dl: { path: "", default: "", custom: false, missing: null, free_gb: null, sizeGb: null, move: true, busy: false }, // downloaded-models folder
       modelSearch: "",
       tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false, promptText: "", view: "split", split: 0.5 },
+      PATCH_NODES,
+      patchInY: PATCH_IN_Y,
+      patchOutY: PATCH_OUT_Y,
+      patch: { on: loadJSON("protoart.patchOn", false), cables: loadJSON("protoart.patch", PATCH_DEFAULT),
+               drag: null, running: "", step: 0, steps: 0, stopped: false, msg: "" },
       freeConfirm: null,
       logs: "",
       backendDead: false,
@@ -1409,7 +1429,23 @@ const protoartApp = createApp({
       return this.queue.find((j) => j.cmd === "vectorize");
     },
     toolJob() {
-      return this.tool.working ? this.queue.find((j) => j.cmd === "postprocess") : null;
+      return this.tool.working ? this.queue.find((j) => ["postprocess", "heal", "vectorize"].includes(j.cmd)) : null;
+    },
+    patchChain() {  // the modules the picture goes through, in order: follow the cables from PICTURE's OUT
+      const out = [];
+      let at = "src";
+      const seen = new Set([at]);
+      for (;;) {
+        const c = this.patch.cables.find((x) => x.from === at);
+        if (!c || c.to === "result" || seen.has(c.to)) return { steps: out, done: !!c && c.to === "result" };
+        out.push(c.to);
+        seen.add(c.to);
+        at = c.to;
+      }
+    },
+    patchLoose() {  // modules with a cable that the picture never reaches (patched, but not from PICTURE)
+      const reached = new Set(["src", ...this.patchChain.steps]);
+      return this.patch.cables.filter((c) => !reached.has(c.from)).map((c) => c.from);
     },
     toolPct() {
       const j = this.toolJob;
@@ -2848,6 +2884,186 @@ const protoartApp = createApp({
     },
     async toolRestore() {
       return this.toolRun("Restoring faces", { action: "faces", ...this.faceArgs() });
+    },
+    // -------------------------------------------------------------- Tools → Patchbay
+    patchToggle() {
+      this.patch.on = !this.patch.on;
+      saveJSON("protoart.patchOn", this.patch.on);
+    },
+    patchSave() {
+      saveJSON("protoart.patch", this.patch.cables);
+    },
+    patchX(i) {
+      return PATCH_X(i);
+    },
+    patchJack(id, kind) {  // a jack's position in the panel's drawing
+      const i = PATCH_NODES.findIndex((n) => n.id === id);
+      return { x: PATCH_X(i), y: kind === "in" ? PATCH_IN_Y : PATCH_OUT_Y };
+    },
+    cablePath(a, b) {  // a hanging cable: it sags under its own weight, more the longer it is
+      const d = Math.hypot(b.x - a.x, b.y - a.y);
+      const sag = Math.min(70, 26 + d * 0.16);
+      return `M${a.x},${a.y} C${a.x + (b.x - a.x) * 0.15},${Math.max(a.y, b.y) + sag} ${b.x - (b.x - a.x) * 0.15},${Math.max(a.y, b.y) + sag} ${b.x},${b.y}`;
+    },
+    patchCablePath(c) {
+      return this.cablePath(this.patchJack(c.from, "out"), this.patchJack(c.to, "in"));
+    },
+    patchPoint(e) {  // the pointer in the panel's drawing coordinates
+      const svg = this.$refs.patchSvg;
+      if (!svg) return { x: 0, y: 0 };
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const m = svg.getScreenCTM();
+      return m ? pt.matrixTransform(m.inverse()) : { x: 0, y: 0 };
+    },
+    patchDown(id, kind, e) {
+      if (this.patch.running) return;
+      e.preventDefault();
+      const p = this.patchPoint(e);
+      if (this.patch.drag && this.patch.drag.armed) {  // second click of click-to-connect
+        if (kind === "in") return this.patchConnect(this.patch.drag.from, id, this.patch.drag.c);
+        this.patch.drag = null;
+        if (kind !== "out") return;
+      }
+      let from = id, c = this.nextCableColour();
+      if (kind === "out") {  // pull the cable out of this OUT (if there's one) and carry it
+        const i = this.patch.cables.findIndex((x) => x.from === id);
+        if (i >= 0) { c = this.patch.cables[i].c; this.patch.cables.splice(i, 1); }
+      } else {  // an IN: pull out the cable plugged in here and carry its loose end
+        const i = this.patch.cables.findIndex((x) => x.to === id);
+        if (i < 0) return;
+        from = this.patch.cables[i].from;
+        c = this.patch.cables[i].c;
+        this.patch.cables.splice(i, 1);
+      }
+      this.patch.drag = { from, c, x: p.x, y: p.y, sx: e.clientX, sy: e.clientY, armed: false };
+      this.patchSave();
+      window.ProtoSound?.play("plug");
+    },
+    patchMove(e) {
+      if (!this.patch.drag) return;
+      const p = this.patchPoint(e);
+      this.patch.drag.x = p.x;
+      this.patch.drag.y = p.y;
+    },
+    patchUp(e) {
+      const d = this.patch.drag;
+      if (!d || d.armed) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const jack = el && el.closest && el.closest("[data-in]");
+      if (jack) return this.patchConnect(d.from, jack.getAttribute("data-in"), d.c);
+      if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 6) {
+        d.armed = true;  // a click, not a drag: the cable follows the pointer until you click an IN
+        this.patch.msg = "Now click an IN jack to plug the cable in (click anywhere else to drop it)";
+        return;
+      }
+      this.patch.drag = null;  // let go in mid-air: the cable is put away
+    },
+    patchCancel() {
+      if (this.patch.drag) { this.patch.drag = null; this.patch.msg = ""; }
+    },
+    patchConnect(from, to, c) {
+      this.patch.drag = null;
+      this.patch.msg = "";
+      if (from === to) return;
+      if (from === "src" && to === "result") return (this.patch.msg = "Patch at least one module between PICTURE and RESULT.");
+      if (from === "vector" && to !== "result") return (this.patch.msg = "VECTOR makes an SVG drawing, so it can only go to RESULT (it has to be last).");
+      // no loops: the module being patched into mustn't already lead back here
+      let at = to;
+      for (let n = 0; n < 10; n++) {
+        const nx = this.patch.cables.find((x) => x.from === at);
+        if (!nx) break;
+        if (nx.to === from) return (this.patch.msg = "That would make a loop: the picture would go round for ever.");
+        at = nx.to;
+      }
+      this.patch.cables = this.patch.cables.filter((x) => x.to !== to && x.from !== from);  // one cable per jack
+      this.patch.cables.push({ from, to, c: c ?? this.nextCableColour() });
+      this.patchSave();
+      window.ProtoSound?.play("plug");
+    },
+    patchUnplug(i) {
+      if (this.patch.running) return;
+      this.patch.cables.splice(i, 1);
+      this.patchSave();
+    },
+    nextCableColour() {
+      const used = this.patch.cables.map((x) => x.c);
+      for (let k = 0; k < CABLE_COLOURS.length; k++) if (!used.includes(k)) return k;
+      return this.patch.cables.length % CABLE_COLOURS.length;
+    },
+    cableColour(c) {
+      return CABLE_COLOURS[(c || 0) % CABLE_COLOURS.length];
+    },
+    patchReset(kind) {
+      if (this.patch.running) return;
+      this.patch.cables = kind === "clear" ? [] : JSON.parse(JSON.stringify(PATCH_DEFAULT));
+      this.patch.msg = "";
+      this.patchSave();
+    },
+    patchStepLabel(id) {
+      return { heal: "Removing what you painted", faces: "Restoring faces", enhance: "Enhancing & upscaling",
+               depth: "Making a depth map", vector: "Vectorizing" }[id] || id;
+    },
+    async patchRun() {
+      const steps = this.patchChain.steps;
+      if (!this.tool.source) return (this.error = "Drop a picture into Tools first.");
+      if (!steps.length) return (this.error = "Patch a cable from PICTURE's OUT into a module's IN first.");
+      if (steps.includes("heal") && !(this.mask.data && this.mask.for === this.tool.source.path)) {
+        this.toolPaintRemove(true);
+        return (this.error = "REMOVE is patched in: paint over what to remove on the picture (Remove objects → 🖌 Paint is now on), then press ▶ Run patch again.");
+      }
+      this.error = "";
+      const mask = this.mask.data;
+      let cur = this.toolArgs();
+      let last = null;
+      this.patch.steps = steps.length;
+      this.patch.stopped = false;
+      this.tool.latest = null;
+      try {
+        for (let k = 0; k < steps.length; k++) {
+          const id = steps[k];
+          this.patch.running = id;
+          this.patch.step = k + 1;
+          this.tool.working = { label: `Patch ${k + 1}/${steps.length} · ${this.patchStepLabel(id)}`, started: Date.now() };
+          let rec = null;
+          if (id === "heal") {
+            rec = await this.runJob("heal", { ...cur, mask, method: this.form.heal_method || "lama" });
+          } else if (id === "faces") {
+            rec = await this.runJob("postprocess", { ...cur, action: "faces", ...this.faceArgs() });
+          } else if (id === "enhance") {
+            const { seed, ...options } = this.post.enh;
+            rec = await this.runJob("postprocess", { ...cur, action: "enhance", seed, options });
+          } else if (id === "depth") {
+            rec = await this.runJob("postprocess", { ...cur, action: "depth", depth_model: this.post.depth.model, style: this.post.depth.style });
+          } else if (id === "vector") {
+            const v = this.post.vec;
+            rec = await this.runJob("vectorize", { ...cur, colors: v.colors, detail: v.detail, smooth: v.smooth });
+            if (rec) this.vecResult = rec;
+          }
+          if (!rec || this.patch.stopped) {
+            if (!this.error) this.status = `Patch stopped at step ${k + 1} (${this.patchStepLabel(id).toLowerCase()})`;
+            break;
+          }
+          if (id !== "vector") {
+            last = rec;
+            this.afterPost(rec);
+            cur = rec.id != null ? { image_id: rec.id } : { path: rec.path };
+          }
+          if (k === steps.length - 1) this.status = `Patch done: ${steps.length} step${steps.length === 1 ? "" : "s"}` + (id === "vector" ? " (the SVG is in Vectorize)" : "");
+        }
+      } finally {
+        this.tool.working = null;
+        this.patch.running = "";
+        if (last) {
+          this.tool.latest = last;
+          if (this.tool.healing) { this.tool.healing = false; this.mask.data = null; }
+        }
+      }
+    },
+    patchStop() {
+      this.patch.stopped = true;
+      if (this.toolJob) this.cancelJob(this.toolJob.id);
     },
     faceArgs() {
       // Tools / picture detail: strength + which face model (RestoreFormer or CodeFormer) + CodeFormer fidelity

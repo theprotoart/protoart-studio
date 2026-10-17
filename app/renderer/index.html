@@ -1237,6 +1237,10 @@
 
     <section class="tool-actions">
       <div class="reset-all-row">
+        <button class="patch-toggle" :class="{on: patch.on}" @click="patchToggle"
+                :title="patch.on ? 'Hide the patchbay (your cables are kept)' : 'Show the patchbay: wire the tools together with cables to run them one after another, in the order you choose'">
+          <i class="patch-lamp"></i><span class="patch-lever"><b></b></span><span>PATCHBAY</span></button>
+        <span class="grow"></span>
         <button class="ghost small" @click="resetTools" title="Enhance, Restore faces and Depth back to their starting settings. Your Adjust presets, export presets and pictures aren't touched.">↺ Reset Tools settings</button>
         <button v-if="toolsUndo" class="link small" @click="undoResetTools">undo</button>
       </div>
@@ -1345,6 +1349,95 @@
           <button class="ghost" @click="closeAdjust">✕ Close Adjust</button>
           <span class="hint" v-if="adj.size">{{ adj.size[0] }}×{{ adj.size[1] }}</span>
         </div>
+      </div>
+      <!-- Patchbay: the back of the rack. Cables from one module's OUT to the next one's IN set the order. -->
+      <div v-if="patch.on" class="card patchbay-card" @pointerdown.self="patchCancel">
+        <svg ref="patchSvg" class="patchbay" viewBox="0 0 1000 300" role="img" aria-label="Patchbay: drag cables from OUT jacks to IN jacks"
+             @pointermove="patchMove" @pointerup="patchUp" @pointerdown.self="patchCancel">
+          <defs>
+            <linearGradient id="pbPanel" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#46596d"/><stop offset=".55" stop-color="#34445a"/><stop offset="1" stop-color="#2a3748"/>
+            </linearGradient>
+            <radialGradient id="pbNut" cx=".35" cy=".3" r=".8">
+              <stop offset="0" stop-color="#f4f5f6"/><stop offset=".5" stop-color="#b9bdc3"/><stop offset="1" stop-color="#6d7178"/>
+            </radialGradient>
+            <radialGradient id="pbHole" cx=".5" cy=".55" r=".6">
+              <stop offset="0" stop-color="#000"/><stop offset=".7" stop-color="#0b0c0e"/><stop offset="1" stop-color="#2b2e33"/>
+            </radialGradient>
+            <radialGradient id="pbScrew" cx=".35" cy=".3" r=".8">
+              <stop offset="0" stop-color="#e9eaec"/><stop offset="1" stop-color="#777b82"/>
+            </radialGradient>
+          </defs>
+          <rect x="0" y="0" width="1000" height="300" rx="6" fill="url(#pbPanel)" stroke="#11161d" stroke-width="2" @pointerdown="patchCancel"/>
+          <rect x="22" y="12" width="956" height="22" rx="2" fill="#1f2935" opacity=".7" pointer-events="none"/>
+          <text x="34" y="27" class="pb-silk pb-title" pointer-events="none">PATCHBAY · PB-7</text>
+          <text x="966" y="27" text-anchor="end" class="pb-silk" pointer-events="none">SIGNAL FLOWS  OUT ▸ IN</text>
+          <g v-for="sx in [10, 990]" :key="'sc' + sx" pointer-events="none">
+            <circle :cx="sx" cy="24" r="5" fill="url(#pbScrew)" stroke="#222" stroke-width=".8"/>
+            <circle :cx="sx" cy="276" r="5" fill="url(#pbScrew)" stroke="#222" stroke-width=".8"/>
+            <path :d="'M' + (sx - 3) + ',24 h6 M' + (sx - 3) + ',276 h6'" stroke="#444" stroke-width="1.2"/>
+          </g>
+          <g v-for="(n, i) in PATCH_NODES" :key="'pn' + n.id">
+            <line v-if="i > 0" :x1="patchX(i) - 70" :x2="patchX(i) - 70" y1="44" y2="262" stroke="#1d2631" stroke-width="1.5" pointer-events="none"/>
+            <line v-if="i > 0" :x1="patchX(i) - 68.5" :x2="patchX(i) - 68.5" y1="44" y2="262" stroke="#5d7085" stroke-width=".8" opacity=".5" pointer-events="none"/>
+            <circle :cx="patchX(i)" cy="50" r="4.5" class="pb-led" pointer-events="none"
+                    :class="{run: patch.running === n.id, chain: n.id === 'src' || n.id === 'result' ? patchChain.steps.length > 0 && (n.id === 'src' || patchChain.done) : patchChain.steps.includes(n.id), loose: patchLoose.includes(n.id)}"/>
+            <text :x="patchX(i)" y="72" text-anchor="middle" class="pb-silk pb-name" pointer-events="none">{{ n.icon ? n.icon + ' ' : '' }}{{ n.label }}</text>
+            <text :x="patchX(i)" y="86" text-anchor="middle" class="pb-silk pb-sub" pointer-events="none">{{ n.sub }}</text>
+            <template v-if="n.in">
+              <text :x="patchX(i)" y="102" text-anchor="middle" class="pb-silk pb-io" pointer-events="none">IN</text>
+              <g class="pb-jack" :data-in="n.id" @pointerdown="patchDown(n.id, 'in', $event)">
+                <circle :cx="patchX(i)" :cy="patchInY" r="16" fill="url(#pbNut)" stroke="#20252c" stroke-width="1.2"/>
+                <circle :cx="patchX(i)" :cy="patchInY" r="10.5" fill="#8d9198" stroke="#3a3e44" stroke-width="1"/>
+                <circle :cx="patchX(i)" :cy="patchInY" r="7" fill="url(#pbHole)"/>
+                <circle :cx="patchX(i)" :cy="patchInY" r="22" fill="transparent"/>
+              </g>
+            </template>
+            <template v-if="n.out">
+              <g class="pb-jack" @pointerdown="patchDown(n.id, 'out', $event)">
+                <circle :cx="patchX(i)" :cy="patchOutY" r="16" fill="url(#pbNut)" stroke="#20252c" stroke-width="1.2"/>
+                <circle :cx="patchX(i)" :cy="patchOutY" r="10.5" fill="#8d9198" stroke="#3a3e44" stroke-width="1"/>
+                <circle :cx="patchX(i)" :cy="patchOutY" r="7" fill="url(#pbHole)"/>
+                <circle :cx="patchX(i)" :cy="patchOutY" r="22" fill="transparent"/>
+              </g>
+              <text :x="patchX(i)" y="240" text-anchor="middle" class="pb-silk pb-io" pointer-events="none">OUT</text>
+            </template>
+            <text v-if="n.id === 'result'" :x="patchX(i)" y="206" text-anchor="middle" class="pb-silk pb-sub" pointer-events="none">▸ LIBRARY</text>
+          </g>
+          <g v-for="(c, i) in patch.cables" :key="'cb' + c.from + c.to" class="pb-cable" :class="{live: patch.running === c.to}"
+             @dblclick="patchUnplug(i)">
+            <path :d="patchCablePath(c)" class="pb-shadow" transform="translate(3,6)"/>
+            <path :d="patchCablePath(c)" class="pb-wire" :stroke="cableColour(c.c)"/>
+            <path :d="patchCablePath(c)" class="pb-shine"/>
+            <path v-if="patch.running === c.to" :d="patchCablePath(c)" class="pb-flow"/>
+            <g v-for="end in [patchJack(c.from, 'out'), patchJack(c.to, 'in')]" :key="end.x + '-' + end.y" pointer-events="none">
+              <circle :cx="end.x" :cy="end.y" r="11" fill="#1a1b1d"/>
+              <circle :cx="end.x" :cy="end.y" r="9" :fill="cableColour(c.c)"/>
+              <circle :cx="end.x - 2.5" :cy="end.y - 2.5" r="3.5" fill="#fff" opacity=".35"/>
+            </g>
+          </g>
+          <g v-if="patch.drag" class="pb-cable dragging" pointer-events="none">
+            <path :d="cablePath(patchJack(patch.drag.from, 'out'), patch.drag)" class="pb-shadow" transform="translate(3,6)"/>
+            <path :d="cablePath(patchJack(patch.drag.from, 'out'), patch.drag)" class="pb-wire" :stroke="cableColour(patch.drag.c)"/>
+            <path :d="cablePath(patchJack(patch.drag.from, 'out'), patch.drag)" class="pb-shine"/>
+            <circle :cx="patch.drag.x" :cy="patch.drag.y" r="9" :fill="cableColour(patch.drag.c)" stroke="#1a1b1d" stroke-width="2"/>
+          </g>
+        </svg>
+        <div class="patch-bar">
+          <div class="patch-readout" :title="'The order the picture goes through: ' + patchChain.steps.join(' → ')">
+            <span>PICTURE</span>
+            <template v-for="id in patchChain.steps" :key="'rd' + id"><b>▸</b><span :class="{run: patch.running === id}">{{ PATCH_NODES.find((n) => n.id === id).label }}</span></template>
+            <template v-if="patchChain.done"><b>▸</b><span>RESULT</span></template>
+            <em v-if="!patchChain.steps.length">no cables from PICTURE yet</em>
+          </div>
+          <button v-if="!patch.running" class="primary patch-run" :disabled="!tool.source || !patchChain.steps.length" @click="patchRun"
+                  :title="tool.source ? 'Run the picture through the patched modules, in cable order. Each module uses its own settings below.' : 'Drop a picture into Tools first'">▶ Run patch</button>
+          <button v-else class="danger patch-run" @click="patchStop" title="Stop after this step">■ Stop · {{ patch.step }}/{{ patch.steps }}</button>
+          <button class="ghost small" :disabled="!!patch.running" @click="patchReset('default')" title="Picture → Enhance → Faces → Result">↺ default</button>
+          <button class="ghost small" :disabled="!!patch.running || !patch.cables.length" @click="patchReset('clear')" title="Pull out every cable">clear cables</button>
+        </div>
+        <p class="hint patch-hint">{{ patch.msg || 'Drag from an OUT jack to an IN jack to plug a cable in (or click one, then the other). Drag a plugged-in end away, or double-click a cable, to unplug it. Each module uses its own settings below; REMOVE uses what you paint on the picture.' }}
+          <template v-if="patchLoose.length"> · <span class="warn-text">{{ patchLoose.length === 1 ? 'one module is' : patchLoose.length + ' modules are' }} patched but not reached from PICTURE, so {{ patchLoose.length === 1 ? 'it is' : 'they are' }} skipped.</span></template></p>
       </div>
       <!-- The single-job tools as tall rack modules, side by side (like 500-series studio gear) -->
       <div class="module-rack">

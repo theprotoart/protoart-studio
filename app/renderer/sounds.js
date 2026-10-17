@@ -1,5 +1,5 @@
-// Notification sounds: a short chime when pictures are finished, a two-note chime when training is done, and a
-// low tone when a job fails. Made on the fly with Web Audio (no sound files), warm and soft like a studio bell.
+// Notification sounds: a short chime when pictures are finished, a two-note chime when training is done, a
+// low tone when a job fails, and a click when a patch cable is plugged in (Tools → Patchbay). Made on the fly with Web Audio (no sound files), warm and soft like a studio bell.
 // Settings → Look → "🔔 Sounds" switches them off (stored per Mac in protoart.sounds).
 (function () {
   "use strict";
@@ -43,7 +43,29 @@
     }
   }
 
+  // a jack being plugged in: a short, dull mechanical click (filtered noise, two tiny hits)
+  function click(at, gain) {
+    const a = audio();
+    if (!a) return;
+    const t = a.currentTime + at;
+    const len = Math.floor(a.sampleRate * 0.03);
+    const buf = a.createBuffer(1, len, a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 6);
+    const src = a.createBufferSource();
+    src.buffer = buf;
+    const bp = a.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 1800;
+    bp.Q.value = 1.2;
+    const g = a.createGain();
+    g.gain.value = gain;
+    src.connect(bp).connect(g).connect(a.destination);
+    src.start(t);
+  }
+
   const SOUNDS = {
+    plug: () => { click(0, 0.5); click(0.045, 0.3); },
     done: () => { note(880, 0, 0.9, 0.18); note(1318.5, 0.11, 1.1, 0.14); },             // A5 → E6
     trained: () => { note(659.3, 0, 0.8, 0.16); note(880, 0.16, 0.8, 0.15); note(1318.5, 0.34, 1.4, 0.15); },
     error: () => { note(220, 0, 0.6, 0.16); note(196, 0.18, 0.8, 0.14); },

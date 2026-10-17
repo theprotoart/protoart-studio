@@ -1625,3 +1625,53 @@ button.cmp-key.on:hover:not(:disabled) { background: radial-gradient(ellipse at 
 .tips-btn.sfw-btn.on { box-shadow: 0 0 0 1px rgba(90, 220, 90, .6), 0 0 12px rgba(90, 220, 90, .35); }
 .sfw-note { padding: 8px 12px; border-radius: 3px; background: rgba(0, 0, 0, .12); }
 .warn-text { color: #e8a33a; }
+/* ---------- Tools → Patchbay (the back of the rack: jacks, hanging cables) ---------- */
+.reset-all-row { align-items: center; }
+.patch-toggle {
+  display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 8px; min-height: 0; border-radius: 3px;
+  font: 600 11px var(--f-eng); letter-spacing: .16em; color: #d9dbe0; cursor: pointer;
+  background: linear-gradient(#3b3e44, #26282c); border: 1px solid #0d0e10;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 1px 0 rgba(255, 255, 255, .06), 0 2px 4px rgba(0, 0, 0, .5);
+}
+.patch-toggle .patch-lamp { width: 8px; height: 8px; border-radius: 50%; background: #3a2a10; box-shadow: inset 0 1px 1px #000; }
+.patch-toggle.on .patch-lamp { background: var(--amber); box-shadow: 0 0 8px var(--amber), inset 0 -1px 1px rgba(0, 0, 0, .3); }
+.patch-toggle .patch-lever { position: relative; width: 26px; height: 14px; border-radius: 7px; background: #0d0e10;
+  box-shadow: inset 0 2px 3px #000, 0 1px 0 rgba(255, 255, 255, .12); }
+.patch-toggle .patch-lever b { position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; transition: left .12s;
+  background: radial-gradient(circle at 35% 30%, #fff, #b8bcc2 55%, #6b6f75); box-shadow: 0 1px 2px #000; }
+.patch-toggle.on .patch-lever b { left: 14px; }
+.patchbay-card { padding: 10px 10px 8px; margin-bottom: 14px; background: #1b1e23; }
+.patchbay { display: block; width: 100%; height: auto; overflow: visible; touch-action: none; user-select: none; -webkit-user-select: none; }
+.pb-silk { font-family: var(--f-eng); fill: #e9edf2; letter-spacing: .14em; }
+.pb-title { font-size: 12px; font-weight: 700; }
+.pb-name { font-size: 13px; font-weight: 700; }
+.pb-sub { font-size: 9.5px; fill: #b5c2cf; letter-spacing: .12em; text-transform: uppercase; }
+.pb-io { font-size: 9px; fill: #c9d3dd; font-weight: 700; }
+.pb-jack { cursor: grab; }
+.pb-jack:hover circle:first-child { stroke: var(--amber); stroke-width: 2; }
+.pb-led { fill: #2a2112; stroke: #0c0d0f; stroke-width: 1; }
+.pb-led.chain { fill: #57d36a; filter: drop-shadow(0 0 4px #57d36a); }
+.pb-led.loose { fill: #e8a33a; }
+.pb-led.run { fill: var(--amber); filter: drop-shadow(0 0 6px var(--amber)); animation: pbBlink .6s infinite alternate; }
+@keyframes pbBlink { to { opacity: .35; } }
+.pb-cable { cursor: pointer; }
+.pb-cable path { fill: none; stroke-linecap: round; }
+.pb-shadow { stroke: rgba(0, 0, 0, .45); stroke-width: 9; }
+.pb-wire { stroke-width: 7; }
+.pb-shine { stroke: #fff; stroke-width: 2; opacity: .28; transform: translate(-1px, -1.5px); }
+.pb-cable:hover .pb-wire { stroke-width: 8.5; }
+.pb-flow { stroke: #ffe39a; stroke-width: 3; stroke-dasharray: 6 14; animation: pbFlow .7s linear infinite; opacity: .9; }
+@keyframes pbFlow { to { stroke-dashoffset: -20; } }
+.pb-cable.dragging { opacity: .92; }
+.patch-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 2px 2px; }
+.patch-readout {
+  flex: 1 1 320px; min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 7px 12px; border-radius: 3px;
+  font: 600 13px var(--f-amber); letter-spacing: .1em; color: var(--amber); text-shadow: var(--amber-glow);
+  background: #0d0b08; box-shadow: inset 0 1px 3px #000, 0 1px 0 rgba(255, 255, 255, .12);
+}
+.patch-readout b { opacity: .55; font-weight: 400; }
+.patch-readout span.run { color: #fff3c4; animation: pbBlink .6s infinite alternate; }
+.patch-readout em { font-style: normal; opacity: .6; }
+.patch-run { min-width: 130px; }
+.patch-hint { margin: 6px 2px 0; }
+.reset-all-row .grow { flex: 1; }
