@@ -1,6 +1,7 @@
 """FLUX.2 [klein] on the fast engine: the model entry, telling its LoRAs from FLUX.1 ones, the live preview,
 and the prompt cache that lets small Macs drop the text encoder while drawing."""
 import sys
+import os
 import unittest
 from pathlib import Path
 
@@ -95,6 +96,37 @@ class PromptCacheTests(unittest.TestCase):
         self.assertEqual(mlx_worker._family("flux2-klein-4b"), "flux2")
         self.assertEqual(mlx_worker._family("schnell"), "flux")
         self.assertEqual(mlx_worker._family("ernie-image-turbo"), "ernie")
+
+
+
+
+class LoraBakeTests(unittest.TestCase):
+    def test_small_macs_keep_loras_unfolded(self):
+        import mlx_worker
+        old = os.environ.pop("PROTOART_BAKE_LORA", None)
+        try:
+            real = mlx_worker.total_ram_gb
+            mlx_worker.total_ram_gb = lambda: 8.0
+            self.assertFalse(mlx_worker.bake_loras())
+            mlx_worker.total_ram_gb = lambda: 64.0
+            self.assertTrue(mlx_worker.bake_loras())
+            os.environ["PROTOART_BAKE_LORA"] = "1"
+            mlx_worker.total_ram_gb = lambda: 8.0
+            self.assertTrue(mlx_worker.bake_loras())
+        finally:
+            mlx_worker.total_ram_gb = real
+            os.environ.pop("PROTOART_BAKE_LORA", None)
+            if old is not None:
+                os.environ["PROTOART_BAKE_LORA"] = old
+
+    def test_old_mflux_without_the_option(self):
+        import mlx_worker
+
+        class Old:
+            def __init__(self, model_path=None, lora_paths=None):
+                self.p = model_path
+
+        self.assertEqual(mlx_worker._make(Old, model_path="x", lora_paths=None, bake_lora=False).p, "x")
 
 
 if __name__ == "__main__":

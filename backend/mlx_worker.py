@@ -47,6 +47,33 @@ def _family(base):
 FAMILY_NAME = {"flux": "FLUX", "flux2": "FLUX.2", "ernie": "ERNIE"}
 
 
+def total_ram_gb():
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
+    except (ValueError, OSError, AttributeError):
+        return 0.0
+
+
+def bake_loras():
+    """Fold LoRAs into the model's weights only on Macs with room for the bigger result (24 GB or more), unless
+    PROTOART_BAKE_LORA says otherwise ("1" always, "0" never)."""
+    env = os.environ.get("PROTOART_BAKE_LORA")
+    if env in ("0", "1"):
+        return env == "1"
+    return total_ram_gb() >= 24
+
+
+def _make(cls, **kw):
+    """Build an mflux model; an mflux without the bake_lora option gets the call without it."""
+    try:
+        return cls(**kw)
+    except TypeError as e:
+        if "bake_lora" in kw and "bake_lora" in str(e):
+            kw.pop("bake_lora")
+            return cls(**kw)
+        raise
+
+
 class Worker:
     def __init__(self):
         self.model = None
@@ -99,21 +126,27 @@ class Worker:
         send({"type": "status", "msg": f"Loading {name} (fast engine)…"})
         t0 = time.time()
         lora_kw = dict(lora_paths=[p for p, _ in loras] or None, lora_scales=[float(s) for _, s in loras] or None)
+        if loras and not bake_loras():
+            # Keep LoRAs as small add-ons beside the 4-bit model instead of folding them in: folding re-saves every
+            # touched layer at 8 bits (a 4-bit step is too coarse for the LoRA's change), which doubles the model's
+            # size. On an 8 GB Mac that pushed ERNIE into swap (80–110 s a step instead of ~10–20). Unfolded, the
+            # whole LoRA is applied too (folding kept only part of it), for a little extra work per step.
+            lora_kw["bake_lora"] = False
         if self.family == "flux":
             from mflux.models.flux.variants.txt2img.flux import Flux1
             config = {"schnell": ModelConfig.schnell, "dev": ModelConfig.dev, "krea-dev": ModelConfig.krea_dev}[base]()
             q = getattr(self, "quantize", None)  # official full-size files: shrink while loading (FLUX.1 Dev)
-            self.model = Flux1(model_path=path, model_config=config, **({"quantize": int(q)} if q else {}), **lora_kw)
+            self.model = _make(Flux1, model_path=path, model_config=config, **({"quantize": int(q)} if q else {}), **lora_kw)
         elif self.family == "flux2":
             # "edit": the same weights, but it also looks at reference pictures (Image to image → Edit with words)
             from mflux.models.flux2.variants import Flux2Klein, Flux2KleinEdit
             cls = Flux2KleinEdit if variant == "edit" else Flux2Klein
-            self.model = cls(model_path=path, model_config=ModelConfig.flux2_klein_4b(), **lora_kw)
+            self.model = _make(cls, model_path=path, model_config=ModelConfig.flux2_klein_4b(), **lora_kw)
             self._cache_flux2_prompts(self.model)
         else:
             from mflux.models.ernie_image import ErnieImage
             config = ModelConfig.ernie_image_turbo() if base == "ernie-image-turbo" else ModelConfig.ernie_image()
-            self.model = ErnieImage(model_path=path, model_config=config, **lora_kw)
+            self.model = _make(ErnieImage, model_path=path, model_config=config, **lora_kw)
         self.key = key
         self.low_ram = bool(low_ram)
         if self.low_ram:

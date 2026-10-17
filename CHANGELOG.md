@@ -2,6 +2,9 @@
 
 ## 1.2.1 (in progress)
 
+- Fast engine LoRAs: not baked on Macs under 24 GB (`mlx_worker.bake_loras`, `bake_lora=False`; override with
+  `PROTOART_BAKE_LORA=0/1`). mflux re-quantizes every LoRA-touched q4 layer at q8 when baking, doubling the model:
+  FLUX.2 Klein went from 16.7 to 108 s/step and ERNIE to 80–113 s/step on an 8 GB M1. Unbaked, the full LoRA applies
 - Tools → 🔌 Patchbay (PATCHBAY toggle, `patch`, `PATCH_NODES`): an SVG back-of-rack panel with IN / OUT jacks for
   Remove, Faces, Enhance, Depth and Vector between PICTURE and RESULT; drag or click-click to patch, drag a plug or
   double-click to unplug; hanging cables (`cablePath`), one cable per jack, no loops, Vector last; ▶ Run patch runs
