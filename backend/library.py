@@ -53,7 +53,8 @@ CREATE TABLE IF NOT EXISTS presets (
 # Settings that make sense to store in a preset (prompt is optional).
 PRESET_KEYS = (
     "model", "sampler", "steps", "cfg", "width", "height", "loras",
-    "negative_prompt", "prompt", "use_pe", "num_images", "seed", "restore_faces", "face_strength", "enhance_prompt", "strength",
+    "negative_prompt", "prompt", "use_pe", "num_images", "seed", "restore_faces", "face_strength", "face_model", "face_fidelity",
+    "enhance_prompt", "strength",
 )
 
 

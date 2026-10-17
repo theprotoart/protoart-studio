@@ -1115,10 +1115,7 @@ class Engine:
                       f"({secs / max(1, steps):.2f}s/step)", flush=True)
                 face_info = None
                 if args.get("restore_faces"):
-                    fs = float(args.get("face_strength", 0.8))
-                    self.emit({"type": "status", "msg": "Restoring faces (RestoreFormer)…"})
-                    image, n_faces = self.get_face_restorer().restore(image, fs)
-                    face_info = {"strength": fs, "faces": n_faces}
+                    image, face_info = self._restore_faces(image, args)
                 settings = {
                     "model": model_id, "prompt": p_i, "negative_prompt": n_i,
                     "width": image.width, "height": image.height, "steps": steps, "cfg": cfg,
@@ -1921,10 +1918,7 @@ class Engine:
                   f"at {width}x{height} ({(time.time() - started) / max(1, steps):.2f}s/step)", flush=True)
             face_info = None
             if args.get("restore_faces"):
-                fs = float(args.get("face_strength", 0.8))
-                self.emit({"type": "status", "msg": "Restoring faces (RestoreFormer)…"})
-                image, n_faces = self.get_face_restorer().restore(image, fs)
-                face_info = {"strength": fs, "faces": n_faces}
+                image, face_info = self._restore_faces(image, args)
             if keep is not None:
                 keep.append(image)
 
@@ -2174,6 +2168,19 @@ class Engine:
             self.face_restorer = FaceRestorer(paths.WEIGHTS_DIR, self.device(), emit=self.emit)
         return self.face_restorer
 
+    def _restore_faces(self, image, args):
+        """Restore faces with the chosen model. Returns (image, info for the picture's settings)."""
+        from postprocess.face_restore import model_key, model_label
+        key = model_key(args.get("face_model"))
+        fs = float(args.get("face_strength") if args.get("face_strength") is not None else 0.8)
+        fid = float(args.get("face_fidelity") if args.get("face_fidelity") is not None else 0.5)
+        self.emit({"type": "status", "msg": f"Restoring faces ({model_label(key)})…"})
+        image, n_faces = self.get_face_restorer().restore(image, fs, model=key, fidelity=fid)
+        info = {"model": key, "strength": fs, "faces": n_faces}
+        if key == "codeformer":
+            info["fidelity"] = fid
+        return image, info
+
     def get_enhancer(self, force=False):
         if self.enhancer is None:
             from postprocess import finegrain
@@ -2281,19 +2288,19 @@ class Engine:
                     raise Cancelled()
                 settings["enhance"] = dict(used, seed=seed)
             else:
-                strength = float(args.get("strength", 0.8))
                 if len(steps) > 1 and 0 < total_ram_gb() < 16:
                     self.enhancer = None  # 8 GB Macs: free the enhancer before the face model
                     self.release_memory()
-                self.emit({"type": "status", "msg": "Restoring faces (RestoreFormer)…"})
-                restored, n = self.get_face_restorer().restore(out, strength)
-                if n == 0:
+                restored, info = self._restore_faces(out, {"face_strength": args.get("strength", 0.8),
+                                                           "face_model": args.get("face_model"),
+                                                           "face_fidelity": args.get("face_fidelity")})
+                if info["faces"] == 0:
                     if len(steps) == 1:
                         raise UserError("No faces were found in this image.")
                     self.emit({"type": "status", "msg": "No faces found; saved the enhanced image only"})
                 else:
                     out = restored
-                settings["face_restore"] = {"strength": strength, "faces": n}
+                settings["face_restore"] = info
         kind = {"faces": "faces", "enhance": "enhanced", "both": "enhanced", "depth": "depth"}[action]
 
         settings.update(width=out.width, height=out.height, seconds=round(time.time() - started, 1))

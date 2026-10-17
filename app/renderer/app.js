@@ -214,7 +214,7 @@ const protoartApp = createApp({
       form: Object.assign(
         { model: "sdxl", prompt: "", negative_prompt: "", width: 1024, height: 1024, steps: 30, cfg: 6,
           sampler: "", seed: -1, num_images: 1, loras: [],
-          restore_faces: false, face_strength: 0.8, enhance_prompt: false, clip_skip: 1, quality_tags: true,
+          restore_faces: false, face_strength: 0.8, face_model: "restoreformer", face_fidelity: 0.5, enhance_prompt: false, clip_skip: 1, quality_tags: true,
           init_image: "", strength: 0.6, use_init_size: false, size_link: false, size_ratio: 1,
           fast: false, fast_prev: null, i2i_use_init: true, control_image: "",
           control: { type: "", scale: 1.0, start: 0.0, end: 1.0, already_map: false },
@@ -253,6 +253,8 @@ const protoartApp = createApp({
       post: {
         depth: { model: "small", style: "gray" },
         face_strength: 0.8,
+        face_model: "restoreformer",   // or "codeformer"
+        face_fidelity: 0.5,            // CodeFormer only
         do_enhance: true,
         do_faces: false,
         enh: { upscale_factor: 2, num_inference_steps: 18, denoise_strength: 0.35, controlnet_scale: 0.6,
@@ -326,6 +328,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Version 1.2: a second face restorer", items: [
+              "<b>Restore faces now offers CodeFormer</b> as well as RestoreFormer, in Create, Tools and a picture's details. <b>RestoreFormer</b> stays the natural default; <b>CodeFormer</b> repairs badly blurred or damaged faces more strongly and has a <b>Fidelity</b> slider (low = cleanest face, high = keeps more of the person's own features). CodeFormer's licence allows <b>non-commercial use only</b>.",
+              "Both face models download once, the first time you use them, and are now checked against a pinned SHA-256 before loading. A damaged or tampered file is deleted and fetched again.",
+              "Each restored picture records which model, strength and fidelity were used in its settings." ] },
             { h: "Version 1.1: from our first testers' notes", items: [
               "<b>Train → Square framing</b>: training uses a square of every picture, and now you choose which part. Each picture gets <b>Crop · centre / top / bottom / left / right</b> or <b>Keep whole</b> (all of it, with the sides filled by a soft blur), one by one or for all at once. What each tile shows is what the training sees. <b>Save copies</b> writes square 512 / 768 / 1024 copies with their captions to a new folder (your originals aren't changed).",
               "<b>Image to image has its own LoRAs card</b>: add, remove and weigh LoRAs right there (the same LoRAs as Create, since both tabs use one model).",
@@ -446,7 +452,7 @@ const protoartApp = createApp({
               "<b>CLIP skip</b> (SD 1.5 / SDXL): reads your prompt from an earlier layer of the text encoder. <b>Off</b> is normal; <b>2</b> is what many anime-style models and LoRAs were made with and often follows their style better. 3–4 is looser.",
               "Each model starts on the CLIP skip it's meant for (marked <b>★</b>): <b>2</b> for anime-style SD 1.5 models (Anything, Counterfeit, MeinaMix…), <b>Off</b> for photo and general models. SDXL always reads prompts this way, so its scale starts at <b>Standard</b>. Change it any time; your choice is remembered for that model, and <i>use recommended</i> puts it back.",
               "If a LoRA's file says which CLIP skip it was trained with, a <i>use</i> link appears under the setting. It's saved with each image and in presets, and appears in the image's details.",
-              "<b>Restore faces</b> fixes faces right after each image is made (RestoreFormer)." ] },
+              "<b>Restore faces</b> fixes faces right after each image is made. Choose <b>RestoreFormer</b> (natural, the default) or <b>CodeFormer</b> (stronger repair, with a <b>Fidelity</b> slider; non-commercial licence)." ] },
           ] },
         { id: "models", go: "create", icon: "🧠", title: "Models & their defaults", summary: "Why each model starts with different settings, and CLIP skip",
           sections: [
@@ -510,7 +516,9 @@ const protoartApp = createApp({
               "Speed-ups from ProtoArt Beautify (automatic): the detail add-ons are merged into the model once; the fewest tiles that fit your Mac's memory (a 768 px picture is one tile instead of many); memory handed back to macOS after every pass; the upscaler in small pieces on 8 GB Macs.",
               "The result appears under the original with the time left; <b>■ Stop</b> works within seconds." ] },
             { h: "Restore faces", items: [
-              "Fixes blurry or distorted faces (RestoreFormer). The strength slider blends it with the original.",
+              "Fixes blurry or distorted faces. Pick the model: <b>RestoreFormer</b> is natural and faithful (the default); <b>CodeFormer</b> repairs badly blurred or damaged faces more strongly.",
+              "<b>Strength</b> blends the result with the original (0.7–0.8 looks most natural). <b>Fidelity</b> (CodeFormer only): low gives the cleanest face, high (0.7+) keeps more of the person's own features.",
+              "Each model downloads once, the first time you use it (RestoreFormer ~280 MB, CodeFormer ~360 MB), and is checked against a pinned SHA-256. CodeFormer's licence allows <b>non-commercial use only</b>.",
               "Tick both in <b>Run on this image</b> to enhance first, then restore faces, as one finished picture." ] },
             { h: "🎚 Adjust: light, colour and filters", items: [
               "Edits a picture the way Lightroom / Camera Raw and Nik Color Efex do, live on the Mac's graphics chip. It works in the <b>Tools</b> tab: press <b>🎚 Adjust the original</b> (or <b>Adjust the result</b> after enhancing) under the picture; <b>🎚 Adjust</b> in the Library's picture details and in Image to image brings the picture to Tools for you.",
@@ -2569,10 +2577,14 @@ const protoartApp = createApp({
       if (do_enhance && !do_faces) return this.toolEnhance();
       if (do_faces && !do_enhance) return this.toolRestore();
       const { seed, ...options } = this.post.enh;
-      return this.toolRun("Enhancing, then restoring faces", { action: "both", seed, options, strength: this.post.face_strength });
+      return this.toolRun("Enhancing, then restoring faces", { action: "both", seed, options, ...this.faceArgs() });
     },
     async toolRestore() {
-      return this.toolRun("Restoring faces", { action: "faces", strength: this.post.face_strength });
+      return this.toolRun("Restoring faces", { action: "faces", ...this.faceArgs() });
+    },
+    faceArgs() {
+      // Tools / picture detail: strength + which face model (RestoreFormer or CodeFormer) + CodeFormer fidelity
+      return { strength: this.post.face_strength, face_model: this.post.face_model, face_fidelity: this.post.face_fidelity };
     },
     async toolToPrompt(mode) {
       const res = await this.runJob("interrogate", { path: this.tool.source.path, mode, detail: "detailed" });
@@ -3563,7 +3575,7 @@ const protoartApp = createApp({
 
     // -------------------------------------------------------------- post-processing
     async restoreFaces(r) {
-      const rec = await this.runJob("postprocess", { action: "faces", image_id: r.id, strength: this.post.face_strength });
+      const rec = await this.runJob("postprocess", { action: "faces", image_id: r.id, ...this.faceArgs() });
       if (rec) this.afterPost(rec);
     },
     async enhance(r) {
@@ -3903,7 +3915,7 @@ const protoartApp = createApp({
         if (this.clipSkipOk && Number(f.clip_skip) > 1) on.push("CLIP skip " + f.clip_skip);
         if (f.hires && f.hires.on) on.push("Hi-res ×" + f.hires.scale);
         if (f.face_detailer && f.face_detailer.on) on.push("face detailer");
-        if (f.restore_faces) on.push("restore faces");
+        if (f.restore_faces) on.push("restore faces (" + (f.face_model === "codeformer" ? "CodeFormer" : "RestoreFormer") + ")");
         return on.length ? on.join(" · ") : "none";
       }
       return "";

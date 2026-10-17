@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0
+
+- Restore faces: **CodeFormer** added as a second model beside RestoreFormer, in Create, Tools and the picture details,
+  with a Fidelity slider (CodeFormer only). CodeFormer code (`backend/postprocess/codeformer_arch.py`) and weights are
+  S-Lab License 1.0, non-commercial; RestoreFormer stays the default
+- Face models are verified against pinned SHA-256 hashes after download (and re-fetched if damaged), loaded with
+  `torch.load(weights_only=True)`; the face detector is only prepared when faces are first restored
+- Restored pictures record the face model, strength and fidelity in their settings; presets keep the face model
+- Help → What's new and About updated
+
 ## 1.1.0
 
 From the first testers' notes:

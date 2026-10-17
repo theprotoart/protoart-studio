@@ -526,12 +526,21 @@
             <input v-model="form.face_detailer.prompt" class="det-prompt tape" placeholder="face prompt (optional, e.g. detailed eyes, smile)">
           </div>
         </template>
-        <label class="check"><input type="checkbox" v-model="form.restore_faces"> Restore faces (RestoreFormer)
+        <label class="check"><input type="checkbox" v-model="form.restore_faces"> Restore faces
           <span class="hint" v-if="form.face_detailer.on">· usually not needed with the face detailer</span></label>
         <div v-if="form.restore_faces" class="row">
+          <select v-model="form.face_model" title="RestoreFormer: natural, the default. CodeFormer: stronger repair, non-commercial licence.">
+            <option value="restoreformer">RestoreFormer</option>
+            <option value="codeformer">CodeFormer (non-commercial)</option>
+          </select>
           <span class="hint">strength</span>
           <input type="range" min="0.1" max="1" step="0.05" v-model.number="form.face_strength">
           <span class="hint">{{ form.face_strength.toFixed(2) }}</span>
+          <template v-if="form.face_model === 'codeformer'">
+            <span class="hint" title="Low: cleanest face. High: keeps more of the person's own features.">fidelity</span>
+            <input type="range" min="0" max="1" step="0.05" v-model.number="form.face_fidelity">
+            <span class="hint">{{ form.face_fidelity.toFixed(2) }}</span>
+          </template>
         </div>
       </section>
 
@@ -1212,11 +1221,24 @@
 
       <div class="card tool-opt" :class="{active: post.do_faces}" @click="post.do_faces = true"
            :title="post.do_faces ? '' : 'Click to use Restore faces'">
-        <h3>🙂 Restore faces <span class="hint">RestoreFormer</span></h3>
+        <h3>🙂 Restore faces <span class="hint">{{ post.face_model === 'codeformer' ? 'CodeFormer · non-commercial licence' : 'RestoreFormer' }}</span></h3>
+        <div class="row">
+          <span class="hint">model</span>
+          <select v-model="post.face_model" @click.stop
+                  title="RestoreFormer: natural and faithful (default). CodeFormer: stronger repair for blurry or damaged faces, non-commercial licence.">
+            <option value="restoreformer">RestoreFormer</option>
+            <option value="codeformer">CodeFormer</option>
+          </select>
+        </div>
         <div class="row">
           <span class="hint">strength</span>
           <input type="range" min="0.1" max="1" step="0.05" v-model.number="post.face_strength">
           <span class="hint">{{ post.face_strength.toFixed(2) }}</span>
+          <template v-if="post.face_model === 'codeformer'">
+            <span class="hint" title="Low: cleanest face. High: keeps more of the person's own features.">fidelity</span>
+            <input type="range" min="0" max="1" step="0.05" v-model.number="post.face_fidelity">
+            <span class="hint">{{ post.face_fidelity.toFixed(2) }}</span>
+          </template>
           <button :disabled="!tool.source" @click="toolRestore">Restore faces</button>
         </div>
       </div>
@@ -1868,7 +1890,7 @@
       <img src="assets/logo-round-512.png" alt="">
       <div>
         <h1>Protoart Studio</h1>
-        <p class="hint">Version 1.1 · AI image making that runs entirely on your Mac</p>
+        <p class="hint">Version 1.2 · AI image making that runs entirely on your Mac</p>
       </div>
     </div>
 
@@ -1923,9 +1945,10 @@
 
     <h2>About</h2>
     <p>Protoart Studio is a rebuild of the ideas behind DiffusionBee, made for older and smaller Macs, with ERNIE-Image, LoRA stacking
-      and training, presets, ControlNet, face restoration, enhancing, a searchable library and live previews.</p>
+      and training, presets, ControlNet, face restoration (RestoreFormer or CodeFormer), enhancing, a searchable library and live previews.</p>
     <p class="hint">Built on open-source work: Hugging Face diffusers &amp; transformers, PyTorch, Apple MLX and mflux (fast ERNIE engine),
-      ERNIE-Image (Baidu, Apache 2.0), Stable Diffusion (CreativeML OpenRAIL-M), ControlNet 1.1 (lllyasviel), RestoreFormer (via GFPGAN),
+      ERNIE-Image (Baidu, Apache 2.0), Stable Diffusion (CreativeML OpenRAIL-M), ControlNet 1.1 (lllyasviel), RestoreFormer (via GFPGAN, Apache 2.0),
+      CodeFormer (S-Lab License 1.0, non-commercial),
       the Finegrain Image Enhancer and refiners (MIT; its 4x-UltraSharp upscaler is CC BY-NC-SA 4.0, non-commercial),
       Florence-2 (MIT), WD tagger (Apache 2.0), Depth Anything V2, Electron and Vue.
       Models you download keep their own licences.</p>
@@ -2339,6 +2362,10 @@
         <div class="post">
           <div class="row">
             <span class="hint">Restore faces</span>
+            <select v-model="post.face_model" title="Face model">
+              <option value="restoreformer">RestoreFormer</option>
+              <option value="codeformer">CodeFormer</option>
+            </select>
             <input type="range" min="0.1" max="1" step="0.05" v-model.number="post.face_strength">
             <span class="hint">{{ post.face_strength.toFixed(2) }}</span>
             <button @click="restoreFaces(detail)">Restore</button>
