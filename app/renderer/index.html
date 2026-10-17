@@ -135,20 +135,20 @@
         <span class="eng slot-label">Look <span class="hint">{{ (SKIN_LIST.find(k => k.id === skin) || {}).title?.split(':')[0] }} · {{ theme === 'system' ? 'follows your Mac (light by day, dark at night)' : theme === 'dark' ? 'dark faceplate' : 'light faceplate' }}</span></span>
         <div class="look-row">
         <div class="seg">
-          <button :class="{on: theme === 'light'}" @click="setTheme('light')" title="Brushed aluminium faceplate">☀︎ Light</button>
-          <button :class="{on: theme === 'dark'}" @click="setTheme('dark')" title="Black anodised faceplate">☾ Dark</button>
-          <button :class="{on: theme === 'system'}" @click="setTheme('system')" title="Light or dark, following macOS (System Settings → Appearance)">Match macOS</button>
+          <button :class="{on: theme === 'light'}" @click="setTheme('light')" title="Brushed aluminium faceplate">☀︎<span class="lbl"> Light</span></button>
+          <button :class="{on: theme === 'dark'}" @click="setTheme('dark')" title="Black anodised faceplate">☾<span class="lbl"> Dark</span></button>
+          <button :class="{on: theme === 'system'}" @click="setTheme('system')" title="Light or dark, following macOS (System Settings → Appearance)"><span class="lbl">Match macOS</span><span class="short">Auto</span></button>
         </div>
         <div class="seg skin-pick" role="radiogroup" aria-label="Theme">
           <button v-for="k in SKIN_LIST" :key="k.id" :class="{on: skin === k.id}" @click="setSkin(k.id)" :title="k.title" role="radio" :aria-checked="skin === k.id">
-            <i class="skin-swatch" :class="k.id"></i>{{ k.label }}</button>
+            <i class="skin-swatch" :class="k.id"></i><span class="lbl">{{ k.label }}</span></button>
         </div>
         <button class="ghost tips-btn" :class="{on: opts.tooltips !== false}" @click="setTooltips(opts.tooltips === false)"
-                title="Show a short explanation when you point at a button or control (switch off once you know your way around)">💬 Tips {{ opts.tooltips === false ? 'off' : 'on' }}</button>
+                title="Show a short explanation when you point at a button or control (switch off once you know your way around)">💬<span class="lbl"> Tips {{ opts.tooltips === false ? 'off' : 'on' }}</span></button>
         <button class="ghost tips-btn" :class="{on: soundsOn}" @click="setSounds(!soundsOn)"
-                title="Play a short chime when pictures are finished or training is done (and a low tone if something fails)">🔔 Sounds {{ soundsOn ? 'on' : 'off' }}</button>
+                title="Play a short chime when pictures are finished or training is done (and a low tone if something fails)">🔔<span class="lbl"> Sounds {{ soundsOn ? 'on' : 'off' }}</span></button>
         <button class="ghost tips-btn sfw-btn" :class="{on: opts.sfw_mode}" @click="setSfwMode(!opts.sfw_mode)"
-                :title="opts.sfw_mode ? 'Safe-for-work mode is on: click to switch it off (asks first)' : 'Safe-for-work mode: refuse adult prompts, hide and block NSFW pictures, LoRAs and models (asks first)'">🛡 SFW {{ opts.sfw_mode ? 'on' : 'off' }}</button>
+                :title="opts.sfw_mode ? 'Safe-for-work mode is on: click to switch it off (asks first)' : 'Safe-for-work mode: refuse adult prompts, hide and block NSFW pictures, LoRAs and models (asks first)'">🛡<span class="lbl"> SFW {{ opts.sfw_mode ? 'on' : 'off' }}</span></button>
         </div>
       </div>
       <!-- other tabs: an engraved name plate -->
