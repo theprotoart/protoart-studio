@@ -478,7 +478,7 @@
             <div class="chips"><span class="hint">⚡ Fastest:</span>
               <button v-for="s in samplerPicks().fast" :key="'cf' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)"
                       :title="'Quick to a clean picture with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ s.label }}</button></div>
-            <div class="chips"><span class="hint">★ Best quality:</span>
+            <div v-if="samplerPicks().quality.length" class="chips"><span class="hint">★ Best quality:</span>
               <button v-for="s in samplerPicks().quality" :key="'cq' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)"
                       :title="'Most detailed results with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ s.label }}</button></div>
           </div></div>

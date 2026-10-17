@@ -1052,7 +1052,7 @@ select.rec-sampler { box-shadow: 0 0 0 1px rgba(120, 170, 255, .4), 0 0 8px rgba
 .tool-stops .tool-stop { min-width: 110px; justify-content: center; text-align: center; }
 /* Reuse prompt on the pictures */
 .gallery figure .to-i2i.reuse-top { top: 8px; bottom: auto; left: 8px; }
-.sampler-picks .chips { display: block; position: relative; padding-left: 96px; line-height: 0; }
+.sampler-picks .chips { display: block; position: relative; padding-left: 96px; line-height: 0; min-height: 24px; }
 .sampler-picks .chips > .hint { position: absolute; left: 0; top: 5px; line-height: 1.2; }
 .sampler-picks .chips > .chip { margin: 0 5px 5px 0; line-height: 1.3; }
 
