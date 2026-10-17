@@ -2479,7 +2479,7 @@
       <img src="assets/logo-round-512.png" alt="">
       <div>
         <h1>Protoart Studio</h1>
-        <p class="hint">Version 1.2 · AI image making that runs entirely on your Mac</p>
+        <p class="hint">Version 1.2.1 · AI image making that runs entirely on your Mac</p>
       </div>
     </div>
 
@@ -2494,13 +2494,22 @@
       <p class="hint">When reporting a problem, say what you did, what happened, and add a screenshot. Never share your Civitai key or Hugging Face token.</p>
     </div>
 
-    <div class="card licence-card">
-      <h3>📜 Model licences <span class="hint">each model has its own terms; check them before using pictures commercially</span></h3>
-      <table class="licence-table">
-        <tr v-for="l in LICENCES" :key="l.model"><td>{{ l.model }}</td><td><b>{{ l.licence }}</b><span v-if="l.note" class="hint"> · {{ l.note }}</span></td></tr>
-      </table>
-      <p class="hint">No model is included in the app: each downloads from its own page the first time you use it.
-        <button class="link" @click="openLink('notices')">Full list with links</button></p>
+    <div class="help-acc licence-acc">
+      <div class="acc-item" :class="{open: helpOpen === 'licences'}">
+        <button class="acc-head" @click="helpOpen = helpOpen === 'licences' ? '' : 'licences'" :aria-expanded="helpOpen === 'licences'">
+          <span class="acc-icon">📜</span>
+          <span class="acc-title">Model licences</span>
+          <span class="acc-sum hint">each model has its own terms; check them before using pictures commercially</span>
+          <span class="acc-chev">›</span>
+        </button>
+        <div class="acc-body"><div class="acc-inner">
+          <table class="licence-table">
+            <tr v-for="l in LICENCES" :key="l.model"><td>{{ l.model }}</td><td><b>{{ l.licence }}</b><span v-if="l.note" class="hint"> · {{ l.note }}</span></td></tr>
+          </table>
+          <p class="hint">No model is included in the app: each downloads from its own page the first time you use it.
+            <button class="link" @click="openLink('notices')">Full list with links</button></p>
+        </div></div>
+      </div>
     </div>
 
     <h2>Quick start</h2>

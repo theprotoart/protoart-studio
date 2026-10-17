@@ -1823,3 +1823,6 @@ button.cmp-key.on:hover:not(:disabled) { background: radial-gradient(ellipse at 
 .cn-rec-off { margin: 6px 0 2px; padding-left: 2px; list-style: none; }
 .cn-rec-off li { margin: 2px 0; color: #f0b27a; }
 .cn-rec-acts { gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+
+/* How to → 📜 Model licences: folds up like the tab sections */
+.licence-acc { margin: 0 0 18px; }

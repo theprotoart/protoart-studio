@@ -2,6 +2,7 @@
 
 ## 1.2.1 (test version)
 
+- How to: 📜 Model licences is a fold-out row (closed by default); the page says version 1.2.1
 - Removed: QR code / pattern ControlNet support (pattern picker, `qr.js`, `patterns.js`, Tools → Shape maker, the QR
   and brightness guides, the experimental float32 retries). They gave flat grey pictures on Apple Silicon.
   `controlnet.is_pattern_name`: QR / pattern ControlNet files are listed in Models as not supported and aren't offered
