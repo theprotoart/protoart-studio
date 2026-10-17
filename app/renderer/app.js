@@ -247,7 +247,17 @@ const protoartApp = createApp({
         { id: "plus", label: "Stronger", tip: "Follows the reference picture more closely (IP-Adapter Plus)" },
         { id: "face", label: "Face", tip: "Borrows a person's face from a close-up photo (IP-Adapter Plus Face)" },
       ],
-      mask: { erase: false, size: 40, data: null, for: "", painting: false, last: null },
+      mask: { erase: false, size: 40, data: null, for: "", painting: false, last: null,
+              tool: "brush", subtract: false, tolerance: 32 },
+      sel: null,           // a selection being drawn: {tool, pts, start, end, hover, sub}
+      SEL_TOOLS: [
+        { id: "brush", icon: "🖌", label: "Brush", tip: "Paint the area (B)" },
+        { id: "erase", icon: "🧽", label: "Erase", tip: "Rub out paint (E)" },
+        { id: "lasso", icon: "➰", label: "Lasso", tip: "Draw around an area freehand; it fills when you let go (L)" },
+        { id: "poly", icon: "⬠", label: "Polygon", tip: "Polygonal lasso: click the corners for straight edges; click the first point or double-click to close (P)" },
+        { id: "wand", icon: "🪄", label: "Wand", tip: "Magic wand: click a colour to pick the connected area of similar colour (W)" },
+        { id: "object", icon: "⬚", label: "Object", tip: "Object selection: drag a box around something and its outline is found (O)" },
+      ],
       brush: { show: false, x: 0, y: 0 },
       soundsOn: window.ProtoSound ? window.ProtoSound.enabled : true,
       LICENCES,
@@ -376,6 +386,7 @@ const protoartApp = createApp({
             { h: "Version 1.2: new tools, and more of your testers' notes", items: [
               "<b>✨ Edit with words</b> (Image to image): describe a change (“make the jacket red”, “add a hat”, “turn it into a watercolour”) and FLUX.2 Klein makes just that change. Paint over a part to keep everything else exactly as it was, or add more pictures to take a style or an outfit from.",
               "<b>🎲 Random prompt speaks the model's language</b>: with FLUX, FLUX.2 or ERNIE picked it writes a scene in sentences (“Medium shot of a fisherman with a white beard, mending a net on a harbour wall at dawn…”); with SD 1.5 and SDXL it still writes tags. In Image to image, <b>FLUX.2 Klein</b> now shows at the top of the model list while Edit with words is on.",
+              "<b>Selection tools</b> wherever you paint over a picture (Inpaint, Remove, Edit with words, Tools → Remove objects): <b>🖌 Brush</b>, <b>🧽 Erase</b>, <b>➰ Lasso</b> (draw around an area), <b>⬠ Polygon</b> (click the corners), <b>🪄 Wand</b> (click a colour; set the tolerance) and <b>⬚ Object</b> (drag a box and the object's outline is found). <b>＋ Add / － Subtract</b> (or hold ⌥ Option); keys B E L P W O; Esc cancels. <b>VAE</b>: each model remembers its VAE, only matching ones are listed, and <b>⤓ get</b> downloads the recommended one. <b>Random / Wildcards / List</b> are now three keys.",
               "<b>🛡 Safe-for-work mode</b> (Settings → Content filter): refuses prompts that ask for adult content, NSFW LoRAs and models, hides NSFW pictures everywhere (they can't be opened) and checks every new picture on this Mac. An SFW lamp shows at the top. <b>VAEs</b>: download them from Civitai (or drop files in the VAE folder) and pick one in Create → Extras → VAE (SD 1.5 and SDXL). <b>Your own ControlNets</b> (SD 1.5, e.g. QR Code Monster from Civitai) appear in Image to image → ControlNet and follow your picture as it is. The <b>Models</b> tab lists <b>Embeddings, VAEs &amp; ControlNets</b> with filters. <b>FLUX.1 Dev</b> (higher quality FLUX, 25 steps) is in the Models tab for Macs with 32 GB or more; it's free for personal use only (non-commercial licence) and needs a free Hugging Face account.",
               "<b>Compare in Tools</b>: after Enhance, Restore faces, Remove or a depth map, the picture window shows <b>Original / Result / Split / Side by side</b> (drag the line in Split). <b>Brush size</b>: a ring the size of the brush follows the pointer while you paint, and moving the size slider shows it on the picture; the metal well next to the slider shows the size too. <b>LoRA list</b>: sort A → Z, Z → A, biggest or smallest, and show only one kind (.safetensors, DiffusionBee, Pony…). <b>🔔 Sounds</b>: a chime when pictures or training are finished (switch in Settings, next to Tips). <b>How to</b> now starts with Community &amp; support (Discord, contact, report a problem) and the model licences.",
               "<b>Negative prompts that fit</b>: next to <i>Negative prompt</i> (Create and Image to image), <b>✨ suggest</b> writes one for your prompt and model type: tags for SD 1.5 / SDXL / Pony / Illustrious (with each one's low-quality tags), plain words for ERNIE and FLUX, plus the opposite of the style you asked for (a cartoon prompt avoids “realistic, photo”). <b>🎲 random</b> adds a few extra fixes each time. 🎲 Random prompt and ✨ enhance write a matching negative too, unless you typed your own. ✨ Enhance now writes tags for SDXL and Pony as well as SD 1.5, and in <b>Edit with words</b> it makes your instruction clearer. <b>📒 My prompts</b> keeps prompts you like (with their negative prompt) to use again.",
@@ -1670,6 +1681,7 @@ const protoartApp = createApp({
   async mounted() {
     window.ProtoTips?.setEnabled(this.opts.tooltips !== false);
     window.addEventListener("keydown", (e) => this.adjKey(e));  // Adjust: \ flips Edited / Original
+    window.addEventListener("keydown", (e) => this.selKey(e));  // painting: tool keys, Esc cancels a selection
     setInterval(() => {
       if (this.queue.length || Object.keys(this.stopping).length) this.now = Date.now();
       this.stopForGood();
@@ -2952,6 +2964,10 @@ const protoartApp = createApp({
       const scale = Math.min(1, 1024 / Math.max(img.naturalWidth, img.naturalHeight));
       cv.width = Math.round(img.naturalWidth * scale);
       cv.height = Math.round(img.naturalHeight * scale);
+      const sc = this.$refs.selCanvas;
+      if (sc) { sc.width = cv.width; sc.height = cv.height; }
+      this.sel = null;
+      this._wandPix = null;
       if (this.mask.data && this.mask.for === this.maskTarget()) {
         const prev = new Image();
         prev.onload = () => cv.getContext("2d").drawImage(prev, 0, 0, cv.width, cv.height);
@@ -2983,22 +2999,210 @@ const protoartApp = createApp({
     },
     maskDown(e) {
       if (!this.$refs.maskCanvas) return;
-      e.target.setPointerCapture?.(e.pointerId);
-      this.mask.painting = true;
+      const tool = this.mask.tool || "brush";
+      const sub = this.mask.subtract || e.altKey;
       const p = this.maskPoint(e);
-      this.mask.last = p;
-      this.maskDraw(p, p);
+      if (tool === "brush" || tool === "erase") {
+        e.target.setPointerCapture?.(e.pointerId);
+        this.mask.painting = true;
+        this.mask.erase = tool === "erase" || sub;
+        this.mask.last = p;
+        this.maskDraw(p, p);
+      } else if (tool === "lasso") {
+        e.target.setPointerCapture?.(e.pointerId);
+        this.sel = { tool, pts: [p], sub };
+      } else if (tool === "poly") {
+        if (!this.sel || this.sel.tool !== "poly") this.sel = { tool, pts: [p], sub };
+        else {
+          const f = this.sel.pts[0];
+          if (this.sel.pts.length > 2 && Math.hypot(p.x - f.x, p.y - f.y) < 10 * p.k) return this.selFinishPoly();
+          this.sel.pts.push(p);
+        }
+      } else if (tool === "object") {
+        e.target.setPointerCapture?.(e.pointerId);
+        this.sel = { tool, start: p, end: p, sub };
+      } else if (tool === "wand") {
+        this.wandAt(p, sub);
+      }
+      this.selDraw();
     },
     maskMove(e) {
-      if (!this.mask.painting) return;
+      const tool = this.mask.tool || "brush";
+      if (this.mask.painting && (tool === "brush" || tool === "erase")) {
+        const p = this.maskPoint(e);
+        this.maskDraw(this.mask.last, p);
+        this.mask.last = p;
+        return;
+      }
+      if (!this.sel) return;
       const p = this.maskPoint(e);
-      this.maskDraw(this.mask.last, p);
-      this.mask.last = p;
+      if (this.sel.tool === "lasso" && e.buttons) this.sel.pts.push(p);
+      else if (this.sel.tool === "poly") this.sel.hover = p;
+      else if (this.sel.tool === "object" && e.buttons) this.sel.end = p;
+      this.selDraw();
     },
     maskUp() {
-      if (!this.mask.painting) return;
-      this.mask.painting = false;
+      if (this.mask.painting) {
+        this.mask.painting = false;
+        this.mask.erase = (this.mask.tool || "brush") === "erase";
+        this.maskSave();
+        return;
+      }
+      const s = this.sel;
+      if (!s) return;
+      if (s.tool === "lasso") {
+        if (s.pts.length > 2) this.selFill(s.pts, s.sub);
+        this.sel = null;
+        this.selDraw();
+      } else if (s.tool === "object") {
+        this.sel = null;
+        this.selDraw();
+        const x0 = Math.min(s.start.x, s.end.x), y0 = Math.min(s.start.y, s.end.y);
+        const w = Math.abs(s.end.x - s.start.x), h = Math.abs(s.end.y - s.start.y);
+        if (w > 6 && h > 6) this.objectSelect(x0, y0, w, h, s.sub);
+      }
+    },
+    setMaskTool(id) {
+      this.mask.tool = id;
+      this.mask.erase = id === "erase";
+      this.sel = null;
+      this.selDraw();
+    },
+    selFinishPoly() {
+      const s = this.sel;
+      if (!s || s.tool !== "poly") return;
+      if (s.pts.length > 2) this.selFill(s.pts, s.sub);
+      this.sel = null;
+      this.selDraw();
+    },
+    selKey(e) {  // Esc cancels a selection; B E L P W O pick a tool (while a picture can be painted)
+      if (!this.$refs.maskCanvas || e.metaKey || e.ctrlKey) return;
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (e.key === "Escape" && this.sel) { this.sel = null; this.selDraw(); return; }
+      if (e.key === "Enter" && this.sel?.tool === "poly") { e.preventDefault(); return this.selFinishPoly(); }
+      const map = { b: "brush", e: "erase", l: "lasso", p: "poly", w: "wand", o: "object" };
+      const id = map[(e.key || "").toLowerCase()];
+      if (id) this.setMaskTool(id);
+    },
+    selDraw() {  // the dashed outline of a selection being drawn (on its own see-through layer)
+      const c = this.$refs.selCanvas;
+      if (!c) return;
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, c.width, c.height);
+      const s = this.sel;
+      if (!s) return;
+      const k = (s.pts && s.pts[0] && s.pts[0].k) || (s.start && s.start.k) || 1;
+      ctx.lineWidth = 1.5 * k;
+      const stroke = (path) => {
+        ctx.setLineDash([6 * k, 4 * k]);
+        ctx.strokeStyle = "#000"; path(); ctx.stroke();
+        ctx.lineDashOffset = 6 * k;
+        ctx.strokeStyle = "#fff"; path(); ctx.stroke();
+        ctx.lineDashOffset = 0;
+      };
+      if (s.tool === "object") {
+        stroke(() => { ctx.beginPath(); ctx.rect(Math.min(s.start.x, s.end.x), Math.min(s.start.y, s.end.y), Math.abs(s.end.x - s.start.x), Math.abs(s.end.y - s.start.y)); });
+        return;
+      }
+      const pts = s.tool === "poly" && s.hover ? [...s.pts, s.hover] : s.pts;
+      ctx.fillStyle = s.sub ? "rgba(255, 255, 255, .18)" : "rgba(255, 64, 129, .25)";
+      ctx.beginPath();
+      pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+      ctx.closePath();
+      ctx.fill();
+      stroke(() => { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); if (s.tool === "lasso") ctx.closePath(); });
+      if (s.tool === "poly") {  // corner points; the first one is where to click to close
+        s.pts.forEach((q, i) => { ctx.beginPath(); ctx.arc(q.x, q.y, (i ? 2.5 : 5) * k, 0, Math.PI * 2); ctx.fillStyle = i ? "#fff" : "rgba(255,200,80,.95)"; ctx.fill(); });
+      }
+    },
+    selFill(pts, sub) {  // fill a closed outline into the painted area (or cut it out)
+      const ctx = this.$refs.maskCanvas.getContext("2d");
+      ctx.globalCompositeOperation = sub ? "destination-out" : "source-over";
+      ctx.fillStyle = "rgba(255, 64, 129, 1)";
+      ctx.beginPath();
+      pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
       this.maskSave();
+    },
+    async wandPixels() {  // the picture's own pixels at the painting area's size (read from the file, not the screen)
+      const cv = this.$refs.maskCanvas;
+      const key = this.maskTarget() + "@" + cv.width + "x" + cv.height;
+      if (this._wandPix && this._wandPix.key === key) return this._wandPix;
+      const bmp = await createImageBitmap(new Blob([await this.readImageBytes(this.maskTarget())]));
+      const off = document.createElement("canvas");
+      off.width = cv.width;
+      off.height = cv.height;
+      const octx = off.getContext("2d");
+      octx.drawImage(bmp, 0, 0, cv.width, cv.height);
+      this._wandPix = { key, data: octx.getImageData(0, 0, cv.width, cv.height).data };
+      return this._wandPix;
+    },
+    async wandAt(p, sub) {  // magic wand: the connected area of similar colour around the click
+      const cv = this.$refs.maskCanvas;
+      let px;
+      try {
+        px = (await this.wandPixels()).data;
+      } catch (e) {
+        this.error = "The magic wand couldn't read this picture: " + (e.message || e);
+        return;
+      }
+      const W = cv.width, H = cv.height;
+      const x0 = Math.max(0, Math.min(W - 1, Math.round(p.x))), y0 = Math.max(0, Math.min(H - 1, Math.round(p.y)));
+      const i0 = (y0 * W + x0) * 4;
+      const r0 = px[i0], g0 = px[i0 + 1], b0 = px[i0 + 2];
+      const tol = this.mask.tolerance || 32;
+      const seen = new Uint8Array(W * H);
+      const stack = [y0 * W + x0];
+      seen[y0 * W + x0] = 1;
+      const out = new ImageData(W, H);
+      while (stack.length) {
+        const n = stack.pop();
+        const j = n * 4;
+        out.data[j] = 255; out.data[j + 1] = 64; out.data[j + 2] = 129; out.data[j + 3] = 255;
+        const x = n % W, y = (n - x) / W;
+        for (const m of [x > 0 ? n - 1 : -1, x < W - 1 ? n + 1 : -1, y > 0 ? n - W : -1, y < H - 1 ? n + W : -1]) {
+          if (m < 0 || seen[m]) continue;
+          const q = m * 4;
+          if (Math.max(Math.abs(px[q] - r0), Math.abs(px[q + 1] - g0), Math.abs(px[q + 2] - b0)) <= tol) {
+            seen[m] = 1;
+            stack.push(m);
+          }
+        }
+      }
+      this.selStamp(out, sub);
+    },
+    selStamp(imageData, sub) {  // add (or cut) a picked area into the painted area
+      const cv = this.$refs.maskCanvas;
+      const tmp = document.createElement("canvas");
+      tmp.width = cv.width;
+      tmp.height = cv.height;
+      tmp.getContext("2d").putImageData(imageData, 0, 0);
+      const ctx = cv.getContext("2d");
+      ctx.globalCompositeOperation = sub ? "destination-out" : "source-over";
+      ctx.drawImage(tmp, 0, 0);
+      ctx.globalCompositeOperation = "source-over";
+      this.maskSave();
+    },
+    async objectSelect(x, y, w, h, sub) {  // object selection: the outline of the thing inside the box (OpenCV GrabCut)
+      const cv = this.$refs.maskCanvas;
+      this.status = "Finding the object…";
+      try {
+        const r = await call("select_object", { path: this.maskTarget(), width: cv.width, height: cv.height,
+                                                rect: [x / cv.width, y / cv.height, w / cv.width, h / cv.height] });
+        const img = new Image();
+        await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = r.mask; });
+        const tmp = document.createElement("canvas");
+        tmp.width = cv.width;
+        tmp.height = cv.height;
+        tmp.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        this.selStamp(tmp.getContext("2d").getImageData(0, 0, cv.width, cv.height), sub);
+        this.status = r.found ? "Object selected: fix the edges with the brush or eraser if needed" : "Couldn't separate an object there: try a tighter box";
+      } catch (e) {
+        this.error = "Object selection failed: " + (e.message || e);
+      }
     },
     maskSave() {
       const cv = this.$refs.maskCanvas;

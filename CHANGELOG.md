@@ -2,6 +2,9 @@
 
 ## 1.2.0
 
+- Selection tools wherever you paint a mask: Brush, Erase, Lasso, Polygonal lasso, Magic wand (tolerance, connected
+  area, pixels read from the file), Object selection (box → OpenCV GrabCut, `select_object.py`, no download); Add /
+  Subtract (⌥), keys B E L P W O, Esc / Enter; dashed outlines drawn on their own layer
 - VAE: each model remembers its VAE (`protoart.vaeByModel`), a VAE for another model type is never kept, and Create
   offers the recommended one in one click (`vae_get`: vae-ft-mse-840000 for SD 1.5, sdxl-vae-fp16-fix for SDXL, MIT,
   pinned revisions)

@@ -753,6 +753,18 @@ def handle_quick(cmd, a):
                             "size_mb": i.get("size_mb")})
         return {"items": out, "default_out": str(paths.HOME / "converted"), "free_gb": round(
             __import__("shutil").disk_usage(paths.HOME).free / 2**30, 1)}
+    if cmd == "select_object":
+        import select_object
+        from PIL import Image, ImageOps
+        import pictures
+        src = a.get("path") or ""
+        if not os.path.isfile(src):
+            raise ValueError("Couldn't open the picture.")
+        image = ImageOps.exif_transpose(Image.open(pictures.prepare(src)))
+        r = a.get("rect") or [0, 0, 1, 1]
+        url, found = select_object.select(image, [float(v) for v in r[:4]], int(a.get("width") or image.width),
+                                          int(a.get("height") or image.height))
+        return {"mask": url, "found": found}
     if cmd == "list_vaes":
         import vaes
         return {"vaes": vaes.list_vaes(), "folder": str(paths.VAE_DIR)}
@@ -1416,7 +1428,7 @@ def reader():
 
 # quick commands that talk to a website (up to ~25 s if it's slow or blocked): run beside the reader, so the
 # app stays responsive (an unanswered Check used to leave every other button waiting)
-NET_QUICK = ("civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
+NET_QUICK = ("select_object", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
              "train_square_copies")  # (that one isn't online, but can take a while for a big folder)
 
 

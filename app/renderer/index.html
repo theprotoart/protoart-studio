@@ -1129,8 +1129,9 @@
         <div v-else-if="tool.source && tool.healing" class="mask-stage tool-mask" @click.stop @dragover.stop>
           <img :src="fileUrl(tool.source.path)" @load="initMaskCanvas" ref="maskImg" draggable="false">
           <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove($event); brushAt($event)" @pointerup="maskUp"
-                  @pointerleave="maskUp(); brush.show = false" :style="{cursor: 'none'}"></canvas>
-          <i v-show="brush.show" class="brush-ring" :class="{erase: mask.erase}"
+                  @pointerleave="maskUp(); brush.show = false" :style="{cursor: ['brush', 'erase'].includes(mask.tool || 'brush') ? 'none' : 'crosshair'}" @dblclick="selFinishPoly"></canvas>
+          <canvas ref="selCanvas" class="sel-canvas"></canvas>
+          <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
              :style="{left: brush.x + 'px', top: brush.y + 'px', width: mask.size + 'px', height: mask.size + 'px'}"></i>
         </div>
         <div v-else-if="tool.source && tool.latest && !tool.working && tool.view !== 'original'" class="cmp-stage" :class="'cmp-' + tool.view" @click.stop
@@ -1452,9 +1453,16 @@
           </template>
           <template v-else>
             <p class="mod-desc mod-live">← Paint on the picture. Cover it fully, a little past its edges.</p>
-            <div class="seg mod-seg">
-              <button :class="{on: !mask.erase}" @click="mask.erase = false">🖌 Paint</button>
-              <button :class="{on: mask.erase}" @click="mask.erase = true">🧽 Erase</button>
+            <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
+              <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
+            </div>
+            <div class="sel-opts">
+              <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
+              <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
+              <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
+              <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
+              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
+              <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
             </div>
             <label>Brush <span class="mod-val">{{ mask.size }}</span></label>
             <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
@@ -1660,8 +1668,9 @@
           <div class="mask-stage">
             <img :src="fileUrl(form.init_image)" @load="initMaskCanvas" ref="maskImg" draggable="false">
             <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove($event); brushAt($event)" @pointerup="maskUp"
-                    @pointerleave="maskUp(); brush.show = false" :style="{cursor: 'none'}"></canvas>
-            <i v-show="brush.show" class="brush-ring" :class="{erase: mask.erase}"
+                    @pointerleave="maskUp(); brush.show = false" :style="{cursor: ['brush', 'erase'].includes(mask.tool || 'brush') ? 'none' : 'crosshair'}" @dblclick="selFinishPoly"></canvas>
+          <canvas ref="selCanvas" class="sel-canvas"></canvas>
+            <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
                :style="{left: brush.x + 'px', top: brush.y + 'px', width: mask.size + 'px', height: mask.size + 'px'}"></i>
           </div>
           <button class="link" @click="form.init_image = ''; controlMap = null">remove</button>
@@ -1689,9 +1698,16 @@
           <div class="hint">Describe the change in <b>3 · Prompt</b>. <b>Optional:</b> paint over the part that may change, and
             everything else stays exactly as it is (best for small, precise edits).</div>
           <div class="mask-tools">
-            <div class="seg">
-              <button :class="{on: !mask.erase}" @click="mask.erase = false">🖌 Paint</button>
-              <button :class="{on: mask.erase}" @click="mask.erase = true">🧽 Erase</button>
+            <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
+              <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
+            </div>
+            <div class="sel-opts">
+              <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
+              <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
+              <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
+              <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
+              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
+              <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
             </div>
             <span class="hint">brush</span>
             <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
@@ -1716,9 +1732,16 @@
           <div class="hint">Paint over what you want gone (cover it fully, a little past its edges), then press <b>🩹 Remove</b>.
             No prompt or model needed; only the painted part changes.</div>
           <div class="mask-tools">
-            <div class="seg">
-              <button :class="{on: !mask.erase}" @click="mask.erase = false">🖌 Paint</button>
-              <button :class="{on: mask.erase}" @click="mask.erase = true">🧽 Erase</button>
+            <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
+              <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
+            </div>
+            <div class="sel-opts">
+              <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
+              <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
+              <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
+              <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
+              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
+              <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
             </div>
             <span class="hint">brush</span>
             <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
@@ -1738,9 +1761,16 @@
         <template v-else-if="form.i2i_mode === 'inpaint'">
           <div class="hint">Paint over what you want to change, then describe what should be there in the prompt.</div>
           <div class="mask-tools">
-            <div class="seg">
-              <button :class="{on: !mask.erase}" @click="mask.erase = false">🖌 Paint</button>
-              <button :class="{on: mask.erase}" @click="mask.erase = true">🧽 Erase</button>
+            <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
+              <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
+            </div>
+            <div class="sel-opts">
+              <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
+              <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
+              <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
+              <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
+              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
+              <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
             </div>
             <span class="hint">brush</span>
             <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
