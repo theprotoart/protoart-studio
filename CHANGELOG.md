@@ -2,6 +2,8 @@
 
 ## 1.2.1 (in progress)
 
+- Fix: the window went blank (and flashed during ✨ enhance now) as soon as a job reported progress: `genLeft` had been
+  put among the computed values instead of the methods
 - Fast engine LoRAs: not baked on Macs under 24 GB (`mlx_worker.bake_loras`, `bake_lora=False`; override with
   `PROTOART_BAKE_LORA=0/1`). mflux re-quantizes every LoRA-touched q4 layer at q8 when baking, doubling the model:
   FLUX.2 Klein went from 16.7 to 108 s/step and ERNIE to 80–113 s/step on an 8 GB M1. Unbaked, the full LoRA applies

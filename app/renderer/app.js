@@ -1638,22 +1638,6 @@ const protoartApp = createApp({
       if (!p || !this.runningJob || p.job !== this.runningJob.id) return 0;
       return Math.round((((p.image - 1) + p.step / p.steps) / p.images) * 100);
     },
-    genLeft(pr) {
-      // Seconds left in the running picture job, measured from its own steps: the steps still to go, plus the
-      // time each picture takes after its last step (decoding and saving, learned per model; ~2 steps until then),
-      // counting down between steps. The progress line, the queue and the TIME LEFT clock all use this one figure.
-      const times = this.timing.stepTimes;
-      if (!pr || !times.length || this.timing.job !== pr.job) return null;
-      const sorted = [...times].sort((a, b) => a - b);
-      const perStep = sorted[Math.floor(sorted.length / 2)] / 1000;
-      const job = this.queue.find((x) => x.id === pr.job);
-      const tail = (job && this.perf.models[job.model]?.tail) ?? Math.min(2 * perStep, 12);
-      const stepsLeft = (pr.steps - pr.step) + (pr.images - pr.image) * pr.steps;
-      const since = Math.max(0, (this.clockNow() - this.timing.lastAt) / 1000);
-      const stepPart = Math.max(stepsLeft ? 1 : 0, stepsLeft * perStep - since);
-      const tailPart = (pr.images - pr.image + 1) * tail - (stepsLeft ? 0 : since);
-      return { perStep, seconds: Math.max(1, stepPart + Math.max(0, tailPart)) };
-    },
     progressText() {
       const p = this.progress;
       if (!p) return this.status;
@@ -4066,6 +4050,22 @@ const protoartApp = createApp({
         t.lastAt = nowMs;
       }
       this.progress = m;
+    },
+    genLeft(pr) {
+      // Seconds left in the running picture job, measured from its own steps: the steps still to go, plus the
+      // time each picture takes after its last step (decoding and saving, learned per model; ~2 steps until then),
+      // counting down between steps. The progress line, the queue and the TIME LEFT clock all use this one figure.
+      const times = this.timing.stepTimes;
+      if (!pr || !times.length || this.timing.job !== pr.job) return null;
+      const sorted = [...times].sort((a, b) => a - b);
+      const perStep = sorted[Math.floor(sorted.length / 2)] / 1000;
+      const job = this.queue.find((x) => x.id === pr.job);
+      const tail = (job && this.perf.models[job.model]?.tail) ?? Math.min(2 * perStep, 12);
+      const stepsLeft = (pr.steps - pr.step) + (pr.images - pr.image) * pr.steps;
+      const since = Math.max(0, (this.clockNow() - this.timing.lastAt) / 1000);
+      const stepPart = Math.max(stepsLeft ? 1 : 0, stepsLeft * perStep - since);
+      const tailPart = (pr.images - pr.image + 1) * tail - (stepsLeft ? 0 : since);
+      return { perStep, seconds: Math.max(1, stepPart + Math.max(0, tailPart)) };
     },
     etaText(job) {
       const e = this.jobEtas.find((x) => x.id === job.id);
