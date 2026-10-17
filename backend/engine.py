@@ -465,6 +465,8 @@ def all_models():
     m = dict(MODELS)
     m.update(_custom_models())
     for lm in list(model_hub.LOCAL_MODELS) + model_hub.scan_model_dirs():  # your own files/folders (offline)
+        if lm.get("path") and not os.path.exists(lm["path"]):
+            continue  # moved to the Trash, renamed or on a drive that isn't plugged in: not listed until it's back
         try:
             m.setdefault(lm["id"], model_hub.local_to_spec(lm))
         except Exception as e:

@@ -461,6 +461,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Coming in 1.2.1: fixes from your notes", items: [
+              "<b>Move to Trash works for your own model files</b>: the file was moved, but the list kept showing it for a while, so it looked as if nothing happened. Now it disappears straight away (and ↻ Refresh looks in your folders again at once). Model files that were moved or renamed outside the app are no longer listed until they're back.",
               "<b>⏳ “This will be slow on this Mac”</b>: before a picture starts, settings that need more memory than your Mac has get a short warning with a one-click faster choice (for example <i>Use 512 × 512</i> for a ControlNet, the 8-bit SDXL instead of full precision, or Hi-res fix off). 8 GB Macs see it for big ControlNet and SDXL jobs, 16 GB Macs only for the heaviest, and Macs with 24 GB or more never. <i>Don't warn me about this again</i> switches one off; Settings → Speed turns them back on.",
               "<b>QR / pattern ControlNets are much faster on 8 GB Macs</b>: your own ControlNet files (many are 1.4 GB, full precision) are now read straight into half precision and built without spare copies, so loading one no longer pushes the Mac into swap (30–60 s a step). <b>Use these settings</b> picks 512 × 512 on Macs under 16 GB, since a ControlNet roughly doubles the work of each step.",
               "<b>Reorder the queue</b>: ▲ and ▼ beside each waiting job move it up or down, so you choose which prompt starts next. <b>Models tab</b>: the ★ default tag is now easy to read (it glowed too brightly).",
@@ -5234,7 +5235,7 @@ const protoartApp = createApp({
     async refreshModels() {
       this.status = "Looking for models and LoRAs…";
       try {
-        const [models] = await Promise.all([call("list_models"), this.refreshLoras()]);
+        const [models] = await Promise.all([call("list_models", { fresh: true }), this.refreshLoras()]);
         this.models = models;
         call("diffusionbee_info").then((d) => { this.dbee = d; }).catch(() => {});
         this.status = `Found ${this.models.filter((m) => this.isInstalled(m)).length} models on this Mac and ${this.loras.length} LoRAs`;
@@ -5259,8 +5260,17 @@ const protoartApp = createApp({
       }
       this.modelDel = "";
       if (this.isOwnModel(m)) {
-        const err = m.path ? await window.bee.trashModel(m.path) : "No file to move";
-        if (err) { this.error = `Couldn't move ${m.label} to the Trash: ${err}`; return; }
+        let err;
+        try {
+          err = m.path ? await window.bee.trashModel(m.path) : "No file to move";
+        } catch (e) {
+          err = e.message || String(e);
+        }
+        if (err && !/isn't there any more/.test(err)) {
+          this.error = `Couldn't move ${m.label} to the Trash: ${err}`;
+          window.scrollTo({ top: 0, behavior: "smooth" });  // the message is at the top of the page
+          return;
+        }
         if (m.id.startsWith("local:")) await call("model_local_remove", { id: m.id }).catch(() => {});
         this.status = `${m.label} moved to the Trash (put it back from the Trash if you change your mind)`;
       } else {
@@ -5271,7 +5281,7 @@ const protoartApp = createApp({
       }
       if (this.opts.default_model === m.id) { this.opts.default_model = ""; this.saveOpts(); }
       if (this.readyModel === m.id) this.readyModel = "";
-      this.models = await call("list_models");
+      this.models = await call("list_models", { fresh: true });  // look in the folders again, so it's gone from the list now
       if (this.form.model === m.id && !this.isInstalled(this.models.find((x) => x.id === m.id) || {})) {
         const next = this.models.find((x) => this.isInstalled(x) && x.enough_ram);
         if (next) this.selectModel(next.id);

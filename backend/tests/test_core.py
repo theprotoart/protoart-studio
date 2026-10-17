@@ -340,16 +340,23 @@ class ModelTypeOverrideTests(unittest.TestCase):
     def test_you_can_retype_a_model_file(self):
         import engine
         import model_hub
-        mid = "local:/x/dream.safetensors"
+        import tempfile
+        tmp = tempfile.NamedTemporaryFile(suffix=".safetensors", delete=False)
+        tmp.close()
+        mid = "local:" + tmp.name
         old_l, old_f = list(model_hub.LOCAL_MODELS), dict(model_hub.MODEL_FAMILY)
         try:
-            model_hub.LOCAL_MODELS[:] = [{"id": mid, "path": "/x/dream.safetensors", "kind": "file", "family": "sd15", "label": "dream"}]
+            model_hub.LOCAL_MODELS[:] = [{"id": mid, "path": tmp.name, "kind": "file", "family": "sd15", "label": "dream"}]
             self.assertEqual(engine.all_models()[mid]["family"], "sd15")
             model_hub.MODEL_FAMILY[mid] = "sdxl"
             spec = engine.all_models()[mid]
             self.assertEqual((spec["family"], spec["detected_family"], spec["defaults"]["width"]), ("sdxl", "sd15", 1024))
             self.assertTrue(spec["family_set"])
+            os.unlink(tmp.name)  # moved to the Trash: no longer listed
+            self.assertNotIn(mid, engine.all_models())
         finally:
+            if os.path.exists(tmp.name):
+                os.unlink(tmp.name)
             model_hub.LOCAL_MODELS[:] = old_l
             model_hub.MODEL_FAMILY.clear()
             model_hub.MODEL_FAMILY.update(old_f)

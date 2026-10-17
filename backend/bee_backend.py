@@ -428,6 +428,8 @@ def handle_quick(cmd, a):
     if cmd == "system_info":
         return engine().system_info()
     if cmd == "list_models":
+        if a.get("fresh"):  # just moved a model to the Trash (or added one): look in the folders again now
+            model_hub._dirs_result["at"] = 0
         all_marks = content.load_marks()
         marks, people = all_marks["models"], all_marks["people_models"]
         rows = engine().list_models()

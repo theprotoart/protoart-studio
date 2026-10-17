@@ -2,6 +2,8 @@
 
 ## 1.2.1 (in progress)
 
+- Models → Move to Trash: the list is refreshed at once (`list_models {fresh}` skips the 10 s folder-scan cache);
+  your own model files that no longer exist aren't listed; Trash errors scroll the message into view
 - ⏳ Slow-settings warning before Generate on Macs under 24 GB (`slowWarnings`, `slowCheck`): ControlNet size,
   SDXL ControlNet, full-precision SDXL, Hi-res fix with SDXL, big sizes, many SDXL pictures; one-click fixes;
   per-warning "don't warn again" (`protoart.slowWarnOff`), reset in Settings → Speed
