@@ -158,6 +158,8 @@
         <span title="Engine running"><i class="led green" :class="{on: !backendDead}"></i>Power</span>
         <span title="Working on a job"><i class="led amber" :class="{on: busy, blink: !!runningJob}"></i>Busy</span>
         <span title="Something went wrong (details in the window or in Settings → Backend log)"><i class="led red" :class="{on: backendDead || !!error}"></i>Fault</span>
+        <button class="led-switch" :class="{on: opts.tooltips !== false}" @click="setTooltips(opts.tooltips === false)"
+                :title="opts.tooltips === false ? 'Tips are off: click to show what buttons do when you point at them' : 'Tips are on: click to switch them off'"><i class="led blue" :class="{on: opts.tooltips !== false}"></i>Tips</button>
       </div>
       <div class="rack-readouts">
         <div class="status amber-strip" :class="{err: backendDead}" :title="statusText">{{ statusText }}</div>
@@ -1045,6 +1047,11 @@
           <span class="adjust-badge">{{ adj.view === 'before' ? 'ORIGINAL' : adj.view === 'split' ? 'ORIGINAL  |  EDITED' : 'EDITED' }}</span>
           <span v-if="adj.busy || adj.msg" class="adjust-badge busy">{{ adj.msg || 'Working…' }}</span>
         </div>
+        <div v-else-if="tool.source && tool.healing" class="mask-stage tool-mask" @click.stop @dragover.stop>
+          <img :src="fileUrl(tool.source.path)" @load="initMaskCanvas" ref="maskImg" draggable="false">
+          <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove" @pointerup="maskUp" @pointerleave="maskUp"
+                  :style="{cursor: 'crosshair'}"></canvas>
+        </div>
         <img v-else-if="tool.source" :src="fileUrl(tool.source.path)" @load="onToolImgLoad">
         <div v-else class="tool-empty">Drop any image here<br><span class="hint">or click to choose a file · or use “Enhance” on a library image</span></div>
       </div>
@@ -1061,9 +1068,16 @@
         <span class="grow"></span>
         <button class="ghost small" @click="closeAdjust" title="Leave Adjust without saving (the picture stays as it was)">✕ Close Adjust</button>
       </div>
-      <p v-if="tool.source" class="hint">Original · {{ tool.source.label }} · {{ tool.source.width }}×{{ tool.source.height }}
-        <button class="link" @click="closeAdjust(); tool.source=null; tool.latest=null">clear</button>
-        · <button class="link" @click="editIn(tool.source.image_id != null ? {id: tool.source.image_id, path: tool.source.path} : {path: tool.source.path})">✏️ edit in {{ editorName() }}</button></p>
+      <div v-if="tool.source" class="tool-caption">
+        <div class="tool-caption-name" :title="tool.source.label"><span class="eng">Original</span> {{ tool.source.label }}</div>
+        <div class="tool-caption-row">
+          <span class="tool-caption-size">{{ tool.source.width }} × {{ tool.source.height }} px</span>
+          <button class="ghost small" @click="editIn(tool.source.image_id != null ? {id: tool.source.image_id, path: tool.source.path} : {path: tool.source.path})"
+                  :title="'Open the picture in ' + editorName()">✏️ Edit in {{ editorName() }}</button>
+          <button class="ghost small" @click="closeAdjust(); tool.source=null; tool.latest=null; tool.healing=false"
+                  title="Take this picture out of Tools (the file itself isn't deleted)">✕ Remove picture</button>
+        </div>
+      </div>
       <div v-if="tool.source && !adj.open" class="row adjust-open-row">
         <button class="adjust-big" @click="openAdjust(tool.source.image_id != null ? {id: tool.source.image_id, path: tool.source.path} : {path: tool.source.path})"
                 title="Lightroom-style light and colour sliders and Color Efex-style filters, with a live preview">🎚 Adjust the original</button>
@@ -1250,12 +1264,12 @@
             <button v-for="p in enhPresets" :key="p.label" :class="{on: post.enh.denoise_strength===p.c && post.enh.controlnet_scale===p.r}"
                     @click="post.enh.denoise_strength=p.c; post.enh.controlnet_scale=p.r" :title="p.tip">{{ p.label }}</button>
           </div>
-          <label title="How much new detail it may invent. Low = cleaner, faithful; high = more texture and changes.">Creativity <span class="mod-val">{{ post.enh.denoise_strength }}</span></label>
-          <input type="range" min="0.1" max="0.8" step="0.05" v-model.number="post.enh.denoise_strength" title="Low = cleaner, faithful · high = more texture and changes">
-          <label title="How tightly it sticks to the original's shapes and faces. High = stays true; low = freer.">Resemblance <span class="mod-val">{{ post.enh.controlnet_scale }}</span></label>
-          <input type="range" min="0.2" max="1.5" step="0.05" v-model.number="post.enh.controlnet_scale" title="High = stays true to the original · low = freer">
           <details class="mod-more">
             <summary>fine-tune</summary>
+            <label title="How much new detail it may invent. Low = cleaner, faithful; high = more texture and changes.">Creativity <span class="mod-val">{{ post.enh.denoise_strength }}</span></label>
+            <input type="range" min="0.1" max="0.8" step="0.05" v-model.number="post.enh.denoise_strength" title="Low = cleaner, faithful · high = more texture and changes">
+            <label title="How tightly it sticks to the original's shapes and faces. High = stays true; low = freer.">Resemblance <span class="mod-val">{{ post.enh.controlnet_scale }}</span></label>
+            <input type="range" min="0.2" max="1.5" step="0.05" v-model.number="post.enh.controlnet_scale" title="High = stays true to the original · low = freer">
             <label>Steps</label><input type="number" min="4" max="50" v-model.number="post.enh.num_inference_steps">
             <label>Work at <span class="mod-val">{{ enhWorkSide() }}</span></label>
             <div class="seg mod-seg">
@@ -1309,7 +1323,7 @@
             <button v-for="d in depthModels" :key="d.id" :class="{on: post.depth.model === d.id}" @click="post.depth.model = d.id"
                     :title="d.tip + ' (' + d.size + ')'">{{ d.label }}</button>
           </div>
-          <p class="mod-note">{{ depthModelInfo(post.depth.model).size }} · {{ depthModelInfo(post.depth.model).tip }}</p>
+
           <label>Look</label>
           <div class="seg mod-seg">
             <button :class="{on: post.depth.style === 'gray'}" @click="post.depth.style = 'gray'" title="Black and white: what ControlNet and most apps expect">Grey</button>
@@ -1324,14 +1338,34 @@
         <div class="card rack-module heal-card">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🩹</span>
             <h3>Remove objects</h3><span class="mod-sub">spot healing</span></div>
-          <p class="mod-desc">Paint over anything you don't want (a stray object, an extra finger, text, a blemish) and it's filled in from what's around it.</p>
-          <ol class="mod-steps">
-            <li>Press the button below</li>
-            <li>Paint over what should go</li>
-            <li>Press 🩹 Remove</li>
-          </ol>
+          <template v-if="!tool.healing">
+            <p class="mod-desc">Paint over anything you don't want (a stray object, an extra finger, text, a blemish) and it's filled in from what's around it.</p>
+            <ol class="mod-steps">
+              <li>Press <b>Paint</b> below</li>
+              <li>Paint over it on the picture</li>
+              <li>Press <b>🩹 Remove</b></li>
+            </ol>
+          </template>
+          <template v-else>
+            <p class="mod-desc mod-live">← Paint on the picture. Cover it fully, a little past its edges.</p>
+            <div class="seg mod-seg">
+              <button :class="{on: !mask.erase}" @click="mask.erase = false">🖌 Paint</button>
+              <button :class="{on: mask.erase}" @click="mask.erase = true">🧽 Erase</button>
+            </div>
+            <label>Brush <span class="mod-val">{{ mask.size }}</span></label>
+            <input type="range" min="4" max="160" step="2" v-model.number="mask.size">
+            <label>Method</label>
+            <div class="seg mod-seg">
+              <button :class="{on: form.heal_method !== 'quick'}" @click="form.heal_method = 'lama'"
+                      title="LaMa: continues textures, lines and backgrounds; best for objects and people. ~208 MB download the first time, then offline.">Best</button>
+              <button :class="{on: form.heal_method === 'quick'}" @click="form.heal_method = 'quick'"
+                      title="Instant, no download: good for small spots, dust, scratches and thin lines">Quick</button>
+            </div>
+            <div class="mod-links"><button class="link" @click="maskClear">clear paint</button> · <button class="link" @click="tool.healing = false; maskClear()">cancel</button></div>
+          </template>
           <div class="mod-foot">
-            <button class="primary mod-go" :disabled="!tool.source" @click="openRemove(tool.source)">Paint what to remove…</button>
+            <button v-if="!tool.healing" class="primary mod-go" :disabled="!tool.source" @click="toolPaintRemove(true)">🖌 Paint</button>
+            <button v-else class="primary mod-go" :disabled="!mask.data || !!tool.working" @click="toolHeal">🩹 Remove</button>
             <span class="mod-plate">Healer · RM-3</span>
           </div>
         </div>

@@ -349,6 +349,7 @@ const protoartApp = createApp({
             { h: "Version 1.2: new tools, and more of your testers' notes", items: [
               "<b>✨ Edit with words</b> (Image to image): describe a change (“make the jacket red”, “add a hat”, “turn it into a watercolour”) and FLUX.2 Klein makes just that change. Paint over a part to keep everything else exactly as it was, or add more pictures to take a style or an outfit from.",
               "<b>🎲 Random prompt speaks the model's language</b>: with FLUX, FLUX.2 or ERNIE picked it writes a scene in sentences (“Medium shot of a fisherman with a white beard, mending a net on a harbour wall at dawn…”); with SD 1.5 and SDXL it still writes tags. In Image to image, <b>FLUX.2 Klein</b> now shows at the top of the model list while Edit with words is on.",
+              "<b>🩹 Remove objects right in Tools</b>: press <b>🖌 Paint</b> in the Remove module, paint on the picture on the left and press <b>🩹 Remove</b> (no trip to Image to image). The <b>TIPS</b> switch beside the Power / Busy / Fault lamps at the top turns the pop-up tips on and off.",
               "<b>Tools redesigned</b>: every tool (Run chain, Enhance, Restore faces, Depth map, Remove objects, Vectorize, Image → prompt) is now a tall rack module side by side; Enhance's less-used settings are under <i>fine-tune</i>, each with its controls and its own button. <b>Sampler picks</b> show just the top two for speed and for quality (the rest are in the list).",
               "<b>New model: FLUX.2 Klein 4B</b> (Black Forest Labs, January 2026) on the ⚡ fast engine, made for 8 GB Macs: a 4.6 GB download, 4 steps a picture. It's newer than FLUX.1 Schnell and better at following long prompts and writing text in pictures. Find it in the <b>Models</b> tab under FLUX.2. It ignores the negative prompt, and FLUX.1 LoRAs don't work with it (FLUX.2 LoRAs do).",
               "<b>🩹 Remove objects</b> (spot healing, like a healing brush): in <b>Image to image</b> choose <b>🩹 Remove</b>, paint over anything you don't want (a stray object, an extra finger, text, a blemish) and press <b>🩹 Remove</b>. It's filled in from what's around it; only the painted part changes. <b>✨ Best</b> uses LaMa (a ~208 MB download the first time, then offline); <b>⚡ Quick</b> is instant for small spots and scratches. Also in <b>Tools → 🩹 Remove objects</b>.",
@@ -865,7 +866,7 @@ const protoartApp = createApp({
       mpanels: { own: false, civitai: false, hub: false, fix: false }, // Models tab panels (closed until you open one)
       dl: { path: "", default: "", custom: false, missing: null, free_gb: null, sizeGb: null, move: true, busy: false }, // downloaded-models folder
       modelSearch: "",
-      tool: { source: null, results: [], dragOver: false, working: null, latest: null },
+      tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false },
       freeConfirm: null,
       logs: "",
       backendDead: false,
@@ -1593,6 +1594,7 @@ const protoartApp = createApp({
     rnd: { deep: true, handler(v) { saveJSON("beestudio.rnd", v); } },
     loraRand: { deep: true, handler(v) { saveJSON("protoart.loraRand", v); } },
     "form.init_image"() { this.initDims = null; },
+    "tool.source"() { this.tool.healing = false; },  // a new picture in Tools: stop painting on the old one
     train: { deep: true, handler(v) {
       const { items, result, lossHistory, dirty, ...keep } = v;
       saveJSON("protoart.train", keep);
@@ -2860,7 +2862,7 @@ const protoartApp = createApp({
       const scale = Math.min(1, 1024 / Math.max(img.naturalWidth, img.naturalHeight));
       cv.width = Math.round(img.naturalWidth * scale);
       cv.height = Math.round(img.naturalHeight * scale);
-      if (this.mask.data && this.mask.for === this.form.init_image) {
+      if (this.mask.data && this.mask.for === this.maskTarget()) {
         const prev = new Image();
         prev.onload = () => cv.getContext("2d").drawImage(prev, 0, 0, cv.width, cv.height);
         prev.src = this.mask.data;
@@ -2916,7 +2918,37 @@ const protoartApp = createApp({
       let any = false;
       for (let i = 3; i < px.length; i += 16) if (px[i] > 32) { any = true; break; }
       this.mask.data = any ? cv.toDataURL("image/png") : null;
-      this.mask.for = this.form.init_image;
+      this.mask.for = this.maskTarget();
+    },
+    maskTarget() {  // the picture being painted on: Tools' picture, or Image to image's
+      return this.tab === "tools" ? (this.tool.source?.path || "") : this.form.init_image;
+    },
+    // Tools → 🩹 Remove objects, right in Tools: paint on the picture on the left, then Remove
+    toolPaintRemove(on) {
+      if (!this.tool.source) return;
+      if (on && this.adj.open) this.closeAdjust();
+      this.tool.healing = !!on;
+      if (on) this.status = "Paint over what you want gone on the picture, then press 🩹 Remove";
+    },
+    async toolHeal() {
+      const s = this.tool.source;
+      if (!s) return;
+      if (!this.mask.data || this.mask.for !== s.path) return (this.error = "Paint over what you want to remove first.");
+      this.error = "";
+      const mask = this.mask.data;
+      this.tool.working = { label: "Removing what you painted", started: Date.now() };
+      this.tool.latest = null;
+      try {
+        const rec = await this.runJob("heal", { ...this.toolArgs(), mask, method: this.form.heal_method || "lama" });
+        if (rec) {
+          this.tool.latest = rec;
+          this.afterPost(rec);
+          this.tool.healing = false;
+          this.mask.data = null;
+        }
+      } finally {
+        this.tool.working = null;
+      }
     },
     maskClear() {
       const cv = this.$refs.maskCanvas;
@@ -4611,7 +4643,7 @@ const protoartApp = createApp({
       this.opts.tooltips = !!on;
       window.ProtoTips?.setEnabled(this.opts.tooltips);
       this.saveOpts();
-      this.status = on ? "Tips shown when you point at buttons" : "Tips switched off (turn them back on in Settings → Look)";
+      this.status = on ? "Tips shown when you point at buttons" : "Tips switched off (the TIPS switch at the top turns them back on)";
     },
     async saveOpts() {
       saveJSON(OPTS_KEY, this.opts);

@@ -2,6 +2,10 @@
 
 ## 1.2.0
 
+- Tools: Remove objects paints on Tools' own picture (`tool.healing`, `toolPaintRemove`, `toolHeal`; the mask code
+  follows `maskTarget()`); bigger picture caption with "✕ Remove picture" and "✏️ Edit in …" buttons; shorter modules
+  (icon beside the title; Enhance's Creativity / Resemblance under fine-tune)
+- TIPS switch with a blue lamp beside Power / Busy / Fault in the rack header
 - 🎲 Random prompt: natural-language scenes for FLUX / FLUX.2 / ERNIE (`natural_prompt.js`, `window.NaturalPrompt`;
   subject, detail and "with a look" options; the negative prompt is left alone); Danbooru tags stay for SD 1.5 / SDXL
 - Image to image model list: "FLUX.2 (✨ Edit with words)" group; picking it turns on Edit with words, picking another
