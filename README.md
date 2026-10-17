@@ -9,6 +9,16 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 > Hugging Face or Civitai) or use files you already have, and **each model has its own licence**, which you accept
 > when you use it. See [Models and licences](#models-and-licences).
 
+## Screenshots
+
+![Create: a session of pictures from ERNIE, FLUX.1 Schnell and a DiffusionBee model](docs/screenshots/create.jpg)
+
+| ✨ Edit with words: paint over the cat… | …and “make it a dog” changes just that |
+|---|---|
+| ![Edit with words, the painted area](docs/screenshots/edit-with-words-mask.jpg) | ![Edit with words, the result](docs/screenshots/edit-with-words-result.jpg) |
+
+![Tools: the patchbay wires Remove, Faces and Enhance together, with a split view of before and after](docs/screenshots/tools-patchbay.jpg)
+
 ## What it does
 
 - **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), ERNIE-Image, FLUX.1 Schnell, FLUX.2 Klein 4B
