@@ -1675,3 +1675,5 @@ button.cmp-key.on:hover:not(:disabled) { background: radial-gradient(ellipse at 
 .patch-run { min-width: 130px; }
 .patch-hint { margin: 6px 2px 0; }
 .reset-all-row .grow { flex: 1; }
+.pb-plug { cursor: grab; }
+.pb-plug:hover circle:first-child { stroke: var(--amber); stroke-width: 2; }

@@ -1410,7 +1410,8 @@
             <path :d="patchCablePath(c)" class="pb-wire" :stroke="cableColour(c.c)"/>
             <path :d="patchCablePath(c)" class="pb-shine"/>
             <path v-if="patch.running === c.to" :d="patchCablePath(c)" class="pb-flow"/>
-            <g v-for="end in [patchJack(c.from, 'out'), patchJack(c.to, 'in')]" :key="end.x + '-' + end.y" pointer-events="none">
+            <g v-for="end in [{...patchJack(c.from, 'out'), id: c.from, k: 'out'}, {...patchJack(c.to, 'in'), id: c.to, k: 'in'}]" :key="end.k"
+               class="pb-plug" :data-in="end.k === 'in' ? end.id : null" @pointerdown.stop="patchDown(end.id, end.k, $event)">
               <circle :cx="end.x" :cy="end.y" r="11" fill="#1a1b1d"/>
               <circle :cx="end.x" :cy="end.y" r="9" :fill="cableColour(c.c)"/>
               <circle :cx="end.x - 2.5" :cy="end.y - 2.5" r="3.5" fill="#fff" opacity=".35"/>
@@ -1444,7 +1445,7 @@
         <div class="card rack-module run-module">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">▶</span>
             <h3>Run chain</h3><span class="mod-sub">one finished picture</span></div>
-          <p class="mod-desc">Enhance, then restore faces, in one go. Each uses the settings in its own module.</p>
+          <p class="mod-desc">Enhance, then restore faces, in one go. Each uses the settings in its own module. For any order (and Remove, Depth, Vectorize), switch on <b>PATCHBAY</b> above.</p>
           <div class="mod-switches">
             <button class="mod-switch" :class="{on: post.do_enhance}" @click="post.do_enhance = !post.do_enhance"
                     title="Include Enhance &amp; upscale"><i></i>✨ Enhance</button>

@@ -2,6 +2,11 @@
 
 ## 1.2.1 (in progress)
 
+- Tools → 🔌 Patchbay (PATCHBAY toggle, `patch`, `PATCH_NODES`): an SVG back-of-rack panel with IN / OUT jacks for
+  Remove, Faces, Enhance, Depth and Vector between PICTURE and RESULT; drag or click-click to patch, drag a plug or
+  double-click to unplug; hanging cables (`cablePath`), one cable per jack, no loops, Vector last; ▶ Run patch runs
+  the chain with each module's settings (`patchRun`, each step on the previous result's `image_id`), ■ Stop after a
+  step; cables saved in `protoart.patch`; a plug click sound (`sounds.js`)
 - Tools → Remove: `heal` runs in a side lane (`SIDE_LANE`, `run_side`) while a job is running, with its own progress
   events (`Engine.heal(emit=…)`); LaMa is ONNX on the CPU, so it doesn't compete with the graphics chip
 - Object selection: GrabCut at ≤512 px with the mask scaled back up; "Finding the object…" on the picture; no outline
