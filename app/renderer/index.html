@@ -681,6 +681,9 @@
           <span class="queue-btns">
             <button class="ghost small-btn pause-btn" :class="{on: paused}" @click="togglePause"
                     :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
+            <button v-if="runningJob && queue.length > 1 && canSendBack(runningJob)" class="ghost small-btn" @click="sendBack(runningJob.id)"
+                    :disabled="!!stopping[runningJob.id]"
+                    title="Put the job that's running now at the back of the queue, so the others run first. Pictures it already finished are kept; the one it was making starts again when its turn comes.">⤵ Run the others first</button>
             <button class="ghost small-btn" @click="stopAll" title="Stop the current job and clear the queue">Stop all</button>
           </span>
         </div>
@@ -705,6 +708,8 @@
           </div>
           <button v-if="j.state==='running' && j.cmd==='generate' && (j.images || 1) > 1 && canSkipImage" class="ghost job-skip"
                   @click="skipImage" title="Skip the image being made now; the job carries on with its next image">⏭</button>
+          <button v-if="j.state==='running' && queue.length > 1 && canSendBack(j)" class="ghost job-skip job-later" @click="sendBack(j.id)"
+                  :disabled="!!stopping[j.id]" title="Move this job to the back of the queue so the others run first">⤵</button>
           <button class="job-cancel" @click="cancelJob(j.id)"
                   :title="j.state==='running' ? 'Stop this job (the rest of the queue continues)' : 'Remove from queue'">✕</button>
         </div>

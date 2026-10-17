@@ -240,6 +240,7 @@ const protoartApp = createApp({
       cropEd: null,        // Train tab → ✂ Crop by hand: {it, x, y, s, w, h} (x, y, s as in trainer.parse_box)
       forcing: false,
       stopAllAt: 0,
+      sentBack: {},          // job id -> {cmd, args}: moved to the back of the queue (re-sent once it has stopped)
       memLow: null,          // other apps have the memory: shown above the pictures until closed
       memLowShown: false,
       presets: [],
@@ -1821,6 +1822,7 @@ const protoartApp = createApp({
         }
         const ids = new Set(m.jobs.map((x) => x.id));
         for (const id of Object.keys(this.stopping)) if (!ids.has(Number(id))) delete this.stopping[id];
+        if (Object.keys(this.sentBack).length) this.resendSentBack();
       }
       if (m.type === "skipped") this.livePreview = null;
       if (m.type === "memory_low") {
@@ -4056,8 +4058,39 @@ const protoartApp = createApp({
       call("skip_image", {});
       this.status = "Skipping this image…";
     },
+    canSendBack(j) {  // jobs that can simply start again later (not training, downloads or file moves)
+      return !!jobArgs.get(j.id) && !["train_lora", "train_embedding", "model_download", "downloads_move", "civitai_download",
+                                      "model_delete", "convert_tdict", "lora_merge"].includes(j.cmd);
+    },
+    sendBack(id) {
+      // ⤵ Run the others first: stop the running job and add it again at the end of the queue. A picture job only
+      // re-makes what it hadn't finished: the finished pictures are already saved, and the seed moves on with them.
+      const sent = jobArgs.get(id);
+      if (!sent) return;
+      const args = JSON.parse(JSON.stringify(sent.args));
+      const p = this.progress;
+      if (sent.cmd === "generate" && p && p.job === id && p.images > 1 && p.image > 1) {
+        const done = p.image - 1;
+        args.num_images = Math.max(1, (args.num_images || p.images) - done);
+        if (Number.isFinite(args.seed) && args.seed >= 0) args.seed += done;
+      }
+      this.sentBack = { ...this.sentBack, [id]: { cmd: sent.cmd, args } };
+      this.cancelJob(id);
+      this.status = "Moving it to the back of the queue: the others run first";
+    },
+    resendSentBack() {  // called when the queue changes: a job that was sent back has stopped, so add it again
+      const ids = new Set(this.queue.map((x) => x.id));
+      for (const [id, job] of Object.entries(this.sentBack)) {
+        if (ids.has(Number(id))) continue;
+        const rest = { ...this.sentBack };
+        delete rest[id];
+        this.sentBack = rest;
+        call(job.cmd, job.args).catch(() => {});  // its pictures arrive like any other job's
+      }
+    },
     stopAll() {
       this.stopAllAt = Date.now();
+      this.sentBack = {};  // Stop all means all: nothing comes back
       if (this.runningJob) this.stopping = { ...this.stopping, [this.runningJob.id]: Date.now() };
       call("cancel_all");
       this.status = "Stopping…";
