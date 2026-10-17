@@ -260,7 +260,16 @@
           <label class="check"><input type="checkbox" v-model="form.enhance_prompt"> ✨ Enhance prompt when generating</label>
           <button class="link" @click="enhanceNow" :disabled="!form.prompt.trim()">enhance now</button>
           <button v-if="undoPrompt" class="link" @click="form.prompt = undoPrompt; undoPrompt = null">↩ undo</button>
-          <span class="hint">{{ family === 'sd15' ? 'writes tags (best for SD 1.5)' : 'writes a detailed description' }}</span>
+          <span class="hint">{{ naturalPrompts() ? 'writes a detailed description' : 'writes tags (best for ' + familyLabel + ')' }}</span>
+        </div>
+        <div class="row small prompt-presets">
+          <span class="hint">📒 My prompts</span>
+          <select :value="''" @change="applyPromptPreset($event.target.value); $event.target.value = ''" title="Put a saved prompt (and its negative prompt) back in the boxes">
+            <option value="">{{ promptPresets.length ? 'use a saved prompt…' : 'none saved yet' }}</option>
+            <option v-for="p in promptPresets" :key="p.name" :value="p.name">{{ p.name }}</option>
+          </select>
+          <button class="link" @click="savePromptPreset" :disabled="!form.prompt.trim()" title="Keep this prompt and negative prompt under a name, to use again later">＋ save</button>
+          <button v-if="promptPresets.length" class="link" @click="deletePromptPreset" title="See, use or delete your saved prompts">manage…</button>
         </div>
         <div v-if="lastEnhanced" class="enhanced-note">
           <span class="hint">Enhanced:</span> {{ lastEnhanced.prompt }}
@@ -332,7 +341,13 @@
                   :title="tagsInPrompt ? 'Already at the start of your prompt' : 'Put these at the start of the prompt (and the low-quality ones in the negative prompt) so you can see and edit them'">
             {{ flavorTags }} <b>{{ tagsInPrompt ? '✓ in prompt' : '⤴ put in prompt' }}</b></button>
         </div>
-        <label>Negative prompt <span v-if="family==='flux'" class="hint">· FLUX Schnell doesn't use it</span></label>
+        <div class="neg-head">
+          <span class="neg-title">Negative prompt <span v-if="['flux', 'flux2'].includes(family)" class="hint">· FLUX mostly ignores it</span></span>
+          <span class="grow"></span>
+          <button class="link" @click="suggestNegative(false)" :title="'Write a negative prompt that fits this prompt and ' + familyLabel + ' (' + (naturalPrompts() ? 'plain words' : 'tags') + '): low-quality tags plus the opposite of the style you asked for'">✨ suggest</button>
+          <button class="link" @click="suggestNegative(true)" title="Like suggest, plus a few random extra fixes each time">🎲 random</button>
+          <button v-if="undoNegative != null" class="link" @click="form.negative_prompt = undoNegative; undoNegative = null">↩ undo</button>
+        </div>
         <div v-if="compatibleEmbeddings.length" class="trig-row emb-row">
           <span class="hint">Embeddings:</span>
           <button v-for="e in compatibleEmbeddings" :key="e.name" class="chip trig" :class="{on: inNegative(e.name) || inPrompt(e.name)}"
@@ -1735,8 +1750,28 @@
           <button class="link" @click="form.prompt = lastEnhanced.prompt; form.enhance_prompt = false">use as my prompt</button>
           <button class="link" @click="lastEnhanced = null">hide</button>
         </div>
+        <div v-if="form.i2i_mode === 'edit'" class="row small i2i-enhance">
+          <button class="link" @click="enhanceNow('edit')" :disabled="!form.prompt.trim()"
+                  title="Turn a quick note (“red jacket”) into one clear editing instruction that says what to change and what to keep">✨ enhance now</button>
+          <button v-if="undoPrompt" class="link" @click="form.prompt = undoPrompt; undoPrompt = null">↩ undo</button>
+          <span class="hint">makes the instruction clearer</span>
+        </div>
+        <div class="row small prompt-presets">
+          <span class="hint">📒 My prompts</span>
+          <select :value="''" @change="applyPromptPreset($event.target.value); $event.target.value = ''">
+            <option value="">{{ promptPresets.length ? 'use a saved prompt…' : 'none saved yet' }}</option>
+            <option v-for="p in promptPresets" :key="p.name" :value="p.name">{{ p.name }}</option>
+          </select>
+          <button class="link" @click="savePromptPreset" :disabled="!form.prompt.trim()">＋ save</button>
+        </div>
         <template v-if="form.i2i_mode !== 'edit'">
-        <label>Negative prompt</label>
+        <div class="neg-head">
+          <span class="neg-title">Negative prompt <span v-if="['flux', 'flux2'].includes(family)" class="hint">· FLUX mostly ignores it</span></span>
+          <span class="grow"></span>
+          <button class="link" @click="suggestNegative(false)" :title="'Write a negative prompt that fits this prompt and ' + familyLabel + ' (' + (naturalPrompts() ? 'plain words' : 'tags') + '): low-quality tags plus the opposite of the style you asked for'">✨ suggest</button>
+          <button class="link" @click="suggestNegative(true)" title="Like suggest, plus a few random extra fixes each time">🎲 random</button>
+          <button v-if="undoNegative != null" class="link" @click="form.negative_prompt = undoNegative; undoNegative = null">↩ undo</button>
+        </div>
         <textarea class="tape tape-neg" v-model="form.negative_prompt" rows="2" placeholder="What to avoid…"></textarea>
         </template>
         <div class="hint">LoRAs, sampler, image prompt, face detailer and wildcards: <button class="link" @click="tab='create'">set in Create</button> (they apply here too)</div>
@@ -2555,6 +2590,31 @@
     </div>
   </div>
 
+  <!-- ============================ 📒 MY PROMPTS ============================ -->
+  <div v-if="promptBox" class="modal top" @click.self="promptBox = null">
+    <div class="confirm prompt-box">
+      <h3>📒 My prompts</h3>
+      <template v-if="promptBox.name !== null">
+        <label>Name</label>
+        <input v-model="promptBox.name" @keydown.enter="confirmSavePrompt" placeholder="A name for this prompt" autofocus>
+        <p class="hint">Saves the prompt and the negative prompt. The same name replaces the one saved before.</p>
+        <div class="row end">
+          <button @click="promptBox = null">Cancel</button>
+          <button class="primary" :disabled="!promptBox.name.trim()" @click="confirmSavePrompt">Save</button>
+        </div>
+      </template>
+      <template v-else>
+        <div v-if="!promptPresets.length" class="hint">Nothing saved yet.</div>
+        <div v-for="p in promptPresets" :key="p.name" class="prompt-row">
+          <div class="prompt-row-text"><b>{{ p.name }}</b><span class="hint">{{ p.prompt }}</span></div>
+          <button class="ghost small" @click="applyPromptPreset(p.name); promptBox = null">Use</button>
+          <button class="ghost small" @click="removePromptPreset(p)" title="Delete (asks first)">✕</button>
+        </div>
+        <div class="row end"><button @click="promptBox = null">Close</button></div>
+      </template>
+    </div>
+  </div>
+
   <!-- ============================ ARE YOU SURE? ============================ -->
   <div v-if="ask" class="modal top" @click.self="answerAsk(false)">
     <div class="confirm">
@@ -2644,6 +2704,7 @@
 <script src="adjust.js"></script>
 <script src="prompt_generator.js"></script>
 <script src="natural_prompt.js"></script>
+<script src="negative_prompt.js"></script>
 <script src="tips.js"></script>
 <script src="app.js"></script>
 </body>

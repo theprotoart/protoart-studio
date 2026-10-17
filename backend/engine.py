@@ -1634,7 +1634,8 @@ class Engine:
                                                   cancel_event=self.cancel_event, family=family)
         if self.cancel_event.is_set():
             raise Cancelled()
-        return {"prompt": text, "original": prompt, "style": "tags" if family == "sd15" else "natural"}
+        from postprocess.prompt_enhance import style_for
+        return {"prompt": text, "original": prompt, "style": style_for(family)}
 
     def _ernie_embeddings(self, spec, texts):
         """Lean mode: encode prompts with a temporarily loaded text encoder, then free it."""

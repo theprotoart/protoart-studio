@@ -280,6 +280,10 @@ const protoartApp = createApp({
       rnd: Object.assign({ subject: "random", quality: "standard", detail: 2, style: true }, loadJSON("beestudio.rnd", {})),
       post: defaultPost(),
       ask: null,             // the "Are you sure?" box (confirmAsk)
+      promptPresets: loadJSON("protoart.prompts", []),   // 📒 My prompts
+      promptBox: null,       // the 📒 My prompts window: {name} = saving, {name: null} = managing
+      undoNegative: null,
+      lastAutoNegative: "",
       unlocked: {},          // model rows unlocked for Remove (locked by default)
       vecResult: null,       // the last ✒️ Vectorize result {path, shapes, colors, bytes}
       toolsUndo: null,
@@ -357,6 +361,7 @@ const protoartApp = createApp({
             { h: "Version 1.2: new tools, and more of your testers' notes", items: [
               "<b>✨ Edit with words</b> (Image to image): describe a change (“make the jacket red”, “add a hat”, “turn it into a watercolour”) and FLUX.2 Klein makes just that change. Paint over a part to keep everything else exactly as it was, or add more pictures to take a style or an outfit from.",
               "<b>🎲 Random prompt speaks the model's language</b>: with FLUX, FLUX.2 or ERNIE picked it writes a scene in sentences (“Medium shot of a fisherman with a white beard, mending a net on a harbour wall at dawn…”); with SD 1.5 and SDXL it still writes tags. In Image to image, <b>FLUX.2 Klein</b> now shows at the top of the model list while Edit with words is on.",
+              "<b>Negative prompts that fit</b>: next to <i>Negative prompt</i> (Create and Image to image), <b>✨ suggest</b> writes one for your prompt and model type: tags for SD 1.5 / SDXL / Pony / Illustrious (with each one's low-quality tags), plain words for ERNIE and FLUX, plus the opposite of the style you asked for (a cartoon prompt avoids “realistic, photo”). <b>🎲 random</b> adds a few extra fixes each time. 🎲 Random prompt and ✨ enhance write a matching negative too, unless you typed your own. ✨ Enhance now writes tags for SDXL and Pony as well as SD 1.5, and in <b>Edit with words</b> it makes your instruction clearer. <b>📒 My prompts</b> keeps prompts you like (with their negative prompt) to use again.",
               "<b>Image to image</b> now has <b>✨ Enhance prompt</b> in its Prompt card (the same switch as in Create, plus <i>enhance now</i>), and the pictures it makes stay in Image to image and the Library instead of also filling Create's screen.",
               "<b>📝 Image → prompt reads pictures much better</b>: <b>Describe</b> now uses <b>Qwen3.5 4B</b>, a 2026 vision model running on the Mac's GPU, which writes a detailed prompt in sentences (subject, clothes, pose, setting, light, colours, framing, style), what FLUX, FLUX.2 and ERNIE read best. The first time it sets itself up and downloads ~3 GB; then it works offline. <b>Quick</b> is the older Florence-2, and <b>Tags</b> the Danbooru tagger. <b>CodeFormer</b> is now the default face model. The <b>TIPS</b> toggle sits at the top beside the Power / Busy / Fault lamps.",
               "<b>🩹 Remove objects right in Tools</b>: press <b>🖌 Paint</b> in the Remove module, paint on the picture on the left and press <b>🩹 Remove</b> (no trip to Image to image). The <b>TIPS</b> switch beside the Power / Busy / Fault lamps at the top turns the pop-up tips on and off.",
@@ -3445,13 +3450,15 @@ const protoartApp = createApp({
     },
 
     // -------------------------------------------------------------- enhance prompt / start image
-    async enhanceNow() {
+    async enhanceNow(style) {
+      const edit = style === "edit";
       const res = await this.runJob("enhance_prompt", { prompt: this.form.prompt, width: this.form.width, height: this.form.height,
-                                                        model: this.form.model, family: this.family });
+                                                        model: this.form.model, family: edit ? "edit" : this.family });
       if (res) {
         this.undoPrompt = res.original;
         this.form.prompt = res.prompt;
-        this.status = "Prompt enhanced";
+        if (!edit) this.autoNegative();
+        this.status = edit ? "Instruction made clearer" : "Prompt enhanced (and a matching negative prompt written if yours was empty)";
       }
     },
     async loadConvertList() {
@@ -3804,13 +3811,73 @@ const protoartApp = createApp({
     },
     randomPrompt() {
       if (this.naturalPrompts()) {
-        this.form.prompt = window.NaturalPrompt.generate(this.rnd).prompt;  // no negative: these models ignore it
+        this.form.prompt = window.NaturalPrompt.generate(this.rnd).prompt;
+        this.autoNegative();
         this.status = `Random ${FAMILY_LABEL[this.family]} prompt written as sentences`;
         return;
       }
       const r = window.DanbooruPrompt.generate(this.rnd);
       this.form.prompt = r.prompt;
-      if (r.negative) this.form.negative_prompt = r.negative;
+      this.autoNegative();
+    },
+    // ✨ suggest / 🎲 random negative prompt: fits the prompt and the model type (tags or plain words)
+    makeNegative(random) {
+      const opts = { family: this.family, flavor: this.currentFlavor };
+      return random ? window.NegativePrompt.random(this.form.prompt, opts) : window.NegativePrompt.suggest(this.form.prompt, opts);
+    },
+    suggestNegative(random) {
+      this.undoNegative = this.form.negative_prompt;
+      const embeds = this.compatibleEmbeddings.map((e) => e.name).filter((n) => this.inNegative(n));  // keep your embeddings
+      this.form.negative_prompt = [...embeds, this.makeNegative(random)].join(", ");
+      this.lastAutoNegative = this.form.negative_prompt;
+      this.status = "Negative prompt written for " + this.familyLabel + (random ? " (with random extras)" : "") + ": edit it as you like";
+    },
+    autoNegative() {
+      // a new prompt from 🎲 Random prompt or ✨ enhance: write the matching negative too, unless you typed your own
+      const cur = (this.form.negative_prompt || "").trim();
+      const embeds = this.compatibleEmbeddings.map((e) => e.name);
+      const onlyEmbeds = cur.split(",").map((x) => x.trim()).filter(Boolean).every((x) => embeds.includes(x));
+      if (cur && cur !== this.lastAutoNegative && !onlyEmbeds) return;
+      const keep = embeds.filter((n) => this.inNegative(n));
+      this.form.negative_prompt = [...keep, this.makeNegative(false)].join(", ");
+      this.lastAutoNegative = this.form.negative_prompt;
+    },
+    // 📒 My prompts: saved prompt + negative prompt pairs (kept on this Mac)
+    savePromptPreset() {  // opens 📒 My prompts with a name ready to edit
+      this.promptBox = { name: this.promptPresetName() };
+    },
+    confirmSavePrompt() {
+      const name = (this.promptBox?.name || "").trim();
+      if (!name) return;
+      const list = this.promptPresets.filter((p) => p.name !== name);
+      list.unshift({ name, prompt: this.form.prompt, negative: this.form.negative_prompt || "" });
+      this.promptPresets = list.slice(0, 200);
+      saveJSON("protoart.prompts", this.promptPresets);
+      this.promptBox = null;
+      this.status = `Saved “${name}” in 📒 My prompts`;
+    },
+    promptPresetName() {
+      const words = this.form.prompt.replace(/[(),:\[\]]/g, " ").split(/\s+/).filter(Boolean).slice(0, 6).join(" ");
+      let name = words || "My prompt";
+      let i = 2;
+      while (this.promptPresets.some((p) => p.name === name)) name = `${words} (${i++})`;
+      return name;
+    },
+    applyPromptPreset(name) {
+      const p = this.promptPresets.find((x) => x.name === name);
+      if (!p) return;
+      this.undoPrompt = this.form.prompt;
+      this.form.prompt = p.prompt;
+      if (p.negative != null) this.form.negative_prompt = p.negative;
+      this.status = `“${name}” is in the prompt boxes`;
+    },
+    deletePromptPreset() {  // opens 📒 My prompts to pick which to delete
+      this.promptBox = { name: null };
+    },
+    async removePromptPreset(p) {
+      if (!(await this.confirmAsk(`Delete “${p.name}”?`, "It's removed from 📒 My prompts. Pictures made with it aren't affected.", "Delete"))) return;
+      this.promptPresets = this.promptPresets.filter((x) => x.name !== p.name);
+      saveJSON("protoart.prompts", this.promptPresets);
     },
 
     // -------------------------------------------------------------- post-processing

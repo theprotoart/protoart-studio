@@ -32,5 +32,18 @@ class FaceDefaultTests(unittest.TestCase):
         self.assertEqual(model_key("CodeFormer"), "codeformer")
 
 
+
+class EnhanceStyleTests(unittest.TestCase):
+    def test_styles(self):
+        from postprocess.prompt_enhance import style_for, SYSTEM, EXAMPLES
+        self.assertEqual(style_for("sd15"), "tags")
+        self.assertEqual(style_for("sdxl"), "tags")
+        self.assertEqual(style_for("flux2"), "natural")
+        self.assertEqual(style_for("edit"), "edit")
+        for s in ("tags", "natural", "edit"):
+            self.assertIn(s, SYSTEM)
+            self.assertIn(s, EXAMPLES)
+
+
 if __name__ == "__main__":
     unittest.main()

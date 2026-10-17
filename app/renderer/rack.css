@@ -1470,3 +1470,16 @@ button.bat-toggle:hover:not(:disabled), button.bat-toggle:active:not(:disabled) 
 .results-head { display: flex; align-items: center; gap: 10px; }
 .results-head button { margin-left: auto; text-transform: none; letter-spacing: normal; }
 .confirm p { white-space: pre-line; }
+/* negative prompt header with suggest / random */
+.neg-head { display: flex; align-items: baseline; gap: 10px; margin: 10px 0 4px; }
+.neg-head .neg-title { font-family: var(--f-eng); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; }
+.neg-head .grow { flex: 1; }
+[data-theme="dark"] .neg-head .neg-title { color: #efeadc; }
+/* 📒 My prompts */
+.prompt-presets { gap: 8px; align-items: center; flex-wrap: wrap; }
+.prompt-presets select { max-width: 220px; }
+.prompt-box { width: min(620px, 92vw); }
+.prompt-box input { width: 100%; box-sizing: border-box; }
+.prompt-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid rgba(0, 0, 0, .25); }
+.prompt-row-text { flex: 1; min-width: 0; display: grid; }
+.prompt-row-text .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

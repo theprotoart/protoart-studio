@@ -2,6 +2,11 @@
 
 ## 1.2.0
 
+- Negative prompt ✨ suggest / 🎲 random (`negative_prompt.js`): tags for SD 1.5 / SDXL / Pony / Illustrious (flavour
+  low-quality tags), plain words for ERNIE / FLUX, the opposite of the prompt's style, subject fixes; written
+  automatically after 🎲 Random prompt and ✨ enhance unless you typed your own (`autoNegative`)
+- Prompt enhancer: tags for SDXL too; new "edit" style rewrites Edit with words instructions; 📒 My prompts (saved
+  prompt + negative pairs, `protoart.prompts`)
 - A FLUX.1 LoRA can't be loaded into FLUX.2 (or the other way) even when its type was set by hand (checked against the
   file); the fast engine's "could not be applied" error is explained in plain words (`mlx_engine.friendly`)
 - Two of your model files with the same name are told apart in the lists ("· in “SD1”", "· a copy")

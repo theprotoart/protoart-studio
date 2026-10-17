@@ -27,6 +27,11 @@ SYSTEM = {
         "(Danbooru-style tags when they fit, e.g. 1girl, long hair, smile). Start with the user's subject, then add "
         "15 to 25 tags for details, clothing, pose, expression, background, lighting, composition and art style. "
         "No sentences. Always write in English. Output only the tags on one line."),
+    "edit": (
+        "You rewrite a short request for changing a picture into one clear editing instruction for an image editing "
+        "model. Say exactly what to change (and how it should look afterwards) and that everything else stays the "
+        "same. One or two sentences, under 45 words. Don't describe the whole picture. Always write in English. "
+        "Output only the instruction."),
 }
 EXAMPLES = {
     "natural": ("a fox in snow",
@@ -38,12 +43,19 @@ EXAMPLES = {
              "1girl, solo, holding sword, katana, long hair, black hair, red eyes, determined expression, "
              "fighting stance, school uniform, pleated skirt, wind, falling leaves, autumn, sunset, dramatic lighting, "
              "dynamic angle, cowboy shot, detailed background, anime style"),
+    "edit": ("make her jacket red",
+             "Change the woman's jacket to a deep red leather jacket with the same cut and fit, keeping her face, "
+             "pose, hair, the background and the lighting exactly as they are."),
 }
 QUALITY_TAGS = ["masterpiece", "best quality", "highly detailed"]
 
 
 def style_for(family):
-    return "tags" if family == "sd15" else "natural"
+    """Tags for the Stable Diffusion models (SD 1.5, SDXL incl. Pony / Illustrious / NoobAI), sentences for the
+    models that read language (ERNIE, FLUX, FLUX.2); "edit" rewrites an editing instruction (Edit with words)."""
+    if family == "edit":
+        return "edit"
+    return "tags" if family in ("sd15", "sdxl") else "natural"
 
 
 class PromptEnhancer:
@@ -82,7 +94,7 @@ class PromptEnhancer:
         inputs = tok(text, return_tensors="pt").to(self.device)
         start = inputs["input_ids"].shape[1]
         emit = self.emit
-        limit = 110 if style == "tags" else 170
+        limit = {"tags": 110, "edit": 80}.get(style, 170)
 
         class Watch(StoppingCriteria):
             def __call__(self, input_ids, scores, **kw):
