@@ -11,7 +11,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 
 ## What it does
 
-- **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), ERNIE-Image and FLUX.1 Schnell;
+- **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), ERNIE-Image, FLUX.1 Schnell and FLUX.2 Klein 4B;
   LoRA stacking with per-LoRA weights, embeddings (textual inversion), 20+ samplers with recommended picks per model,
   presets, wildcards, a random-prompt generator, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop
 - **Image to image:** strength, ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile), image prompt
@@ -68,7 +68,8 @@ The app's **How to** tab is the full manual, including Troubleshooting and a Dis
 
 1. **Pick a model** in Create. Models on your Mac are listed there; the **Models** tab has more to download
    (each shows its size and the memory it needs). On an 8 GB Mac, good starters are *SD 1.5*,
-   *ERNIE-Image Turbo · 4-bit · ⚡ fast engine* and *FLUX.1 Schnell · 3-bit · ⚡ fast engine*.
+   *ERNIE-Image Turbo · 4-bit · ⚡ fast engine*, *FLUX.2 Klein 4B · 4-bit · ⚡ fast engine* and
+   *FLUX.1 Schnell · 3-bit · ⚡ fast engine*.
 2. **Type a prompt** and press **Generate** (⌘↵). The first time, the model downloads (progress is shown), then it
    works offline.
 3. Pictures land in the **Library** with their settings. Click one to reuse its prompt, enhance it, adjust it, export

@@ -1,10 +1,11 @@
-"""Fast engine: runs ERNIE-Image and FLUX.1 natively on the Apple GPU with MLX (via the open-source
+"""Fast engine: runs ERNIE-Image, FLUX.1 and FLUX.2 [klein] natively on the Apple GPU with MLX (via the open-source
 mflux library), the same kind of engine Draw Things uses, instead of PyTorch.
 
 Runs as its own process with its own Python environment (backend/.venv-mlx), because mflux
 needs different library versions than the main engine. Talks JSON lines over stdin/stdout:
 
-  in : {"cmd": "load", "repo": ..., "base": "ernie-image-turbo", "loras": [[path, scale], ...], "low_ram": bool}
+  in : {"cmd": "load", "repo": ..., "revision": None, "base": "ernie-image-turbo", "loras": [[path, scale], ...],
+        "low_ram": bool}
        {"cmd": "generate", "prompt", "negative_prompt", "width", "height", "steps", "cfg", "seed",
         "out": "/tmp/x.png", "preview": bool}
        {"cmd": "cancel"}        (stops the current image)
@@ -36,6 +37,14 @@ class Cancelled(Exception):
 
 
 FLUX_BASES = ("schnell", "dev", "krea-dev")
+FLUX2_BASES = ("flux2-klein-4b",)
+
+
+def _family(base):
+    return "flux" if base in FLUX_BASES else "flux2" if base in FLUX2_BASES else "ernie"
+
+
+FAMILY_NAME = {"flux": "FLUX", "flux2": "FLUX.2", "ernie": "ERNIE"}
 
 
 class Worker:
@@ -44,17 +53,22 @@ class Worker:
         self.key = None
         self.low_ram = False
         self.family = "ernie"
+        self.revision = None
+        self.f2_cache = {}   # FLUX.2: encoded prompts, so the text encoder can be dropped between prompts
 
     def load(self, repo, base="ernie-image-turbo", loras=None, low_ram=False, force=False, allow_download=False,
-             label=None, size_gb=None):
+             label=None, size_gb=None, revision=None):
         loras = [tuple(x) for x in (loras or [])]
         key = (repo, base, tuple(loras))
+        if revision is not None or not force:
+            self.revision = revision
         if self.model is not None and self.key == key and not force:
             return
         import mlx.core as mx
         from mflux.models.common.config import ModelConfig
-        self.family = "flux" if base in FLUX_BASES else "ernie"
-        name = label or ("FLUX" if self.family == "flux" else "ERNIE")
+        self.family = _family(base)
+        name = label or FAMILY_NAME[self.family]
+        self.f2_cache = {}
 
         self.model = None
         gc.collect()
@@ -63,7 +77,7 @@ class Worker:
         if "/" in repo and not os.path.exists(repo):
             from huggingface_hub import snapshot_download
             try:
-                path = snapshot_download(repo, local_files_only=True)
+                path = snapshot_download(repo, local_files_only=True, revision=self.revision)
             except Exception:
                 if not allow_download:
                     raise RuntimeError(f"offline: {name} isn't downloaded yet")
@@ -72,7 +86,7 @@ class Worker:
                 os.environ["HF_HUB_OFFLINE"] = "0"
                 send({"type": "status", "msg": f"Downloading {name} (first time only, ~{size_gb or '?'} GB)…"})
                 try:
-                    path = snapshot_download(repo)
+                    path = snapshot_download(repo, revision=self.revision)
                 finally:
                     hc.HF_HUB_OFFLINE = True
                     os.environ["HF_HUB_OFFLINE"] = "1"
@@ -83,6 +97,10 @@ class Worker:
             from mflux.models.flux.variants.txt2img.flux import Flux1
             config = {"schnell": ModelConfig.schnell, "dev": ModelConfig.dev, "krea-dev": ModelConfig.krea_dev}[base]()
             self.model = Flux1(model_path=path, model_config=config, **lora_kw)
+        elif self.family == "flux2":
+            from mflux.models.flux2.variants import Flux2Klein
+            self.model = Flux2Klein(model_path=path, model_config=ModelConfig.flux2_klein_4b(), **lora_kw)
+            self._cache_flux2_prompts(self.model)
         else:
             from mflux.models.ernie_image import ErnieImage
             config = ModelConfig.ernie_image_turbo() if base == "ernie-image-turbo" else ModelConfig.ernie_image()
@@ -95,6 +113,22 @@ class Worker:
         send({"type": "status", "msg": f"{name} ready ({time.time() - t0:.0f}s)"})
         print(f"[mlx] loaded {repo} in {time.time() - t0:.1f}s low_ram={self.low_ram}", file=sys.stderr, flush=True)
 
+    def _cache_flux2_prompts(self, m):
+        """FLUX.2 encodes the prompt on every picture and has no prompt cache of its own: keep the encoded prompts
+        here, so on small Macs the ~2 GB text encoder can be dropped while the picture is made (see _Hooks)."""
+        orig = m._encode_prompt_pair
+        cache = self.f2_cache
+
+        def encode(*, prompt, negative_prompt, guidance):
+            k = (prompt, bool(guidance is not None and guidance > 1.0))
+            if k not in cache:
+                if len(cache) > 16:
+                    cache.clear()
+                cache[k] = orig(prompt=prompt, negative_prompt=negative_prompt, guidance=guidance)
+            return cache[k]
+
+        m._encode_prompt_pair = encode   # a plain function: MLX keeps it as an attribute, not a weight
+
     def generate(self, a):
         import mlx.core as mx
         m = self.model
@@ -106,23 +140,28 @@ class Worker:
             neg = None  # FLUX Schnell has no negative prompt
             cache_key = a["prompt"]
             missing = getattr(m, "t5_text_encoder", None) is None
+        elif self.family == "flux2":
+            neg = None  # FLUX.2 [klein] is distilled: no negative prompt, guidance stays at 1
+            cache_key = (a["prompt"], cfg > 1.0)
+            missing = getattr(m, "text_encoder", None) is None
         else:
             cache_key = (a["prompt"], neg, cfg)
             missing = m.text_encoder is None
-        if missing and cache_key not in m.prompt_cache:
+        prompt_cache = self.f2_cache if self.family == "flux2" else m.prompt_cache
+        if missing and cache_key not in prompt_cache:
             # Low-memory mode dropped the text encoder after the last prompt: reload to encode this one.
             repo, base, loras = self.key
-            self.load(repo, base, list(loras), self.low_ram, force=True)
+            self.load(repo, base, list(loras), self.low_ram, force=True, revision=self.revision)
             m = self.model
         self.hooks_state = {"steps": int(a["steps"]), "preview": bool(a.get("preview")), "last": 0.0,
                             "started": time.time(), "width": int(a["width"]), "height": int(a["height"])}
         kw = dict(seed=int(a["seed"]), prompt=a["prompt"], num_inference_steps=int(a["steps"]),
                   width=int(a["width"]), height=int(a["height"]), guidance=cfg)
-        if self.family != "flux":
+        if self.family == "ernie":
             kw["negative_prompt"] = neg
         res = m.generate_image(**kw)
         res.image.save(a["out"])
-        if len(m.prompt_cache) > 16:
+        if self.family != "flux2" and len(m.prompt_cache) > 16:
             m.prompt_cache.clear()
         gc.collect()
         mx.clear_cache()
@@ -140,9 +179,12 @@ class _Hooks:
             import mlx.core as mx
             # The prompt is encoded and cached: drop the text encoder(s) while the picture is made, so the
             # image model has the memory to itself (on 8 GB Macs this avoids swapping, the main slowdown).
-            if getattr(self.w, "family", "ernie") == "flux":
+            fam = getattr(self.w, "family", "ernie")
+            if fam == "flux":
                 self.w.model.t5_text_encoder = None   # ~2-5 GB
                 self.w.model.clip_text_encoder = None
+            elif fam == "flux2":
+                self.w.model.text_encoder = None      # Qwen3, ~2 GB at 4-bit
             else:
                 self.w.model.text_encoder = None  # ~2 GB
             gc.collect()
@@ -165,6 +207,8 @@ class _Hooks:
                 fam = getattr(self.w, "family", "ernie")
                 if fam == "flux":
                     lat = preview.unpack_flux_tokens(lat, st.get("height", 1024), st.get("width", 1024))
+                elif fam == "flux2":
+                    lat = preview.unpack_flux2_tokens(lat, st.get("height", 1024), st.get("width", 1024))
                 send({"type": "preview", "src": preview.latent_to_data_url(lat, fam)})
                 st["last"] = now
             except Exception as e:
@@ -210,7 +254,7 @@ def main():
             if cmd == "load":
                 worker.load(msg["repo"], msg.get("base", "ernie-image-turbo"), msg.get("loras"), msg.get("low_ram"),
                             allow_download=bool(msg.get("allow_download")), label=msg.get("label"),
-                            size_gb=msg.get("size_gb"))
+                            size_gb=msg.get("size_gb"), revision=msg.get("revision"))
                 send({"type": "loaded"})
             elif cmd == "generate":
                 send({"type": "done", "path": worker.generate(msg)})

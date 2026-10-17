@@ -10,7 +10,7 @@ from pathlib import Path
 
 import nsfw
 
-FAMILIES = ("sd15", "sdxl", "ernie", "flux")
+FAMILIES = ("sd15", "sdxl", "ernie", "flux", "flux2")
 
 
 # SDXL "flavours": fine-tuned SDXL families that are used differently from plain SDXL
@@ -63,6 +63,8 @@ def detect_family(header):
         return "sd15"
     if "ernie" in base:
         return "ernie"
+    if any(m in base for m in ("flux2", "flux.2", "flux-2", "flux_2", "klein")):
+        return "flux2"
     if "flux" in base:
         return "flux"
 
@@ -70,7 +72,7 @@ def detect_family(header):
     joined = "\n".join(keys)
     # FLUX: double/single stream blocks (Kohya "lora_unet_double_blocks_", diffusers "single_transformer_blocks")
     if any(m in joined for m in ("double_blocks", "single_blocks", "single_transformer_blocks", "context_embedder")):
-        return "flux"
+        return _flux_generation(joined)
     sdxl_markers = (
         "lora_te2_", "text_encoder_2", "conditioner.embedders.1",
         "transformer_blocks_9", "transformer_blocks.9",  # SDXL mid/down blocks have 10 blocks
@@ -84,6 +86,17 @@ def detect_family(header):
     if any(k.startswith(("transformer.", "diffusion_model.", "lora_transformer_")) for k in keys):
         return "ernie"
     return "unknown"
+
+
+def _flux_generation(joined):
+    """FLUX.1 and FLUX.2 LoRAs use the same key names; the number of blocks tells them apart: FLUX.2 [klein] 4B has
+    5 double + 20 single blocks, FLUX.1 has 19 + 38. A LoRA that only touches a few early blocks stays 'flux'."""
+    import re
+    dbl = [int(n) for n in re.findall(r"(?:double_blocks|(?<!single_)transformer_blocks)[._](\d+)", joined)]
+    sgl = [int(n) for n in re.findall(r"single_(?:transformer_)?blocks[._](\d+)", joined)]
+    if dbl and sgl and max(dbl) == 4 and 15 <= max(sgl) <= 19:
+        return "flux2"
+    return "flux"
 
 
 EXTRA_DIRS = []  # more folders to look in (Settings -> LoRA folders), set by the backend

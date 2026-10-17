@@ -114,7 +114,7 @@
         <span class="eng slot-label">Models <span class="hint">on this Mac appear in Create; the others download the first time you use them</span></span>
         <div class="slot-line">
           <div class="seg">
-            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'ernie', label: 'ERNIE'}, {id: 'sdxl', label: 'SDXL'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
+            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'FLUX.2'}, {id: 'ernie', label: 'ERNIE'}, {id: 'sdxl', label: 'SDXL'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
                     :class="{on: shop.family === f.id}" @click="shop.family = f.id">{{ f.label }}</button>
           </div>
           <button class="chip" :class="{on: shop.fav}" @click="shop.fav = !shop.fav" title="Show only your ★ favourite models">★ Favorites <small>{{ favModels.length }}</small></button>
@@ -961,7 +961,7 @@
         <td class="lf-type"><button class="ghost small lock-btn" :class="{on: typeLocked(l)}" @click="toggleTypeLock(l)"
                   :title="typeLocked(l) ? 'Locked: this type can\'t be changed by accident. Click to unlock.' : 'Unlocked. Click to lock this type (picking a type locks it too).'">{{ typeLocked(l) ? '🔒' : '🔓' }}</button>
           <div class="seg" :class="{locked: typeLocked(l)}">
-          <button v-for="f in (l.kind === 'model' ? [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}] : [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'ernie', label: 'ERNIE'}])" :key="f.id"
+          <button v-for="f in (l.kind === 'model' ? [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}] : [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'FLUX.2'}, {id: 'ernie', label: 'ERNIE'}])" :key="f.id"
                   :class="{on: f.id ? (l.family_set && l.family === f.id) : !l.family_set}" :disabled="typeLocked(l)" @click="setLoraFamily(l, f.id)">{{ f.label }}</button>
         </div></td></tr>
     </table>
@@ -2115,7 +2115,7 @@
         <div class="row small lora-dir-type">
           <span class="hint">for</span>
           <div class="seg">
-            <button v-for="f in [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'ernie', label: 'ERNIE'}]" :key="f.id"
+            <button v-for="f in [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'FLUX.2'}, {id: 'ernie', label: 'ERNIE'}]" :key="f.id"
                     :class="{on: ((loraDirs.families || {})[d] || '') === f.id}" @click="setLoraDirFamily(d, f.id)"
                     :title="f.id ? 'Every LoRA in this folder is used with ' + f.label + ' models, whatever the file says' : 'Work out each LoRA\'s model type from the file itself'">{{ f.label }}</button>
           </div>

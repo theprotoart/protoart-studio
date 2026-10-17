@@ -33,6 +33,14 @@ def unpack_flux_tokens(tokens, height, width):
     return tokens.reshape(h2, w2, 16, 2, 2).transpose(2, 0, 3, 1, 4).reshape(16, h2 * 2, w2 * 2)
 
 
+def unpack_flux2_tokens(tokens, height, width):
+    """FLUX.2 keeps its latents as a sequence of 128-channel tokens (32 channels x 2x2): (seq, 128) -> (128, H/16, W/16),
+    the same layout ERNIE-Image uses (both have the FLUX.2 autoencoder)."""
+    tokens = np.asarray(tokens, dtype=np.float32)
+    h2, w2 = height // 16, width // 16
+    return tokens.reshape(h2, w2, -1).transpose(2, 0, 1)
+
+
 def _unpack_128(lat):
     c, h, w = lat.shape
     lat = lat.reshape(c // 4, 2, 2, h, w).transpose(0, 3, 1, 4, 2)
@@ -42,6 +50,8 @@ def _unpack_128(lat):
 def latent_to_rgb(lat, family):
     """lat: numpy array (C, H, W) for one image. Returns uint8 (H, W, 3)."""
     lat = np.asarray(lat, dtype=np.float32)
+    if family == "flux2":
+        family = "ernie"  # same autoencoder
     if family == "ernie" and lat.shape[0] == 128:
         lat = _unpack_128(lat)
     factors, bias = FACTORS.get(family) or FACTORS["sd15"]

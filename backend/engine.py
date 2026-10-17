@@ -98,6 +98,17 @@ MODELS = {
         "download_gb": 18.0, "engine_gb": 1.5, "min_ram_gb": 32, "license": "Apache-2.0",
         "defaults": {"width": 1024, "height": 1024, "steps": 4, "cfg": 0.0},
     },
+    # FLUX.2 [klein] 4B by Black Forest Labs (Apache-2.0, January 2026): a newer, smaller FLUX that follows
+    # prompts and writes text better than FLUX.1 Schnell, in 4 steps. Its text encoder is Qwen3 (sentences in
+    # many languages). A community 4-bit MLX conversion (~4.6 GB), pinned to one revision so the files can't
+    # change under us; the fast engine drops the text encoder while it draws, so it fits an 8 GB Mac.
+    "flux2_klein_mlx_q4": {
+        "label": "FLUX.2 Klein 4B · 4-bit · ⚡ fast engine (newest, for 8 GB Macs)", "family": "flux2",
+        "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "ar9av/FLUX.2-klein-4B-mflux-4bit",
+        "mlx_revision": "86214a1c1caaea43b7c25b452b74ec08cd33d3e7", "mlx_base": "flux2-klein-4b",
+        "download_gb": 4.6, "engine_gb": 1.5, "min_ram_gb": 8, "license": "Apache-2.0",
+        "defaults": {"width": 1024, "height": 1024, "steps": 4, "cfg": 1.0},
+    },
     "ernie_int4": {
         "label": "ERNIE-Image · 4-bit (50 steps, best quality)", "family": "ernie", "quant": "int4",
         "repo": "OzzyGT/ERNIE_Image_sdnq_dynamic_int4",
@@ -580,7 +591,7 @@ class Engine:
         from huggingface_hub import hf_hub_download, snapshot_download
         jobs = []
         if spec.get("engine") == "mlx":
-            jobs.append(lambda: snapshot_download(spec["mlx_repo"]))
+            jobs.append(lambda: snapshot_download(spec["mlx_repo"], revision=spec.get("mlx_revision")))
         elif spec.get("gguf_file"):
             jobs.append(lambda: hf_hub_download(spec["gguf_repo"], spec["gguf_file"]))
             jobs.append(lambda: snapshot_download(spec["repo"], ignore_patterns=["transformer/*", "pe/*", "pe_tokenizer/*"]))
@@ -670,12 +681,12 @@ class Engine:
             pass
 
     @staticmethod
-    def _is_cached(repo, with_pe=False, ignore_extra=()):
+    def _is_cached(repo, with_pe=False, ignore_extra=(), revision=None):
         """True if the model files are already downloaded (no network access)."""
         try:
             from huggingface_hub import snapshot_download
             ignore = list(ignore_extra) + ([] if with_pe else ["pe/*", "pe_tokenizer/*"])
-            snapshot_download(repo, local_files_only=True, ignore_patterns=ignore or None)
+            snapshot_download(repo, local_files_only=True, ignore_patterns=ignore or None, revision=revision)
             return True
         except Exception:
             return False
@@ -694,7 +705,7 @@ class Engine:
         if spec.get("file") or spec.get("tdict") or spec.get("local_dir"):
             return True
         if spec.get("engine") == "mlx":
-            return self._is_cached(spec["mlx_repo"])
+            return self._is_cached(spec["mlx_repo"], revision=spec.get("mlx_revision"))
         if spec.get("hub_file"):
             from huggingface_hub import try_to_load_from_cache
             return isinstance(try_to_load_from_cache(spec["repo"], spec["hub_file"]), str)
@@ -1095,7 +1106,7 @@ class Engine:
         import mlx_engine
         from PIL import Image
         fam = spec["family"]
-        fam_name = {"ernie": "ERNIE", "flux": "FLUX"}.get(fam, fam)
+        fam_name = {"ernie": "ERNIE", "flux": "FLUX", "flux2": "FLUX.2"}.get(fam, fam)
         need = spec.get("min_ram_gb") or 8
         ram0 = total_ram_gb()
         if ram0 and ram0 < need * 0.5 and not force:
@@ -1186,7 +1197,7 @@ class Engine:
         import mlx_engine
         import net
         fam = spec["family"]
-        fam_name = {"ernie": "ERNIE", "flux": "FLUX"}.get(fam, fam)
+        fam_name = {"ernie": "ERNIE", "flux": "FLUX", "flux2": "FLUX.2"}.get(fam, fam)
         if self.pipe is not None or self.enhancer is not None:
             self.unload(keep_mlx=True)  # only one big model in memory at a time
             self.enhancer = None
@@ -1217,6 +1228,7 @@ class Engine:
             raise Cancelled()
         load_started = time.time()
         self.mlx.request({"cmd": "load", "repo": spec["mlx_repo"], "base": spec.get("mlx_base"),
+                          "revision": spec.get("mlx_revision"),
                           "label": spec["label"], "size_gb": spec.get("download_gb"),
                           "loras": loras, "low_ram": 0 < ram < 20,
                           "allow_download": bool(allow_download) and net.is_online()},
@@ -1717,7 +1729,7 @@ class Engine:
         if family == "sdxl":
             clip_skip = max(2, clip_skip)  # SDXL always reads the second-to-last layer: that *is* "CLIP skip 2"
         extra_skip = clip_skip - (2 if family == "sdxl" else 1)  # diffusers' clip_skip
-        mult = 16 if family in ("ernie", "flux") else 8
+        mult = 16 if family in ("ernie", "flux", "flux2") else 8
         width, height = max(mult * 8, width - width % mult), max(mult * 8, height - height % mult)
 
         # extras

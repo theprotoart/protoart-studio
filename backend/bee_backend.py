@@ -1076,8 +1076,9 @@ def relink_folder(old, new):
 
 # Sub-folder names recognised as "this type" when sorting (case-insensitive); new ones get the first-column name.
 TYPE_FOLDER_NAMES = {"sd15": ("sd 1.5", "sd1.5", "sd15", "sd1", "sd-1.5", "sd_1.5", "1.5", "sd 1"),
-                     "sdxl": ("sdxl", "xl", "sd xl"), "flux": ("flux", "flux.1", "flux1"), "ernie": ("ernie",)}
-TYPE_FOLDER_NEW = {"sd15": "SD 1.5", "sdxl": "SDXL", "flux": "FLUX", "ernie": "ERNIE"}
+                     "sdxl": ("sdxl", "xl", "sd xl"), "flux": ("flux", "flux.1", "flux1"),
+                     "flux2": ("flux.2", "flux2", "flux 2", "flux2 klein", "klein"), "ernie": ("ernie",)}
+TYPE_FOLDER_NEW = {"sd15": "SD 1.5", "sdxl": "SDXL", "flux": "FLUX", "flux2": "FLUX.2", "ernie": "ERNIE"}
 SIDECAR_SKIP = (".safetensors", ".tdict", ".ckpt")
 
 
@@ -1235,7 +1236,7 @@ def civitai_destinations(info):
 
 
 def civitai_family_label(fam):
-    return {"sd15": "SD 1.5", "sdxl": "SDXL", "flux": "FLUX", "ernie": "ERNIE"}.get(fam, "other")
+    return {"sd15": "SD 1.5", "sdxl": "SDXL", "flux": "FLUX", "flux2": "FLUX.2", "ernie": "ERNIE"}.get(fam, "other")
 
 
 def civitai_job(a, eng):

@@ -40,7 +40,7 @@ FLOW_SAMPLERS = {
     "flow_euler_beta":       ("Flow Euler Beta", "FlowMatchEulerDiscreteScheduler", {"use_beta_sigmas": True}, "scipy"),
 }
 
-DEFAULTS = {"sd15": "dpmpp_2m_karras", "sdxl": "dpmpp_2m_karras", "ernie": "flow_euler", "flux": "flow_euler",
+DEFAULTS = {"sd15": "dpmpp_2m_karras", "sdxl": "dpmpp_2m_karras", "ernie": "flow_euler", "flux": "flow_euler", "flux2": "flow_euler",
             "other": "default"}
 
 # Recommended step counts (common community guidance for SD 1.5 / SDXL). Each value is
@@ -64,7 +64,7 @@ FLOW_STEP_FACTOR = {"flow_euler": 1.0, "flow_euler_stochastic": 1.0, "flow_euler
 
 def recommended_steps(family, sampler_id, model_default=None):
     """Return (recommended, low, high) for a sampler; None if unknown."""
-    if family in ("ernie", "flux"):
+    if family in ("ernie", "flux", "flux2"):
         if not model_default:
             return None
         n = max(1, round(model_default * FLOW_STEP_FACTOR.get(sampler_id, 1.0)))
@@ -78,7 +78,7 @@ OTHER_SAMPLERS = {"default": ("Model default", None, {}, None)}  # models added 
 def table_for(family):
     if family == "ernie":
         return FLOW_SAMPLERS
-    if family == "flux":
+    if family in ("flux", "flux2"):
         return {"flow_euler": FLOW_SAMPLERS["flow_euler"]}  # the fast engine uses its own flow sampler
     if family in ("sd15", "sdxl"):
         return UNET_SAMPLERS

@@ -2,6 +2,13 @@
 
 ## 1.2.0
 
+- New model: **FLUX.2 [klein] 4B** on the fast engine (`flux2_klein_mlx_q4`, family `flux2`): mflux `Flux2Klein`
+  with the 4-bit conversion `ar9av/FLUX.2-klein-4B-mflux-4bit` pinned to revision 86214a1 (~4.6 GB), 4 steps, guidance 1,
+  no negative prompt. On small Macs the Qwen3 text encoder is dropped while drawing; encoded prompts are cached in the
+  worker (`_cache_flux2_prompts`). Live preview via the FLUX.2 autoencoder factors. Fast-engine downloads and cache
+  checks accept a pinned `mlx_revision`
+- FLUX.2 LoRAs: detected from metadata, Civitai base model "Flux.2 …", or the block count (5 double + 20 single
+  blocks); a FLUX.2 type folder and filters in Models, LoRA folders and Fix a type
 - 🩹 Remove (spot healing): Image to image → Remove mode (paint, press Remove) and Tools → Remove objects.
   `postprocess/heal.py`: LaMa (Apache-2.0; Carve/LaMa-ONNX `lama_fp32.onnx`, pinned revision c3c0c9e, ~208 MB,
   ONNX Runtime on the CPU; context box around the mask, 512 px, blended back with a soft edge) or OpenCV Telea "Quick".

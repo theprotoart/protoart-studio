@@ -29,6 +29,7 @@ _BASES = [
     (r"illustrious", ("sdxl", "illustrious")),
     (r"noob", ("sdxl", "noobai")),
     (r"^sdxl", ("sdxl", None)),
+    (r"^flux[ .-]?2", ("flux2", None)),
     (r"^flux", ("flux", None)),
     (r"ernie", ("ernie", None)),
 ]

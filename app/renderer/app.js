@@ -100,13 +100,14 @@ const SAMPLER_PICKS = {
   anime_xl: { fast: ["euler_a", "dpmpp_2m_karras", "unipc"], quality: ["euler_a", "dpmpp_2m_sde_karras", "dpmpp_2m_karras"] },
   ernie: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
   flux: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
+  flux2: { fast: ["flow_euler"], quality: [] },
 };
-const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", sd2: "SD 2" };
+const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "FLUX.2", sd2: "SD 2" };
 const OPTS_KEY = "beestudio.opts";
 const PERF_KEY = "protoart.perf";
 // Starting guesses (seconds per step per megapixel) until this Mac has real measurements.
-const DEFAULT_SPS_PER_MP = { sd15: 2.4, sdxl: 3.5, ernie: 9, flux: 12 };
-const DEFAULT_LOAD_S = { sd15: 15, sdxl: 30, ernie: 60, flux: 60 };
+const DEFAULT_SPS_PER_MP = { sd15: 2.4, sdxl: 3.5, ernie: 9, flux: 12, flux2: 7 };
+const DEFAULT_LOAD_S = { sd15: 15, sdxl: 30, ernie: 60, flux: 60, flux2: 40 };
 const DEFAULT_JOB_S = { faces: 15, enhance: 180, interrogate: 20, enhance_prompt: 25 };
 const FORM_KEY = "beestudio.lastForm";
 // Pictures you can drop or pick anywhere: these open directly; HEIC, TIFF, RAW… are converted by macOS first
@@ -345,6 +346,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Version 1.2: new tools, and more of your testers' notes", items: [
+              "<b>New model: FLUX.2 Klein 4B</b> (Black Forest Labs, January 2026) on the ⚡ fast engine, made for 8 GB Macs: a 4.6 GB download, 4 steps a picture. It's newer than FLUX.1 Schnell and better at following long prompts and writing text in pictures. Find it in the <b>Models</b> tab under FLUX.2. It ignores the negative prompt, and FLUX.1 LoRAs don't work with it (FLUX.2 LoRAs do).",
               "<b>🩹 Remove objects</b> (spot healing, like a healing brush): in <b>Image to image</b> choose <b>🩹 Remove</b>, paint over anything you don't want (a stray object, an extra finger, text, a blemish) and press <b>🩹 Remove</b>. It's filled in from what's around it; only the painted part changes. <b>✨ Best</b> uses LaMa (a ~208 MB download the first time, then offline); <b>⚡ Quick</b> is instant for small spots and scratches. Also in <b>Tools → 🩹 Remove objects</b>.",
               "<b>✒️ Vectorize</b> (Tools): turns a picture into an SVG of flat colour shapes, for logos, icons, stickers and cut files. Choose the number of colours, the detail and smooth or sharp outlines; it opens in Illustrator, Affinity, Inkscape, Figma or Cricut.",
               "<b>★ Favourite LoRAs</b>: click the ★ on a LoRA in the list. Favourites come first, and the <b>★</b> button next to the search box shows only them.",
@@ -649,6 +651,7 @@ const protoartApp = createApp({
               "<b>Needs more memory</b>: models that are too big for this Mac. You can still download them (for example to copy to a bigger Mac, or to try with Settings → Load anyway; it may be very slow).",
               "<b>Pony, Illustrious and NoobAI</b> are SDXL models trained further for anime and illustration. The app recognises them from their name or the file's own details, labels them, and sorts LoRAs made for them first (LoRAs for another kind are marked “may not match”). Create then shows <b>Add … quality tags</b> (on by default), which puts their usual quality tags in front of your prompt, e.g. <i>score_9, score_8_up, score_7_up</i> for Pony. They use CLIP skip 2 like other SDXL models. Click the tags next to the switch (<b>⤴ put in prompt</b>) to write them into your prompt and negative prompt so you can see and edit them. On 8 GB Macs the first load converts the file to 8-bit and saves that copy (a few minutes, once; ~2.6 GB in your data folder).",
               "<b>FLUX.1 Schnell</b> (Black Forest Labs, Apache-2.0 licence, free to use) makes a picture in 4 steps on the fast engine. Pick the <b>3-bit</b> build on 8 GB Macs (7.5 GB download); the 4-bit (9.6 GB) needs 16 GB and the 8-bit (18 GB) 32 GB for the best quality. FLUX prefers sentences, ignores the negative prompt, and takes FLUX LoRAs.",
+              "<b>FLUX.2 Klein 4B</b> (Black Forest Labs, January 2026, Apache-2.0; the 4-bit build's page also carries a non-commercial tag, so check it before selling pictures) is the newest FLUX and the best start on an 8 GB Mac: a 4.6 GB download (a 4-bit build for the fast engine), 4 steps a picture, good at long prompts and at writing words in pictures. Write sentences; the negative prompt is ignored and the CFG stays at 1. LoRAs must be made for FLUX.2 Klein 4B (Civitai base model “Flux.2 Klein”); FLUX.1 LoRAs are listed under FLUX and won't load. On 8 GB the app sets the size to Medium (768) and frees the text part of the model while it draws, so changing the prompt reloads that part (a few seconds).",
               "<b>Keeping models on an external drive</b>: base model files and LoRAs you already have can stay anywhere (Settings → <i>Watch a models folder</i> and <i>Add LoRA folders</i>; nothing is copied). Models this app downloads go to the <b>Downloaded models folder</b> in Settings, which can be on an external drive too (it can move the ones you already have).",
               "<b>Make default</b>: Create starts with that model every time the app opens (and gets it ready in the background). <b>🗑 Delete</b> removes a downloaded model's files from this Mac (click twice; files another model still needs are kept, and it downloads again if you use it later). Your own files get <b>Move to Trash</b> instead, so you can put them back.",
               "<b>↻ Refresh</b> (here, under Create's model list, and in Settings) looks again for models and LoRAs: files you've just put in your folders, or a download that finished.",
@@ -1008,6 +1011,7 @@ const protoartApp = createApp({
       const list = [
         { id: "all", label: "All", count: this.installedModels.length },
         { id: "fav", label: "★ Favorites", count: count((m) => this.isFav(m)) },
+        { id: "flux2", label: "FLUX.2", count: count((m) => m.family === "flux2") },
         { id: "flux", label: "FLUX", count: count((m) => m.family === "flux") },
         { id: "ernie", label: "ERNIE", count: count((m) => m.family === "ernie") },
         { id: "sdxl", label: "SDXL", count: count((m) => m.family === "sdxl") },
@@ -1036,9 +1040,10 @@ const protoartApp = createApp({
     },
     modelGroups() {
       const groups = [
+        { name: "FLUX.2", models: this.models.filter((m) => m.family === "flux2") },
         { name: "FLUX.1", models: this.models.filter((m) => m.family === "flux") },
         { name: "ERNIE-Image", models: this.models.filter((m) => m.family === "ernie") },
-        { name: "Stable Diffusion", models: this.models.filter((m) => !["ernie", "flux"].includes(m.family) && !m.id.includes(":")) },
+        { name: "Stable Diffusion", models: this.models.filter((m) => !["ernie", "flux", "flux2"].includes(m.family) && !m.id.includes(":")) },
         { name: "Your checkpoints", models: this.models.filter((m) => m.id.startsWith("file:")) },
         { name: "From DiffusionBee", models: this.models.filter((m) => m.id.startsWith("tdict:")) },
         { name: "Your model files", models: this.models.filter((m) => m.id.startsWith("local:")) },
@@ -1246,7 +1251,7 @@ const protoartApp = createApp({
     },
     mergeFamilies() {
       const c = (f) => this.loras.filter((l) => l.family === f && /\.safetensors$/i.test(l.file || "")).length;
-      return [["sd15", "SD 1.5"], ["sdxl", "SDXL"], ["flux", "FLUX"], ["ernie", "ERNIE"]].map(([id, label]) => ({ id, label, count: c(id) }))
+      return [["sd15", "SD 1.5"], ["sdxl", "SDXL"], ["flux", "FLUX"], ["flux2", "FLUX.2"], ["ernie", "ERNIE"]].map(([id, label]) => ({ id, label, count: c(id) }))
         .filter((f) => f.count);
     },
     mergeFamily() {
@@ -1372,7 +1377,7 @@ const protoartApp = createApp({
     },
     sizeTiers() {
       // Small / Medium / Large for each model type (side of an equivalent square).
-      const t = { sd15: [512, 640, 768], sdxl: [768, 1024, 1280], ernie: [640, 768, 1024], flux: [512, 768, 1024], other: [512, 768, 1024] };
+      const t = { sd15: [512, 640, 768], sdxl: [768, 1024, 1280], ernie: [640, 768, 1024], flux: [512, 768, 1024], flux2: [512, 768, 1024], other: [512, 768, 1024] };
       const [s, m, l] = t[this.family] || t.other;
       return [{ id: "s", label: "Small", side: s }, { id: "m", label: "Medium", side: m }, { id: "l", label: "Large", side: l }];
     },
@@ -1396,6 +1401,7 @@ const protoartApp = createApp({
                     ["Wide 16:9", 1376, 768], ["Medium square", 768, 768]];
       // FLUX: the SDXL shapes (all multiples of 16 too)
       sets.flux = sets.sdxl.map(([l, w, h]) => [l === "Small square" ? "Medium square" : l, w, h]);
+      sets.flux2 = sets.flux;
       return (sets[this.family] || sets.sdxl).map(([label, w, h]) => ({ label, w, h }));
     },
     livePreviewShown() {
@@ -1729,7 +1735,7 @@ const protoartApp = createApp({
     },
     // -------------------------------------------------------------- size / steps
     snap(v) {
-      const m = ["ernie", "flux"].includes(this.family) ? 16 : 8;
+      const m = ["ernie", "flux", "flux2"].includes(this.family) ? 16 : 8;
       return Math.min(2048, Math.max(256, Math.round(v / m) * m));
     },
     setSide(side, raw, final) {
@@ -2161,7 +2167,7 @@ const protoartApp = createApp({
       }
       this.form.clip_skip = this.clipSkipFor(m);
       Object.assign(this.form, { width: m.defaults.width, height: m.defaults.height, steps: m.defaults.steps, cfg: m.defaults.cfg });
-      if (["ernie", "flux"].includes(m.family) && this.sys.ram_gb && this.sys.ram_gb < 12) {
+      if (["ernie", "flux", "flux2"].includes(m.family) && this.sys.ram_gb && this.sys.ram_gb < 12) {
         Object.assign(this.form, { width: 768, height: 768 }); // 8 GB Macs: Medium is ~2x faster than 1024
         this.status = `Size set to Medium (768) for ${FAMILY_LABEL[m.family]} on this Mac; Large (1024) takes about twice as long`;
       }
@@ -3695,7 +3701,7 @@ const protoartApp = createApp({
       const r = window.DanbooruPrompt.generate(this.rnd);
       this.form.prompt = r.prompt;
       if (r.negative) this.form.negative_prompt = r.negative;
-      if (["ernie", "flux"].includes(this.family)) this.status = `Tip: ${FAMILY_LABEL[this.family]} prefers sentences; tag prompts work best with anime SDXL/SD 1.5 models`;
+      if (["ernie", "flux", "flux2"].includes(this.family)) this.status = `Tip: ${FAMILY_LABEL[this.family]} prefers sentences; tag prompts work best with anime SDXL/SD 1.5 models`;
     },
 
     // -------------------------------------------------------------- post-processing

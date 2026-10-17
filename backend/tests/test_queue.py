@@ -253,8 +253,8 @@ class QueueTests(unittest.TestCase):
     def test_first_run_makes_type_folders(self):
         self.send(1, "lora_dirs_get")
         d = self.outcome(1)["data"]
-        self.assertEqual(sorted(d["families"].values()), ["ernie", "flux", "sd15", "sdxl"])
-        for name in ("SD 1.5", "SDXL", "FLUX", "ERNIE"):
+        self.assertEqual(sorted(d["families"].values()), ["ernie", "flux", "flux2", "sd15", "sdxl"])
+        for name in ("SD 1.5", "SDXL", "FLUX", "FLUX.2", "ERNIE"):
             self.assertTrue(Path(d["default"], name).is_dir())
 
     def test_downloads_folder_and_move(self):
