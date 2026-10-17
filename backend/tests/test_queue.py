@@ -70,6 +70,24 @@ class QueueTests(unittest.TestCase):
         self.assertEqual(r3["data"][0]["prompt"], "third")
         self.wait_for(lambda m: m["type"] == "queue" and m["jobs"] == [])
 
+    def test_move_a_waiting_job_up(self):
+        self.send(30, "pause", on=True)
+        for i, p in [(31, "first"), (32, "second"), (33, "third")]:
+            self.send(i, "generate", prompt=p)
+        self.wait_for(lambda m: m["type"] == "queue" and len(m["jobs"]) == 3)
+        self.send(40, "queue_move", job_id=33, delta=-1)
+        self.assertEqual(self.outcome(40)["data"], 1)
+        q = self.wait_for(lambda m: m["type"] == "queue" and [j["label"] for j in m["jobs"]] == ["first", "third", "second"])
+        self.assertTrue(q)
+        self.send(41, "queue_move", job_id=33, delta=-5)  # to the front, no further
+        self.assertEqual(self.outcome(41)["data"], 0)
+        self.send(42, "queue_move", job_id=999, delta=1)
+        self.assertIsNone(self.outcome(42)["data"])
+        self.send(43, "pause", on=False)
+        first = self.outcome(33)  # runs before the others now
+        self.assertEqual(first["type"], "result")
+        self.send(44, "cancel_all")
+
     def test_pause_holds_the_running_image_and_the_queue(self):
         self.send(1, "generate", prompt="a")
         self.send(2, "generate", prompt="b")

@@ -740,6 +740,10 @@
                   @click="skipImage" title="Skip the image being made now; the job carries on with its next image">⏭</button>
           <button v-if="j.state==='running' && queue.length > 1 && canSendBack(j)" class="ghost job-skip job-later" @click="sendBack(j.id)"
                   :disabled="!!stopping[j.id]" title="Move this job to the back of the queue so the others run first">⤵</button>
+          <span v-if="j.state === 'queued' && queuedCount > 1" class="job-move">
+            <button class="ghost" :disabled="queuedIndex(j) === 0" @click="moveJob(j.id, -1)" title="Move up: start sooner">▲</button>
+            <button class="ghost" :disabled="queuedIndex(j) === queuedCount - 1" @click="moveJob(j.id, 1)" title="Move down: start later">▼</button>
+          </span>
           <button class="job-cancel" @click="cancelJob(j.id)"
                   :title="j.state==='running' ? 'Stop this job (the rest of the queue continues)' : 'Remove from queue'">✕</button>
         </div>
@@ -1096,7 +1100,7 @@
             <span v-if="m.flavor" class="chip static">{{ flavorName(m.flavor) }}</span>
             <span v-if="m.engine === 'mlx'" class="chip static">⚡ fast engine</span>
             <span v-if="m.id === form.model" class="chip static">in use</span>
-            <span v-if="m.id === opts.default_model" class="chip static on">default</span>
+            <span v-if="m.id === opts.default_model" class="chip static default-chip" title="Create starts with this model">★ default</span>
             <span class="marks card-marks">
               <span class="fav-star" :class="{on: isFav(m)}" role="button" @click="toggleFav(m)"
                     :title="isFav(m) ? '★ Favourite · click to remove' : 'Click to add to your favourites (listed first in Create)'">★</span><i

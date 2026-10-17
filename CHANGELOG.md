@@ -2,6 +2,7 @@
 
 ## 1.2.1 (in progress)
 
+- Queue: ▲ / ▼ reorder waiting jobs (`queue_move`, `JobQueue.move`); Models tab: readable ★ default tag
 - Tools → ◐ Shape maker (`shapeRender`, `shapeToControlNet`): a picture into a black-and-white ControlNet shape by tones,
   outlines (Sobel) or subject (depth map), with threshold, smoothing, invert and margin; opens in Image to image with
   your QR / pattern ControlNet

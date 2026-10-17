@@ -351,6 +351,18 @@ class JobQueue:
             self.running = None
             self._broadcast()
 
+    def move(self, job_id, delta):
+        """Move a waiting job up (delta < 0) or down in the queue. Returns its new place (0 = next), or None."""
+        with self._cv:
+            i = next((k for k, j in enumerate(self._waiting) if j["id"] == job_id), None)
+            if i is None:
+                return None
+            k = max(0, min(len(self._waiting) - 1, i + int(delta)))
+            if k != i:
+                self._waiting.insert(k, self._waiting.pop(i))
+                self._broadcast()
+            return k
+
     def cancel(self, job_id):
         """Returns 'removed' (was waiting), 'stopping' (was running) or None."""
         with self._cv:
@@ -1394,6 +1406,9 @@ def reader():
         mid, cmd, a = msg.get("id"), msg.get("cmd"), msg.get("args") or {}
         if cmd == "cancel_job":
             emit({"type": "result", "id": mid, "data": jobs.cancel(a.get("job_id"))})
+            continue
+        if cmd == "queue_move":  # ▲ / ▼ beside a waiting job: change which one starts next
+            emit({"type": "result", "id": mid, "data": jobs.move(a.get("job_id"), a.get("delta") or 0)})
             continue
         if cmd == "pause":  # Pause / Resume generating (args: {"on": true|false})
             jobs.set_paused(bool(a.get("on", True)))

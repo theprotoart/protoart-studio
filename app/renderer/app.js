@@ -460,6 +460,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Coming in 1.2.1: fixes from your notes", items: [
+              "<b>Reorder the queue</b>: ▲ and ▼ beside each waiting job move it up or down, so you choose which prompt starts next. <b>Models tab</b>: the ★ default tag is now easy to read (it glowed too brightly).",
               "<b>◐ Shape maker</b> (Tools): turns any picture into a black-and-white shape for QR / pattern ControlNets. <b>Tones</b> makes the dark parts the shape (logos, silhouettes), <b>Outline</b> its outlines, <b>Subject</b> whatever is in front (found with a depth map). Threshold / Detail / Nearness and Smooth tune it, with invert and a margin; the preview updates as you go. <b>Use as shape →</b> opens it in Image to image as the ControlNet's picture, with your QR / pattern ControlNet picked if you have one.",
               "<b>Patterns for QR code ControlNets</b>: with a QR / pattern / illusion ControlNet picked, its guide (right-hand column) has a <b>Pattern</b> panel: a real, scannable <b>QR code</b> of any text or link you type, your <b>word</b> in big letters, or a ready-made shape (spiral, rings, checks, stripes, waves, sunburst, circle, heart, star, triangle), with <b>invert</b> for white on black. Click one and it becomes 1 · Picture, ready to generate; <b>Your own…</b> uses a picture of yours (a logo, a drawing, your own QR code).",
               "<b>Tools → Depth map → Use as a ControlNet depth map</b> now always lands in Image to image ready to go: it switches to 🔄 Change it and an SD 1.5 model (Edit with words or Inpaint used to hide the ControlNet). The <b>ControlNet guide</b> now sits in the roomy right-hand column above the preview, with its steps open. <b>Library</b>: Img2img, ↺ Prompt and Tools sit in one even row along the bottom of a picture, and 🗑 moved next to ★ so it no longer covers the picture's label.",
@@ -622,6 +623,7 @@ const protoartApp = createApp({
               "<b>⚡ Fast mode</b> (SD 1.5 / SDXL) makes images in 6 steps. <b>Presets</b> (at the top of the window in Create) save a whole setup, LoRAs included; switch on <i>prompt</i> to save the prompt too.",
               "<b>❚❚ Pause</b> holds the picture being made at its next step (and the queue); <b>▶ Resume</b> carries on where it was, nothing lost. Memory stays in use while paused, so on an 8 GB Mac Stop frees more if you need the Mac for something else.",
               "<b>⏭ Skip image</b> skips one image of a batch, <b>■ Stop</b> stops the job, <b>Stop all</b> clears the queue (and ends a pause).",
+              "<b>▲ / ▼</b> beside a waiting job (point at it) move it up or down the queue: the top one starts next.",
               "<b>⤵ Run the others first</b> (top of the queue, or the ⤵ on the running job) moves the job that's running to the back of the queue, so the jobs waiting behind it run now. The pictures it already finished are kept; the rest are made when its turn comes again (the one it was in the middle of starts over).",
               "Create and Image to image each keep <b>their own prompt and negative prompt</b>: switching tabs shows that tab's own.",
               "Next to the model's name: <b>getting ready…</b> while it loads in the background, <b>● loaded, ready</b> when the next picture can start straight away (Settings → Speed)." ] },
@@ -1394,6 +1396,9 @@ const protoartApp = createApp({
         if (fam === "ernie") return ram && ram < 16 ? 40 : 10;
         return ram && ram < 12 ? 4 : 2;
       };
+    },
+    queuedCount() {
+      return this.queue.filter((x) => x.state === "queued").length;
     },
     trainSkipped() {
       return this.train.items.filter((it) => it.fit === "skip").length;
@@ -4164,6 +4169,16 @@ const protoartApp = createApp({
     skipImage() {
       call("skip_image", {});
       this.status = "Skipping this image…";
+    },
+    queuedIndex(j) {  // place among the waiting jobs (0 = starts next)
+      return this.queue.filter((x) => x.state === "queued").findIndex((x) => x.id === j.id);
+    },
+    async moveJob(id, delta) {  // ▲ / ▼: change which waiting job starts next
+      try {
+        await call("queue_move", { job_id: id, delta });
+      } catch (e) {
+        this.error = e.message;
+      }
     },
     canSendBack(j) {  // jobs that can simply start again later (not training, downloads or file moves)
       return !!jobArgs.get(j.id) && !["train_lora", "train_embedding", "model_download", "downloads_move", "civitai_download",
