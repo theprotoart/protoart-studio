@@ -149,10 +149,6 @@ class Skipped(Exception):
     """The current image was skipped; the job carries on with its next image."""
 
 
-class BrokenMaths(Exception):
-    """The picture's numbers turned into NaN / infinity part-way (half-precision overflow): stop early, don't finish."""
-
-
 class UserError(Exception):
     """An error with a message meant for the person using the app."""
 
@@ -326,37 +322,6 @@ def _looks_blank(image):
         return float(a.std()) < 1.5
     except Exception:
         return False
-
-
-def _safe_vae_decode(vae):
-    """SD 1.5's VAE in half precision can overflow on very high-contrast pictures (QR codes, hard black-and-white
-    patterns): the picture is fine but turns into NaN while it's made into pixels, and comes out black or flat.
-    When that happens, decode that one picture again at full precision (no need to make it again)."""
-    if vae is None or getattr(vae, "_protoart_safe", False):
-        return
-    import torch
-    run = vae.decode
-
-    def decode(z, *args, **kwargs):
-        out = run(z, *args, **kwargs)
-        sample = out[0] if isinstance(out, tuple) else getattr(out, "sample", None)
-        if sample is None or bool(torch.isfinite(sample).all()) or vae.dtype == torch.float32:
-            return out
-        print("[engine] VAE: half precision overflowed while making the pixels; decoding at full precision",
-              flush=True)
-        was = vae.dtype
-        vae.to(torch.float32)
-        try:
-            out = run(z.float(), *args, **kwargs)
-        finally:
-            vae.to(was)
-        if isinstance(out, tuple):
-            return tuple(o.to(was) if torch.is_tensor(o) else o for o in out)
-        out.sample = out.sample.to(was)
-        return out
-
-    vae.decode = decode
-    vae._protoart_safe = True
 
 
 class _TextModelAlias:
@@ -1141,7 +1106,6 @@ class Engine:
     def _controlnet_pipe(self, control, control_src, img2img, width, height):
         import controlnet as cnet
         import diffusers
-        import torch as t
         kind = control["type"]
         cmap = self.control_map(kind, control_src, width, height, bool(control.get("already_map")),
                                 control.get("depth_model") or "small")
@@ -1151,14 +1115,8 @@ class Engine:
                 self.cn_pipes = {}
                 self.release_memory()
             dtype = self.pipe.unet.dtype
-            safe = kind in cnet.SAFE_KINDS and dtype != t.float32
-            model = cnet.load(kind, self.pipe.unet, t.float32 if safe else dtype, emit=self.emit).to(self.device())
-            if safe:  # its numbers broke at half precision: this one runs at full precision
-                print(f"[controlnet] {kind}: running at full precision", flush=True)
-                cnet.keep_finite(model, dtype)
-            self.controlnets[kind] = model
+            self.controlnets[kind] = cnet.load(kind, self.pipe.unet, dtype, emit=self.emit).to(self.device())
             self.release_memory()  # hand back what loading it used, before the first step
-        _safe_vae_decode(getattr(self.pipe, "vae", None))
         key = (kind, img2img)
         if key not in self.cn_pipes:
             if self.family == "sdxl":
@@ -1978,16 +1936,6 @@ class Engine:
                     raise Cancelled()
                 if self.skip_event.is_set():
                     raise Skipped()
-                if control:  # broken maths: stop at once instead of spending minutes on a flat picture
-                    lat = kw.get("latents")
-                    if lat is not None:
-                        ok = bool(t.isfinite(lat).all())
-                        if step < 2 or not ok or step + 1 == steps:
-                            print(f"[controlnet] step {step + 1}: picture numbers {'ok' if ok else 'broken (NaN)'}"
-                                  + (f", range {float(lat.min()):.1f} to {float(lat.max()):.1f}" if ok else ""),
-                                  flush=True)
-                        if not ok:
-                            raise BrokenMaths()
                 total = getattr(p, "_num_timesteps", None) or steps
                 self.emit({"type": "progress", "image": _i + 1, "images": n, "step": step + 1, "steps": total,
                            **({"phase": phase["name"]} if phase["name"] else {})})
@@ -2053,15 +2001,9 @@ class Engine:
             started = time.time()
             self.skip_event.clear()
             extras_info = {}
-            def attempt():
-                try:
-                    return pipe(**call).images[0]
-                except BrokenMaths:
-                    return None
-
             try:
-                image = attempt()
-                if (image is None or _looks_blank(image)) and control:
+                image = pipe(**call).images[0]
+                if _looks_blank(image) and control:
                     import controlnet as cnet
                     if cnet.LAST_SOURCE.get(control["type"]) == "diffusionbee":
                         # the DiffusionBee copy of this ControlNet didn't work: switch to the official model
@@ -2080,41 +2022,8 @@ class Engine:
                             call["control_image"] = control_map
                         else:
                             call["image"] = control_map
-                        image = attempt()
-                cn_now = self.controlnets.get(control["type"]) if control else None
-                if (image is None or _looks_blank(image)) and control:
-                    try:
-                        import numpy as np
-                        a_ = np.asarray(image.convert("RGB")) if image is not None else None
-                        print(f"[engine] flat result: unet {self.pipe.unet.dtype}, vae {self.pipe.vae.dtype}, controlnet "
-                              f"{getattr(cn_now, 'dtype', None)}, picture "
-                              + ("not made (numbers broke)" if a_ is None else
-                                 f"mean {a_.mean():.1f}, min {a_.min()}, max {a_.max()}"), flush=True)
-                    except Exception as e:
-                        print("[engine] flat result (no details):", e, flush=True)
-                if (image is None or _looks_blank(image)) and control and control["type"] not in cnet.SAFE_KINDS \
-                        and getattr(cn_now, "dtype", t.float32) != t.float32:
-                    # its numbers overflowed at half precision (common with QR / pattern ControlNets on Apple GPUs):
-                    # run the ControlNet at full precision and try the same picture again
-                    print(f"[engine] {control['type']}: flat / broken result; retrying with the ControlNet at full "
-                          "precision", flush=True)
-                    cnet.SAFE_KINDS.add(control["type"])
-                    self.controlnets.pop(control["type"], None)
-                    self.cn_pipes = {k: v for k, v in self.cn_pipes.items() if k[0] != control["type"]}
-                    self.release_memory()
-                    self.emit({"type": "status", "msg": "That ControlNet needs more precision on this Mac; trying again "
-                                                        "(it stays that way from now on)…"})
-                    pipe, control_map = self._controlnet_pipe(control, control_src, init_image is not None,
-                                                              width, height)
-                    if scheduler is not None:
-                        pipe.scheduler = scheduler
-                    call["generator"] = t.Generator("cpu").manual_seed(img_seed)
-                    if init_image is not None:
-                        call["control_image"] = control_map
-                    else:
-                        call["image"] = control_map
-                    image = attempt()
-                if image is None or _looks_blank(image):
+                        image = pipe(**call).images[0]
+                if _looks_blank(image):
                     # a flat grey/black result means the maths broke down (usually half-precision overflow)
                     print("[engine] result came out blank; control:", control, "family:", family, flush=True)
                     raise UserError("The result came out as a flat grey image, so it wasn't saved. "

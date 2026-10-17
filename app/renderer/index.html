@@ -1567,34 +1567,6 @@
           </div>
         </div>
 
-        <div class="card rack-module shape-card" :class="{active: !!shape.url}">
-          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">◐</span>
-            <h3>Shape maker</h3><span class="mod-sub">picture → ControlNet shape</span></div>
-          <p class="mod-desc">Turns the picture into a black-and-white shape to hide inside new pictures with a QR / pattern ControlNet.</p>
-          <label>From</label>
-          <div class="seg mod-seg">
-            <button v-for="m in [['tone', 'Tones', 'Dark parts become the shape (logos, silhouettes, high-contrast pictures)'], ['edges', 'Outline', 'The outlines become the shape (line drawings, detailed pictures)'], ['subject', 'Subject', 'What\'s in front becomes the shape, found with a depth map (people, animals, objects)']]"
-                    :key="m[0]" :class="{on: shape.mode === m[0]}" @click="shapeMode(m[0])" :title="m[2]">{{ m[1] }}</button>
-          </div>
-          <label :title="shape.mode === 'subject' ? 'Higher keeps only what is closest' : 'Where light turns into dark'">{{ shape.mode === 'subject' ? 'Nearness' : shape.mode === 'edges' ? 'Detail' : 'Threshold' }} <span class="mod-val">{{ shape.thr }}</span></label>
-          <input type="range" min="10" max="245" step="1" v-model.number="shape.thr">
-          <label title="Softens the edges and drops small specks">Smooth <span class="mod-val">{{ shape.blur }}</span></label>
-          <input type="range" min="0" max="16" step="1" v-model.number="shape.blur">
-          <div class="row wrap-row">
-            <label class="check" title="Swap black and white"><input type="checkbox" v-model="shape.invert"> invert</label>
-            <label class="check" title="A white border round the shape (QR ControlNets like a margin)"><input type="checkbox" v-model="shape.margin"> margin</label>
-          </div>
-          <div class="shape-preview" :class="{busy: shape.busy}">
-            <img v-if="shape.url" :src="shape.url" alt="The shape">
-            <span v-else class="hint">{{ shape.busy ? 'Finding the subject…' : (tool.source ? 'Working…' : 'Drop a picture on the left') }}</span>
-          </div>
-          <div class="mod-foot">
-            <button class="primary mod-go" :disabled="!shape.url || shape.busy" @click="shapeToControlNet"
-                    title="Save the shape and open it in Image to image as the picture for a QR / pattern ControlNet">Use as shape →</button>
-            <span class="mod-plate">Shaper · SH-7</span>
-          </div>
-        </div>
-
         <div class="card rack-module depth-card">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🌊</span>
             <h3>Depth map</h3><span class="mod-sub">Depth Anything V2</span></div>
@@ -2115,20 +2087,6 @@
           <span v-if="!cnModelPicks.length" class="hint warn">no {{ (controlTypeInfo && controlTypeInfo.family === 'sdxl') ? 'SDXL' : 'SD 1.5' }} model installed yet (Models tab)</span>
         </div>
         <p class="hint">{{ cnGuide.modelsText }}</p>
-        <div v-if="cnGuide.patterns" class="cn-patterns">
-          <div class="cn-pat-head"><b>Pattern</b> <span class="hint">pick a shape (it becomes 1 · Picture) or use your own</span></div>
-          <div class="row wrap-row cn-pat-opts">
-            <input v-model="pat.text" maxlength="400" placeholder="Text or link for the QR code, or the word" style="flex:1; min-width: 220px">
-            <label class="check" title="White shapes on black instead of black on white"><input type="checkbox" v-model="pat.invert"> invert</label>
-          </div>
-          <div class="cn-pat-grid">
-            <button v-for="p in PATTERNS" :key="p.id" class="cn-pat" :class="{on: pat.last === p.id}" @click="usePattern(p.id)" :title="p.tip">
-              <img :src="patternThumb(p.id)" alt=""><span>{{ p.label }}</span></button>
-            <button class="cn-pat cn-pat-own" @click="pat.last = 'own'; $refs.startPick.click()" title="A black-and-white picture of your own: a logo, a drawing, a shape, your own QR code">
-              <b>＋</b><span>Your own…</span></button>
-          </div>
-          <div class="hint">Black and white with a margin works best. The QR code uses the strongest error correction, so it still scans once the picture is painted over it (strength 1.3 or more).</div>
-        </div>
         <details class="fine" open><summary class="hint">how to use it, step by step</summary>
           <ol class="cn-steps"><li v-for="(st, i) in cnGuide.steps" :key="i" v-html="st"></li></ol></details>
       </div>
@@ -3116,8 +3074,6 @@
 <script src="negative_prompt.js"></script>
 <script src="tips.js"></script>
 <script src="sounds.js"></script>
-<script src="qr.js"></script>
-<script src="patterns.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -58,6 +58,7 @@ class UserControlnetTests(unittest.TestCase):
                 sd15 = {"controlnet_cond_embedding.conv_in.weight": (16, 3, 3, 3),
                         "down_blocks.1.attentions.0.transformer_blocks.0.attn2.to_k.weight": (640, 768)}
                 _fake_safetensors(os.path.join(d, "qrMonster.safetensors"), sd15)
+                _fake_safetensors(os.path.join(d, "mySoftedge15.safetensors"), sd15)
                 xl = {"controlnet_cond_embedding.conv_in.weight": (16, 3, 3, 3), "add_embedding.linear_1.weight": (1280, 2816),
                       "down_blocks.1.attentions.0.transformer_blocks.0.attn2.to_k.weight": (640, 2048)}
                 _fake_safetensors(os.path.join(d, "controlnet852AClone_v10.safetensors"), xl)
@@ -65,8 +66,8 @@ class UserControlnetTests(unittest.TestCase):
                 _fake_safetensors(os.path.join(d, "controlnetxlUnion.safetensors"), dict(xl, task_embedding=(8, 320)))
                 Path(d, "junk.safetensors").write_bytes(b"0" * 10)
                 types = {t["id"]: t for t in controlnet.list_types()}
-                self.assertIn("user:qrMonster", types)
-                self.assertEqual(types["user:qrMonster"]["family"], "sd15")
+                self.assertNotIn("user:qrMonster", types)  # QR / pattern ControlNets aren't supported in this version
+                self.assertEqual(types["user:mySoftedge15"]["family"], "sd15")
                 self.assertEqual(types["user:controlnet852AClone_v10"]["family"], "sdxl")
                 self.assertEqual(controlnet.family_of("user:controlnet852AClone_v10"), "sdxl")
                 self.assertEqual(types["user:xl_canny_v2"]["makes_map"], "canny")
@@ -75,10 +76,12 @@ class UserControlnetTests(unittest.TestCase):
                 files = {u["name"]: u for u in controlnet.user_files()}
                 self.assertIn("Union", files["controlnetxlUnion"]["problem"])
                 self.assertTrue(files["junk"]["problem"])
+                self.assertIn("QR", files["qrMonster"]["problem"])
                 self.assertEqual(controlnet.family_of("canny"), "sd15")
                 canny = controlnet.make_map("user:xl_canny_v2", Image.new("RGB", (40, 30), (200, 10, 10)), 64, 48)
                 self.assertEqual(canny.getpixel((5, 5)), (0, 0, 0))  # an edge map, not the picture
-                self.assertTrue(controlnet.is_known("user:qrMonster"))
+                self.assertFalse(controlnet.is_known("user:qrMonster"))  # not offered, so a saved job using it is refused
+                self.assertTrue(controlnet.is_known("user:mySoftedge15"))
                 self.assertFalse(controlnet.is_known("user:nope"))
                 img = Image.new("RGB", (40, 30), (200, 10, 10))
                 out = controlnet.make_map("user:qrMonster", img, 64, 48)

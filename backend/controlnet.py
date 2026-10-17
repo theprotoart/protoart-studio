@@ -37,41 +37,6 @@ DEPTH_MODELS = {
 }
 SKIP_DBEE = set()   # kinds whose DiffusionBee file gave a broken (flat grey) result this session
 LAST_SOURCE = {}    # kind -> "diffusionbee" | "official"
-SAFE_KINDS = set()  # kinds whose numbers broke at half precision: run them at full precision (see keep_finite)
-
-
-def keep_finite(model, out_dtype):
-    """Run a ControlNet at full precision beside a half-precision model. Some ControlNets (many QR / pattern ones)
-    give numbers too big for half precision on Apple GPUs; the picture then collapses to one flat colour. Inputs are
-    turned to float32, and the result is cleaned (no NaN / infinity) and turned back to the model's precision."""
-    import dataclasses
-    import torch
-    run = model.forward
-    big = 6.0e4  # just under half precision's largest number
-
-    def up(x):
-        return x.float() if torch.is_tensor(x) and x.is_floating_point() else x
-
-    def down(x):
-        if torch.is_tensor(x) and x.is_floating_point():
-            return torch.nan_to_num(x, nan=0.0, posinf=big, neginf=-big).clamp(-big, big).to(out_dtype)
-        if dataclasses.is_dataclass(x) and not isinstance(x, type):  # diffusers' outputs (also dicts): keep the type
-            for f in dataclasses.fields(x):
-                setattr(x, f.name, down(getattr(x, f.name)))
-            return x
-        if isinstance(x, (list, tuple)):
-            return type(x)(down(v) for v in x)
-        if isinstance(x, dict):
-            return {k: down(v) for k, v in x.items()}
-        return x
-
-    def forward(*args, **kwargs):
-        args = [up(v) for v in args]
-        kwargs = {k: ({kk: up(vv) for kk, vv in v.items()} if isinstance(v, dict) else up(v)) for k, v in kwargs.items()}
-        return down(run(*args, **kwargs))
-
-    model.forward = forward
-    return model
 DOWNLOAD_GB = 1.45
 
 
@@ -173,6 +138,13 @@ def _inspect(path):
     return {"family": fam, "layout": layout, "problem": None}
 
 
+def is_pattern_name(name):
+    """QR code / pattern / illusion ControlNets (QR Code Monster, QR Pattern…): not supported in this version, so they
+    aren't offered (on Apple Silicon they gave flat grey pictures)."""
+    import re
+    return bool(re.search(r"(qr|monster|illusion|pattern|spiral|hidden)", str(name), re.I))
+
+
 def user_files():
     """Your own ControlNet files (~/.protoartstudio/controlnets, Civitai downloads go there), SD 1.5 or SDXL."""
     import paths
@@ -187,8 +159,10 @@ def user_files():
             except OSError:
                 continue
             info = inspect_file(str(p))
+            problem = info["problem"] or ("a QR code / pattern ControlNet, which this version doesn't support"
+                                          if is_pattern_name(p.stem) else None)
             out.append({"name": p.stem, "file": str(p), "size_mb": size, "family": info["family"],
-                        "layout": info["layout"], "problem": info["problem"], "map": guess_map(p.stem)})
+                        "layout": info["layout"], "problem": problem, "map": guess_map(p.stem)})
     return out
 
 

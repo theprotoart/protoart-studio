@@ -2,19 +2,13 @@
 
 ## 1.2.1 (test version)
 
-- Known issue: user SD 1.5 QR / pattern ControlNets (QR Pattern v2) can give a flat grey result on Apple Silicon
-  (latents grow to about ±60 by the last step; the picture decodes to plain grey and isn't saved). Under investigation
-- SD 1.5 VAE decode overflowing at float16 on high-contrast results (QR codes: finite latents, black/flat picture, not
-  saved): `_safe_vae_decode` re-decodes that picture at float32 when the output has NaN / inf. Flat results log the
-  UNet / VAE / ControlNet dtypes and the picture's range; latents checked every step while a ControlNet runs
-- ControlNets whose numbers overflow at half precision on Apple GPUs (flat grey result, seen with QR Pattern v2):
-  NaN latents are caught after step 1 (`BrokenMaths`), the ControlNet is reloaded at float32 with `keep_finite`
-  (fp32 inputs, NaN/inf cleaned, outputs back to the UNet's dtype) and the picture is retried; `SAFE_KINDS` keeps it
-  that way for the session. The first steps' latent range is logged
+- Removed: QR code / pattern ControlNet support (pattern picker, `qr.js`, `patterns.js`, Tools → Shape maker, the QR
+  and brightness guides, the experimental float32 retries). They gave flat grey pictures on Apple Silicon.
+  `controlnet.is_pattern_name`: QR / pattern ControlNet files are listed in Models as not supported and aren't offered
 - Image to image → ControlNet: picking one applies its guide's settings (`applyCnGuide(true)` from a watcher, with
   `undoCnGuide`); a "Recommended settings" box under the picker (`cnRecText`) warns about settings that spoil it
   (`cnGuideOff`: Start from this picture on, strength too low, too few steps)
-- Fixed: SD 1.5 ControlNets you add yourself (e.g. QR Code Monster / QR Pattern) failed to load with “doesn't match an
+- Fixed: SD 1.5 ControlNets you add yourself failed to load with “doesn't match an
   SD 1.5 ControlNet's layout (52 parts missing)”. `xl_config` no longer gives SD 1.5's last down block attention just
   because the middle block has it
 - Models → Move to Trash: the list is refreshed at once (`list_models {fresh}` skips the 10 s folder-scan cache);
@@ -23,19 +17,12 @@
   SDXL ControlNet, full-precision SDXL, Hi-res fix with SDXL, big sizes, many SDXL pictures; one-click fixes;
   per-warning "don't warn again" (`protoart.slowWarnOff`), reset in Settings → Speed
 - Your own ControlNets (SD 1.5 too) load through the empty-weights path, read tensor by tensor into float16
-  (`controlnet._read_half`); memory released after loading; the QR guide uses 512 px on Macs under 16 GB
+  (`controlnet._read_half`); memory released after loading
 - Queue: ▲ / ▼ reorder waiting jobs (`queue_move`, `JobQueue.move`); Models tab: readable ★ default tag
-- Tools → ◐ Shape maker (`shapeRender`, `shapeToControlNet`): a picture into a black-and-white ControlNet shape by tones,
-  outlines (Sobel) or subject (depth map), with threshold, smoothing, invert and margin; opens in Image to image with
-  your QR / pattern ControlNet
-- QR / pattern ControlNets: a Pattern picker in the guide (`patterns.js`: QR code, word, spiral, rings, checks, stripes,
-  waves, sunburst, circle, heart, star, triangle; invert; your own picture). `qr.js`: a self-contained QR encoder
-  (byte mode, versions 1–40, Reed–Solomon, all 8 masks, ECC H), checked against OpenCV's QR decoder
 - Depth map → ControlNet: `depthToControlNet` switches to Change it and an SD 1.5 model; ControlNet guide moved to the
   right-hand column; Library tile actions in one flex row (`.tile-acts`), 🗑 beside ★
 - Image to image → ControlNet guides (`CN_GUIDES`, `cnGuide`, `cnModelPicks`, `applyCnGuide`): what it does, the picture
-  to give it, best installed models (★ by name), steps, one-click settings; QR / pattern / illusion and brightness
-  ControlNets recognised by name; model groups say what they support; "Use ControlNet instead" from Edit with words
+  to give it, best installed models (★ by name), steps, one-click settings; model groups say what they support; "Use ControlNet instead" from Edit with words
 - Create and Image to image keep their own prompt / negative prompt (`swapPrompts`, synchronous tab watcher);
   Tools Remove results tagged `from_tools` so they stay out of Image to image's preview
 - `recommendedVae` is a computed value (it was a method, so the ⤓ get link never went away)
@@ -70,6 +57,7 @@
   inspected from their header (`inspect_file`: family, layout, unsupported Control-LoRA / LLLite / Union / T2I-Adapter);
   a name's map word (canny, depth, lineart, openpose…) picks the control map (`guess_map`); Civitai SDXL ControlNets
   allowed
+
 
 ## 1.2.0
 
