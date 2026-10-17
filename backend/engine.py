@@ -358,6 +358,45 @@ def _hub_dir():
     return p
 
 
+class _quantized_unet_ok:
+    """While the image prompt adapter is added to an 8-bit (quantized) UNet: diffusers then calls
+    unet.to(dtype=..., device=...), which quantized models refuse ("Casting a quantized model to a new dtype
+    is unsupported"). Inside this block that call only moves the model to its device, and afterwards the
+    adapter's own (unquantized) layers are given the model's working precision."""
+
+    def __init__(self, unet):
+        self.unet = unet
+        self.quantized = bool(getattr(unet, "is_quantized", False) or getattr(unet, "hf_quantizer", None)
+                              or getattr(getattr(unet, "config", None), "quantization_config", None))
+
+    def __enter__(self):
+        if self.quantized:
+            import torch
+            unet = self.unet
+
+            def to(*a, **kw):
+                kw.pop("dtype", None)
+                a = tuple(x for x in a if not isinstance(x, torch.dtype))
+                return torch.nn.Module.to(unet, *a, **kw)
+            self.dtype = next((p.dtype for p in unet.parameters() if p.is_floating_point()), torch.float16)
+            unet.to = to  # this object only, removed again on exit
+        return self
+
+    def __exit__(self, *exc):
+        if self.quantized:
+            unet = self.unet
+            try:
+                del unet.to
+            except AttributeError:
+                pass
+            if exc[0] is None:
+                dev = next(unet.parameters()).device
+                for mod in [getattr(unet, "encoder_hid_proj", None)] + list(unet.attn_processors.values()):
+                    if hasattr(mod, "to") and hasattr(mod, "parameters"):
+                        mod.to(device=dev, dtype=self.dtype)
+        return False
+
+
 def _free_ram_gb():
     try:
         import psutil
@@ -2026,11 +2065,12 @@ class Engine:
         enc_cached = _hf_file_cached(self.IP_REPO, "models/image_encoder/model.safetensors")
         self.emit({"type": "status", "msg": "Loading the image prompt adapter"
                                            + ("" if enc_cached else " (first time ~2.6 GB)") + "…"})
-        if self.family == "sdxl":
-            self.pipe.load_ip_adapter(self.IP_REPO, subfolder="sdxl_models", weight_name=sdxl_w,
-                                      image_encoder_folder="models/image_encoder")
-        else:
-            self.pipe.load_ip_adapter(self.IP_REPO, subfolder="models", weight_name=sd15_w)
+        with _quantized_unet_ok(self.pipe.unet):
+            if self.family == "sdxl":
+                self.pipe.load_ip_adapter(self.IP_REPO, subfolder="sdxl_models", weight_name=sdxl_w,
+                                          image_encoder_folder="models/image_encoder")
+            else:
+                self.pipe.load_ip_adapter(self.IP_REPO, subfolder="models", weight_name=sd15_w)
         self.ip_key = key
 
     # ------------------------------------------------------------ Hi-res fix
@@ -2339,6 +2379,95 @@ class Engine:
                 "prompt": settings.get("prompt", ""), "negative_prompt": settings.get("negative_prompt", ""),
                 "model": settings.get("model", "imported"), "sampler": settings.get("sampler", ""),
                 "steps": settings.get("steps"), "cfg": settings.get("cfg"), "seed": settings.get("seed", 0)}
+
+    # ------------------------------------------------------------ 🩹 Remove (spot healing) and ✒️ Vectorize
+    def _source_picture(self, args, what="picture"):
+        """The picture a tool works on: a Library picture (image_id) or any file (path)."""
+        from PIL import Image, ImageOps
+        if args.get("image_id") is not None:
+            src = self.library.get_image(int(args["image_id"]))
+            if src is None:
+                raise UserError("Image not found in the library.")
+        else:
+            src = self._external_source(args.get("path") or args.get("init_image"))
+        if not Path(src["path"]).exists():
+            raise UserError(f"The image file is missing: {src['path']}")
+        import pictures
+        try:
+            image = ImageOps.exif_transpose(Image.open(pictures.prepare(src["path"])))
+        except Exception:
+            raise UserError(f"That file isn't a {what} Protoart Studio can read.")
+        return src, image
+
+    def heal(self, args):
+        """🩹 Remove: fill the painted area from its surroundings (LaMa, or OpenCV's quick fill)."""
+        import detailer
+        import net
+        import postprocess.heal as heal
+        src, image = self._source_picture(args)
+        image = image.convert("RGB")
+        try:
+            mask = detailer.decode_mask(args.get("mask"), image.size)
+        except Exception:
+            raise UserError("Couldn't read the painted area.")
+        if not mask.getbbox():
+            raise UserError("Paint over what you want to remove first.")
+        method = "quick" if args.get("method") == "quick" else "lama"
+        started = time.time()
+        self.emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
+        sess = None
+        if method == "lama":
+            if not heal.lama_downloaded():
+                if net.strict:
+                    raise UserError("Remove needs a one-time download of the LaMa model (~208 MB), and Strict offline mode "
+                                    "is on. Turn it off in Settings → Privacy, or pick Quick fill.")
+                self.emit({"type": "status", "msg": f"Downloading the Remove model (LaMa, ~{heal.LAMA_MB} MB, first time only)…"})
+                net.set_online(True)
+                try:
+                    sess = heal.lama_session(download=True)
+                finally:
+                    net.set_online(False)
+            else:
+                sess = heal.lama_session(download=False)
+        self.emit({"type": "status", "msg": "Removing what you painted…"})
+        try:
+            out = heal.heal(image, mask, method=method, session=sess)
+        except ValueError as e:
+            raise UserError(str(e))
+        self.emit({"type": "progress", "image": 1, "images": 1, "step": 1, "steps": 1})
+        settings = dict(src.get("settings") or {})
+        settings.update({k: src.get(k) for k in ("prompt", "negative_prompt", "model", "sampler", "steps", "cfg", "seed")})
+        settings["loras"] = src.get("loras") or []
+        settings.update(width=out.width, height=out.height, seconds=round(time.time() - started, 1),
+                        heal={"method": method})
+        path = self._save(out, settings, suffix="healed")
+        record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="healed")
+        record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
+        self.emit({"type": "image", "record": record})
+        return record
+
+    def vectorize(self, args):
+        """✒️ Vectorize: an SVG of flat colour shapes, saved next to the pictures (not in the Library)."""
+        import postprocess.vectorize as vec
+        src, image = self._source_picture(args)
+        colors = int(args.get("colors") or 8)
+        detail = args.get("detail") if args.get("detail") in vec.DETAIL else "medium"
+        self.emit({"type": "status", "msg": f"Tracing {colors} colours…"})
+        self.emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
+        svg, stats = vec.vectorize(image, colors=colors, detail=detail, smooth=args.get("smooth", True) is not False)
+        day = paths.IMAGES_DIR / datetime.now().strftime("%Y-%m-%d")
+        day.mkdir(parents=True, exist_ok=True)
+        stem = Path(src["path"]).stem
+        out = day / f"{stem}_vector.svg"
+        n = 2
+        while out.exists():
+            out = day / f"{stem}_vector~{n}.svg"
+            n += 1
+        out.write_text(svg, encoding="utf-8")
+        self.emit({"type": "progress", "image": 1, "images": 1, "step": 1, "steps": 1})
+        self.emit({"type": "status", "msg": f"Vector saved: {out.name} ({stats['shapes']} shapes)"})
+        return {"path": str(out), "source": src["path"], "source_id": src.get("id"), **stats,
+                "colors_asked": colors, "detail": detail}
 
     def _save(self, image, settings, suffix=None):
         from PIL.PngImagePlugin import PngInfo

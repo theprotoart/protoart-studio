@@ -16,8 +16,9 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   presets, wildcards, a random-prompt generator, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop
 - **Image to image:** strength, ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile), image prompt
   (IP-Adapter), face detailer
-- **Tools:** Finegrain enhance & upscale, RestoreFormer face restoration, image → prompt (Florence-2 / WD tagger),
-  🎚 Adjust (Lightroom / Color Efex-style sliders and filters on the GPU), file conversion
+- **Tools:** Finegrain enhance & upscale, face restoration (RestoreFormer or CodeFormer), 🩹 remove objects (LaMa spot
+  healing), ✒️ vectorize to SVG, image → prompt (Florence-2 / WD tagger), 🎚 Adjust (Lightroom / Color Efex-style
+  sliders and filters on the GPU), file conversion
 - **Library:** search by prompt, seed, model or LoRA; stars; ↺ reuse a picture's prompt or settings; batch edit &
   export (resize, convert, rename, Adjust looks); 🗜 compress to the smallest file that still looks the same
 - **Train:** LoRA training (SD 1.5 / SDXL; ERNIE on 32 GB+ Macs), embedding training (SD 1.5), square crop / keep-whole

@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["heal", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
 
@@ -50,6 +50,36 @@ function callWithin(ms, cmd, args = {}) {
 }
 
 const STOP_GRACE_MS = 2500; // after Stop, how long a job may take to stop by itself before it's force-stopped
+
+// Create / Image to image settings as they are on a fresh install (also used by "reset all")
+function defaultPost() {  // Tools settings on a fresh install
+  return {
+    depth: { model: "small", style: "gray" },
+    face_strength: 0.8,
+    face_model: "restoreformer",   // or "codeformer"
+    face_fidelity: 0.5,            // CodeFormer only
+    do_enhance: true,
+    do_faces: false,
+    enh: { upscale_factor: 2, num_inference_steps: 18, denoise_strength: 0.35, controlnet_scale: 0.6,
+           solver: "DDIM", seed: -1, prompt: "", turbo: false, instant: false, work_size: "auto" },
+    vec: { colors: 8, detail: "medium", smooth: true },   // ✒️ Vectorize
+  };
+}
+
+function defaultForm() {
+  return { model: "sdxl", prompt: "", negative_prompt: "", width: 1024, height: 1024, steps: 30, cfg: 6,
+    sampler: "", seed: -1, num_images: 1, loras: [],
+    restore_faces: false, face_strength: 0.8, face_model: "restoreformer", face_fidelity: 0.5, enhance_prompt: false, clip_skip: 1, quality_tags: true,
+    init_image: "", strength: 0.6, use_init_size: false, size_link: false, size_ratio: 1,
+    fast: false, fast_prev: null, i2i_use_init: true, control_image: "",
+    control: { type: "", scale: 1.0, start: 0.0, end: 1.0, already_map: false },
+    hires: { on: false, scale: 1.5, strength: 0.45, steps: 15 },
+    face_detailer: { on: false, strength: 0.4, prompt: "" },
+    ip_adapter: { image: "", kind: "style", scale: 0.6 },
+    heal_method: "lama",
+    i2i_mode: "change", inpaint: { strength: 0.85, blur: 4, only_masked: false },
+    outpaint: { left: 0, right: 0, top: 0, bottom: 0 } };
+}
 
 const FLAVOR_LABEL = { pony: "Pony", illustrious: "Illustrious", noobai: "NoobAI" };
 const QUALITY_TAGS = {
@@ -177,6 +207,7 @@ const protoartApp = createApp({
       samplers: [],
       loras: [],
       i2iLora: { q: "", open: false },
+      lorasAside: loadJSON("protoart.lorasAside", {}),  // model type -> LoRAs put aside when you switched type
       frame: { size: 512, busy: false, msg: "", copied: null },  // Train tab: square framing of the pictures
       forcing: false,
       stopAllAt: 0,
@@ -212,18 +243,7 @@ const protoartApp = createApp({
       cmpAxes: { cfg: "Guidance (CFG)", steps: "Steps", sampler: "Sampler", seed: "Seed", clip_skip: "CLIP skip",
                  lora_weight: "LoRA weight", lora: "Which LoRA", strength: "Change strength (Image to image)" },
       form: Object.assign(
-        { model: "sdxl", prompt: "", negative_prompt: "", width: 1024, height: 1024, steps: 30, cfg: 6,
-          sampler: "", seed: -1, num_images: 1, loras: [],
-          restore_faces: false, face_strength: 0.8, face_model: "restoreformer", face_fidelity: 0.5, enhance_prompt: false, clip_skip: 1, quality_tags: true,
-          init_image: "", strength: 0.6, use_init_size: false, size_link: false, size_ratio: 1,
-          fast: false, fast_prev: null, i2i_use_init: true, control_image: "",
-          control: { type: "", scale: 1.0, start: 0.0, end: 1.0, already_map: false },
-          hires: { on: false, scale: 1.5, strength: 0.45, steps: 15 },
-          face_detailer: { on: false, strength: 0.4, prompt: "" },
-          ip_adapter: { image: "", kind: "style", scale: 0.6 },
-          i2i_mode: "change", inpaint: { strength: 0.85, blur: 4, only_masked: false },
-          outpaint: { left: 0, right: 0, top: 0, bottom: 0 } },
-        loadJSON(FORM_KEY, {})
+        defaultForm(), loadJSON(FORM_KEY, {})
       ),
       dims: [512, 576, 640, 704, 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344, 1536],
       queue: [],          // jobs from the backend: running first, then queued
@@ -250,16 +270,9 @@ const protoartApp = createApp({
       now: Date.now(),
       i2p: Object.assign({ mode: "describe", append: false }, loadJSON("beestudio.i2p", {})),
       rnd: Object.assign({ subject: "random", quality: "standard", detail: 2 }, loadJSON("beestudio.rnd", {})),
-      post: {
-        depth: { model: "small", style: "gray" },
-        face_strength: 0.8,
-        face_model: "restoreformer",   // or "codeformer"
-        face_fidelity: 0.5,            // CodeFormer only
-        do_enhance: true,
-        do_faces: false,
-        enh: { upscale_factor: 2, num_inference_steps: 18, denoise_strength: 0.35, controlnet_scale: 0.6,
-               solver: "DDIM", seed: -1, prompt: "", turbo: false, instant: false, work_size: "auto" },
-      },
+      post: defaultPost(),
+      vecResult: null,       // the last ✒️ Vectorize result {path, shapes, colors, bytes}
+      toolsUndo: null,
       libLoras: [],
       detail: null,
       selectMode: false,
@@ -273,6 +286,7 @@ const protoartApp = createApp({
                             preload_start: "last", preload_on_pick: true,
                             // content filter (off until you turn it on)
                             hide_nsfw: false, check_pictures: false, hide_people: false,
+                            tooltips: true,       // quick tips when pointing at buttons (Settings → Look)
                             default_model: "" },   // the model Create starts with (Models tab → ☆ Default)
         loadJSON(OPTS_KEY, {})),
       dbee: { available: false, enabled: true, checkpoints: 0, loras: 0, embeddings: 0, skipped: 0, skipped_kinds: [] },
@@ -317,7 +331,9 @@ const protoartApp = createApp({
       folders: [],         // Settings → Moved a folder?: your folders and whether each is there
       relinkMsg: "",
       loraFix: { q: "", move: true, msg: "", unknownOnly: false, showAll: false },  // Settings → Fix a LoRA's type
-      favModels: loadJSON("protoart.favModels", []),  // ★ favourite models (kept on this Mac; files are never touched)
+      favModels: loadJSON("protoart.favModels", []),
+      favLoras: loadJSON("protoart.favLoras", []),    // ★ favourite LoRAs (by name; files never touched)
+      loraFavOnly: false,  // ★ favourite models (kept on this Mac; files are never touched)
       typeLocks: loadJSON("protoart.typeLocks", {}),  // Fix a type: 🔒 rows (a type you picked is locked until you unlock it)
       sortPlan: null,      // Settings → LoRA folders → Sort into type folders (the plan, shown before moving)       // result of the last "Moved it…" 
       depthModels: [
@@ -328,7 +344,17 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Version 1.2: a second face restorer", items: [
+            { h: "Version 1.2: new tools, and more of your testers' notes", items: [
+              "<b>🩹 Remove objects</b> (spot healing, like a healing brush): in <b>Image to image</b> choose <b>🩹 Remove</b>, paint over anything you don't want (a stray object, an extra finger, text, a blemish) and press <b>🩹 Remove</b>. It's filled in from what's around it; only the painted part changes. <b>✨ Best</b> uses LaMa (a ~208 MB download the first time, then offline); <b>⚡ Quick</b> is instant for small spots and scratches. Also in <b>Tools → 🩹 Remove objects</b>.",
+              "<b>✒️ Vectorize</b> (Tools): turns a picture into an SVG of flat colour shapes, for logos, icons, stickers and cut files. Choose the number of colours, the detail and smooth or sharp outlines; it opens in Illustrator, Affinity, Inkscape, Figma or Cricut.",
+              "<b>★ Favourite LoRAs</b>: click the ★ on a LoRA in the list. Favourites come first, and the <b>★</b> button next to the search box shows only them.",
+              "<b>💬 Tips</b>: point at almost any button and a short explanation appears. Switch them off (or on) in <b>Settings</b>, next to the colour themes.",
+              "<b>🎲 Random LoRAs</b> now reads as a sentence (pick 1 to 2 LoRAs, each at a strength between 0.6 and 1), and the boxes no longer overlap.",
+              "<b>LoRAs no longer disappear</b>: when you switch to a model of another type, its LoRAs are put aside and come back when you switch back; and the app no longer jumps back to your default model when its window reloads.",
+              "<b>Image prompt with an 8-bit SDXL model</b> works (it stopped with “Casting a quantized model to a new dtype is unsupported”).",
+              "<b>Civitai</b>: <b>Download</b> adds to a queue, so you can paste the next link straight away; a <b>Downloads</b> list shows them all. If you may already have the file (same Civitai version, same name or same size), it says so and asks before downloading.",
+              "<b>↺ reset all</b> at the top of Create, and <b>↺ Reset Tools settings</b> in Tools: back to the starting settings, with undo. Your presets aren't touched." ] },
+            { h: "A second face restorer", items: [
               "<b>Restore faces now offers CodeFormer</b> as well as RestoreFormer, in Create, Tools and a picture's details. <b>RestoreFormer</b> stays the natural default; <b>CodeFormer</b> repairs badly blurred or damaged faces more strongly and has a <b>Fidelity</b> slider (low = cleanest face, high = keeps more of the person's own features). CodeFormer's licence allows <b>non-commercial use only</b>.",
               "Both face models download once, the first time you use them, and are now checked against a pinned SHA-256 before loading. A damaged or tampered file is deleted and fetched again.",
               "Each restored picture records which model, strength and fidelity were used in its settings." ] },
@@ -478,6 +504,7 @@ const protoartApp = createApp({
               "The <b>model</b> for Image to image is chosen at the top of the window, next to the brand plate.",
               "<b>Change strength</b>: low (0.3) keeps most of the original, high (0.8+) changes a lot.",
               "Pick the model right here; steps and CFG are next to it.",
+              "<b>🩹 Remove</b>: paint over what you want gone and press 🩹 Remove; it's filled in from its surroundings (no prompt or model needed). <b>✨ Best (LaMa)</b> handles objects, people and patterns (~208 MB download the first time); <b>⚡ Quick</b> is instant for dust, spots and thin lines. Cover the thing fully, a little past its edges.",
               "<b>LoRAs</b> card: add a LoRA (search the list), set its weight with the slider, ✕ removes it. They're the same LoRAs as in Create (both tabs share the model); trigger words and 🎲 Random LoRAs are in Create." ] },
             { h: "🖌 Inpaint", items: [
               "Choose <b>Inpaint</b>, paint over what you want to change (Paint / Erase, brush size, invert, clear), and describe what should be there.",
@@ -500,8 +527,12 @@ const protoartApp = createApp({
               "The Preview window shows the image as it forms, then the result; tick <b>compare with the original</b> to see both.",
               "<b>Use the result as the new picture</b> lets you refine it again." ] },
           ] },
-        { id: "tools", go: "tools", icon: "🧰", title: "Tools", summary: "Enhance, 🎚 adjust (light, colour, filters), restore faces, image → prompt, convert files",
+        { id: "tools", go: "tools", icon: "🧰", title: "Tools", summary: "Enhance, 🎚 adjust, restore faces, 🩹 remove objects, ✒️ vectorize, image → prompt, convert files",
           sections: [
+            { h: "🩹 Remove objects and ✒️ Vectorize", items: [
+              "<b>🩹 Remove objects</b>: opens the picture in Image to image in Remove mode. Paint over what you want gone and press <b>🩹 Remove</b>; it's filled in from what's around it. The result is saved as a new picture in the Library (“Objects removed”); the original stays.",
+              "<b>✒️ Vectorize</b>: makes an SVG of flat colour shapes, saved next to your pictures (Show in Finder opens it). <b>Colours</b>: fewer gives bolder, simpler shapes (logos: 2–6; illustrations: 8–16). <b>Detail</b>: Simple, Balanced or Detailed. <b>Smooth curves</b> off gives straight edges, for pixel art and geometric logos. Photos come out like a screen-printed poster.",
+              "<b>↺ Reset Tools settings</b> (top of the right-hand column) puts Enhance, Restore faces, Depth and Vectorize back to their starting settings; <b>undo</b> brings yours back." ] },
             { h: "⏻ Engine: force stop & force quit", items: [
               "Both buttons are at the top of the window when the Tools tab is open.",
               "<b>■ Stop</b> now really stops: if the picture hasn't stopped by itself within a couple of seconds (one step can take a minute on a busy Mac), the engine is force-stopped and restarted for you, and the jobs still waiting carry on. Training is the exception: its Stop finishes the current step so it can save what it learned, and <b>Force stop now</b> appears if you don't want to wait.",
@@ -814,7 +845,7 @@ const protoartApp = createApp({
                            (() => { const t = loadJSON("protoart.train", {}); delete t.items; delete t.result; delete t.lossHistory; delete t.dirty; return t; })()),
       merge: { family: "", items: [], q: "", mode: "exact", rank: 32, name: "", result: null, error: "", busy: false },
       hub: { source: "", busy: false, error: "", found: null, needToken: false, token: "", tokenSet: false, msg: "" },
-      civ: { url: "", busy: false, error: "", found: null, dest: "", key: "", keySet: false, msg: "", needKey: "", last: "" },  // From Civitai     // {job, image, src}
+      civ: { url: "", busy: false, error: "", found: null, dest: "", key: "", keySet: false, msg: "", needKey: "", last: "", dupAsk: false },  // From Civitai     // {job, image, src}
       trigInfo: {},          // lora name -> {found, suggested, saved}
       trigEdit: { name: "", text: "" },
       embeddings: [],
@@ -1046,7 +1077,8 @@ const protoartApp = createApp({
     },
     filteredLoras() {
       const q = this.loraSearch.trim().toLowerCase();
-      return this.addableLoras.filter((l) => !q || l.name.toLowerCase().includes(q));
+      return this.favFirst(this.addableLoras.filter((l) => (!q || l.name.toLowerCase().includes(q))
+        && (!this.loraFavOnly || this.isFavLora(l))));
     },
     shownLoras() {
       return this.filteredLoras.slice(0, 200); // render at most 200 rows at once (keeps older Macs smooth)
@@ -1054,7 +1086,7 @@ const protoartApp = createApp({
     // Image to image's own LoRA picker (the same LoRAs as Create: both tabs use one model and one LoRA list)
     i2iShownLoras() {
       const q = this.i2iLora.q.trim().toLowerCase();
-      return this.addableLoras.filter((l) => !q || l.name.toLowerCase().includes(q)).slice(0, 200);
+      return this.favFirst(this.addableLoras.filter((l) => !q || l.name.toLowerCase().includes(q))).slice(0, 200);
     },
     moreLoras() {
       return Math.max(0, this.filteredLoras.length - 200);
@@ -1275,6 +1307,9 @@ const protoartApp = createApp({
       const max = Math.max(...h), min = Math.min(...h), span = max - min || 1;
       return h.map((v, i) => `${(i / (h.length - 1)) * 300},${70 - ((v - min) / span) * 66 - 2}`).join(" ");
     },
+    vecJob() {
+      return this.queue.find((j) => j.cmd === "vectorize");
+    },
     toolJob() {
       return this.tool.working ? this.queue.find((j) => j.cmd === "postprocess") : null;
     },
@@ -1319,7 +1354,7 @@ const protoartApp = createApp({
       return this.controlTypes.find((t) => t.id === this.form.control.type);
     },
     i2iResults() {
-      return this.session.filter((r) => r.kind === "img2img");
+      return this.session.filter((r) => r.kind === "img2img" || r.kind === "healed");
     },
     i2iLatest() {
       return this.i2iResults[0] || null;
@@ -1554,6 +1589,7 @@ const protoartApp = createApp({
   },
 
   async mounted() {
+    window.ProtoTips?.setEnabled(this.opts.tooltips !== false);
     window.addEventListener("keydown", (e) => this.adjKey(e));  // Adjust: \ flips Edited / Original
     setInterval(() => {
       if (this.queue.length || Object.keys(this.stopping).length) this.now = Date.now();
@@ -1649,6 +1685,11 @@ const protoartApp = createApp({
         this.loadDownloadsDir();
         this.refreshEdits();
         for (const l of this.form.loras) this.fetchTriggers(l.name);
+        // the default model applies once per app launch, not again when the window reloads or the engine restarts
+        // (that switched models behind your back and dropped the LoRAs you'd picked)
+        let launched = false;
+        try { launched = sessionStorage.getItem("protoart.launched") === "1"; sessionStorage.setItem("protoart.launched", "1"); } catch { /* ignore */ }
+        if (launched) this.defaultApplied = true;
         if (!this.defaultApplied && this.opts.default_model && this.opts.default_model !== this.form.model &&
             this.models.some((m) => m.id === this.opts.default_model)) {
           this.form.model = this.opts.default_model; // your default model, every time the app opens
@@ -1882,26 +1923,34 @@ const protoartApp = createApp({
       Object.assign(this.civ, { url: "", busy: false, error: "", found: null, dest: "", msg: "", needKey: "", last: "" });
       this.$nextTick(() => this.$refs.civInput?.focus());
     },
-    async civDownload() {
+    civJobs() {  // every Civitai download in the queue, running first
+      return this.queue.filter((j) => j.cmd === "civitai_download");
+    },
+    // Download: goes into the queue (one after another), and the box is free for the next link at once.
+    // If you may already have it, ask first (force = "download anyway").
+    async civDownload(force = false) {
       const f = this.civ.found;
       if (!f) return;
-      Object.assign(this.civ, { msg: "", error: "", needKey: "", last: "download" });
+      if (f.duplicates?.length && !force) { this.civ.dupAsk = true; return; }
+      const item = { url: this.civ.url.trim(), dest: this.civ.dest, found: f };
+      Object.assign(this.civ, { msg: `${f.name} added to the downloads below`, error: "", needKey: "", last: "download",
+                                dupAsk: false, found: null, url: "" });
+      this.$nextTick(() => this.$refs.civInput?.focus());
       let r = null;
       try {
-        r = await call("civitai_download", { url: this.civ.url.trim(), dest: this.civ.dest, name: f.name });
+        r = await call("civitai_download", { url: item.url, dest: item.dest, name: f.name });
       } catch (e) {
         if (e.cancelled) return;
         const m = String(e.message || e);
+        // put it back in the card, so ⟳ Retry (or the API key box) works on it
+        Object.assign(this.civ, { found: item.found, url: item.url, dest: item.dest, error: `${f.name}: ${m}`, msg: "" });
         // Civitai wants a signed-in account: ask for the API key right here, in the card
         this.civ.needKey = /turned down your API key/.test(m) ? "refused" : /signed-in accounts|log in/.test(m) ? "missing" : "";
-        this.civ.error = m;
         if (this.civ.needKey) this.$nextTick(() => this.$refs.civKeyInline?.focus());
         return;
       }
       if (!r) return;
       this.civ.msg = `${f.name} is ready · saved in ${r.dest}`;
-      this.civ.found = null;
-      this.civ.url = "";
       this.models = await call("list_models");
       await this.refreshLoras();
       await this.refreshEmbeddings();
@@ -1992,6 +2041,19 @@ const protoartApp = createApp({
       if (f && this.family === "sdxl") return { pony: "Pony", illustrious: "Illustrious", noobai: "NoobAI" }[String(f).toLowerCase()] || "anime-style SDXL";
       return this.familyLabel;
     },
+    isFavLora(l) {
+      return !!l && this.favLoras.includes(l.name);
+    },
+    toggleFavLora(l) {
+      const i = this.favLoras.indexOf(l.name);
+      if (i >= 0) this.favLoras.splice(i, 1);
+      else this.favLoras.push(l.name);
+      saveJSON("protoart.favLoras", this.favLoras);
+    },
+    favFirst(list) {  // favourite LoRAs first, otherwise in the same order
+      if (!this.favLoras.length) return list;
+      return [...list.filter((l) => this.isFavLora(l)), ...list.filter((l) => !this.isFavLora(l))];
+    },
     isFav(m) {
       return !!m && this.favModels.includes(m.id);
     },
@@ -2060,6 +2122,30 @@ const protoartApp = createApp({
       await this.onModelChange(); // size, steps, guidance and the default sampler for this model
       this.status = `Create settings reset to the defaults for ${m.label}`;
     },
+    // Create → reset all: every setting back to the start (prompt, model and presets stay)
+    async resetCreateAll() {
+      const m = this.currentModel;
+      if (!m) return;
+      this.resetUndo = JSON.parse(JSON.stringify(this.form));
+      const keep = { model: this.form.model, prompt: this.form.prompt, negative_prompt: this.form.negative_prompt };
+      this.form = Object.assign(defaultForm(), keep);
+      this.cmp.open = false;
+      this.lorasAside = {};
+      saveJSON("protoart.lorasAside", this.lorasAside);
+      await this.onModelChange();
+      this.status = `All Create settings reset (your prompt, model and presets stay) · undo puts them back`;
+    },
+    resetTools() {
+      this.toolsUndo = JSON.parse(JSON.stringify(this.post));
+      this.post = defaultPost();
+      this.status = "Tools settings reset · undo puts them back";
+    },
+    undoResetTools() {
+      if (!this.toolsUndo) return;
+      this.post = this.toolsUndo;
+      this.toolsUndo = null;
+      this.status = "Tools settings restored";
+    },
     undoResetCreate() {
       if (!this.resetUndo) return;
       this.form = this.resetUndo;
@@ -2085,9 +2171,25 @@ const protoartApp = createApp({
         if (m.fast_mode) Object.assign(this.form, { steps: 6, cfg: 1.5 });
         else this.form.fast = false;
       }
-      const before = this.form.loras.length;
-      this.form.loras = this.form.loras.filter((l) => this.compatibleLoras.some((c) => c.name === l.name));
-      if (this.form.loras.length < before) this.status = "Removed LoRAs that don't match this model";
+      // LoRAs that don't fit the new model's type are put aside (per type), and come back when you switch back
+      if (this.loras.length) {
+        const keep = this.form.loras.filter((l) => this.compatibleLoras.some((c) => c.name === l.name));
+        const aside = this.form.loras.filter((l) => !keep.includes(l));
+        for (const l of aside) {
+          const fam = this.loras.find((x) => x.name === l.name)?.family;
+          if (fam && fam !== "unknown") (this.lorasAside[fam] ||= []).some((x) => x.name === l.name) || this.lorasAside[fam].push({ ...l });
+        }
+        const back = (this.lorasAside[m.family] || []).filter((l) => !keep.some((k) => k.name === l.name)
+          && this.compatibleLoras.some((c) => c.name === l.name));
+        this.lorasAside[m.family] = [];
+        this.form.loras = keep.concat(back);
+        if (aside.length || back.length) {
+          this.status = (aside.length ? `Put ${aside.length} LoRA${aside.length === 1 ? "" : "s"} for another model type aside` : "")
+            + (aside.length && back.length ? "; " : "") + (back.length ? `brought back ${back.map((l) => l.name).join(", ")}` : "")
+            + (aside.length ? " (they come back when you pick that type again)" : "");
+        }
+        saveJSON("protoart.lorasAside", this.lorasAside);
+      }
       await this.loadSamplers(true);
     },
     addLoraByName(name) {
@@ -3485,6 +3587,12 @@ const protoartApp = createApp({
     async generateI2I() {
       const f = this.form;
       if (!f.init_image) return (this.error = "Add a picture first.");
+      if (f.i2i_mode === "remove") {  // 🩹 spot healing: no model or prompt involved
+        if (!this.mask.data || this.mask.for !== f.init_image) return (this.error = "Paint over what you want to remove first.");
+        this.error = "";
+        await this.runJob("heal", { init_image: f.init_image, mask: this.mask.data, method: f.heal_method || "lama" });
+        return;
+      }
       if (f.i2i_mode === "change" && !f.i2i_use_init && !f.control.type) return (this.error = "Tick “Start from this picture”, pick a ControlNet, or both.");
       if (!["sd15", "sdxl"].includes(this.family)) return (this.error = "Image to image works with SD 1.5 and SDXL models: pick one at the top.");
       if (f.i2i_mode === "change" && f.control.type && this.family !== "sd15") return (this.error = "ControlNet needs an SD 1.5 model: pick one in Create.");
@@ -3522,6 +3630,23 @@ const protoartApp = createApp({
       const file = e.target.files?.[0];
       e.target.value = "";
       if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) this.form.init_image = p; });
+    },
+    // Tools → 🩹 Remove objects: the picture opens in Image to image, in Remove mode, ready to paint
+    openRemove(src) {
+      if (!src) return;
+      this.form.init_image = src.path;
+      this.form.use_init_size = true;
+      this.form.i2i_mode = "remove";
+      this.controlMap = null;
+      this.detail = null;
+      this.openI2I();
+      this.status = "Paint over what you want to remove, then press 🩹 Remove";
+    },
+    async toolVectorize() {
+      const v = this.post.vec;
+      this.vecResult = null;
+      const r = await this.runJob("vectorize", { ...this.toolArgs(), colors: v.colors, detail: v.detail, smooth: v.smooth });
+      if (r) this.vecResult = r;
     },
     async useAsStart(r) {
       if (!["sd15", "sdxl"].includes(this.family)) {
@@ -3592,7 +3717,7 @@ const protoartApp = createApp({
     kindLabel(kind) {
       return { generated: "Original", img2img: "Image-to-image", faces: "Face-restored", enhanced: "Enhanced",
                depth: "Depth map", inpaint: "Inpainted", outpaint: "Expanded", grid: "Comparison grid",
-               edited: "Edited" }[kind] || kind;
+               edited: "Edited", healed: "Objects removed" }[kind] || kind;
     },
     depthModelInfo(id) {
       return this.depthModels.find((d) => d.id === id) || this.depthModels[0];
@@ -4430,6 +4555,12 @@ const protoartApp = createApp({
     },
     openFolder(p) {
       if (p) window.bee.openFolder(p);
+    },
+    setTooltips(on) {
+      this.opts.tooltips = !!on;
+      window.ProtoTips?.setEnabled(this.opts.tooltips);
+      this.saveOpts();
+      this.status = on ? "Tips shown when you point at buttons" : "Tips switched off (turn them back on in Settings → Look)";
     },
     async saveOpts() {
       saveJSON(OPTS_KEY, this.opts);

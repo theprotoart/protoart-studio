@@ -9,6 +9,7 @@ Copyright 2026 Protoart Studio contributors.
 | --- | --- | --- |
 | `backend/postprocess/enhancer.py`, parts of `backend/postprocess/finegrain.py` | [Finegrain Image Enhancer](https://github.com/peanutcocktail/Finegrain-Image-Enhancer), © 2024 Lagon Technologies | MIT, see `backend/postprocess/LICENSE-finegrain-enhancer.txt` |
 | `backend/postprocess/restoreformer_arch.py` | [GFPGAN](https://github.com/TencentARC/GFPGAN) `gfpgan/archs/restoreformer_arch.py`, © 2021 THL A29 Limited (Tencent); RestoreFormer by Wang et al., CVPR 2022 | Apache-2.0, see `backend/postprocess/LICENSE-gfpgan-restoreformer.txt` |
+| `backend/postprocess/codeformer_arch.py` | [CodeFormer](https://github.com/sczhou/CodeFormer) `basicsr/archs/vqgan_arch.py` + `codeformer_arch.py` @ b33cc7d, © 2022 S-Lab; CodeFormer by Zhou et al., NeurIPS 2022 | **S-Lab License 1.0 (non-commercial use only)**, see `backend/postprocess/LICENSE-codeformer.txt` |
 | `backend/postprocess/esrgan_model.py` | Written for Protoart Studio. The network layout follows the published ESRGAN generator ([xinntao/ESRGAN](https://github.com/xinntao/ESRGAN), Apache-2.0) so existing checkpoints load. | Apache-2.0 (this project) |
 | `backend/tdict_reader.py` | Written for Protoart Studio to read DiffusionBee's `.tdict` file format (interoperability). No DiffusionBee code is included; DiffusionBee itself is AGPL-3.0. | Apache-2.0 (this project) |
 
@@ -57,6 +58,8 @@ when you first use them, and each comes with its own licence that you accept by 
 | Depth Anything V2 Base / Large | CC BY-NC 4.0 (non-commercial) |
 | IP-Adapter (h94/IP-Adapter) | Apache-2.0 |
 | RestoreFormer weights (via GFPGAN releases) | see the GFPGAN repository |
+| CodeFormer weights (CodeFormer v0.1.0 release) | S-Lab License 1.0 (**non-commercial**) |
+| LaMa inpainting ([Carve/LaMa-ONNX](https://huggingface.co/Carve/LaMa-ONNX), `lama_fp32.onnx`; original [advimman/lama](https://github.com/advimman/lama), Samsung AI Center), used by 🩹 Remove | Apache-2.0 |
 | ControlNet 1.1 (lllyasviel: canny, depth, lineart, scribble, soft edge, openpose, tile) | CreativeML OpenRAIL-M |
 | LCM-LoRA SD 1.5 / SDXL (latent-consistency, ⚡ fast mode) | CreativeML OpenRAIL++-M |
 | RT-DETR (PekingU/rtdetr_r50vd_coco_o365, person detector for pose) | Apache-2.0 |

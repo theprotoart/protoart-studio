@@ -94,7 +94,7 @@
           </select>
           <select v-model="lib.kind" @change="queryLibrary()">
             <option value="">All versions</option><option value="generated">Originals</option>
-            <option value="img2img">Image-to-image</option><option value="faces">Face-restored</option><option value="enhanced">Enhanced</option>
+            <option value="img2img">Image-to-image</option><option value="faces">Face-restored</option><option value="enhanced">Enhanced</option><option value="healed">Objects removed</option>
           </select>
         </div>
         <div class="slot-line">
@@ -139,6 +139,8 @@
           <button v-for="k in SKIN_LIST" :key="k.id" :class="{on: skin === k.id}" @click="setSkin(k.id)" :title="k.title" role="radio" :aria-checked="skin === k.id">
             <i class="skin-swatch" :class="k.id"></i>{{ k.label }}</button>
         </div>
+        <button class="ghost tips-btn" :class="{on: opts.tooltips !== false}" @click="setTooltips(opts.tooltips === false)"
+                title="Show a short explanation when you point at a button or control (switch off once you know your way around)">💬 Tips {{ opts.tooltips === false ? 'off' : 'on' }}</button>
         </div>
       </div>
       <!-- other tabs: an engraved name plate -->
@@ -194,6 +196,10 @@
         <button class="link small" @click="cfAll(true)" title="Fold every section down to one line">collapse all</button> ·
         <button class="link small" @click="cfAll(false)">expand all</button>
         <span class="hint">· click a section's name to fold it</span>
+        <span class="spacer"></span>
+        <button class="link small" @click="resetCreateAll" :disabled="!currentModel"
+                title="Everything in Create back to the start: this model's own size, steps, guidance and sampler, no LoRAs, no image prompt, extras off, 1 image, random seed. Your prompt, model and saved presets stay.">↺ reset all</button>
+        <button v-if="resetUndo" class="link small" @click="undoResetCreate">undo</button>
       </div>
 
       <section class="cfold" :class="{shut: cfShut('model')}">
@@ -325,18 +331,23 @@
           <span v-if="cfShut('loras')" class="cfold-sum">{{ cfSummary('loras') }}</span><span class="cfold-chev" aria-hidden="true"></span>
         </label>
         <div class="lora-rand">
-          <button class="ghost" @click="randomLoras()" :disabled="!randomPool.length"
-                  :title="'Pick random LoRAs that work with ' + familyLabel + ' (' + randomPool.length + ' to choose from)'">🎲 Random LoRAs</button>
-          <span class="hint">how many</span>
-          <select v-model.number="loraRand.min" title="At least"><option v-for="v in [1,2,3,4]" :key="v" :value="v">{{ v }}</option></select>
-          <span class="hint">to</span>
-          <select v-model.number="loraRand.max" title="At most"><option v-for="v in [1,2,3,4,5]" :key="v" :value="v">{{ v }}</option></select>
-          <span class="hint">weight</span>
-          <input type="number" min="-2" max="2" step="0.05" v-model.number="loraRand.wmin" class="num" title="Lowest weight">
-          <span class="hint">–</span>
-          <input type="number" min="-2" max="2" step="0.05" v-model.number="loraRand.wmax" class="num" title="Highest weight">
-          <label class="check" title="Pick new random LoRAs every time you press Generate"><input type="checkbox" v-model="loraRand.every"> new pick every Generate</label>
-
+          <div class="lora-rand-line">
+            <button class="ghost" @click="randomLoras()" :disabled="!randomPool.length"
+                    :title="'Add a random mix of LoRAs that work with ' + familyLabel + ' (' + randomPool.length + ' to choose from). Click again for a different mix.'">🎲 Random LoRAs</button>
+            <span class="hint">pick</span>
+            <select v-model.number="loraRand.min" title="The fewest LoRAs to pick"><option v-for="v in [1,2,3,4]" :key="v" :value="v">{{ v }}</option></select>
+            <span class="hint">to</span>
+            <select v-model.number="loraRand.max" title="The most LoRAs to pick"><option v-for="v in [1,2,3,4,5]" :key="v" :value="v">{{ v }}</option></select>
+            <span class="hint">LoRAs</span>
+          </div>
+          <div class="lora-rand-line">
+            <span class="hint">each at a strength between</span>
+            <input type="number" min="-2" max="2" step="0.05" v-model.number="loraRand.wmin" class="num" title="Lowest strength a random LoRA gets (1 = full, 0.5 = half)">
+            <span class="hint">and</span>
+            <input type="number" min="-2" max="2" step="0.05" v-model.number="loraRand.wmax" class="num" title="Highest strength a random LoRA gets (1 = full)">
+          </div>
+          <label class="check lora-rand-every" title="Each time you press Generate, swap the random LoRAs for a new mix (the LoRAs you added yourself stay)">
+            <input type="checkbox" v-model="loraRand.every"> New random mix every time I press Generate</label>
         </div>
         <template v-for="(l, i) in form.loras" :key="l.name">
         <div class="lora-row">
@@ -352,9 +363,10 @@
                     @click="togglePromptWord(w)" :title="inPrompt(w) ? 'In the prompt · click to remove' : 'Click to add to the prompt'">{{ w }}</button>
             <button v-for="w in suggestedTriggers(l.name)" :key="'s'+w" class="chip trig suggested" :class="{on: inPrompt(w)}"
                     @click="togglePromptWord(w)" title="Suggested from the LoRA's training tags">{{ w }}</button>
-            <span v-if="trigInfo[l.name] && !activeTriggers(l.name).length && !suggestedTriggers(l.name).length" class="hint">none found</span>
+            <span v-if="trigInfo[l.name] && !activeTriggers(l.name).length && !suggestedTriggers(l.name).length" class="hint" title="This LoRA's file doesn't list any trigger words. Many work without; if it has some, they're on its Civitai page: add them with add / edit.">none found in the file</span>
             <span v-if="!trigInfo[l.name]" class="hint">looking…</span>
-            <button class="link small-link" @click="startTrigEdit(l.name)">{{ trigInfo[l.name]?.saved ? 'edit' : 'add / edit' }}</button>
+            <button class="link small-link" @click="startTrigEdit(l.name)"
+                    title="Trigger words are the words a LoRA was trained with; putting them in the prompt switches it on. Type the ones you know (from its Civitai page), separated by commas.">{{ trigInfo[l.name]?.saved ? 'edit' : 'add / edit' }}</button>
           </template>
           <template v-else>
             <input class="trig-input" v-model="trigEdit.text" placeholder="trigger words, separated by commas"
@@ -364,11 +376,17 @@
           </template>
         </div>
         </template>
-        <input class="lora-search" v-model="loraSearch" @focus="loraOpen = true"
-               :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ')'">
+        <div class="lora-search-row">
+          <input class="lora-search" v-model="loraSearch" @focus="loraOpen = true"
+                 :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ')'">
+          <button class="chip" :class="{on: loraFavOnly}" @click="loraFavOnly = !loraFavOnly; loraOpen = true"
+                  title="Show only your ★ favourite LoRAs (click the ★ on a LoRA to add it)">★ <small>{{ favLoras.length }}</small></button>
+        </div>
         <div v-if="loraOpen" class="lora-list">
           <button v-for="l in shownLoras" :key="l.name" class="lora-item" @click="addLoraByName(l.name)">
-            <span class="l-name" :title="l.name">{{ l.name }}</span><span class="marks"><i class="people-dot" :class="{on: l.people}" role="button" :aria-label="l.people ? 'Tagged People' : 'Tag as People'" @click.stop="markPeople('lora', l)"
+            <span class="l-name" :title="l.name">{{ l.name }}</span><span class="marks"><span class="fav-star" :class="{on: isFavLora(l)}" role="button"
+                  :aria-label="isFavLora(l) ? 'Favourite: click to remove' : 'Add to favourites'" @click.stop="toggleFavLora(l)"
+                  :title="isFavLora(l) ? '★ Favourite · click to remove (favourites are listed first)' : 'Click to add to your favourite LoRAs'">★</span><i class="people-dot" :class="{on: l.people}" role="button" :aria-label="l.people ? 'Tagged People' : 'Tag as People'" @click.stop="markPeople('lora', l)"
                   :title="l.people ? 'Tagged People (made of real people) · click to untag' : 'Click to tag as People: made of real people (hidden when Hide People is on)'"></i><span
                   class="nsfw-flag" :class="{on: l.nsfw}" role="button" :aria-label="l.nsfw ? 'Marked NSFW' : 'Mark as NSFW'" @click.stop="markItem('lora', l)"
                   :title="l.nsfw ? 'NSFW (' + (l.nsfw_mark ? 'you marked it' : 'from its name or training tags') + ') · click to mark it safe' : 'Click to mark as NSFW (hidden when Hide NSFW is on)'">⚑</span></span>
@@ -828,12 +846,13 @@
             <option v-for="d in civ.found.destinations" :key="d.path" :value="d.path">{{ d.label }} · {{ d.path }}</option>
           </select>
         </div>
-        <div v-if="civJob()" class="shop-dl">
-          <div class="bar"><div :style="{width: (jobProgress(civJob()) ?? 0) + '%'}"></div></div>
-          <span class="hint">{{ civJob().state === 'running' ? 'Downloading · ' + etaText(civJob()) : 'Waiting in the queue' }}</span>
-          <button class="ghost" @click="cancelJob(civJob().id)" title="Stop; what's downloaded so far is kept, so it carries on next time">Stop</button>
+        <div v-if="civ.found.duplicates && civ.found.duplicates.length" class="civ-dup" :class="{ask: civ.dupAsk}">
+          <b>⚠ You may already have this</b>
+          <div v-for="d in civ.found.duplicates" :key="d.path" class="hint">• {{ d.why }}: <button class="link" @click="showInFolder(d.path)" title="Show it in Finder">{{ d.path }}</button></div>
         </div>
-        <div v-else class="row"><button class="primary" @click="civDownload" :disabled="!civ.dest">⤓ Download</button>
+        <div class="row"><button class="primary" @click="civDownload(civ.dupAsk)" :disabled="!civ.dest"
+                  :title="civ.dupAsk ? 'Download it anyway (a file with the same name is never overwritten)' : 'Add it to the downloads below; you can paste the next link straight away'">{{ civ.dupAsk ? '⤓ Download anyway' : '⤓ Download' }}</button>
+          <button v-if="civ.dupAsk" class="ghost" @click="civClear" title="Don't download it">Skip it</button>
           <a class="hint" :href="civ.found.page" target="_blank">open on civitai.com</a></div>
         <div v-if="civ.needKey || !civ.keySet" class="civ-key-inline" :class="{soft: !civ.needKey}">
           <b>{{ civ.needKey === 'refused' ? 'Civitai didn\'t accept your API key' : civ.needKey ? 'This one needs your Civitai API key' : 'Sign in to Civitai first (once): most downloads need a free account' }}</b>
@@ -854,6 +873,15 @@
       </template>
     </div>
     <div v-if="civ.msg" class="hint">{{ civ.msg }}</div>
+    <div v-if="civJobs().length" class="civ-queue">
+      <div class="hint"><b>Downloads</b> · {{ civJobs().length }} · one at a time, in this order (pictures you make wait their turn too)</div>
+      <div v-for="j in civJobs()" :key="j.id" class="shop-dl">
+        <span class="civ-q-name" :title="j.label">{{ (j.label || '').replace('Download from Civitai · ', '') }}</span>
+        <div class="bar"><div :style="{width: (jobProgress(j) ?? 0) + '%'}"></div></div>
+        <span class="hint">{{ j.state === 'running' ? 'Downloading · ' + etaText(j) : 'Waiting' }}</span>
+        <button class="ghost" @click="cancelJob(j.id)" :title="j.state === 'running' ? 'Stop; what\'s downloaded so far is kept, so it carries on next time' : 'Take it out of the queue'">{{ j.state === 'running' ? 'Stop' : 'Remove' }}</button>
+      </div>
+    </div>
     <details class="fold">
       <summary>Civitai API key <span class="hint">· {{ civ.keySet ? 'saved on this Mac' : 'not set · many downloads need one (free account)' }}</span></summary>
       <div class="row" style="margin: 0 10px 8px">
@@ -1063,6 +1091,10 @@
     </section>
 
     <section class="tool-actions">
+      <div class="reset-all-row">
+        <button class="ghost small" @click="resetTools" title="Enhance, Restore faces and Depth back to their starting settings. Your Adjust presets, export presets and pictures aren't touched.">↺ Reset Tools settings</button>
+        <button v-if="toolsUndo" class="link small" @click="undoResetTools">undo</button>
+      </div>
       <div v-if="adj.open" id="adjust-card" class="card adjust-card">
         <h3>🎚 Adjust <span class="hint">light, colour &amp; filters · live preview on the left · saved as a copy</span></h3>
         <div v-if="adj.error" class="error-box">{{ adj.error }}</div>
@@ -1264,6 +1296,39 @@
         </div>
       </div>
 
+      <div class="card heal-card">
+        <h3>🩹 Remove objects <span class="hint">spot healing · like a healing brush</span></h3>
+        <p class="hint">Paint over anything you don't want (a stray object, an extra finger, text, a blemish) and it's filled in from
+          what's around it. Opens the picture in Image to image, where you paint.</p>
+        <div class="row">
+          <button class="primary" :disabled="!tool.source" @click="openRemove(tool.source)">🩹 Paint what to remove…</button>
+        </div>
+      </div>
+
+      <div class="card vec-card">
+        <h3>✒️ Vectorize <span class="hint">picture → SVG of flat colour shapes</span></h3>
+        <p class="hint">For logos, icons, stickers, cut files and flat illustrations: the SVG scales to any size without blur and
+          opens in Illustrator, Affinity, Inkscape, Figma or Cricut. Photos become a poster-like look.</p>
+        <label>Colours <span class="hint">{{ post.vec.colors }} · fewer = simpler, bolder shapes</span></label>
+        <input type="range" min="2" max="24" step="1" v-model.number="post.vec.colors">
+        <label>Detail</label>
+        <div class="seg">
+          <button v-for="d in [['low','Simple'],['medium','Balanced'],['high','Detailed']]" :key="d[0]" :class="{on: post.vec.detail === d[0]}"
+                  @click="post.vec.detail = d[0]" :title="{low: 'Fewest, smoothest shapes: logos and icons', medium: 'A good balance for most pictures', high: 'Keeps small details: illustrations (bigger file)'}[d[0]]">{{ d[1] }}</button>
+        </div>
+        <label class="check" title="Curved outlines (like drawn with a pen tool). Off: straight edges, for pixel art and geometric logos">
+          <input type="checkbox" v-model="post.vec.smooth"> Smooth curves</label>
+        <div class="row">
+          <button class="primary" :disabled="!tool.source || !!vecJob" @click="toolVectorize">{{ vecJob ? 'Tracing…' : '✒️ Vectorize' }}</button>
+          <span class="hint">Saved as .svg next to your pictures</span>
+        </div>
+        <div v-if="vecResult" class="vec-result">
+          <img :src="fileUrl(vecResult.path)" alt="Vector result">
+          <p class="hint">{{ vecResult.shapes }} shapes · {{ vecResult.colors }} colours · {{ Math.round(vecResult.bytes / 1024) }} KB
+            · <button class="link" @click="showInFolder(vecResult.path)">Show in Finder</button></p>
+        </div>
+      </div>
+
       <div class="card convert-card">
         <h3>🔁 Convert DiffusionBee files <span class="hint">.tdict → .safetensors</span></h3>
         <p class="hint">Makes standard <code>.safetensors</code> copies of your DiffusionBee models, LoRAs and embeddings, so they work in
@@ -1384,7 +1449,7 @@
                :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ')'">
         <div v-if="i2iLora.open" class="lora-list">
           <button v-for="l in i2iShownLoras" :key="l.name" class="lora-item" @click="addLoraByName(l.name); i2iLora.q = ''">
-            <span class="l-name" :title="l.name">{{ l.name }}</span>
+            <span class="l-name" :title="l.name"><span v-if="isFavLora(l)" class="fav-star on">★</span> {{ l.name }}</span>
             <span class="hint"><template v-if="l.flavor">{{ flavorName(l.flavor) }}{{ currentFlavor && l.flavor !== currentFlavor ? ' (may not match)' : '' }} · </template>{{ l.size_mb }} MB</span>
           </button>
           <div v-if="!i2iShownLoras.length" class="hint m-empty">{{ addableLoras.length ? 'No LoRAs match.' : 'No more ' + familyLabel + ' LoRAs to add.' }}</div>
@@ -1400,7 +1465,7 @@
              @click="$refs.startPick.click()">
           Drop a picture here <span class="hint">(or click to choose · or “Send to Image to image” on any library picture)</span>
         </div>
-        <div v-else-if="form.i2i_mode === 'inpaint'" class="i2i-src mask-editor">
+        <div v-else-if="form.i2i_mode === 'inpaint' || form.i2i_mode === 'remove'" class="i2i-src mask-editor">
           <div class="mask-stage">
             <img :src="fileUrl(form.init_image)" @load="initMaskCanvas" ref="maskImg" draggable="false">
             <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove" @pointerup="maskUp" @pointerleave="maskUp"
@@ -1417,6 +1482,7 @@
           <button :class="{on: form.i2i_mode === 'change'}" @click="setI2iMode('change')" title="Change the whole picture, keep as much as you like">🔄 Change it</button>
           <button :class="{on: form.i2i_mode === 'inpaint'}" @click="setI2iMode('inpaint')" title="Paint over a part and redraw only that part">🖌 Inpaint</button>
           <button :class="{on: form.i2i_mode === 'outpaint'}" @click="setI2iMode('outpaint')" title="Make the picture bigger and fill in the new area">↔ Expand</button>
+          <button :class="{on: form.i2i_mode === 'remove'}" @click="setI2iMode('remove')" title="Paint over something and it disappears, filled in from what's around it (no prompt or model needed)">🩹 Remove</button>
         </div>
         <template v-if="form.i2i_mode === 'change'">
           <label class="check"><input type="checkbox" v-model="form.i2i_use_init"> Start from this picture (image-to-image)</label>
@@ -1424,6 +1490,27 @@
             <label>Change strength <span class="hint">{{ form.strength.toFixed(2) }} · low = keep more of the original</span></label>
             <input type="range" min="0.05" max="1" step="0.05" v-model.number="form.strength">
           </template>
+        </template>
+        <template v-else-if="form.i2i_mode === 'remove'">
+          <div class="hint">Paint over what you want gone (cover it fully, a little past its edges), then press <b>🩹 Remove</b>.
+            No prompt or model needed; only the painted part changes.</div>
+          <div class="mask-tools">
+            <div class="seg">
+              <button :class="{on: !mask.erase}" @click="mask.erase = false">🖌 Paint</button>
+              <button :class="{on: mask.erase}" @click="mask.erase = true">🧽 Erase</button>
+            </div>
+            <span class="hint">brush</span>
+            <input type="range" min="4" max="160" step="2" v-model.number="mask.size">
+            <span class="hint">{{ mask.size }}</span>
+            <button class="link" @click="maskClear">clear</button>
+          </div>
+          <label>Method</label>
+          <div class="seg">
+            <button :class="{on: form.heal_method !== 'quick'}" @click="form.heal_method = 'lama'"
+                    title="LaMa: continues textures, lines and backgrounds; best for objects and people. ~208 MB download the first time, then offline.">✨ Best (LaMa)</button>
+            <button :class="{on: form.heal_method === 'quick'}" @click="form.heal_method = 'quick'"
+                    title="Instant, no download: good for small spots, dust, scratches and thin lines">⚡ Quick</button>
+          </div>
         </template>
         <template v-else-if="form.i2i_mode === 'inpaint'">
           <div class="hint">Paint over what you want to change, then describe what should be there in the prompt.</div>
@@ -1464,7 +1551,7 @@
         <label class="check"><input type="checkbox" v-model="form.use_init_size"> Use the picture's size (otherwise the size from Create)</label>
       </div>
 
-      <div v-if="form.i2i_mode !== 'change'" class="card hint">2 · ControlNet is off while inpainting or expanding.</div>
+      <div v-if="form.i2i_mode !== 'change'" class="card hint">2 · ControlNet is off while {{ form.i2i_mode === 'remove' ? 'removing' : 'inpainting or expanding' }}.</div>
       <div v-else class="card">
         <h3>2 · ControlNet <span class="hint">SD 1.5 · makes the result follow the picture's structure</span></h3>
         <select v-model="form.control.type" @change="controlMap = null">
@@ -1516,7 +1603,7 @@
       </div>
 
       <div class="actions" :class="{busy}">
-        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ busy ? 'Add to queue' : 'Generate' }}</button>
+        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
         <div v-if="busy" class="stop-group">
           <button v-if="runningJob || queue.length" class="ghost pause-btn" :class="{on: paused}" @click="togglePause"
                   :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
@@ -2404,6 +2491,7 @@
 <script src="../node_modules/vue/dist/vue.global.prod.js"></script>
 <script src="adjust.js"></script>
 <script src="prompt_generator.js"></script>
+<script src="tips.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -2,6 +2,24 @@
 
 ## 1.2.0
 
+- 🩹 Remove (spot healing): Image to image → Remove mode (paint, press Remove) and Tools → Remove objects.
+  `postprocess/heal.py`: LaMa (Apache-2.0; Carve/LaMa-ONNX `lama_fp32.onnx`, pinned revision c3c0c9e, ~208 MB,
+  ONNX Runtime on the CPU; context box around the mask, 512 px, blended back with a soft edge) or OpenCV Telea "Quick".
+  Saved as kind "healed" linked to the original. New queued job `heal`
+- ✒️ Vectorize (Tools): `postprocess/vectorize.py`, k-means palette (2-24), speck cleanup, traced outlines with holes,
+  simplified and drawn as smooth quadratic curves (sharp at the picture's edges), background colour from the border;
+  SVG saved beside the pictures. New queued job `vectorize`
+- ★ favourite LoRAs (listed first; ★ filter beside the search), stored in `protoart.favLoras`
+- Tips: app-wide quick tooltips (`tips.js`; element titles plus explanations for untitled buttons) with a Settings switch
+- 🎲 Random LoRAs laid out as a sentence; trigger-word hints explained
+- LoRAs of another model type are put aside per type and restored on switching back (they used to be dropped); the
+  default model is applied once per launch, not again when the window reloads (sessionStorage)
+- Fix: Image prompt (IP-Adapter) on 8-bit / quantized SDXL UNets ("Casting a quantized model to a new dtype is
+  unsupported"): `unet.to` only moves the device while the adapter loads; the adapter's own layers get the working dtype
+- Civitai: downloads are queued (box freed at once; Downloads list with Stop / Remove); possible duplicates found by
+  .civitai.info version id, same file name or same size (`civitai.find_duplicates`) and confirmed before downloading
+- Create → "reset all" (everything but prompt, model and presets, with undo; `defaultForm()`); Tools → "Reset Tools
+  settings" (`defaultPost()`, with undo)
 - Restore faces: **CodeFormer** added as a second model beside RestoreFormer, in Create, Tools and the picture details,
   with a Fidelity slider (CodeFormer only). CodeFormer code (`backend/postprocess/codeformer_arch.py`) and weights are
   S-Lab License 1.0, non-commercial; RestoreFormer stays the default

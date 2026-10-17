@@ -177,6 +177,50 @@ def inspect(text, token=None, get=_get_json):
     return describe(model, version)
 
 
+def find_duplicates(info, dirs, max_files=20000, limit=5):
+    """Files you may already have: a download of the same Civitai version (its .civitai.info sidecar), a file
+    with the same name, or a model file of exactly the same size. Searches dirs (and folders inside them)."""
+    f = info.get("file") or {}
+    name = str(f.get("name") or "").lower()
+    size = int(round(float(f.get("size_mb") or 0) * 1024 * 1024))
+    vid = info.get("version_id")
+    exts = allowed_extensions(info.get("kind")) + (".ckpt", ".bin")
+    found, seen, n = [], set(), 0
+    for root in dirs:
+        if not root or not os.path.isdir(root):
+            continue
+        for dirpath, dirnames, files in os.walk(root):
+            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+            for fn in files:
+                n += 1
+                if n > max_files or len(found) >= limit:
+                    return found
+                p = os.path.join(dirpath, fn)
+                low = fn.lower()
+                why = None
+                if low.endswith(".civitai.info") and vid:
+                    try:
+                        with open(p) as fh:
+                            if json.load(fh).get("modelVersionId") == vid:
+                                why = "the same Civitai version, downloaded before"
+                                base = p[: -len(".civitai.info")]
+                                p = next((base + e for e in exts if os.path.exists(base + e)), p)
+                    except (OSError, ValueError, AttributeError):
+                        pass
+                elif name and low == name:
+                    why = "a file with the same name"
+                elif size > 1024 * 1024 and low.endswith(exts):
+                    try:
+                        if abs(os.path.getsize(p) - size) <= max(2048, size // 5000):
+                            why = "a file of the same size"
+                    except OSError:
+                        pass
+                if why and os.path.realpath(p) not in seen:
+                    seen.add(os.path.realpath(p))
+                    found.append({"path": p, "why": why})
+    return found
+
+
 def safe_filename(name, exts=(".safetensors",)):
     name = os.path.basename(str(name or "model.safetensors")).replace("\x00", "")
     name = re.sub(r'[\\/:*?"<>|]+', "_", name).strip(" .") or "model.safetensors"

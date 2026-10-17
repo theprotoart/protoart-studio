@@ -209,3 +209,24 @@ class BlockedConnectionTests(unittest.TestCase):
                 civitai._get_json("https://civitai.com/api/v1/models/1")
         self.assertIn("blocked", str(cm.exception))
         self.assertIn("Retry", str(cm.exception))
+
+
+class DuplicateTests(unittest.TestCase):
+    def test_finds_same_version_name_and_size(self):
+        import json as _json
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp) / "loras" / "sub"
+            d.mkdir(parents=True)
+            (d / "inkwash.safetensors").write_bytes(b"x" * (2 * 1024 * 1024))
+            (d / "inkwash.civitai.info").write_text(_json.dumps({"modelVersionId": 77}))
+            (d / "Other.safetensors").write_bytes(b"y" * (3 * 1024 * 1024))
+            info = {"kind": "lora", "version_id": 77, "file": {"name": "nothing.safetensors", "size_mb": 9}}
+            r = civitai.find_duplicates(info, [tmp])
+            self.assertEqual([x["why"] for x in r], ["the same Civitai version, downloaded before"])
+            self.assertTrue(r[0]["path"].endswith("inkwash.safetensors"))
+            info = {"kind": "lora", "version_id": 1, "file": {"name": "other.safetensors", "size_mb": 1}}
+            self.assertEqual(civitai.find_duplicates(info, [tmp])[0]["why"], "a file with the same name")
+            info = {"kind": "lora", "version_id": 1, "file": {"name": "new.safetensors", "size_mb": 3}}
+            self.assertEqual(civitai.find_duplicates(info, [tmp])[0]["why"], "a file of the same size")
+            info = {"kind": "lora", "version_id": 1, "file": {"name": "new.safetensors", "size_mb": 5}}
+            self.assertEqual(civitai.find_duplicates(info, [tmp]), [])

@@ -161,7 +161,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("preload", "nsfw_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("heal", "vectorize", "preload", "nsfw_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -253,6 +253,10 @@ def job_label(cmd, a):
             f" · image #{a.get('image_id')}"
     if cmd == "enhance_prompt":
         return "Enhance prompt"
+    if cmd == "heal":
+        return "Remove (spot heal)" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
+    if cmd == "vectorize":
+        return f"Vectorize · {a.get('colors') or 8} colours"
     return "Image → prompt (" + ("tags" if a.get("mode") == "tags" else "describe") + ")"
 
 
@@ -780,6 +784,16 @@ def handle_quick(cmd, a):
         net.ensure_downloads_work()  # route through curl when a firewall blocks Python (no other change)
         info = civitai.inspect(a.get("url"), library.get_setting("civitai_token"))
         info["destinations"] = civitai_destinations(info)
+        try:  # "you may already have this"
+            look = [d["path"] for d in info["destinations"]]
+            if info.get("kind") == "lora":
+                look += list(loras.EXTRA_DIRS) + [str(paths.LORAS_DIR)]
+            elif info.get("kind") == "checkpoint":
+                look += [str(paths.MODELS_DIR)] + list(model_hub.MODEL_DIRS)
+            info["duplicates"] = civitai.find_duplicates(info, list(dict.fromkeys(look)))
+        except Exception as e:
+            log("duplicate check failed:", e)
+            info["duplicates"] = []
         return info
     if cmd == "civitai_key_get":
         return {"set": bool(library.get_setting("civitai_token"))}
@@ -1466,6 +1480,10 @@ def run_job(kind, a):
         return eng.train_autocaption(a)
     if kind == "control_preview":
         return eng.control_preview(a)
+    if kind == "heal":
+        return eng.heal(a)
+    if kind == "vectorize":
+        return eng.vectorize(a)
     return eng.generate(a, force=settings["force_load"], low_memory=settings["low_memory"])
 
 

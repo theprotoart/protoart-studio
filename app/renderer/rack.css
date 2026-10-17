@@ -1093,7 +1093,7 @@ label:has(> input[type=checkbox]:checked), [data-theme="dark"] label:has(> input
 /* ---------- model & LoRA rows: name | markers (fixed column, same place on every row) | size ----------
    Long names wrap onto at most two lines inside their own column (full name on hover), so the markers never move. */
 .model-item .m-row { display: grid; grid-template-columns: minmax(0, 1fr) 62px; column-gap: 10px; align-items: start; }
-.lora-item { grid-template-columns: minmax(0, 1fr) 44px auto !important; }
+.lora-item { grid-template-columns: minmax(0, 1fr) 63px auto !important; }
 .model-item .m-name, .lora-item > .l-name {
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
   overflow-wrap: anywhere; white-space: normal; line-height: 1.3; }
@@ -1102,7 +1102,7 @@ label:has(> input[type=checkbox]:checked), [data-theme="dark"] label:has(> input
 .marks > .people-dot, .marks > .nsfw-flag, .marks > .fav-star { margin: 0; justify-self: center; }
 .fav-star { display: inline-block; font-size: 13px; line-height: 1; cursor: pointer; color: #8f897b; opacity: 0; transition: opacity .12s; }
 .fav-star.on { opacity: 1; color: #ffc34d; text-shadow: 0 0 6px rgba(var(--glow-rgb), .7); }
-.model-item:hover .fav-star { opacity: .85; }
+.model-item:hover .fav-star, .lora-item:hover .fav-star { opacity: .85; }
 .fav-star:hover { opacity: 1 !important; outline: 1px solid rgba(var(--glow-rgb), .7); outline-offset: 1px; border-radius: 2px; }
 .fav-star:focus-visible, .people-dot:focus-visible, .nsfw-flag:focus-visible { opacity: 1; }
 
@@ -1228,3 +1228,39 @@ label:has(> input[type=checkbox]:checked), [data-theme="dark"] label:has(> input
 .frame-box .frame-bg { object-fit: cover; filter: blur(8px); transform: scale(1.1); opacity: .9; }
 .frame-item.nonsq .frame-box { box-shadow: 0 0 0 2px var(--amber, #e89a22); }
 .frame-copy { flex-wrap: wrap; gap: 8px; }
+
+/* Create: LoRA search + ★ favourites-only switch */
+.lora-search-row { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+.lora-search-row .lora-search { flex: 1; margin-top: 0; min-width: 0; }
+.lora-search-row .chip { flex: none; }
+
+/* tips when pointing at buttons (tips.js) */
+.proto-tip { position: fixed; z-index: 10000; max-width: 320px; padding: 7px 10px; border-radius: 4px; pointer-events: none;
+  font: 12.5px/1.4 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; letter-spacing: normal; text-transform: none;
+  color: #f1ece0; background: rgba(22, 22, 24, .96); border: 1px solid rgba(var(--glow-rgb), .45);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .55); opacity: 0; transform: translateY(-2px); transition: opacity .12s, transform .12s; }
+.proto-tip.show { opacity: 1; transform: none; }
+
+/* Create: 🎲 Random LoRAs, read as a sentence */
+.lora-rand { display: grid; gap: 6px; }
+.lora-rand-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.lora-rand-line select { width: auto; min-width: 54px; }
+.lora-rand-line .num { width: 70px; }
+.lora-rand-every { margin: 0; }
+
+/* Civitai: "you may already have this" and the downloads queue */
+.civ-dup { margin: 6px 0; padding: 7px 10px; border-radius: 3px; border: 1px solid rgba(var(--glow-rgb), .45); background: rgba(var(--glow-rgb), .07); }
+.civ-dup.ask { border-color: #e0402c; background: rgba(224, 64, 44, .1); }
+.civ-dup .link { overflow-wrap: anywhere; text-align: left; }
+.civ-queue { display: grid; gap: 6px; margin: 8px 0; }
+.civ-queue .shop-dl { display: grid; grid-template-columns: minmax(80px, 1.2fr) 1fr auto auto; gap: 8px; align-items: center; }
+.civ-q-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* reset-all links: Create (top of the settings) and Tools */
+.cfold-all { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
+.cfold-all .spacer { flex: 1; }
+.reset-all-row { display: flex; justify-content: flex-end; align-items: baseline; gap: 8px; margin: 0 0 6px; }
+
+/* Tools: ✒️ Vectorize result */
+.vec-result img { display: block; width: 100%; max-height: 320px; object-fit: contain; margin-top: 8px;
+  background: repeating-conic-gradient(#d9d6cf 0% 25%, #f2efe8 0% 50%) 50% / 16px 16px; border-radius: 3px; }
