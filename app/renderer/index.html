@@ -13,11 +13,41 @@
 <body>
 <!-- Launch screen (shown before anything else, like DiffusionBee's) -->
 <div id="splash">
-  <div class="splash-bezel"><img src="assets/logo-round-512.png" alt=""></div>
-  <div class="splash-name">Protoart Studio</div>
-  <div class="splash-model">Image processor · Model PA-1</div>
-  <div class="splash-status" id="splash-status">Starting the engine…</div>
-  <div class="splash-bar"><div></div></div>
+  <!-- the launch screen: one rack unit powering up (lamps come on in turn, the meter needle swings up, the display
+       says what the engine is doing; READY lights just before it fades into the app) -->
+  <div class="sp-unit" role="img" aria-label="Protoart Studio is starting">
+    <i class="sp-ear"><b></b><b></b></i>
+    <div class="sp-face">
+      <div class="splash-bezel"><img src="assets/logo-round-512.png" alt=""></div>
+      <div class="sp-mid">
+        <div class="splash-name">Protoart Studio</div>
+        <div class="splash-model">Image processor · Model PA-1</div>
+        <div class="sp-vfd"><span class="splash-status" id="splash-status">Starting the engine…</span></div>
+        <div class="splash-bar" aria-hidden="true"><div></div></div>
+      </div>
+      <div class="sp-right" aria-hidden="true">
+        <div class="sp-leds">
+          <span><i class="sp-led sp-power"></i>Power</span>
+          <span><i class="sp-led sp-engine"></i>Engine</span>
+          <span><i class="sp-led sp-ready"></i>Ready</span>
+        </div>
+        <div class="sp-vu">
+          <svg viewBox="0 0 140 84">
+            <path d="M18 66 A54 54 0 0 1 122 66" fill="none" stroke="#3a3326" stroke-width="1.2"/>
+            <path d="M98 30 A54 54 0 0 1 122 66" fill="none" stroke="#b8402c" stroke-width="3.5"/>
+            <g stroke="#3a3326" stroke-width="1.2">
+              <line x1="18" y1="66" x2="24" y2="64"/><line x1="29" y1="41" x2="34" y2="44"/><line x1="49" y1="22" x2="52" y2="27"/>
+              <line x1="70" y1="12" x2="70" y2="18"/><line x1="91" y1="22" x2="88" y2="27"/><line x1="111" y1="41" x2="106" y2="44"/><line x1="122" y1="66" x2="116" y2="64"/>
+            </g>
+            <text x="70" y="52" text-anchor="middle" class="sp-vu-label">VU</text>
+            <line class="sp-needle" x1="70" y1="78" x2="70" y2="16"/>
+            <circle cx="70" cy="78" r="5" fill="#1d1d1e"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <i class="sp-ear"><b></b><b></b></i>
+  </div>
   <div class="splash-note">A standalone app: everything runs on this Mac.<br>No account, no cloud, and your images never leave your computer.</div>
 </div>
 <div id="app" v-cloak>

@@ -209,9 +209,12 @@ function hideSplash(msg) {
   }
   el.dataset.hiding = "1";
   setTimeout(() => {
-    el.classList.add("gone");
-    setTimeout(() => el.remove(), 600);
-  }, Math.max(0, 1500 - (Date.now() - SPLASH_STARTED)));
+    el.classList.add("ready");  // READY lights, the needle settles, then the unit fades into the app
+    setTimeout(() => {
+      el.classList.add("gone");
+      setTimeout(() => el.remove(), 600);
+    }, 450);
+  }, Math.max(0, 1900 - (Date.now() - SPLASH_STARTED)));
 }
 setTimeout(() => hideSplash("Taking a while…"), 25000); // never block the app forever
 
