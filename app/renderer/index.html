@@ -2073,6 +2073,20 @@
           <span v-if="!cnModelPicks.length" class="hint warn">no {{ (controlTypeInfo && controlTypeInfo.family === 'sdxl') ? 'SDXL' : 'SD 1.5' }} model installed yet (Models tab)</span>
         </div>
         <p class="hint">{{ cnGuide.modelsText }}</p>
+        <div v-if="cnGuide.patterns" class="cn-patterns">
+          <div class="cn-pat-head"><b>Pattern</b> <span class="hint">pick a shape (it becomes 1 · Picture) or use your own</span></div>
+          <div class="row wrap-row cn-pat-opts">
+            <input v-model="pat.text" maxlength="400" placeholder="Text or link for the QR code, or the word" style="flex:1; min-width: 220px">
+            <label class="check" title="White shapes on black instead of black on white"><input type="checkbox" v-model="pat.invert"> invert</label>
+          </div>
+          <div class="cn-pat-grid">
+            <button v-for="p in PATTERNS" :key="p.id" class="cn-pat" :class="{on: pat.last === p.id}" @click="usePattern(p.id)" :title="p.tip">
+              <img :src="patternThumb(p.id)" alt=""><span>{{ p.label }}</span></button>
+            <button class="cn-pat cn-pat-own" @click="pat.last = 'own'; $refs.startPick.click()" title="A black-and-white picture of your own: a logo, a drawing, a shape, your own QR code">
+              <b>＋</b><span>Your own…</span></button>
+          </div>
+          <div class="hint">Black and white with a margin works best. The QR code uses the strongest error correction, so it still scans once the picture is painted over it (strength 1.3 or more).</div>
+        </div>
         <details class="fine" open><summary class="hint">how to use it, step by step</summary>
           <ol class="cn-steps"><li v-for="(st, i) in cnGuide.steps" :key="i" v-html="st"></li></ol></details>
       </div>
@@ -3044,6 +3058,8 @@
 <script src="negative_prompt.js"></script>
 <script src="tips.js"></script>
 <script src="sounds.js"></script>
+<script src="qr.js"></script>
+<script src="patterns.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

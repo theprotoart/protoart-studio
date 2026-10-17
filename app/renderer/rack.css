@@ -1797,3 +1797,10 @@ button.cmp-key.on:hover:not(:disabled) { background: radial-gradient(ellipse at 
 .gallery figure:hover .tile-acts { opacity: 1; pointer-events: auto; }
 .gallery figure .tile-acts .to-i2i { position: static; opacity: 1; transform: none; flex: 0 1 auto; min-width: 0; white-space: nowrap; }
 .gallery figure .to-i2i.card-trash { left: auto; right: 44px; top: 8px; }
+/* QR / pattern ControlNet: the pattern picker */
+.cn-patterns { margin: 10px 0 6px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, .08); display: grid; gap: 8px; }
+.cn-pat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.cn-pat { display: grid; justify-items: center; gap: 4px; padding: 6px 4px 5px; min-height: 0; font-size: 11.5px; }
+.cn-pat img { width: 56px; height: 56px; border-radius: 3px; background: #fff; box-shadow: 0 0 0 1px #000; image-rendering: auto; }
+.cn-pat.on { box-shadow: 0 0 0 2px var(--amber, #ffae2b); }
+.cn-pat-own b { width: 56px; height: 56px; display: grid; place-items: center; font-size: 24px; border-radius: 3px; border: 1px dashed currentColor; opacity: .7; }

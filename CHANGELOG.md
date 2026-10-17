@@ -2,6 +2,9 @@
 
 ## 1.2.1 (in progress)
 
+- QR / pattern ControlNets: a Pattern picker in the guide (`patterns.js`: QR code, word, spiral, rings, checks, stripes,
+  waves, sunburst, circle, heart, star, triangle; invert; your own picture). `qr.js`: a self-contained QR encoder
+  (byte mode, versions 1–40, Reed–Solomon, all 8 masks, ECC H), checked against OpenCV's QR decoder
 - Depth map → ControlNet: `depthToControlNet` switches to Change it and an SD 1.5 model; ControlNet guide moved to the
   right-hand column; Library tile actions in one flex row (`.tile-acts`), 🗑 beside ★
 - Image to image → ControlNet guides (`CN_GUIDES`, `cnGuide`, `cnModelPicks`, `applyCnGuide`): what it does, the picture

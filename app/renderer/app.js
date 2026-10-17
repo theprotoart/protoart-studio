@@ -133,7 +133,7 @@ const CN_GUIDES = {
       "Strength 1.1–1.5: higher keeps the pattern (a QR code scans), lower blends it in more. Start at 1.3.",
       "When it guides: <b>Mostly</b> (0–80%) or <b>Layout only</b> for a subtler hidden shape.",
       "Size 768 × 768, about 30 steps, guidance 7. Make a few and pick the one that scans (or looks best)."],
-    set: { scale: 1.3, start: 0, end: 0.8, use_init: false, steps: 30, cfg: 7, size: 768 } },
+    set: { scale: 1.3, start: 0, end: 0.8, use_init: false, steps: 30, cfg: 7, size: 768 }, patterns: true },
   light: { title: "Brightness / illumination ControlNet",
     what: "Uses your picture's light and dark areas as the lighting of a new picture (glowing shapes, light through a window, a word made of light).",
     picture: "A grey-scale picture: white where the light should be, black where it's dark. Soft edges look more natural.",
@@ -141,7 +141,7 @@ const CN_GUIDES = {
     modelsText: "Realistic SD 1.5 models suit it best (Realistic Vision, Photon, DreamShaper).",
     steps: ["Put the light map in 1 · Picture and switch <b>Start from this picture</b> off.", "Describe the scene and its light (“a dark forest at night, glowing mist”).",
       "Strength 0.6–0.9 (it's strong), guidance Mostly."],
-    set: { scale: 0.75, start: 0, end: 0.8, use_init: false } },
+    set: { scale: 0.75, start: 0, end: 0.8, use_init: false }, patterns: true },
   canny: { title: "Canny edges", what: "Keeps the outlines of your picture exactly and lets everything else change: colours, materials, style, lighting.",
     picture: "Any picture with clear shapes (a photo, a product, a building, a drawing). Preview the map: you should see clean white outlines.",
     models: null, modelsText: "Any SD 1.5 model: pick the one with the style you want the result in.",
@@ -292,7 +292,9 @@ const protoartApp = createApp({
       i2iLora: { q: "", open: false },
       lorasAside: loadJSON("protoart.lorasAside", {}),  // model type -> LoRAs put aside when you switched type
       frame: { size: 512, busy: false, msg: "", copied: null },  // Train tab: square framing of the pictures
-      cropEd: null,        // Train tab → ✂ Crop by hand: {it, x, y, s, w, h} (x, y, s as in trainer.parse_box)
+      cropEd: null,
+      PATTERNS: window.ProtoPatterns ? window.ProtoPatterns.LIST : [],
+      pat: { text: "", invert: false, last: "" },  // Image to image → QR / pattern ControlNet: the pattern picker        // Train tab → ✂ Crop by hand: {it, x, y, s, w, h} (x, y, s as in trainer.parse_box)
       forcing: false,
       stopAllAt: 0,
       sentBack: {},          // job id -> {cmd, args}: moved to the back of the queue (re-sent once it has stopped)
@@ -457,6 +459,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Coming in 1.2.1: fixes from your notes", items: [
+              "<b>Patterns for QR code ControlNets</b>: with a QR / pattern / illusion ControlNet picked, its guide (right-hand column) has a <b>Pattern</b> panel: a real, scannable <b>QR code</b> of any text or link you type, your <b>word</b> in big letters, or a ready-made shape (spiral, rings, checks, stripes, waves, sunburst, circle, heart, star, triangle), with <b>invert</b> for white on black. Click one and it becomes 1 · Picture, ready to generate; <b>Your own…</b> uses a picture of yours (a logo, a drawing, your own QR code).",
               "<b>Tools → Depth map → Use as a ControlNet depth map</b> now always lands in Image to image ready to go: it switches to 🔄 Change it and an SD 1.5 model (Edit with words or Inpaint used to hide the ControlNet). The <b>ControlNet guide</b> now sits in the roomy right-hand column above the preview, with its steps open. <b>Library</b>: Img2img, ↺ Prompt and Tools sit in one even row along the bottom of a picture, and 🗑 moved next to ★ so it no longer covers the picture's label.",
               "<b>ControlNet guides</b> (Image to image): pick a ControlNet and a short guide appears: what it does, what picture to give it, the <b>best models</b> you have for it (★ = a good match; click one to switch) and <b>how to use it, step by step</b>. <b>Use these settings</b> sets its strength, timing and picture options in one click. QR code / pattern / illusion ControlNets (like QR Code Monster) and brightness ones are recognised by their names. The model list now says what each group can do (image to image, inpaint, ControlNet, image prompt), and while editing with words the ControlNet card suggests which ControlNets would suit and has <b>Use ControlNet instead</b>.",
               "<b>Create and Image to image keep their own prompts</b>: each tab has its own prompt and negative prompt, so a prompt written in one no longer turns up in the other (and an ✨ enhanced prompt stays with the tab it was made in). Pictures made by <b>Tools → 🩹 Remove</b> stay in Tools and the Library instead of showing in Image to image's preview.",
@@ -667,6 +670,7 @@ const protoartApp = createApp({
               "Choose <b>Expand</b> and how many pixels to add on each side (or use <i>make it wider / taller</i>). The new area is filled in to match.",
               "Describe the whole scene in the prompt, including what should appear around the original. Expanding a little at a time (e.g. 128–256 px) gives the best results." ] },
             { h: "ControlNet (SD 1.5, and your own SDXL ones)", items: [
+              "<b>QR code and pattern pictures</b>: for a QR / pattern / illusion ControlNet, the guide's <b>Pattern</b> panel makes the picture for you. Type a link or text and click <b>QR code</b> for a real QR code (made with the strongest error correction, so it still scans after being painted over; use strength 1.3 or more), click <b>Word</b> for your text in big letters, or pick a shape (spiral, rings, checks, stripes, waves, sunburst, circle, heart, star, triangle). <b>invert</b> makes white shapes on black. <b>Your own…</b> uses any picture of yours; black and white with a margin works best. Then describe a busy scene and Generate; check a QR result with your phone's camera.",
               "<b>The guide</b>: when you pick a ControlNet, a panel on the right (above the preview) says what it does, what picture to give it, which of your models suit it best (★, click to switch) and how to use it step by step. <b>Use these settings</b> sets the strength, timing and picture options it works best with. For a <b>QR code / pattern</b> ControlNet: put the black-and-white pattern in 1 · Picture, switch <b>Start from this picture</b> off, describe a busy, detailed scene (not the pattern), strength about 1.3, <b>Mostly</b>, 768 px, ~30 steps; make a few and keep the best.",
               "<b>Your own ControlNets</b> (SD 1.5 or SDXL), e.g. QR Code Monster or an SDXL canny / depth / openpose from Civitai: paste the Civitai link in Models → Add from Civitai, then pick it in the ControlNet list. The list shows the ones that fit the model you picked: SD 1.5 models get the built-in ones and your SD 1.5 files, SDXL / Pony / Illustrious / NoobAI models get your SDXL files. If its name says <i>canny, depth, lineart, openpose, softedge, scribble</i> or <i>tile</i>, that map is made from your picture; otherwise it follows your picture as it is (give it a QR code or pattern as the picture). SDXL ControlNets are big, so they're slow on 8 GB Macs. Control-LoRA, LLLite and Union files can't be used yet (the Models tab says so next to them).",
               "<b>Tile</b> adds detail but keeps the picture: great with low change strength for sharpening.",
@@ -4541,6 +4545,34 @@ const protoartApp = createApp({
       }
       if (!this.controlTypes.length) this.controlTypes = await call("control_types").catch(() => []);
     },
+    patternThumb(id) {  // small previews of the ready-made patterns (made once)
+      this._patThumbs ||= {};
+      const key = id + (this.pat.invert ? "-i" : "");
+      if (!this._patThumbs[key] && window.ProtoPatterns) {
+        try { this._patThumbs[key] = window.ProtoPatterns.render(id, { size: 96, invert: this.pat.invert, text: id === "text" ? "ART" : "" }).toDataURL(); }
+        catch { this._patThumbs[key] = ""; }
+      }
+      return this._patThumbs[key];
+    },
+    async usePattern(id) {
+      // draw the pattern at 768 px, save it as a picture, and make it 1 · Picture (the ControlNet's map)
+      try {
+        const c = window.ProtoPatterns.render(id, { size: 768, invert: this.pat.invert, text: this.pat.text });
+        const blob = await new Promise((ok) => c.toBlob(ok, "image/png"));
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const path = await window.bee.writeAdjusted(bytes);
+        if (!path) throw new Error("the picture couldn't be saved");
+        this.form.init_image = path;
+        this.form.i2i_use_init = false;
+        this.form.use_init_size = true;
+        this.controlMap = null;
+        this.pat.last = id;
+        const p = this.PATTERNS.find((x) => x.id === id);
+        this.status = `${p ? p.label : "Pattern"} is the ControlNet picture now: describe a detailed scene and press Generate`;
+      } catch (e) {
+        this.error = "Couldn't make that pattern: " + (e.message || e);
+      }
+    },
     applyCnGuide() {  // ControlNet → "Use these settings": the guide's strength, timing and picture settings
       const g = this.cnGuide;
       if (!g || !g.set) return;
@@ -4678,7 +4710,12 @@ const protoartApp = createApp({
     onStartPicked(e) {
       const file = e.target.files?.[0];
       e.target.value = "";
-      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) this.form.init_image = p; });
+      const forPattern = this.pat.last === "own";
+      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => {
+        if (!p) return;
+        this.form.init_image = p;
+        if (forPattern) { this.form.i2i_use_init = false; this.controlMap = null; this.status = "Your pattern is the ControlNet picture now"; }
+      });
     },
     // Tools → 🩹 Remove objects: the picture opens in Image to image, in Remove mode, ready to paint
     openRemove(src) {
