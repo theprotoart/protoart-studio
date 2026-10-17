@@ -6,7 +6,10 @@
   ~3 GB) through mlx-vlm 0.7.4 in its own environment (`~/.protoartstudio/venv-vlm`, `backend/vlm.py`); a short-lived
   worker (`vlm_worker.py`) per picture so its memory is freed at once. Florence-2 is now "Quick"; the WD tagger "Tags".
   The Tools module shows the written prompt
-- Header: a chrome bat-handle TIPS toggle (ON / OFF) beside bigger Power / Busy / Fault lamps
+- Header: a chrome bat-handle TIPS toggle (`.bat-toggle`, drawn from its own parts: nut, lever, ball; ON / OFF) beside
+  bigger Power / Busy / Fault lamps
+- Remove: "✨ Smart fill" (LaMa) / "⚡ Quick fill" with a one-line explanation; Image to image's picture keeps the same
+  size in every mode (max 420 px high)
 - Tools: Remove objects paints on Tools' own picture (`tool.healing`, `toolPaintRemove`, `toolHeal`; the mask code
   follows `maskTarget()`); bigger picture caption with "✕ Remove picture" and "✏️ Edit in …" buttons; shorter modules
   (icon beside the title; Enhance's Creativity / Resemblance under fine-tune)

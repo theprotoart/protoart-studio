@@ -1424,3 +1424,41 @@ label:has(> input[type=checkbox]:checked), [data-theme="dark"] label:has(> input
 .rack-module .mod-readout { margin-top: 6px; padding: 8px 10px; font-size: 11.5px; line-height: 1.4; max-height: 120px; overflow: auto;
   color: var(--amber); background: #0d0b08; border-radius: 2px; box-shadow: inset 0 1px 3px #000, 0 1px 0 rgba(255, 255, 255, .3); }
 .rack-module .mod-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+/* the TIPS toggle: a real chrome bat-handle lever on a hex nut, engraved TIPS above, ON / OFF below */
+button.bat-toggle {
+  display: grid; justify-items: center; gap: 1px; padding: 0 4px; margin: 0; background: none; border: 0; box-shadow: none;
+  min-height: 0; cursor: pointer; color: inherit; flex: none;
+}
+button.bat-toggle:hover:not(:disabled), button.bat-toggle:active:not(:disabled) { background: none; box-shadow: none; transform: none; filter: brightness(1.08); }
+.bat-toggle .bt-name, .bat-toggle .bt-state { font-family: var(--f-eng); font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; line-height: 1.1; }
+.bat-toggle .bt-state { font-size: 9.5px; opacity: .8; }
+.bat-toggle.on .bt-state { color: var(--amber); text-shadow: var(--amber-glow); opacity: 1; }
+.bat-toggle .bt-switch { position: relative; width: 30px; height: 44px; display: block; }
+.bat-toggle .bt-plate { /* a little engraved plate behind the switch */
+  position: absolute; inset: 4px 3px; border-radius: 3px;
+  background: linear-gradient(180deg, #2a2b2f, #151618); box-shadow: inset 0 1px 2px #000, 0 1px 0 rgba(255, 255, 255, .25);
+}
+.bat-toggle .bt-nut { /* hex nut + collar the lever comes out of */
+  position: absolute; left: 50%; top: 50%; width: 20px; height: 20px; margin: -10px 0 0 -10px;
+  clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%);
+  background: radial-gradient(circle at 50% 50%, #2b2d31 0 4px, #8d9096 4.5px 5.5px, #e6e8eb 6px 7px, #9a9da3 7.5px 100%);
+}
+.bat-toggle .bt-lever { /* the chrome lever */
+  position: absolute; left: 50%; width: 5px; margin-left: -2.5px; height: 15px; top: 22px; border-radius: 2px;
+  background: linear-gradient(90deg, #4c4f54, #f7f8fa 45%, #a3a6ab 70%, #43464b);
+  box-shadow: 0 2px 2px rgba(0, 0, 0, .5); transition: top .12s ease-in;
+}
+.bat-toggle .bt-ball { /* the bat tip */
+  position: absolute; left: 50%; width: 12px; height: 11px; margin-left: -6px; top: 33px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffffff, #c9ccd0 45%, #6a6d72 100%);
+  box-shadow: 0 3px 3px rgba(0, 0, 0, .6); transition: top .12s ease-in;
+}
+.bat-toggle.on .bt-lever { top: 7px; }
+.bat-toggle.on .bt-ball { top: 0; box-shadow: 0 -1px 1px rgba(0, 0, 0, .3), 0 3px 4px rgba(0, 0, 0, .45); }
+[data-theme="dark"] .bat-toggle .bt-name, [data-theme="dark"] .bat-toggle .bt-state { color: #efeadc; text-shadow: 0 -1px 0 rgba(0, 0, 0, .85); }
+[data-theme="dark"] .bat-toggle.on .bt-state { color: var(--amber); text-shadow: var(--amber-glow); }
+@media (max-width: 1180px) { .bat-toggle { display: none; } }
+/* Image to image: the picture stays the same size in every mode */
+.i2i-src { text-align: center; }
+.i2i-src img, .i2i-src.mask-editor .mask-stage img { width: auto; max-width: 100%; max-height: 420px; margin: 0 auto; object-fit: contain; }
+.i2i-src.mask-editor .mask-stage { margin: 0 auto; }
