@@ -2494,24 +2494,6 @@
       <p class="hint">When reporting a problem, say what you did, what happened, and add a screenshot. Never share your Civitai key or Hugging Face token.</p>
     </div>
 
-    <div class="help-acc licence-acc">
-      <div class="acc-item" :class="{open: helpOpen === 'licences'}">
-        <button class="acc-head" @click="helpOpen = helpOpen === 'licences' ? '' : 'licences'" :aria-expanded="helpOpen === 'licences'">
-          <span class="acc-icon">📜</span>
-          <span class="acc-title">Model licences</span>
-          <span class="acc-sum hint">each model has its own terms; check them before using pictures commercially</span>
-          <span class="acc-chev">›</span>
-        </button>
-        <div class="acc-body"><div class="acc-inner">
-          <table class="licence-table">
-            <tr v-for="l in LICENCES" :key="l.model"><td>{{ l.model }}</td><td><b>{{ l.licence }}</b><span v-if="l.note" class="hint"> · {{ l.note }}</span></td></tr>
-          </table>
-          <p class="hint">No model is included in the app: each downloads from its own page the first time you use it.
-            <button class="link" @click="openLink('notices')">Full list with links</button></p>
-        </div></div>
-      </div>
-    </div>
-
     <h2>Quick start</h2>
     <ol class="steps">
       <li><b>Create:</b> pick a model, type what you want to see, press <b>Generate</b> (⌘↵). The first time, the model downloads once.</li>
@@ -2534,6 +2516,24 @@
             <ul><li v-for="(line, k) in sec.items" :key="k" v-html="line"></li></ul>
           </div>
           <button class="ghost" @click="tab = t.go; if (t.go === 'library') openLibrary(); if (t.go === 'i2i') openI2I(); if (t.go === 'train') openTrain(); if (t.go === 'settings') loadLogTail()">{{ t.goLabel || ('Go to ' + t.title) }} →</button>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="help-acc licence-acc">
+      <div class="acc-item" :class="{open: helpOpen === 'licences'}">
+        <button class="acc-head" @click="helpOpen = helpOpen === 'licences' ? '' : 'licences'" :aria-expanded="helpOpen === 'licences'">
+          <span class="acc-icon">📜</span>
+          <span class="acc-title">Model licences</span>
+          <span class="acc-sum hint">each model has its own terms; check them before using pictures commercially</span>
+          <span class="acc-chev">›</span>
+        </button>
+        <div class="acc-body"><div class="acc-inner">
+          <table class="licence-table">
+            <tr v-for="l in LICENCES" :key="l.model"><td>{{ l.model }}</td><td><b>{{ l.licence }}</b><span v-if="l.note" class="hint"> · {{ l.note }}</span></td></tr>
+          </table>
+          <p class="hint">No model is included in the app: each downloads from its own page the first time you use it.
+            <button class="link" @click="openLink('notices')">Full list with links</button></p>
         </div></div>
       </div>
     </div>

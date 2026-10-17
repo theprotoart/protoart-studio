@@ -440,7 +440,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.2.1 (test version): fixes from your notes", items: [
-              "<b>How to</b>: 📜 Model licences now folds up like the sections below it (click to open), so it no longer takes up half the page.",
+              "<b>How to</b>: 📜 Model licences is now a fold-out row under Troubleshooting (click to open), so it no longer takes up half the page.",
               "<b>QR code / pattern ControlNets removed</b>: they gave flat grey pictures on Apple Silicon Macs, so this version doesn't offer them (the pattern picker and the Shape maker are gone too). A QR / pattern ControlNet file you added shows in Models → Embeddings, VAEs &amp; ControlNets as not supported; <b>Open folder</b> there takes you to it if you want to delete it. Every other ControlNet works as before.",
               "<b>Recommended settings for each ControlNet</b>: picking one in Image to image puts in the settings it works best with straight away (strength, when it guides, steps), shown in a box under the picker with <b>undo</b>. If you change something that would spoil the result (for example far too few steps), the box turns orange and says why, with <b>Use recommended settings</b>.",
               "<b>Fixed: some SD 1.5 ControlNets you add yourself failed to load</b> with “doesn't match an SD 1.5 ControlNet's layout (52 parts missing)”.",

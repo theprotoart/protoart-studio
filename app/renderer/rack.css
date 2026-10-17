@@ -1825,4 +1825,4 @@ button.cmp-key.on:hover:not(:disabled) { background: radial-gradient(ellipse at 
 .cn-rec-acts { gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
 
 /* How to → 📜 Model licences: folds up like the tab sections */
-.licence-acc { margin: 0 0 18px; }
+.licence-acc { margin: 9px 0 18px; }
