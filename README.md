@@ -43,6 +43,8 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   LoRAs, checkpoints, embeddings, VAEs and SD 1.5 / SDXL ControlNets, Hugging Face downloads (sign-in keys kept only on your
   Mac), Embeddings / VAEs / ControlNets lists, ★ favourites, and "Fix a type" for mislabelled files
 - **DiffusionBee import:** your DiffusionBee models, LoRAs and embeddings appear automatically (read in place)
+- **Existing model libraries:** Stability Matrix, ComfyUI, Automatic1111 / Forge, InvokeAI and Fooocus libraries are
+  detected and, if you say yes, used where they are (read-only: nothing is copied, moved or changed)
 - **Content filter:** 🛡 Safe-for-work mode (refuses adult prompts, blocks and hides NSFW), Hide NSFW / Hide People,
   with your own ⚑ / ● marks
 - **Comfort:** tips on every button (TIPS lever), 🔔 finish sounds, Light / Dark / Match macOS and four colour themes

@@ -27,12 +27,22 @@ def _family(p: Path):
     return "sdxl" if ("xl" in low or "pony" in low or "illustrious" in low or "noob" in low) else "sd15"
 
 
+EXTRA_DIRS = []  # VAE folders of a model library you use (Stability Matrix, ComfyUI…), read in place
+
+
 def list_vaes():
-    out = []
-    d = paths.VAE_DIR
-    if not d.is_dir():
-        return out
-    for p in sorted(d.rglob("*")):
+    out, taken = [], set()
+    from pathlib import Path
+    files = []
+    for d in [paths.VAE_DIR] + [Path(x) for x in EXTRA_DIRS]:
+        if d.is_dir():
+            try:
+                files += sorted(d.rglob("*"))
+            except OSError:
+                pass
+    for p in files:
+        if p.stem in taken:
+            continue
         if p.suffix.lower() not in EXTS or p.name.startswith("._"):
             continue
         try:
@@ -41,6 +51,7 @@ def list_vaes():
             continue
         if size < 20e6 or size > 1.2e9:  # a VAE is ~80-340 MB; anything else isn't one
             continue
+        taken.add(p.stem)
         out.append({"name": p.stem, "file": str(p), "family": _family(p), "size_mb": round(size / 1e6, 1)})
     return out
 

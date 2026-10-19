@@ -515,7 +515,7 @@
                   :title="l.people ? 'Tagged People (made of real people) · click to untag' : 'Click to tag as People: made of real people (hidden when Hide People is on)'"></i><span
                   class="nsfw-flag" :class="{on: l.nsfw}" role="button" :aria-label="l.nsfw ? 'Marked NSFW' : 'Mark as NSFW'" @click.stop="markItem('lora', l)"
                   :title="l.nsfw ? 'NSFW (' + (l.nsfw_mark ? 'you marked it' : 'from its name or training tags') + ') · click to mark it safe' : 'Click to mark as NSFW (hidden when Hide NSFW is on)'">⚑</span></span>
-            <span class="hint">{{ l.source==='diffusionbee' ? 'DiffusionBee · ' : '' }}{{ l.family==='unknown' ? 'type unknown · ' : '' }}<template v-if="l.flavor">{{ flavorName(l.flavor) }}{{ currentFlavor && l.flavor !== currentFlavor ? ' (may not match)' : '' }} · </template>{{ l.size_mb }} MB</span>
+            <span class="hint l-meta" :title="loraMetaTitle(l)"><span class="l-tag">{{ loraTag(l) }}</span><span class="l-size">{{ l.size_mb }} MB</span></span>
           </button>
           <div v-if="!shownLoras.length" class="hint m-empty">
             <template v-if="addableLoras.length">No LoRAs match.</template>
@@ -1469,6 +1469,25 @@
       </div>
       <!-- Patchbay: the back of the rack. Cables from one module's OUT to the next one's IN set the order. -->
       <div v-if="patch.on" class="card patchbay-card" @pointerdown.self="patchCancel">
+        <div class="patch-bar">
+          <div class="patch-readout" :title="'The order the picture goes through: ' + patchChain.steps.join(' → ')">
+            <span>PICTURE</span>
+            <template v-for="id in patchChain.steps" :key="'rd' + id"><b>▸</b><span :class="{run: patch.running === id}">{{ (patchNodes.find((n) => n.id === id) || {}).label || id }}</span></template>
+            <template v-if="patchChain.done"><b>▸</b><span>RESULT</span></template>
+            <em v-if="!patchChain.steps.length">no cables from PICTURE yet</em>
+          </div>
+          <button v-if="!patch.running" class="primary patch-run" :disabled="!tool.source || !patchChain.steps.length" @click="patchRun"
+                  :title="tool.source ? 'Run the picture through the patched modules, in cable order. Each module uses its own settings below.' : 'Drop a picture into Tools first'">▶ Run patch</button>
+          <button v-else class="danger patch-run" @click="patchStop" title="Stop after this step">■ Stop · {{ patch.step }}/{{ patch.steps }}</button>
+          <button class="ghost small" :disabled="!!patch.running" @click="patchReset('default')" title="Picture → Enhance → Faces → Result">↺ default</button>
+          <button class="ghost small" :disabled="!!patch.running || !patch.cables.length" @click="patchReset('clear')" title="Pull out every cable">clear cables</button>
+          <select class="patch-add" :value="''" :disabled="!!patch.running" @change="patchAddModule($event.target.value); $event.target.value = ''"
+                  title="Add another copy of a module (like a second rack unit), to run it twice in one chain">
+            <option value="">＋ Add a module…</option>
+            <option v-for="n in PATCH_NODES.filter((x) => x.in && x.out && x.id !== 'vector')" :key="'add' + n.id" :value="n.id">{{ n.icon }} another {{ n.label }}</option>
+          </select>
+          <button v-if="patch.extra.length" class="ghost small" :disabled="!!patch.running" @click="patchRemoveModule()" title="Take out the last module you added (and its cables)">✕ last added</button>
+        </div>
         <svg ref="patchSvg" class="patchbay" :view-box.camel="'0 0 ' + patchW + ' 300'" role="img" aria-label="Patchbay: drag cables from OUT jacks to IN jacks"
              @pointermove="patchMove" @pointerup="patchUp" @pointerdown.self="patchCancel">
           <defs>
@@ -1494,7 +1513,16 @@
             <circle :cx="sx" cy="276" r="5" fill="url(#pbScrew)" stroke="#222" stroke-width=".8"/>
             <path :d="'M' + (sx - 3) + ',24 h6 M' + (sx - 3) + ',276 h6'" stroke="#444" stroke-width="1.2"/>
           </g>
-          <g v-for="(n, i) in patchNodes" :key="'pn' + n.id">
+          <g v-for="(n, i) in patchNodes" :key="'pn' + n.id" :class="{'pb-moving': patch.moving && patch.moving.id === n.id}"
+             :transform="patch.moving && patch.moving.id === n.id ? 'translate(' + patch.moving.dx + ',0)' : null">
+            <template v-if="i > 0 && i < patchNodes.length - 1">
+              <rect class="pb-head" :x="patchX(i) - 66" y="40" width="132" height="54" rx="3" @pointerdown="patchHeadDown(n.id, $event)">
+                <title>Drag the name left or right to move this module (the cables decide the order the picture goes through)</title></rect>
+              <g v-if="i > 1" class="pb-arrow" @pointerdown.stop="patchMoveModule(n.id, i - 2)"><title>Move left</title>
+                <rect :x="patchX(i) - 62" y="42" width="18" height="18" rx="2"/><text :x="patchX(i) - 53" y="55" text-anchor="middle">‹</text></g>
+              <g v-if="i < patchNodes.length - 2" class="pb-arrow" @pointerdown.stop="patchMoveModule(n.id, i)"><title>Move right</title>
+                <rect :x="patchX(i) + 44" y="42" width="18" height="18" rx="2"/><text :x="patchX(i) + 53" y="55" text-anchor="middle">›</text></g>
+            </template>
             <line v-if="i > 0" :x1="patchX(i) - 70" :x2="patchX(i) - 70" y1="44" y2="262" stroke="#1d2631" stroke-width="1.5" pointer-events="none"/>
             <line v-if="i > 0" :x1="patchX(i) - 68.5" :x2="patchX(i) - 68.5" y1="44" y2="262" stroke="#5d7085" stroke-width=".8" opacity=".5" pointer-events="none"/>
             <circle :cx="patchX(i)" cy="50" r="4.5" class="pb-led" pointer-events="none"
@@ -1541,26 +1569,7 @@
             <circle :cx="patch.drag.x" :cy="patch.drag.y" r="9" :fill="cableColour(patch.drag.c)" stroke="#1a1b1d" stroke-width="2"/>
           </g>
         </svg>
-        <div class="patch-bar">
-          <div class="patch-readout" :title="'The order the picture goes through: ' + patchChain.steps.join(' → ')">
-            <span>PICTURE</span>
-            <template v-for="id in patchChain.steps" :key="'rd' + id"><b>▸</b><span :class="{run: patch.running === id}">{{ (patchNodes.find((n) => n.id === id) || {}).label || id }}</span></template>
-            <template v-if="patchChain.done"><b>▸</b><span>RESULT</span></template>
-            <em v-if="!patchChain.steps.length">no cables from PICTURE yet</em>
-          </div>
-          <button v-if="!patch.running" class="primary patch-run" :disabled="!tool.source || !patchChain.steps.length" @click="patchRun"
-                  :title="tool.source ? 'Run the picture through the patched modules, in cable order. Each module uses its own settings below.' : 'Drop a picture into Tools first'">▶ Run patch</button>
-          <button v-else class="danger patch-run" @click="patchStop" title="Stop after this step">■ Stop · {{ patch.step }}/{{ patch.steps }}</button>
-          <button class="ghost small" :disabled="!!patch.running" @click="patchReset('default')" title="Picture → Enhance → Faces → Result">↺ default</button>
-          <button class="ghost small" :disabled="!!patch.running || !patch.cables.length" @click="patchReset('clear')" title="Pull out every cable">clear cables</button>
-          <select class="patch-add" :value="''" :disabled="!!patch.running" @change="patchAddModule($event.target.value); $event.target.value = ''"
-                  title="Add another copy of a module (like a second rack unit), to run it twice in one chain">
-            <option value="">＋ Add a module…</option>
-            <option v-for="n in PATCH_NODES.filter((x) => x.in && x.out && x.id !== 'vector')" :key="'add' + n.id" :value="n.id">{{ n.icon }} another {{ n.label }}</option>
-          </select>
-          <button v-if="patch.extra.length" class="ghost small" :disabled="!!patch.running" @click="patchRemoveModule()" title="Take out the last module you added (and its cables)">✕ last added</button>
-        </div>
-        <p class="hint patch-hint">{{ patch.msg || 'Drag from an OUT jack to an IN jack to plug a cable in (or click one, then the other). Drag a plugged-in end away, or double-click a cable, to unplug it. Each module uses its own settings below; REMOVE uses what you paint on the picture.' }}
+        <p class="hint patch-hint">{{ patch.msg || 'Drag from an OUT jack to an IN jack to plug a cable in (or click one, then the other). Drag a module\'s name (or press ‹ ›) to move it left or right. Drag a plugged-in end away, or double-click a cable, to unplug it. Each module uses its own settings below; REMOVE uses what you paint on the picture.' }}
           <template v-if="patchLoose.length"> · <span class="warn-text">{{ patchLoose.length === 1 ? 'one module is' : patchLoose.length + ' modules are' }} patched but not reached from PICTURE, so {{ patchLoose.length === 1 ? 'it is' : 'they are' }} skipped.</span></template></p>
       </div>
       <!-- The single-job tools as tall rack modules, side by side (like 500-series studio gear) -->
@@ -1898,8 +1907,8 @@
                :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ')'">
         <div v-if="i2iLora.open" class="lora-list">
           <button v-for="l in i2iShownLoras" :key="l.name" class="lora-item" @click="addLoraByName(l.name); i2iLora.q = ''">
-            <span class="l-name" :title="l.name"><span v-if="isFavLora(l)" class="fav-star on">★</span> {{ l.name }}</span>
-            <span class="hint"><template v-if="l.flavor">{{ flavorName(l.flavor) }}{{ currentFlavor && l.flavor !== currentFlavor ? ' (may not match)' : '' }} · </template>{{ l.size_mb }} MB</span>
+            <span class="l-name" :title="l.name">{{ l.name }}</span><span class="marks"><span v-if="isFavLora(l)" class="fav-star on">★</span></span>
+            <span class="hint l-meta" :title="loraMetaTitle(l)"><span class="l-tag">{{ loraTag(l) }}</span><span class="l-size">{{ l.size_mb }} MB</span></span>
           </button>
           <div v-if="!i2iShownLoras.length" class="hint m-empty">{{ addableLoras.length ? 'No LoRAs match.' : 'No more ' + familyLabel + ' LoRAs to add.' }}</div>
           <button class="link close-list" @click="i2iLora.open = false; i2iLora.q = ''">close list</button>
@@ -2728,11 +2737,29 @@
     <p class="hint">Pick a folder (an external drive is fine) and every model in it is used, including ones you put there later.
       Nothing is copied: the files stay where they are. Single model files you added, Civitai and Hugging Face are in the
       <button class="link" @click="openModelsPanel('own')">Models tab</button>.</p>
-    <div class="row"><button @click="addModelDir">Watch a models folder…</button></div>
-    <table v-if="modelDirs.dirs.length">
-      <tr v-for="d in modelDirs.dirs" :key="d"><td>📁 Watched folder</td>
+    <div class="row"><button @click="addModelDir">＋ Add watched folders…</button>
+      <button v-if="modelDirs.dirs.length" :disabled="libBusy" @click="refreshWatched" title="Read every watched folder again, in case new files were missed">↻ Refresh</button>
+      <span class="hint">Watch as many folders as you like: ⌘-click to pick several at once, or press again to add more.</span></div>
+    <table v-if="modelDirs.dirs.length" class="watched">
+      <tr v-for="(d, i) in modelDirs.dirs" :key="d"><td>📁 Folder {{ i + 1 }}</td>
         <td class="hint">{{ d }}</td><td><button class="ghost small" @click="removeModelDir(d)">Remove</button></td></tr>
     </table>
+
+    <h3 class="sub">Model libraries from other apps <span class="hint">· Stability Matrix, ComfyUI, Automatic1111 / Forge, InvokeAI, Fooocus</span></h3>
+    <p class="hint">Models you already keep for another app can be used where they are: checkpoints, LoRAs, embeddings, VAEs and
+      ControlNets are read in place. Nothing is copied, moved, renamed or changed, and stopping only takes them off the lists.</p>
+    <div class="row"><button :disabled="libBusy" @click="libRefresh">{{ libBusy ? 'Looking…' : '↻ Look for libraries again' }}</button>
+      <button @click="libPick">Pick a library folder…</button></div>
+    <div v-if="libMsg" class="error-box">{{ libMsg }}</div>
+    <table v-if="libs.used.length || libs.found.length" class="libs">
+      <tr v-for="u in libs.used" :key="'u' + u.root"><td>✅ {{ u.name }}</td>
+        <td class="hint">{{ u.root }}<br>{{ u.missing ? '⚠ not found (is the drive connected?)' : (u.summary || '') }}<template v-if="!u.missing && libReady(u)"> · {{ libReady(u) }} base model{{ libReady(u) === 1 ? '' : 's' }} ready to use</template></td>
+        <td><button class="ghost small" @click="libToggle(u, false)">Stop using</button></td></tr>
+      <tr v-for="f in libs.found.filter(x => !x.used)" :key="'f' + f.root"><td>📚 {{ f.name }}</td>
+        <td class="hint">{{ f.root }}<br>{{ f.summary }}{{ f.gb ? ' · ' + f.gb + ' GB' : '' }}</td>
+        <td><button class="small" :disabled="!f.files" @click="libToggle(f, true)">Use it</button></td></tr>
+    </table>
+    <p v-else class="hint">None found yet. If yours is somewhere unusual (an external drive), use <i>Pick a library folder…</i>.</p>
     <h3 class="sub">Downloaded models folder <span class="hint">· where the models this app downloads are kept</span></h3>
     <p class="hint">Models from the Models tab and Hugging Face (SD 1.5, SDXL, ERNIE, FLUX, the enhancer, ControlNets…) are
       saved here. Pick a folder on an external drive to keep them off your Mac; plug the drive in before using them.</p>
@@ -3119,6 +3146,19 @@
       <div class="row end">
         <button @click="answerSlow(null)">Cancel</button>
         <button class="ghost" @click="answerSlow('go')">Go ahead anyway</button>
+      </div>
+    </div>
+  </div>
+  <div v-if="libOffer" class="modal top">
+    <div class="confirm lib-offer">
+      <h3>📚 Existing model library detected</h3>
+      <p>Would you like to use it? Its models are read where they are: nothing is copied, moved or changed.</p>
+      <label v-for="f in libOffer" :key="f.root" class="check lib-row"><input type="checkbox" v-model="f.pick">
+        <span><b>{{ f.name }}</b> <span class="hint">{{ f.summary }}{{ f.gb ? ' · ' + f.gb + ' GB' : '' }}</span><br><span class="hint path">{{ f.root }}</span></span></label>
+      <p class="hint">Only the models that work in this app are listed (each file's type is read from the file). You can change this any time in Settings → Model folders.</p>
+      <div class="row end">
+        <button @click="libAnswer(false)">Not now</button>
+        <button class="primary" :disabled="!libOffer.some(f => f.pick)" @click="libAnswer(true)">Use {{ libOffer.filter(f => f.pick).length > 1 ? 'them' : 'it' }}</button>
       </div>
     </div>
   </div>

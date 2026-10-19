@@ -145,15 +145,25 @@ def is_pattern_name(name):
     return bool(re.search(r"(qr|monster|illusion|pattern|spiral|hidden)", str(name), re.I))
 
 
+EXTRA_DIRS = []  # ControlNet folders of a model library you use (Stability Matrix, ComfyUI…), read in place
+
+
 def user_files():
     """Your own ControlNet files (~/.protoartstudio/controlnets, Civitai downloads go there), SD 1.5 or SDXL."""
     import paths
-    d = paths.CONTROLNET_DIR
-    out = []
-    if d.is_dir():
-        for p in sorted(d.rglob("*.safetensors")):
-            if p.name.startswith("._"):
+    from pathlib import Path
+    out, taken = [], set()
+    for d in [paths.CONTROLNET_DIR] + [Path(x) for x in EXTRA_DIRS]:
+        if not d.is_dir():
+            continue
+        try:
+            files = sorted(d.rglob("*.safetensors"))
+        except OSError:
+            continue
+        for p in files:
+            if p.name.startswith("._") or p.stem in taken:
                 continue
+            taken.add(p.stem)
             try:
                 size = round(p.stat().st_size / 1e6, 1)
             except OSError:

@@ -128,6 +128,11 @@ model_hub.MODEL_FAMILY.update({k: v for k, v in (library.get_setting("model_fami
 model_hub.USER_MODELS[:] = [m for m in (library.get_setting("user_models", []) or []) if isinstance(m, dict)]
 loras.EXTRA_DIRS[:] = [d for d in (library.get_setting("lora_dirs", []) or []) if isinstance(d, str)]
 embeddings.EXTRA_DIRS[:] = [d for d in (library.get_setting("embedding_dirs", []) or []) if isinstance(d, str)]
+import vaes as _vaes  # noqa: E402
+import controlnet as _cn  # noqa: E402
+import libraries  # noqa: E402
+_vaes.EXTRA_DIRS[:] = [d for d in (library.get_setting("vae_dirs", []) or []) if isinstance(d, str)]
+_cn.EXTRA_DIRS[:] = [d for d in (library.get_setting("controlnet_dirs", []) or []) if isinstance(d, str)]
 net.apply_hf_token(library.get_setting("hf_token"))  # Hugging Face sign-in for gated models (if you saved one)
 loras.FOLDER_FAMILY.update({k: v for k, v in (library.get_setting("lora_dir_families", {}) or {}).items()
                             if isinstance(k, str) and v in loras.FAMILIES})
@@ -963,6 +968,18 @@ def handle_quick(cmd, a):
         model_hub.invalidate()
         library.set_setting("model_dirs", dirs)
         return {"dirs": dirs, "local": model_hub.LOCAL_MODELS}
+    if cmd in ("libraries_detect", "libraries_refresh"):
+        return libraries_state(rescan=True)
+    if cmd == "libraries_get":
+        return libraries_state(rescan=False)
+    if cmd == "libraries_use":
+        return libraries_use(a.get("root"), bool(a.get("use", True)), a.get("info"))
+    if cmd == "libraries_add":
+        info = libraries.inspect_any(a.get("path"))
+        return libraries_use(info["root"], True, info)
+    if cmd == "libraries_dismiss":
+        library.set_setting("libraries_asked", True)
+        return libraries_state(rescan=False)
     if cmd == "model_list_added":
         return model_hub.USER_MODELS
     if cmd == "diffusionbee_info":
@@ -1032,6 +1049,102 @@ def handle_quick(cmd, a):
     if cmd == "presets_delete":
         return library.delete_preset(a.get("name"))
     raise KeyError(cmd)
+
+
+# ---- model libraries other apps keep (Stability Matrix, ComfyUI, A1111 / Forge, InvokeAI, Fooocus) ----
+# Read in place: using one only adds its folders to the lists this app looks in. Nothing in them is changed.
+_LIB_TARGETS = {  # kind -> (list in memory, saved setting)
+    "checkpoints": (model_hub.MODEL_DIRS, "model_dirs"),
+    "diffusion": (model_hub.MODEL_DIRS, "model_dirs"),
+    "loras": (loras.EXTRA_DIRS, "lora_dirs"),
+    "embeddings": (embeddings.EXTRA_DIRS, "embedding_dirs"),
+    "vaes": (_vaes.EXTRA_DIRS, "vae_dirs"),
+    "controlnets": (_cn.EXTRA_DIRS, "controlnet_dirs"),
+}
+_lib_found = {"at": 0, "list": []}
+
+
+def _lib_refresh_caches():
+    model_hub.invalidate()
+    for mod in (loras, embeddings):
+        for fn in ("invalidate", "clear_cache"):
+            if callable(getattr(mod, fn, None)):
+                try:
+                    getattr(mod, fn)()
+                except Exception:
+                    pass
+
+
+def libraries_state(rescan=False):
+    used = [u for u in (library.get_setting("libraries", []) or []) if isinstance(u, dict) and u.get("root")]
+    if rescan or not _lib_found["at"]:
+        try:
+            _lib_found["list"] = libraries.detect()
+        except Exception:
+            _lib_found["list"] = []
+        _lib_found["at"] = _t.time()
+        # Refresh also re-reads every folder you watch, in case new files were missed the first time.
+        _lib_refresh_caches()
+        # Recount the ones in use (they may live somewhere detect() doesn't look, e.g. a folder you picked).
+        for u in used:
+            if os.path.isdir(u["root"]):
+                try:
+                    fresh = libraries.inspect(u.get("layout"), u["root"])
+                    if fresh:
+                        u.update(counts=fresh["counts"], files=fresh["files"], gb=fresh["gb"])
+                        u["missing"] = False
+                except Exception:
+                    pass
+            else:
+                u["missing"] = True
+    roots = {u["root"] for u in used}
+    found = [dict(f, used=f["root"] in roots, summary=libraries.summary_line(f)) for f in _lib_found["list"]]
+    for u in used:
+        u["summary"] = libraries.summary_line(u) if u.get("counts") else ""
+    new = [f for f in found if not f["used"] and f["files"]]
+    return {"found": found, "used": used, "asked": bool(library.get_setting("libraries_asked", False)),
+            "offer": new if not library.get_setting("libraries_asked", False) else []}
+
+
+def libraries_use(root, use=True, info=None):
+    """Start or stop using a library. Only this app's own folder lists change; the library is never touched."""
+    if not isinstance(root, str) or not root:
+        raise ValueError("Which library?")
+    used = [u for u in (library.get_setting("libraries", []) or []) if isinstance(u, dict) and u.get("root")]
+    if use:
+        if not info or info.get("root") != root:
+            info = next((f for f in _lib_found["list"] if f["root"] == root), None)
+        if not info:
+            info = libraries.inspect_any(root)
+        added = {}
+        for kind, folders in (info.get("dirs") or {}).items():
+            if kind not in _LIB_TARGETS:
+                continue
+            lst, _ = _LIB_TARGETS[kind]
+            for d in folders:
+                if isinstance(d, str) and os.path.isabs(d) and d not in lst:
+                    lst.append(d)
+                    added.setdefault(kind, []).append(d)
+        used = [u for u in used if u["root"] != root] + [{
+            "root": root, "layout": info.get("layout"), "name": info.get("name"), "dirs": info.get("dirs"),
+            "added": added, "counts": info.get("counts"), "files": info.get("files"), "gb": info.get("gb")}]
+    else:
+        entry = next((u for u in used if u["root"] == root), None)
+        if entry:
+            for kind, folders in (entry.get("added") or {}).items():
+                lst, _ = _LIB_TARGETS.get(kind, (None, None))
+                if lst is None:
+                    continue
+                for d in folders:
+                    while d in lst:
+                        lst.remove(d)
+        used = [u for u in used if u["root"] != root]
+    for lst, key in {key: (lst, key) for lst, key in _LIB_TARGETS.values()}.values():
+        library.set_setting(key, list(lst))
+    library.set_setting("libraries", used)
+    library.set_setting("libraries_asked", True)
+    _lib_refresh_caches()
+    return libraries_state(rescan=False)
 
 
 def relink_folder(old, new):

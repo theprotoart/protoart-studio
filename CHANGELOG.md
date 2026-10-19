@@ -2,6 +2,17 @@
 
 ## 1.2.1 (test version)
 
+- Model libraries from other apps (`backend/libraries.py`): finds Stability Matrix (its library.json / settings.json,
+  Application Support, portable Data folders), ComfyUI (desktop config + extra_models_config.yaml base_path),
+  Automatic1111 / Forge, InvokeAI and Fooocus; read-only (only listing and file sizes). "Existing model library
+  detected" window (`libOffer`), Settings → Model libraries from other apps (`libraries_get/refresh/use/add/dismiss`).
+  Using one adds its folders to `model_dirs`, `lora_dirs`, `embedding_dirs` and the new `vae_dirs` /
+  `controlnet_dirs` (`vaes.EXTRA_DIRS`, `controlnet.EXTRA_DIRS`); Stop using removes only what it added
+- Watched model folders: several at once, numbered list, ↻ Refresh (`refreshWatched`)
+- Patchbay: control bar moved above the panel; modules reorder by dragging the name plate or ‹ › (`patch.order`,
+  `protoart.patchOrder`, `patchMoveModule`, `patchHeadDown`); ↺ default resets the order
+- LoRA rows: DiffusionBee shown as "BEE"; tag and size in fixed columns (`loraTag`, `.l-meta`), under the name in a
+  narrow panel (container query); Image to image rows get the same columns
 - Create prompt tools: one toolbar (`ptools`, `ptool`, `togglePtool`) with Enhance / Saved / From image / Random /
   Wildcards / List panels; random subject "animal" (`natural_prompt.js` ANIMAL_KINDS, `prompt_generator.js`
   ANIMAL_TAGS); `rnd.every` new random prompt on each Generate

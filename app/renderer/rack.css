@@ -1834,8 +1834,13 @@ button.cmp-key.on:hover:not(:disabled) { background: radial-gradient(ellipse at 
 .job .job-skip { right: 66px; }
 .job .job-skip.job-later { right: 36px; }
 /* LoRA rows: fixed columns (name | ★ ● ⚑ | source · size), so the markers and sizes line up on every row */
-.lora-item { grid-template-columns: minmax(0, 1fr) 63px 128px !important; }
-.lora-item > .hint { overflow: hidden; text-overflow: ellipsis; text-align: right; }
+.lora-item { grid-template-columns: minmax(0, 1fr) 63px 124px !important; }
+/* tag (BEE · SD 1.5) and size each in their own fixed column, so every row lines up and nothing overlaps */
+.lora-item > .l-meta { display: grid; grid-template-columns: minmax(0, 1fr) 58px; column-gap: 6px; min-width: 0;
+  overflow: hidden; white-space: nowrap; text-align: right; }
+.l-meta > .l-tag { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.l-meta > .l-size { text-align: right; font-variant-numeric: tabular-nums; }
+.merge-list .lora-item { grid-template-columns: minmax(0, 1fr) 0 124px !important; }
 /* the left panels never scroll sideways: everything fits (the Pause / Stop / Stop all row wraps if it must) */
 .controls, .i2i-left, .train-left { overflow-x: hidden; }
 .stop-group { flex-wrap: wrap; min-width: 0; }
@@ -1928,3 +1933,32 @@ button.rec-btn.on { border-color: var(--lit-edge); box-shadow: 0 0 8px rgba(var(
 .trig-table td { padding: 4px 6px; border-bottom: 1px solid rgba(0, 0, 0, .25); vertical-align: middle; }
 .trig-table .tt-name { width: 34%; overflow-wrap: anywhere; }
 .trig-table .tt-words input { width: 100%; }
+
+/* model libraries from other apps */
+.lib-offer .lib-row { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; }
+.lib-offer .path, table.libs .hint, table.watched .hint { overflow-wrap: anywhere; }
+table.libs td, table.watched td { vertical-align: top; padding: 4px 8px 4px 0; }
+table.libs td:first-child { white-space: nowrap; }
+
+/* a narrow left panel: the tag and size go under the name, so long names keep their room */
+.lora-list { container-type: inline-size; }
+@container (max-width: 400px) {
+  .lora-list .lora-item { grid-template-columns: minmax(0, 1fr) 63px !important; row-gap: 1px; }
+  .lora-list .lora-item > .l-meta { grid-column: 1 / -1; grid-row: 2; display: flex; gap: 6px; justify-content: flex-start;
+    text-align: left; font-size: 11px; }
+  .lora-list .l-meta > .l-tag:not(:empty)::after { content: " ·"; }
+  .lora-list .l-meta > .l-tag:empty { display: none; }
+  .lora-list .l-meta > .l-size, .lora-list .l-meta > .l-tag { text-align: left; }
+}
+
+/* patchbay: the controls sit above the panel; modules move left / right by their name plate or the ‹ › keys */
+.patchbay-card .patch-bar { margin: 0 0 10px; }
+.pb-head { fill: transparent; cursor: grab; }
+.pb-head:hover { fill: rgba(255, 255, 255, .05); }
+.pb-moving { opacity: .85; }
+.pb-moving .pb-head { cursor: grabbing; fill: rgba(255, 255, 255, .08); }
+.pb-arrow { cursor: pointer; opacity: 0; transition: opacity .12s; }
+.patchbay g:hover > .pb-arrow, .pb-arrow:focus { opacity: 1; }
+.pb-arrow rect { fill: #1f2935; stroke: #5d7085; stroke-width: .8; }
+.pb-arrow text { fill: #e7e2d4; font: 700 15px -apple-system, sans-serif; pointer-events: none; }
+.pb-arrow:hover rect { fill: #2c3a4b; }

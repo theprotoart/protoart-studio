@@ -444,6 +444,9 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.2.1 (test version): fixes from your notes", items: [
+              "<b>📚 Use the model library you already have</b>: Protoart Studio looks for <b>Stability Matrix</b>, <b>ComfyUI</b>, <b>Automatic1111 / Forge</b>, <b>InvokeAI</b> and <b>Fooocus</b> on your Mac and asks “Existing model library detected. Would you like to use it?”. Checkpoints, LoRAs, embeddings, VAEs and ControlNets are read where they are: nothing is copied, moved, renamed or changed. Change it in Settings → Model folders.",
+              "<b>Watch as many model folders as you like</b> (Settings → Model folders → ＋ Add watched folders; ⌘-click to pick several), and <b>↻ Refresh</b> reads them again if new files didn't show the first time.",
+              "<b>LoRA lists line up</b>: DiffusionBee LoRAs are marked <b>BEE</b>, and the type and size sit under the name so long names have room.",
               "<b>Tidier prompt tools</b> (Create): one row of small keys under the prompt: <b>✨ Enhance · 📒 Saved · 🖼 From image · 🎲 Random · { } Wildcards · 📋 List</b>. Each opens its own small panel underneath, one at a time; a lamp shows when Enhance or New random prompt is on.",
               "<b>🎲 Random prompts with animals</b> (pets, wild animals, birds and sea life, each in a place that suits it), and <b>New random prompt every time I press Generate</b>.",
               "<b>Reset all is a blue lever</b> (top of Create): flip it to clear both prompts, put every setting back to the start and fold every section; flip it back to undo (until you change something).",
@@ -454,6 +457,7 @@ const protoartApp = createApp({
               "<b>Trigger words panel</b> (Models tab): search your LoRAs, edit their trigger words in place, or tick several and add / remove a word on all of them at once.",
               "<b>Library</b>: ☑ Select sits in the middle of the toolbar; select 2–6 pictures and <b>⇆ Compare side by side</b>; in a picture's details, <b>‹ ›</b> (or ← →) step through the pictures.",
               "<b>Patchbay: add more modules</b> (Tools): ＋ Add a module puts in another Faces, Enhance, Remove or Depth, so you can run Restore faces twice (or any module again) in one chain; the panel widens for them.",
+              "<b>Patchbay controls on top, and modules you can move</b>: Run patch, default, clear cables and ＋ Add a module now sit above the panel. Drag a module's name left or right (or point at it and press ‹ ›) to put the modules in the order you like; ↺ default puts them back.",
               "<b>🔎 Search the manual</b>: a search box at the top of How to shows every matching tip from all the sections.",
               "<b>ControlNets work again with a LoRA switched on</b>: DiffusionBee's ControlNets (Depth, Tile, Line art, Scribble, OpenPose) are built partly from your model, and a LoRA in the mix broke that copy, so the app tried to download the official ones instead (which failed without internet). The LoRA parts are now left out of the copy.",
               "<b>Clear messages when a one-time download can't happen</b>: instead of “does not appear to have a file named config.json” or “Can't load image processor”, the app says it couldn't reach Hugging Face and what to check.",
@@ -710,7 +714,8 @@ const protoartApp = createApp({
         { id: "tools", go: "tools", icon: "🧰", title: "Tools", summary: "Enhance, 🎚 adjust, restore faces, 🩹 remove objects, ✒️ vectorize, 🔌 patchbay, image → prompt, convert files",
           sections: [
             { h: "🔌 Patchbay: run the tools in your own order", items: [
-              "<b>＋ Add a module</b> (under the panel) puts in another copy of Faces, Enhance, Remove or Depth, like a second rack unit: cable it in to run that tool twice in one chain (for example Restore faces, then Restore faces again). <b>✕ last added</b> takes the newest copy out.",
+              "<b>＋ Add a module</b> (above the panel) puts in another copy of Faces, Enhance, Remove or Depth, like a second rack unit: cable it in to run that tool twice in one chain (for example Restore faces, then Restore faces again). <b>✕ last added</b> takes the newest copy out.",
+              "<b>Moving modules</b>: drag a module's name plate left or right, or point at it and press <b>‹</b> / <b>›</b>. PICTURE stays first and RESULT last. Moving a module doesn't change what runs: the <b>cables</b> set the order the picture goes through (shown in the amber readout). <b>↺ default</b> puts the modules and cables back.",
               "Switch on <b>PATCHBAY</b> (the toggle at the top of the right-hand column). The back of the rack appears: every tool has an <b>IN</b> and an <b>OUT</b> jack. <b>PICTURE</b> (your picture) has only an OUT, <b>RESULT</b> (the Library) only an IN.",
               "<b>Plug cables</b>: drag from an OUT jack to an IN jack (or click one, then the other). The picture goes PICTURE → along the cables → RESULT, so the order of the cables is the order the tools run in. The amber readout under the panel spells it out, for example <i>PICTURE ▸ REMOVE ▸ FACES ▸ ENHANCE ▸ RESULT</i>. Green lamps show the tools that are in the chain.",
               "<b>Unplug</b>: drag a plug away from its jack, or double-click a cable. One cable per jack: plugging into a used jack replaces its cable. Loops aren't allowed, and <b>VECTOR</b> has to be last (it makes a drawing, not a picture). <b>↺ default</b> puts back PICTURE ▸ ENHANCE ▸ FACES ▸ RESULT; <b>clear cables</b> pulls them all out.",
@@ -838,6 +843,11 @@ const protoartApp = createApp({
           ] },
         { id: "models", go: "models", icon: "📦", title: "Models", summary: "What's on this Mac, and what you can download",
           sections: [
+            { h: "Using another app's model library (Stability Matrix, ComfyUI…)", items: [
+              "When the app starts it looks in the usual places for <b>Stability Matrix</b> (its settings, ~/Library/Application Support/StabilityMatrix, a portable <i>Data</i> folder next to the app), <b>ComfyUI</b> (including the desktop app's base path), <b>Automatic1111 / Forge</b>, <b>InvokeAI</b> and <b>Fooocus</b>. If it finds one it asks <i>“Existing model library detected. Would you like to use it?”</i>, with how many checkpoints, LoRAs, embeddings, VAEs and ControlNets it holds.",
+              "<b>Use it</b> adds its folders to the places this app looks. The files are <b>read in place</b>: nothing is copied, moved, renamed, changed or deleted, and the other app keeps working as before. Each file's type (SD 1.5, SDXL, Pony, Illustrious, FLUX…) is read from the file itself, so only models that work here are offered for the model you pick.",
+              "Settings → Model folders → <b>Model libraries from other apps</b>: <b>↻ Look for libraries again</b> (also re-reads every watched folder, for files the app missed the first time), <b>Pick a library folder…</b> for one somewhere unusual (an external drive, or Stability Matrix's <i>Data</i> / <i>Models</i> folder), and <b>Stop using</b> to take one off the lists again.",
+              "A plain folder of models (not another app's library) goes in <b>Watched model folders</b> instead: add as many as you like." ] },
             { h: "Organising your models and LoRAs", items: [
               "<b>On this Mac</b>, <b>Available to download</b> and the other lists fold up (click their names), under the Your model files / Civitai / Hugging Face / Fix a type panels. Filters at the top include <b>Pony</b>, <b>Illustrious</b> and <b>NoobAI</b>.",
               "<b>+ Add from your Mac</b> says “✓ Model imported” when it's done; inpainting models are recognised and go to Image to image → Inpaint / Expand.",
@@ -925,6 +935,9 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "Things fixed in 1.2.1 (and what to do if you still see them)", items: [
+              "<b>My Stability Matrix / ComfyUI models weren't found</b>: Settings → Model folders → <b>↻ Look for libraries again</b>. If it's on an external drive, connect it first; if it's somewhere unusual, use <b>Pick a library folder…</b> and choose the library's main folder (for Stability Matrix, the <i>Data</i> folder that holds <i>Models</i>). A plain folder of models goes in Watched model folders instead.",
+              "<b>Some models from the other app don't show</b>: a few formats other apps use aren't supported here yet (for example GGUF files, and diffusion-model-only files that need a separate text encoder), so they're left out of the lists. The other app can still use them, and nothing in the library is ever changed.",
+              "<b>“⚠ not found (is the drive connected?)”</b> next to a library: its folder isn't there right now. Connect the drive and press ↻ Look for libraries again.",
               "<b>“This needs a one-time download from Hugging Face, and your Mac couldn't reach huggingface.co”</b>: a ControlNet, the pose finder or another helper isn't on your Mac yet. Check the internet connection and that Strict offline is off (Settings → Privacy), then try again; afterwards it works offline. DiffusionBee's ControlNets (Depth, Tile, Line art, Scribble, OpenPose) need no download.",
               "<b>A LoRA “was made for FLUX.1, so it can't be used with FLUX.2”</b>: LoRAs for another model type are now left out of the picture with a note. If a LoRA is listed under the wrong type, fix it in Models → Fix a type.",
               "<b>A LoRA or model you just added doesn't show</b>: press ↻ Refresh (Models tab, or Create's model list). LoRAs in watched model folders are found too; a LoRA folder can be added in Settings → LoRA folders.",
@@ -1049,6 +1062,10 @@ const protoartApp = createApp({
       ],
       libLoraOpen: false,
       modelDirs: { dirs: [], local: [] },
+      libs: { found: [], used: [], asked: false, offer: [] },
+      libOffer: null,   // the "Existing model library detected" window
+      libBusy: false,
+      libMsg: "",
       localErr: "",
       localOk: "",  // "Model imported" note after Add from your Mac
       train: Object.assign({ model: "", folder: "", items: [], capMode: "tags", name: "", trigger: "", format: "kohya", kind: "character",
@@ -1085,6 +1102,8 @@ const protoartApp = createApp({
       patchOutY: PATCH_OUT_Y,
       patch: { on: loadJSON("protoart.patchOn", false), cables: loadJSON("protoart.patch", PATCH_DEFAULT),
                extra: loadJSON("protoart.patchExtra", []),  // more copies of modules you added: [{id: "faces#2", type: "faces"}]
+               order: loadJSON("protoart.patchOrder", []),  // the modules' left-to-right order, if you moved them
+               moving: null,  // a module being dragged sideways by its name plate
                drag: null, running: "", step: 0, steps: 0, stopped: false, msg: "" },
       freeConfirm: null,
       logs: "",
@@ -1249,7 +1268,7 @@ const protoartApp = createApp({
         { id: "sd15", label: "SD 1.5", count: count((m) => m.family === "sd15") },
         ...Object.entries(FLAVOR_LABEL).map(([k, label]) => ({ id: "fl:" + k, label, count: count((m) => m.flavor === k) })),
         { id: "mine", label: "My checkpoints", count: count((m) => m.id.startsWith("file:")) },
-        { id: "dbee", label: "DiffusionBee", count: count((m) => m.id.startsWith("tdict:")) },
+        { id: "dbee", label: "DiffusionBee (BEE)", count: count((m) => m.id.startsWith("tdict:")) },
         { id: "hub", label: "Added", count: count((m) => m.id.startsWith("hf:") || m.id.startsWith("local:")) },
       ];
       return list.filter((f) => f.id === "all" || f.count);
@@ -1618,7 +1637,11 @@ const protoartApp = createApp({
         const k = x.id.split("#")[1] || "2";
         return { ...t, id: x.id, label: `${t.label} ${k}`, sub: (t.sub || "") + " · copy" };
       });
-      return [...base, ...extra, PATCH_NODES.find((n) => n.id === "result")];
+      const mid = [...base.filter((n) => n.id !== "src"), ...extra];
+      const ord = this.patch.order || [];
+      const at = (n) => { const k = ord.indexOf(n.id); return k < 0 ? 1000 + mid.indexOf(n) : k; };
+      mid.sort((a, b) => at(a) - at(b));
+      return [base.find((n) => n.id === "src"), ...mid, PATCH_NODES.find((n) => n.id === "result")];
     },
     patchW() {  // the panel's drawing widens with every module you add
       return Math.max(1000, 156 + (this.patchNodes.length - 1) * 140);
@@ -2133,6 +2156,8 @@ const protoartApp = createApp({
         call("adjust_presets_get").then((d) => { this.adjPresets = Array.isArray(d) ? d : []; }).catch(() => {});
         call("lora_dirs_get").then((d) => { this.loraDirs = d; }).catch(() => {});
         call("model_dirs_get").then((d) => { this.modelDirs = d; }).catch(() => {});
+        // Model libraries other apps keep (Stability Matrix, ComfyUI…): offer them once, read in place.
+        call("libraries_get").then((r) => { this.libs = r; if (r.offer?.length) this.libOffer = r.offer.map((f) => ({ ...f, pick: true })); }).catch(() => {});
         call("civitai_key_get").then((d) => { this.civ.keySet = !!(d && d.set); }).catch(() => {});
         call("hf_token_get").then((d) => { this.hub.tokenSet = !!(d && d.set); }).catch(() => {});
         call("export_presets_get").then((d) => { this.exportPresets = Array.isArray(d) ? d : []; }).catch(() => {});
@@ -2329,6 +2354,78 @@ const protoartApp = createApp({
         this.dl.busy = false;
         setTimeout(() => { this.loadDownloadsDir(); call("list_models").then((m) => { this.models = m; }).catch(() => {}); }, 4000);
       }
+    },
+    async libAnswer(use) {
+      const pick = (this.libOffer || []).filter((f) => f.pick);
+      this.libOffer = null;
+      try {
+        if (use && pick.length) {
+          for (const f of pick) this.libs = await call("libraries_use", { root: f.root, use: true, info: f });
+          await this.afterLibChange(`Using ${pick.map((f) => f.name).join(" and ")} · nothing in ${pick.length === 1 ? "it" : "them"} was moved or changed`);
+        } else {
+          this.libs = await call("libraries_dismiss");
+          this.status = "OK · you can use it later in Settings → Model folders";
+        }
+      } catch (e) { this.status = "Couldn't use that library: " + e.message; }
+    },
+    async libToggle(f, use) {
+      if (!use && !(await this.confirmAsk("Stop using " + f.name + "?", f.root + "\n\nIts models leave the lists; the files stay where they are (nothing is deleted).", "Stop using"))) return;
+      try {
+        this.libs = await call("libraries_use", { root: f.root, use, info: use ? f : null });
+        await this.afterLibChange(use ? `Using ${f.name} (${f.summary})` : `Stopped using ${f.name} · its files weren't touched`);
+      } catch (e) { this.libMsg = e.message; }
+    },
+    async libRefresh() {
+      this.libBusy = true; this.libMsg = "";
+      try {
+        this.libs = await call("libraries_refresh");
+        await this.afterLibChange(`Looked again · ${this.libs.found.length} model ${this.libs.found.length === 1 ? "library" : "libraries"} found, every watched folder re-read`);
+      } catch (e) { this.libMsg = e.message; } finally { this.libBusy = false; }
+    },
+    async libPick() {
+      const picked = await window.bee.pickFolder({ title: "Choose a model library folder (e.g. Stability Matrix's Data folder)", button: "Use this library" });
+      if (!picked) return;
+      try {
+        this.libs = await call("libraries_add", { path: picked });
+        const u = this.libs.used.find((x) => picked === x.root || picked.startsWith(x.root + "/")) || {};
+        await this.afterLibChange(`Using ${u.name || "that library"}${u.summary ? " (" + u.summary + ")" : ""}`);
+      } catch (e) { this.libMsg = e.message; }
+    },
+    async afterLibChange(msg) {
+      this.libMsg = "";
+      this.modelDirs = await call("model_dirs_get");
+      this.loraDirs = await call("lora_dirs_get");
+      this.models = await call("list_models");
+      await this.refreshLoras();
+      this.status = msg;
+    },
+    libReady(u) {
+      // models from this library the app can use now (each file's type is read from its header)
+      const dirs = Object.values(u.dirs || {}).flat();
+      return (this.localModels || []).filter((m) => dirs.some((d) => (m.file || "").startsWith(d + "/"))).length;
+    },
+    async refreshWatched() {
+      this.libBusy = true;
+      try {
+        this.libs = await call("libraries_refresh");
+        await this.afterLibChange(`Re-read ${this.modelDirs.dirs.length} watched folder${this.modelDirs.dirs.length === 1 ? "" : "s"} · ${this.localModels.length} of your models found`);
+      } catch (e) { this.status = e.message; } finally { this.libBusy = false; }
+    },
+    loraTag(l) {
+      // Short so it fits beside the size on every row: BEE = from DiffusionBee, then the LoRA's type.
+      const bits = [];
+      if (l.source === "diffusionbee") bits.push("BEE");
+      if (l.family === "unknown") bits.push("type?");
+      if (l.flavor && this.flavorName(l.flavor)) bits.push(this.flavorName(l.flavor) + (this.currentFlavor && l.flavor !== this.currentFlavor ? " ⚠" : ""));
+      return bits.join(" · ");
+    },
+    loraMetaTitle(l) {
+      const bits = [];
+      if (l.source === "diffusionbee") bits.push("BEE: from your DiffusionBee folder (read in place)");
+      if (l.family === "unknown") bits.push("type unknown");
+      if (l.flavor) bits.push(this.flavorName(l.flavor) + (this.currentFlavor && l.flavor !== this.currentFlavor ? " (may not match this model)" : ""));
+      bits.push(l.size_mb + " MB");
+      return bits.join(" · ");
     },
     async addModelDir() {
       let picked = await window.bee.pickFolder({ title: "Choose a folder that holds your models", multi: true, button: "Watch" });
@@ -3267,13 +3364,39 @@ const protoartApp = createApp({
       this.patchSave();
       window.ProtoSound?.play("plug");
     },
+    patchMoveModule(id, to) {  // put a module in another place, left to right (PICTURE and RESULT stay at the ends)
+      const mid = this.patchNodes.slice(1, -1).map((n) => n.id);
+      const from = mid.indexOf(id);
+      if (from < 0) return;
+      to = Math.max(0, Math.min(mid.length - 1, to));
+      if (to === from) return;
+      mid.splice(from, 1);
+      mid.splice(to, 0, id);
+      this.patch.order = mid;
+      saveJSON("protoart.patchOrder", mid);
+      this.patch.msg = "Moved. The order the picture goes through is still set by the cables.";
+    },
+    patchHeadDown(id, e) {  // drag a module's name plate left or right to move it
+      if (this.patch.running || this.patch.drag) return;
+      e.preventDefault();
+      const p = this.patchPoint(e);
+      this.patch.moving = { id, x0: p.x, dx: 0 };
+    },
     patchMove(e) {
+      if (this.patch.moving) { this.patch.moving.dx = this.patchPoint(e).x - this.patch.moving.x0; return; }
       if (!this.patch.drag) return;
       const p = this.patchPoint(e);
       this.patch.drag.x = p.x;
       this.patch.drag.y = p.y;
     },
     patchUp(e) {
+      const mv = this.patch.moving;
+      if (mv) {
+        this.patch.moving = null;
+        const i = this.patchNodes.findIndex((n) => n.id === mv.id) - 1;
+        if (Math.abs(mv.dx) > 20) this.patchMoveModule(mv.id, i + Math.round(mv.dx / 140));
+        return;
+      }
       const d = this.patch.drag;
       if (!d || d.armed) return;
       const el = document.elementFromPoint(e.clientX, e.clientY);
@@ -3287,6 +3410,7 @@ const protoartApp = createApp({
       this.patch.drag = null;  // let go in mid-air: the cable is put away
     },
     patchCancel() {
+      this.patch.moving = null;
       if (this.patch.drag) { this.patch.drag = null; this.patch.msg = ""; }
     },
     patchConnect(from, to, c) {
@@ -3324,6 +3448,7 @@ const protoartApp = createApp({
     patchReset(kind) {
       if (this.patch.running) return;
       this.patch.cables = kind === "clear" ? [] : JSON.parse(JSON.stringify(PATCH_DEFAULT));
+      if (kind !== "clear") { this.patch.order = []; saveJSON("protoart.patchOrder", []); }  // modules back in their places
       this.patch.msg = "";
       this.patchSave();
     },
@@ -5380,6 +5505,7 @@ const protoartApp = createApp({
         const [models] = await Promise.all([call("list_models", { fresh: true }), this.refreshLoras()]);
         this.models = models;
         call("diffusionbee_info").then((d) => { this.dbee = d; }).catch(() => {});
+        call("libraries_refresh").then((r) => { this.libs = r; }).catch(() => {});  // other apps' libraries too
         this.status = `Found ${this.models.filter((m) => this.isInstalled(m)).length} models on this Mac and ${this.loras.length} LoRAs`;
       } catch (e) {
         this.error = e.message;
