@@ -264,6 +264,8 @@ def job_label(cmd, a):
         return "Remove (spot heal)" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
     if cmd == "vae_get":
         return "Download the recommended VAE"
+    if cmd == "edit_words" and isinstance(a.get("outpaint"), dict):
+        return "Expand with FLUX.2" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
     if cmd == "edit_words":
         return "Edit with words · " + ((a.get("prompt") or "")[:40] or "FLUX.2")
     if cmd == "vectorize":

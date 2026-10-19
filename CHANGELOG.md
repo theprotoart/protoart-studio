@@ -2,6 +2,10 @@
 
 ## 1.2.1 (test version)
 
+- ↔ Expand with FLUX.2 Klein + fal's outpaint LoRA (`Engine.outpaint_klein`, `green_canvas`, `OUTPAINT_LORA` pinned
+  revision, 76 MB, Apache-2.0): pure-green border canvas, prompt "Fill the green spaces according to the image", LoRA
+  scale 1.1, through the Edit with words queue entry (`edit_words` with `outpaint`); original pixels composited back.
+  `_mlx_load(extra_loras=…)`. Image to image → Expand: `form.outpaint_engine` ("klein" default / "model")
 - Model libraries from other apps (`backend/libraries.py`): finds Stability Matrix (its library.json / settings.json,
   Application Support, portable Data folders), ComfyUI (desktop config + extra_models_config.yaml base_path),
   Automatic1111 / Forge, InvokeAI and Fooocus; read-only (only listing and file sizes). "Existing model library

@@ -1992,3 +1992,4 @@ table.libs td:first-child { white-space: nowrap; }
 .detail-facts { align-items: stretch; }
 .detail-side { justify-content: space-between; min-height: 230px; gap: 10px; }
 .detail-side .danger-outline { margin-top: auto; }
+.out-engine + .hint + .hint { margin-top: 8px; }

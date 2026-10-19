@@ -131,3 +131,23 @@ class LoraBakeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OutpaintCanvasTests(unittest.TestCase):
+    def test_green_border_where_the_new_area_goes(self):
+        from PIL import Image
+        from engine import Engine
+        img = Image.new("RGB", (100, 60), (10, 20, 30))
+        canvas, box = Engine.green_canvas(img, left=20, right=0, top=5, bottom=15)
+        self.assertEqual(canvas.size, (120, 80))
+        self.assertEqual(box, (20, 5, 120, 65))
+        self.assertEqual(canvas.getpixel((0, 0)), (0, 255, 0))
+        self.assertEqual(canvas.getpixel((119, 79)), (0, 255, 0))
+        self.assertEqual(canvas.getpixel((20, 5)), (10, 20, 30))
+        self.assertEqual(canvas.getpixel((119, 64)), (10, 20, 30))
+
+    def test_lora_pinned(self):
+        from engine import Engine
+        L = Engine.OUTPAINT_LORA
+        self.assertEqual(len(L["revision"]), 40)
+        self.assertEqual(L["prompt"], "Fill the green spaces according to the image")

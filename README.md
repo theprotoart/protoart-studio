@@ -28,7 +28,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   prompt ✨ suggest / 🎲 random matched to the model, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop, and
   🔬 compare grids picked with keys
 - **Image to image:** ✨ Edit with words (FLUX.2 Klein: describe a change; paint to limit it; add reference pictures),
-  change / inpaint / expand / 🩹 remove, selection tools (brush, lasso, polygon lasso, magic wand, object selection),
+  change / inpaint / expand (any picture, with FLUX.2 Klein + an outpaint LoRA) / 🩹 remove, selection tools (brush, lasso, polygon lasso, magic wand, object selection),
   ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile, and your own SD 1.5 and SDXL ControlNets), image prompt
   (IP-Adapter), face detailer
 - **Tools** (rack modules): Finegrain enhance & upscale, face restoration (CodeFormer or RestoreFormer), 🩹 remove objects

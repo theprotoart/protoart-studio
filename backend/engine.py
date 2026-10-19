@@ -1265,7 +1265,7 @@ class Engine:
         except mlx_engine.EngineError as e:
             raise UserError(str(e))
 
-    def _mlx_load(self, spec, lora_reqs, allow_download=True, variant=None):
+    def _mlx_load(self, spec, lora_reqs, allow_download=True, variant=None, extra_loras=None):
         """Get a fast-engine (MLX) model ready in its worker process. Returns this Mac's RAM in GB.
         The worker keeps the model loaded; asking again for the same model and LoRAs costs nothing."""
         import mlx_engine
@@ -1300,6 +1300,8 @@ class Engine:
                                 f"can't be used with {fam_name}. If its type was set by hand, set it back in Models → "
                                 "Fix a type, or pick a matching model.")
             loras.append([info["file"], float(r.get("weight", 1.0))])
+        for path, scale in extra_loras or []:  # LoRAs the app itself uses (e.g. the outpaint LoRA for Expand)
+            loras.append([str(path), float(scale)])
         if not mlx_engine.installed():
             if not net.is_online():
                 raise UserError("offline: the fast engine isn't installed yet")  # retried online by the backend
@@ -2665,11 +2667,137 @@ class Engine:
         return record
 
     EDIT_MODEL = "flux2_klein_mlx_q4"
+    # ↔ Expand with FLUX.2 Klein: fal's outpaint LoRA (Apache-2.0, 76 MB). The picture goes in with a pure green
+    # border where the new area should be, and this prompt asks the model to fill it.
+    OUTPAINT_LORA = {"repo": "fal/flux-2-klein-4B-outpaint-lora", "revision": "b11770ac6a3cf9325dcf81742c12b1c4e257880f",
+                     "file": "flux-outpaint-lora.safetensors", "mb": 76, "scale": 1.1,
+                     "prompt": "Fill the green spaces according to the image"}
+
+    def _outpaint_lora_file(self):
+        """The outpaint LoRA on this Mac, downloaded once (from its publisher on Hugging Face, pinned version)."""
+        import net
+        from huggingface_hub import hf_hub_download
+        L = self.OUTPAINT_LORA
+        try:
+            return hf_hub_download(L["repo"], L["file"], revision=L["revision"], local_files_only=True)
+        except Exception:
+            pass
+        if net.strict:
+            raise UserError(f"Expand with FLUX.2 needs a one-time download of the outpaint LoRA (~{L['mb']} MB), and "
+                            "Strict offline mode is on. Turn it off in Settings → Privacy, or expand with the model at "
+                            "the top instead.")
+        self.emit({"type": "status", "msg": f"Downloading the outpaint LoRA (~{L['mb']} MB, first time only)…"})
+        net.set_online(True)
+        try:
+            return hf_hub_download(L["repo"], L["file"], revision=L["revision"])
+        finally:
+            net.set_online(False)
+
+    @staticmethod
+    def green_canvas(image, left=0, right=0, top=0, bottom=0):
+        """The picture on a bigger canvas whose new area is pure green (#00FF00), as the outpaint LoRA expects.
+        -> (canvas, box where the original sits)"""
+        from PIL import Image
+        w, h = image.size
+        canvas = Image.new("RGB", (w + left + right, h + top + bottom), (0, 255, 0))
+        canvas.paste(image.convert("RGB"), (left, top))
+        return canvas, (left, top, left + w, top + h)
+
+    def outpaint_klein(self, args):
+        """↔ Expand with FLUX.2 Klein + the outpaint LoRA: works for any picture, whatever model made it."""
+        import mlx_engine
+        from PIL import Image, ImageDraw, ImageFilter
+        spec = all_models().get(self.EDIT_MODEL)
+        if spec is None:
+            raise UserError("Expand with FLUX.2 needs the FLUX.2 Klein model, which isn't in this version.")
+        o = args.get("outpaint") or {}
+        src, image = self._source_picture(args)
+        image = image.convert("RGB")
+        w, h = image.size
+        pads = {k: max(0, int(o.get(k) or 0)) for k in ("left", "right", "top", "bottom")}
+        if not any(pads.values()):
+            raise UserError("Choose how far to expand on at least one side.")
+        if max(pads["left"] + pads["right"], pads["top"] + pads["bottom"]) > 3 * max(w, h):
+            raise UserError("That's a very big expansion: expand in smaller steps (up to about half the picture each time works best).")
+        canvas, box = self.green_canvas(image, **pads)
+        extra = (args.get("prompt") or "").strip()
+        prompt = self.OUTPAINT_LORA["prompt"] + (f". {extra}" if extra else "")
+        ram = total_ram_gb()
+        side = 768 if 0 < ram < 12 else 1024
+        scale = min(1.0, side / max(1.0, (canvas.width * canvas.height) ** 0.5))
+        width = max(256, int(canvas.width * scale) // 16 * 16)
+        height = max(256, int(canvas.height * scale) // 16 * 16)
+        steps = max(1, min(12, int(args.get("steps") or spec["defaults"]["steps"])))
+        seed = int(args.get("seed") if args.get("seed") not in (None, "", -1) else random.randint(0, 2**32 - 1)) % 2**32
+        started = time.time()
+        if self.cancel_event.is_set():
+            raise Cancelled()
+        lora = self._outpaint_lora_file()
+        L = self.OUTPAINT_LORA
+        try:
+            self._mlx_load(spec, [], variant="edit", extra_loras=[(lora, L["scale"])])
+            self.loaded_key = None
+            self.family = spec["family"]
+            tmp = paths.HOME / "tmp"
+            tmp.mkdir(parents=True, exist_ok=True)
+            first = tmp / f"expand_src_{os.getpid()}.png"
+            canvas.save(first)
+            out = tmp / f"expand_out_{os.getpid()}.png"
+            self.emit({"type": "status", "msg": "Expanding with FLUX.2 Klein + outpaint LoRA (fast engine)…"})
+
+            def on_event(ev):
+                if ev.get("type") == "progress":
+                    self.emit({"type": "progress", "image": 1, "images": 1, "step": ev["step"], "steps": ev["steps"]})
+                elif ev.get("type") == "preview":
+                    self.emit({"type": "preview", "image": 1, "src": ev["src"]})
+                elif ev.get("type") == "status":
+                    self.emit(ev)
+
+            try:
+                self.mlx.request({"cmd": "generate", "prompt": prompt, "negative_prompt": None, "width": width,
+                                  "height": height, "steps": steps, "cfg": 1.0, "seed": seed, "out": str(out),
+                                  "preview": self.previews, "image_paths": [str(first)]}, on_event=on_event)
+                result = Image.open(out).convert("RGB")
+            finally:
+                for f in (out, first):
+                    try:
+                        Path(f).unlink()
+                    except OSError:
+                        pass
+        except mlx_engine.CancelledError:
+            raise Cancelled()
+        except mlx_engine.EngineError as e:
+            raise UserError(str(e))
+        result = result.resize(canvas.size, Image.LANCZOS)
+        # your picture stays exactly as it was: only the new area comes from the model, blended over a few pixels
+        feather = max(2, min(12, min(w, h) // 64))
+        keep = Image.new("L", canvas.size, 0)
+        x0, y0, x1, y1 = box
+        ImageDraw.Draw(keep).rectangle([x0 + (feather if pads["left"] else 0), y0 + (feather if pads["top"] else 0),
+                                        x1 - 1 - (feather if pads["right"] else 0), y1 - 1 - (feather if pads["bottom"] else 0)],
+                                       fill=255)
+        keep = keep.filter(ImageFilter.GaussianBlur(feather / 2))
+        orig = canvas.copy()
+        result = Image.composite(orig, result, keep)
+        secs = time.time() - started
+        print(f"[timing] expand (FLUX.2 outpaint LoRA): {secs:.1f}s for {steps} steps at {width}x{height}", flush=True)
+        settings = {"model": self.EDIT_MODEL, "prompt": prompt, "negative_prompt": "", "width": result.width,
+                    "height": result.height, "steps": steps, "cfg": 1.0, "sampler": "flow_euler", "seed": seed,
+                    "engine": "mlx", "loras": [{"name": "flux-2-klein-4B-outpaint-lora", "weight": L["scale"]}],
+                    "seconds": round(secs, 1), "inpaint": {"outpaint": pads, "engine": "flux2_outpaint_lora"}}
+        path = self._save(result, settings, suffix="expanded")
+        record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="outpaint")
+        record["thumb"] = str(thumbs.make(record["id"], path, result) or "") or None
+        record = self._content_check(record, result)
+        self.emit({"type": "image", "record": record})
+        return record
 
     def edit_words(self, args):
         """✨ Edit with words (Image to image): FLUX.2 [klein] changes the picture as described. Optional: a painted
         area (only that part changes; the rest stays exactly as it was) and more pictures to take a style, an object
         or an outfit from."""
+        if isinstance(args.get("outpaint"), dict):  # ↔ Expand with FLUX.2 (same queue entry as Edit with words)
+            return self.outpaint_klein(args)
         import detailer
         import mlx_engine
         from PIL import Image, ImageFilter

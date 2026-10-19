@@ -1950,7 +1950,7 @@
           <button :class="{on: form.i2i_mode === 'outpaint'}" @click="setI2iMode('outpaint')" title="Make the picture bigger and fill in the new area">↔ Expand</button>
           <button :class="{on: form.i2i_mode === 'remove'}" @click="setI2iMode('remove')" title="Paint over something and it disappears, filled in from what's around it (no prompt or model needed)">🩹 Remove</button>
         </div>
-        <div v-if="['inpaint', 'outpaint'].includes(form.i2i_mode) && inpaintModels.some((m) => m.family === family)" class="hint inpaint-model-note">
+        <div v-if="(form.i2i_mode === 'inpaint' || (form.i2i_mode === 'outpaint' && form.outpaint_engine === 'model')) && inpaintModels.some((m) => m.family === family)" class="hint inpaint-model-note">
           <label class="check" title="Inpainting models are made for filling in painted areas: edges blend in better. Off: your model at the top does it.">
             <input type="checkbox" :checked="opts.use_inpaint_model !== false" @change="opts.use_inpaint_model = $event.target.checked; saveOpts()">
             🖌 Paint with an inpainting model</label>
@@ -2056,6 +2056,16 @@
             <input type="checkbox" v-model="form.inpaint.only_masked"> Redraw only the painted area at full detail</label>
         </template>
         <template v-else>
+          <label>Fill the new area with</label>
+          <div class="seg out-engine">
+            <button :class="{on: form.outpaint_engine !== 'model'}" @click="form.outpaint_engine = 'klein'"
+                    title="FLUX.2 Klein with fal's outpaint LoRA: works on any picture, whatever model made it">✨ FLUX.2 + outpaint LoRA</button>
+            <button :class="{on: form.outpaint_engine === 'model'}" @click="form.outpaint_engine = 'model'"
+                    title="The SD 1.5 / SDXL model picked at the top (or its inpainting model)">The model at the top</button>
+          </div>
+          <div v-if="form.outpaint_engine !== 'model'" class="hint">Works on any picture (SD 1.5, SDXL, FLUX, photos). It uses the Edit with words model
+            (FLUX.2 Klein) with <b>fal's outpaint LoRA</b> (Apache-2.0, 76 MB, downloaded once). The prompt is optional: add what should
+            appear around the picture. Your picture itself stays exactly as it was; up to about half its size per side works best.</div>
           <div class="hint">How much to add on each side (pixels of the original picture):</div>
           <div class="out-grid">
             <label>Left <input type="number" min="0" max="1024" step="32" v-model.number="form.outpaint.left"></label>
@@ -2069,9 +2079,9 @@
             <button class="chip" @click="outpaintPreset('tall')">make it taller</button>
             <button class="chip" @click="outpaintPreset('none')">reset</button>
           </div>
-          <div class="hint" v-if="outpaintSize">New size: {{ outpaintSize }}. Describe the whole scene in the prompt (what should appear around it).</div>
+          <div class="hint" v-if="outpaintSize">New size: {{ outpaintSize }}.<template v-if="form.outpaint_engine === 'model'"> Describe the whole scene in the prompt (what should appear around it).</template></div>
         </template>
-        <label v-if="form.i2i_mode !== 'edit'" class="check"><input type="checkbox" v-model="form.use_init_size"> Use the picture's size (otherwise the size from Create)</label>
+        <label v-if="form.i2i_mode !== 'edit' && !(form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model')" class="check"><input type="checkbox" v-model="form.use_init_size"> Use the picture's size (otherwise the size from Create)</label>
       </div>
 
       <div v-if="form.i2i_mode !== 'change'" class="card hint cn-off">
@@ -2187,7 +2197,7 @@
       </div>
 
       <div class="actions" :class="{busy}">
-        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
+        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model' ? '↔ Expand' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
         <div v-if="busy" class="stop-group">
           <button v-if="runningJob || queue.length" class="ghost pause-btn" :class="{on: paused}" @click="togglePause"
                   :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>

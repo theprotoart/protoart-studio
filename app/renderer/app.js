@@ -87,7 +87,8 @@ function defaultForm() {
     heal_method: "lama",
     edit_refs: [],      // ✨ Edit with words: extra pictures to take a style, object or outfit from
     i2i_mode: "change", inpaint: { strength: 0.85, blur: 4, only_masked: false },
-    outpaint: { left: 0, right: 0, top: 0, bottom: 0 } };
+    outpaint: { left: 0, right: 0, top: 0, bottom: 0 },
+    outpaint_engine: "klein" };  // ↔ Expand fills with FLUX.2 Klein + outpaint LoRA ("klein") or the model at the top ("model")
 }
 
 const FLAVOR_LABEL = { pony: "Pony", illustrious: "Illustrious", noobai: "NoobAI" };
@@ -445,6 +446,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.2.1 (test version): fixes from your notes", items: [
+              "<b>↔ Expand with FLUX.2 + outpaint LoRA</b> (Image to image → Expand): fills the new area on any picture, whatever model made it, using FLUX.2 Klein with fal's outpaint LoRA (Apache-2.0, 76 MB, downloaded once). Your picture stays exactly as it was. The SD 1.5 / SDXL way is still there (<i>The model at the top</i>).",
               "<b>📚 Use the model library you already have</b>: Protoart Studio looks for <b>Stability Matrix</b>, <b>ComfyUI</b>, <b>Automatic1111 / Forge</b>, <b>InvokeAI</b> and <b>Fooocus</b> on your Mac and asks “Existing model library detected. Would you like to use it?”. Checkpoints, LoRAs, embeddings, VAEs and ControlNets are read where they are: nothing is copied, moved, renamed or changed. Change it in Settings → Model folders.",
               "<b>Watch as many model folders as you like</b> (Settings → Model folders → ＋ Add watched folders; ⌘-click to pick several), and <b>↻ Refresh</b> reads them again if new files didn't show the first time.",
               "<b>LoRA lists line up</b>: DiffusionBee LoRAs are marked <b>BEE</b>, and the type and size sit under the name so long names have room.",
@@ -697,7 +699,9 @@ const protoartApp = createApp({
               "Works with your normal SD 1.5 and SDXL models; everything you didn't paint stays exactly as it was." ] },
             { h: "↔ Expand (outpaint)", items: [
               "Choose <b>Expand</b> and how many pixels to add on each side (or use <i>make it wider / taller</i>). The new area is filled in to match.",
-              "Describe the whole scene in the prompt, including what should appear around the original. Expanding a little at a time (e.g. 128–256 px) gives the best results." ] },
+              "<b>Fill the new area with ✨ FLUX.2 + outpaint LoRA</b> (the default): works on any picture, whatever model made it (SD 1.5, SDXL, FLUX, a photo). It uses FLUX.2 Klein (the Edit with words model) with <b>fal's outpaint LoRA</b> (Apache-2.0, free to use, 76 MB, downloaded once). The picture goes in with a green border where the new area will be, and the model fills it in. The prompt is optional: add what should appear around the picture. Your picture itself is kept exactly as it was.",
+              "<b>The model at the top</b>: the SD 1.5 / SDXL model you picked (or its inpainting model) fills the new area instead. Describe the whole scene in the prompt, including what should appear around the original.",
+              "Expanding a little at a time (up to about half the picture's size per side) gives the best results; expand again for more." ] },
             { h: "ControlNet (SD 1.5, and your own SDXL ones)", items: [
               "<b>Recommended settings</b>: picking a ControlNet puts in the settings it works best with, shown in a box right under the picker (<b>undo</b> puts yours back). If a setting would spoil the result, the box turns orange and says which; <b>Use recommended settings</b> fixes it.",
               "<b>The guide</b>: when you pick a ControlNet, a panel on the right (above the preview) says what it does, what picture to give it, which of your models suit it best (★, click to switch) and how to use it step by step. <b>Use these settings</b> sets the strength, timing and picture options it works best with.",
@@ -939,6 +943,8 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "Things fixed in 1.2.1 (and what to do if you still see them)", items: [
+              "<b>Expand with FLUX.2: “needs a one-time download of the outpaint LoRA”</b>: the 76 MB LoRA (and FLUX.2 Klein, if you haven't used Edit with words yet) download the first time. Connect to the internet and turn Strict offline off (Settings → Privacy) once; afterwards it works offline. Or pick <i>The model at the top</i>.",
+              "<b>Expand with FLUX.2 left a green edge or a seam</b>: expand less at a time (up to about half the picture per side), try another seed, or add to the prompt what should be around the picture. Very thin borders (a few pixels) don't work well; 64 px or more is best.",
               "<b>The ‹ › arrows in a picture's details closed it</b>: the arrow moved slightly when pressed, so the click landed on the dark background, which closes the window. Fixed: the arrows stay put. The ← → keys also work.",
               "<b>My Stability Matrix / ComfyUI models weren't found</b>: Settings → Model folders → <b>↻ Look for libraries again</b>. If it's on an external drive, connect it first; if it's somewhere unusual, use <b>Pick a library folder…</b> and choose the library's main folder (for Stability Matrix, the <i>Data</i> folder that holds <i>Models</i>). A plain folder of models goes in Watched model folders instead.",
               "<b>Some models from the other app don't show</b>: a few formats other apps use aren't supported here yet (for example GGUF files, and diffusion-model-only files that need a separate text encoder), so they're left out of the lists. The other app can still use them, and nothing in the library is ever changed.",
@@ -5126,6 +5132,14 @@ const protoartApp = createApp({
         const painted = this.mask.data && this.mask.for === f.init_image ? this.mask.data : null;
         await this.runJob("edit_words", { init_image: f.init_image, prompt: f.prompt, mask: painted,
                                           refs: (f.edit_refs || []).slice(0, 3), seed: f.seed });
+        return;
+      }
+      if (f.i2i_mode === "outpaint" && f.outpaint_engine !== "model") {  // ↔ Expand with FLUX.2 Klein + outpaint LoRA
+        const o = f.outpaint;
+        if (!(o.left || o.right || o.top || o.bottom)) return (this.error = "Choose how far to expand on at least one side.");
+        this.error = "";
+        await this.runJob("edit_words", { init_image: f.init_image, prompt: f.prompt || "", seed: f.seed,
+                                          outpaint: { left: o.left || 0, right: o.right || 0, top: o.top || 0, bottom: o.bottom || 0 } });
         return;
       }
       if (f.i2i_mode === "change" && !f.i2i_use_init && !f.control.type) return (this.error = "Tick “Start from this picture”, pick a ControlNet, or both.");

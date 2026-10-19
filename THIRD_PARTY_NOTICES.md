@@ -54,6 +54,7 @@ when you first use them, and each comes with its own licence that you accept by 
 | sd-vae-ft-mse-original (Stability AI) and sdxl-vae-fp16-fix (madebyollin), recommended VAEs, downloaded on request | MIT |
 | FLUX.1 [dev] (Black Forest Labs, official gated files, offered for Macs with 32 GB+) | FLUX.1 [dev] Non-Commercial License |
 | FLUX.2 [klein] 4B ([black-forest-labs/FLUX.2-klein-4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B); 4-bit MLX conversion [ar9av/FLUX.2-klein-4B-mflux-4bit](https://huggingface.co/ar9av/FLUX.2-klein-4B-mflux-4bit), downloaded on first use, not bundled) | Apache-2.0 (the original model). The conversion's model card carries a FLUX.1-dev non-commercial tag; check it before commercial use |
+| FLUX.2 [klein] 4B outpaint LoRA ([fal/flux-2-klein-4B-outpaint-lora](https://huggingface.co/fal/flux-2-klein-4B-outpaint-lora), pinned revision b11770a, 76 MB, downloaded on first use of ↔ Expand with FLUX.2, not bundled) | Apache-2.0 |
 | Juggernaut Reborn (enhancer) | CreativeML OpenRAIL-M |
 | 4x-UltraSharp (enhancer upscaler) | CC BY-NC-SA 4.0 (non-commercial) |
 | Florence-2 (image to prompt) | MIT |
