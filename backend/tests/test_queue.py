@@ -315,5 +315,20 @@ class QueueTests(unittest.TestCase):
         self.assertNotIn("result", [m["type"] for m in self.msgs if m.get("id") == 1])  # still running
 
 
+
+class DownloadProblemTests(unittest.TestCase):
+    def test_offline_download_explained(self):
+        import bee_backend
+        try:
+            try:
+                raise ConnectionError("curl: (6) Could not resolve host: huggingface.co")
+            except ConnectionError as inner:
+                raise OSError("lllyasviel/control_v11f1p_sd15_depth does not appear to have a file named config.json.") from inner
+        except OSError as e:
+            msg = bee_backend.download_problem(e)
+        self.assertIn("couldn't reach huggingface.co", msg)
+        self.assertIsNone(bee_backend.download_problem(ValueError("something else")))
+
+
 if __name__ == "__main__":
     unittest.main()

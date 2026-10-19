@@ -160,6 +160,28 @@ def _safetensors_keys(path):
     return [k for k in header if k != "__metadata__"], header.get("__metadata__") or {}
 
 
+def is_inpaint_header(header):
+    """An inpainting checkpoint: its first layer takes 9 channels (picture + mask + masked picture), not 4.
+    It can only fill in painted areas, so it belongs to Inpaint / Expand, not Create."""
+    for k in ("model.diffusion_model.input_blocks.0.0.weight", "conv_in.weight"):
+        shape = (header.get(k) or {}).get("shape") if isinstance(header.get(k), dict) else None
+        if shape and len(shape) == 4:
+            return shape[1] == 9
+    return False
+
+
+def is_inpaint_file(path):
+    import struct
+    try:
+        with open(path, "rb") as f:
+            n = struct.unpack("<Q", f.read(8))[0]
+            if n <= 0 or n > 200_000_000:
+                return False
+            return is_inpaint_header(json.loads(f.read(n)))
+    except (OSError, ValueError):
+        return False
+
+
 def inspect_local(path):
     """Work out what a file or folder on this Mac is. No internet."""
     from pathlib import Path
@@ -196,9 +218,13 @@ def inspect_local(path):
         notes.append("Older .ckpt format: guessed the type from its size. .safetensors files are safer and load faster.")
     else:
         raise ValueError("Pick a .safetensors or .ckpt checkpoint, or a diffusers model folder.")
-    return {"id": "local:" + str(p), "path": str(p), "kind": "file", "family": family,
-            "family_label": FAMILY_LABEL[family], "class_name": None,
-            "label": p.stem.replace("_", " "), "download_gb": round(p.stat().st_size / 1e9, 1), "notes": notes}
+    out = {"id": "local:" + str(p), "path": str(p), "kind": "file", "family": family,
+           "family_label": FAMILY_LABEL[family], "class_name": None,
+           "label": p.stem.replace("_", " "), "download_gb": round(p.stat().st_size / 1e9, 1), "notes": notes}
+    if suffix == ".safetensors" and is_inpaint_file(p):
+        out["inpaint"] = True
+        notes.append("An inpainting model: used by Image to image → Inpaint and Expand (not Create).")
+    return out
 
 
 def inspect_any(path):
@@ -288,7 +314,8 @@ def _scan_dirs():
 def local_to_spec(m):
     family = m["family"]
     spec = {
-        "label": f"{m.get('label') or m['path']} (your file)", "family": family, "download_gb": 0,
+        "label": f"{m.get('label') or m['path']} ({'your inpainting file' if m.get('inpaint') else 'your file'})",
+        "family": family, "download_gb": 0, **({"inpaint": True} if m.get("inpaint") else {}),
         "min_ram_gb": max(8, round(float(m.get("download_gb") or 0) * 1.3)), "quant": None, "source": "local",
         "defaults": dict(DEFAULTS[family]), "class_name": m.get("class_name"),
     }

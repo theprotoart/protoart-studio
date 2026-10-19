@@ -2,6 +2,25 @@
 
 ## 1.2.1 (test version)
 
+- ControlNet: `controlnet.clean_from_unet` / `unet_base_state` build the ControlNet from the UNet without LoRA (PEFT)
+  layers (".base_layer" / "lora_A"): DiffusionBee ControlNets failed with "Missing key(s) … Unexpected key(s) …
+  lora_A" whenever a LoRA was on, then fell back to a download
+- `bee_backend.download_problem`: plain message when a one-time Hugging Face download can't happen
+- Inpainting checkpoints (`model_hub.is_inpaint_header`: 9-channel conv_in; DiffusionBee by name) flagged `inpaint`,
+  labelled, hidden from Create, used for Inpaint / Expand (`inpaintModel`, `opts.use_inpaint_model`); generating a
+  whole picture with one gives a clear error
+- `dropMismatchedLoras`: LoRAs for another model family are left out of the picture with a note
+- LoRA scan includes the watched model folders (`loras._extra_dirs`)
+- Random LoRAs: a new mix replaces every LoRA in the list
+- Hide People in the Library: `people_prompt` (prompt words, `nsfw.people_flag`) and `faces` (RetinaFace count on new
+  pictures; `people_scan` job for older ones), `library.query(hide_people)`
+- Image to image: Edit with words / Remove progress there (`i2i` on edit_words / heal jobs), ✕ Clear results, drop
+  replaces the picture, enhance now writes into the tab that asked
+- Embedding training: unloads everything first, text-encoder gradient checkpointing, 448 px under 16 GB, friendly
+  out-of-memory error that saves progress
+- LoRA rows: fixed marker and size columns; People / Not People filter; queue buttons no longer cover the text; left
+  panels never scroll sideways
+- Own application menu (`setAppMenu`): no Reload / Developer Tools in the installed app; `devTools: false` there
 - How to: 📜 Model licences is a fold-out row under Troubleshooting (closed by default); the page says version 1.2.1
 - Removed: QR code / pattern ControlNet support (pattern picker, `qr.js`, `patterns.js`, Tools → Shape maker, the QR
   and brightness guides, the experimental float32 retries). They gave flat grey pictures on Apple Silicon.

@@ -193,11 +193,23 @@ def all_loras(lora_dir):
     return out
 
 
+def _extra_dirs():
+    """LoRA folders you added, then the folders you watch for models (Models → Watch a folder): a LoRA dropped
+    anywhere in those is found too, as the Models tab says (before, only the LoRA folders were looked in)."""
+    dirs = list(EXTRA_DIRS)
+    try:
+        import model_hub
+        dirs += [d for d in model_hub.MODEL_DIRS if d not in dirs]
+    except Exception:
+        pass
+    return dirs
+
+
 def _all_loras(lora_dir):
     """Your LoRA folder, any extra LoRA folders, plus LoRAs from DiffusionBee (read in place)."""
     out = scan(lora_dir)
     taken = {l["name"] for l in out}
-    for extra in EXTRA_DIRS:
+    for extra in _extra_dirs():
         try:
             for l in scan(extra, only_loras=True):
                 if l["name"] in taken:

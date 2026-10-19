@@ -94,7 +94,12 @@ def train(engine, args, emit, cancel_event, out_dir):
     steps = max(50, min(10000, int(args.get("steps") or 1500)))
     lr = float(args.get("lr") or 5e-3)
     save_every = int(args.get("save_every") or 0)
-    res = 512
+    try:
+        from engine import total_ram_gb
+        ram = total_ram_gb() or 8
+    except Exception:
+        ram = 8
+    res = 512 if ram >= 16 else 448  # under 16 GB: 448 px needs ~25% less memory per step (the word still learns well)
     flip = bool(args.get("flip", True))
     out_dir = Path(out_dir)
     final_path = out_dir / f"{name}.safetensors"
@@ -107,6 +112,13 @@ def train(engine, args, emit, cancel_event, out_dir):
     if not spec or spec["family"] != "sd15" or spec.get("engine"):
         raise TIError("Embedding training works with SD 1.5 models for now (SDXL needs a 16 GB+ Mac and comes later).")
     emit({"type": "status", "msg": f"Loading {spec['label']} for embedding training…"})
+    # start from an empty memory: anything else the app had loaded (ControlNets, depth / face / pose models, the fast
+    # engine) would leave too little room for training on an 8 GB Mac ("Command buffer … Insufficient Memory")
+    engine.unload()
+    for attr in ("depth_estimator", "face_finder", "pose_detector", "nsfw_checker"):
+        if getattr(engine, attr, None) is not None:
+            setattr(engine, attr, None)
+    engine.release_memory()
     engine.load(model_id, low_memory=False)
     engine.apply_loras([])
     pipe = engine.pipe
@@ -180,6 +192,10 @@ def train(engine, args, emit, cancel_event, out_dir):
         te.to(device, wdtype)
         words.vec.data = words.vec.data.to(device, torch.float32)
         te.train()
+        try:  # keep the text encoder's in-between results small too (recomputed for the backward pass)
+            te.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+        except Exception:
+            pass
         opt = torch.optim.AdamW([words.vec], lr=lr, weight_decay=0.0)
         warmup = max(1, int(steps * 0.03))
         sched = torch.optim.lr_scheduler.LambdaLR(
@@ -259,6 +275,16 @@ def train(engine, args, emit, cancel_event, out_dir):
                                    dict(meta, steps=len(losses)))
                 emit({"type": "status", "msg": f"Training stopped; saved progress as {Path(p).name}"})
             raise
+        except RuntimeError as e:
+            if "out of memory" not in str(e).lower() and "insufficient memory" not in str(e).lower():
+                raise
+            if losses:
+                p = save_embedding(out_dir / f"{name}-stopped-step{len(losses)}.safetensors", vectors(),
+                                   dict(meta, steps=len(losses)))
+                emit({"type": "status", "msg": f"Out of memory: saved progress as {Path(p).name}"})
+            raise TIError("Your Mac ran out of graphics memory while training. Quit other apps (browsers with many "
+                          "tabs, Discord, other image apps) and try again; fewer vectors (1–2) also need less. "
+                          + (f"Progress so far was saved ({len(losses)} steps)." if losses else ""))
         path = save_embedding(final_path, vectors(), dict(meta, steps=steps))
         return {"path": path, "name": name, "steps": steps, "seconds": round(time.time() - started),
                 "checkpoints": saved, "vectors": n_vec, "loss": round(sum(losses[-20:]) / max(1, len(losses[-20:])), 4),

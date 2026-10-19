@@ -54,6 +54,17 @@ class LibraryTests(unittest.TestCase):
         self.lib.set_starred(a["id"], False)
         self.assertEqual(self.lib.query(starred_only=True), [])
 
+    def test_hide_people(self):
+        """Hide People leaves out pictures whose prompt describes a person, and ones with faces found in them."""
+        self.add("a woman reading in a library")
+        castle = self.add("a castle in the mountains")
+        dog = self.add("a french bulldog")
+        self.lib.set_faces(castle["id"], 0)
+        self.assertEqual([p for _, p in self.lib.faces_unchecked()], ["/x/a french bulldog.png"])  # not the woman
+        self.lib.set_faces(dog["id"], 2)  # the face finder saw people in it
+        self.assertEqual([r["prompt"] for r in self.lib.query(hide_people=True)], ["a castle in the mountains"])
+        self.assertEqual(len(self.lib.query()), 3)
+
     def test_search_by_lora_requires_all(self):
         self.add("one", [("pixel", 0.8)])
         self.add("two", [("pixel", 1.0), ("watercolor", 0.5)])
@@ -434,6 +445,17 @@ class SamplerTests(unittest.TestCase):
         tokens = lat.reshape(16, h // 16, 2, w // 16, 2).transpose(1, 3, 0, 2, 4).reshape(-1, 64)
         np.testing.assert_allclose(preview.unpack_flux_tokens(tokens, h, w), lat)
         self.assertEqual(preview.latent_to_rgb(lat, "flux").shape, (h // 8, w // 8, 3))
+
+
+
+class InpaintModelTests(unittest.TestCase):
+    def test_inpaint_checkpoint_detected(self):
+        """dreamshaper_8Inpainting & co: 9 input channels (picture + mask + masked picture) mark an inpainting model."""
+        import model_hub
+        k = "model.diffusion_model.input_blocks.0.0.weight"
+        self.assertTrue(model_hub.is_inpaint_header({k: {"shape": [320, 9, 3, 3]}}))
+        self.assertFalse(model_hub.is_inpaint_header({k: {"shape": [320, 4, 3, 3]}}))
+        self.assertFalse(model_hub.is_inpaint_header({"__metadata__": {}}))
 
 
 if __name__ == "__main__":

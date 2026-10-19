@@ -1,5 +1,5 @@
 // Protoart Studio main process: owns the window and the Python backend process.
-const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, dialog, Menu } = require("electron");
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
@@ -151,6 +151,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      devTools: !PACKAGED,  // the installed app has no developer tools (no menu item, no shortcut)
     },
   });
   if (b.maximized) win.maximize();
@@ -414,7 +415,32 @@ app.on("web-contents-created", (_e, contents) => {
   contents.on("will-attach-webview", (e) => e.preventDefault());
 });
 
+// The app's own menu bar. Electron's default one has View → Reload / Force Reload / Toggle Developer Tools, which
+// people using the app shouldn't see (a reload throws away the screen's state mid-job). The dev version
+// (Start Protoart Studio.command) keeps them for testing.
+function setAppMenu() {
+  const isMac = process.platform === "darwin";
+  const view = [
+    { role: "resetZoom", label: "Actual Size" }, { role: "zoomIn" }, { role: "zoomOut" },
+    { type: "separator" }, { role: "togglefullscreen" },
+  ];
+  if (!PACKAGED) view.unshift({ role: "reload" }, { role: "forceReload" }, { role: "toggleDevTools" }, { type: "separator" });
+  const template = [
+    ...(isMac ? [{ label: app.name, submenu: [
+      { role: "about" }, { type: "separator" }, { role: "hide" }, { role: "hideOthers" }, { role: "unhide" },
+      { type: "separator" }, { role: "quit" }] }] : []),
+    { label: "File", submenu: [isMac ? { role: "close" } : { role: "quit" }] },
+    { label: "Edit", submenu: [  // keeps ⌘C / ⌘V / ⌘A / ⌘Z working in the prompt boxes
+      { role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" },
+      { role: "pasteAndMatchStyle" }, { role: "delete" }, { role: "selectAll" }] },
+    { label: "View", submenu: view },
+    { label: "Window", submenu: [{ role: "minimize" }, { role: "zoom" }, ...(isMac ? [{ type: "separator" }, { role: "front" }] : [{ role: "close" }])] },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 app.whenReady().then(() => {
+  setAppMenu();
   // No camera, microphone, location, notifications…: the app never needs them (security audit L2).
   // Writing to the clipboard (Backend log -> Copy all) is the one thing the page may do.
   const { session } = require("electron");

@@ -183,5 +183,22 @@ class XlConfigTests(unittest.TestCase):
         self.assertEqual(cfg["mid_block_type"], "UNetMidBlock2DCrossAttn")
 
 
+
+class CleanUnetTests(unittest.TestCase):
+    def test_lora_parts_left_out(self):
+        """A UNet with a LoRA switched on: its base weights are copied, its LoRA parts aren't (that broke every
+        DiffusionBee ControlNet while a LoRA was on)."""
+        import controlnet
+        unet = {"conv_in.weight": 1, "down_blocks.0.attentions.0.proj_in.base_layer.weight": 2,
+                "down_blocks.0.attentions.0.proj_in.lora_A.l_x.weight": 3,
+                "down_blocks.0.attentions.0.proj_in.lora_B.l_x.weight": 4,
+                "up_blocks.0.resnets.0.conv1.weight": 5, "mid_block.resnets.0.conv1.weight": 6}
+        want = ["conv_in.weight", "down_blocks.0.attentions.0.proj_in.weight", "mid_block.resnets.0.conv1.weight",
+                "controlnet_down_blocks.0.weight"]
+        self.assertEqual(controlnet.unet_base_state(unet, want),
+                         {"conv_in.weight": 1, "down_blocks.0.attentions.0.proj_in.weight": 2,
+                          "mid_block.resnets.0.conv1.weight": 6})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -161,7 +161,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -221,6 +221,8 @@ def job_label(cmd, a):
         return "Get " + str(_e.all_models().get(a.get("model"), {}).get("label", a.get("model"))) + " ready"
     if cmd == "nsfw_scan":
         return "Check Library pictures (content filter)"
+    if cmd == "people_scan":
+        return "Find people in Library pictures (Hide People)"
     if cmd == "civitai_download":
         return "Download from Civitai · " + str(a.get("name") or a.get("url") or "")
     if cmd == "model_delete":
@@ -285,6 +287,8 @@ class JobQueue:
     def _public(j):
         a = j.get("args") or {}
         info = {"id": j["id"], "cmd": j["cmd"], "label": j["label"], "model": j.get("model")}
+        if j["cmd"] in ("edit_words", "heal") and a.get("init_image") and not a.get("from_tools"):
+            info["i2i"] = True  # Edit with words / Remove: progress shows in Image to image, where they were started
         if j["cmd"] == "generate":  # what the UI needs to estimate how long the job will take
             info.update(steps=a.get("steps"), images=a.get("num_images") or 1, width=a.get("width"),
                         height=a.get("height"), strength=a.get("strength") if a.get("init_image") else None,
@@ -459,7 +463,7 @@ def handle_quick(cmd, a):
         return True
     if cmd == "content_status":
         return {"checker_installed": content.checker_installed(), "checker_mb": int(content.CHECKER_GB * 1000),
-                **library.nsfw_counts()}
+                "faces_unchecked": len(library.faces_unchecked()), **library.nsfw_counts()}
     if cmd == "library_nsfw_mark":
         v = a.get("mark")
         return library.set_nsfw_mark(a.get("ids") or [], None if v is None else bool(v))
@@ -970,7 +974,8 @@ def handle_quick(cmd, a):
     if cmd == "library_query":
         rows = library.query(text=a.get("text"), loras=a.get("loras"), starred_only=a.get("starred_only", False),
                              model=a.get("model"), kind=a.get("kind"), limit=a.get("limit", 200),
-                             offset=a.get("offset", 0), seed=a.get("seed"), hide_nsfw=bool(a.get("hide_nsfw")))
+                             offset=a.get("offset", 0), seed=a.get("seed"), hide_nsfw=bool(a.get("hide_nsfw")),
+                             hide_people=bool(a.get("hide_people")))
         thumbs.ensure(rows)
         return rows
     if cmd == "library_star":
@@ -1536,6 +1541,26 @@ def sfw_check(kind, a):
             raise UserError("This model is marked NSFW, so it can't be used." + off)
 
 
+def download_problem(e):
+    """A one-time download that couldn't happen (no internet, huggingface.co unreachable): a plain message instead of
+    "OSError: … does not appear to have a file named config.json" / "Can't load image processor…"."""
+    seen, text = set(), []
+    while e is not None and id(e) not in seen:
+        seen.add(id(e))
+        text.append(f"{type(e).__name__}: {e}")
+        e = e.__cause__ or e.__context__
+    t = " ".join(text)
+    offline = any(w in t for w in ("Could not resolve host", "nodename nor servname", "ConnectError", "ConnectionError",
+                                   "LocalEntryNotFoundError", "OfflineModeIsEnabled", "Network is unreachable"))
+    missing = any(w in t for w in ("does not appear to have a file named", "Can't load image processor",
+                                   "Can't load the configuration", "Can't load tokenizer"))
+    if offline or missing:
+        return ("This needs a one-time download from Hugging Face, and your Mac couldn't reach huggingface.co. "
+                "Check the internet connection (and that Strict offline is off in Settings → Privacy), then try again. "
+                "After that it works offline.")
+    return None
+
+
 def run_job(kind, a):
     sfw_check(kind, a)
     if kind == "convert_tdict":
@@ -1552,6 +1577,8 @@ def run_job(kind, a):
         return eng.preload(a, force=settings["force_load"], low_memory=settings["low_memory"])
     if kind == "nsfw_scan":
         return eng.nsfw_scan(a)
+    if kind == "people_scan":
+        return eng.people_scan(a)
     if kind == "model_delete":
         return eng.delete_model(a)
     if kind == "civitai_download":
@@ -1640,7 +1667,7 @@ def main():
             emit({"type": "error", "id": mid, "msg": str(e)})
         except Exception as e:
             log(traceback.format_exc())
-            problem = net.hf_auth_problem(e)  # a gated Hugging Face model: say how to sign in
+            problem = net.hf_auth_problem(e) or download_problem(e)  # a gated model / no internet: say what to do
             emit({"type": "error", "id": mid, "msg": problem or f"{type(e).__name__}: {e}"})
         finally:
             if eng is not None:

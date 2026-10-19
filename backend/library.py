@@ -84,6 +84,14 @@ class Library:
                                  [(r["id"],) for r in rows if content.prompt_flag(r["prompt"])])
         if "nsfw_mark" not in cols:
             self._db.execute("ALTER TABLE images ADD COLUMN nsfw_mark INTEGER")
+        # Hide People: the prompt describes a person, and faces found in the picture (NULL = not checked yet)
+        if "people_prompt" not in cols:
+            self._db.execute("ALTER TABLE images ADD COLUMN people_prompt INTEGER NOT NULL DEFAULT 0")
+            rows = self._db.execute("SELECT id, prompt FROM images").fetchall()
+            self._db.executemany("UPDATE images SET people_prompt=1 WHERE id=?",
+                                 [(r["id"],) for r in rows if content.people_flag(r["prompt"])])
+        if "faces" not in cols:
+            self._db.execute("ALTER TABLE images ADD COLUMN faces INTEGER")
 
     # ---------- images ----------
     def add_image(self, path, settings, parent_id=None, kind="generated"):
@@ -92,8 +100,8 @@ class Library:
         with self._lock:
             cur = self._db.execute(
                 """INSERT INTO images (path, created_at, prompt, negative_prompt, model, sampler,
-                   steps, cfg, seed, width, height, settings_json, parent_id, kind, nsfw_prompt)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   steps, cfg, seed, width, height, settings_json, parent_id, kind, nsfw_prompt, people_prompt)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (
                     str(path), time.time(), settings.get("prompt", ""),
                     settings.get("negative_prompt", ""), settings.get("model", ""),
@@ -102,6 +110,8 @@ class Library:
                     json.dumps(settings), parent_id, kind,
                     1 if (content.prompt_flag(settings.get("prompt"))
                           or content.prompt_flag(settings.get("original_prompt"))) else 0,
+                    1 if (content.people_flag(settings.get("prompt"))
+                          or content.people_flag(settings.get("original_prompt"))) else 0,
                 ),
             )
             image_id = cur.lastrowid
@@ -147,6 +157,20 @@ class Library:
             self._db.execute("UPDATE images SET nsfw_score=? WHERE id=?", (score, int(image_id)))
             self._db.commit()
 
+    PEOPLE_SQL = "(COALESCE(i.people_prompt, 0) = 1 OR COALESCE(i.faces, 0) > 0)"
+
+    def set_faces(self, image_id, n):
+        with self._lock:
+            self._db.execute("UPDATE images SET faces=? WHERE id=?", (int(n), int(image_id)))
+            self._db.commit()
+
+    def faces_unchecked(self, limit=100000):
+        """Pictures not checked for faces yet, whose prompt doesn't already say there's a person: [(id, path)]."""
+        with self._lock:
+            rows = self._db.execute("SELECT id, path FROM images WHERE faces IS NULL AND COALESCE(people_prompt, 0) = 0 "
+                                    "ORDER BY created_at DESC LIMIT ?", (int(limit),)).fetchall()
+            return [(r["id"], r["path"]) for r in rows]
+
     def unchecked(self, limit=100000):
         """Pictures the checker hasn't looked at yet: [(id, path)], newest first."""
         with self._lock:
@@ -161,7 +185,7 @@ class Library:
             return {"total": r[0] or 0, "nsfw": r[1] or 0, "unchecked": r[2] or 0}
 
     def query(self, text=None, loras=None, starred_only=False, model=None, kind=None, limit=200, offset=0, seed=None,
-              hide_nsfw=False):
+              hide_nsfw=False, hide_people=False):
         """Search images.
 
         loras: list of LoRA names; an image matches only if it used ALL of them.
@@ -169,6 +193,7 @@ class Library:
               matches images made with that seed.
         seed: only images made with exactly this seed.
         hide_nsfw: leave out pictures that count as NSFW (see NSFW_SQL).
+        hide_people: leave out pictures of people (their prompt says so, or faces were found in them).
         """
         where, params = [], []
         if seed is not None and str(seed).strip() != "":
@@ -182,6 +207,8 @@ class Library:
             where.append("i.starred = 1")
         if hide_nsfw:
             where.append(self.NSFW_SQL + " = 0")
+        if hide_people:
+            where.append("NOT " + self.PEOPLE_SQL)
         if model:
             where.append("i.model = ?")
             params.append(model)

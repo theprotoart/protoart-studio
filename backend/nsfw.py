@@ -70,6 +70,20 @@ def prompt_flag(prompt):
     return bool(_PROMPT_RE.search(text))
 
 
+# words in a prompt that mean the picture shows a person (Hide People hides those pictures too)
+_PEOPLE_RE = re.compile(
+    r"(?<![a-z])(\d+(girls?|boys?|wom[ae]n|m[ae]n|others?)|girls?|boys?|wom[ae]n|(?<!hu)m[ae]n|lad(y|ies)|guys?|"
+    r"persons?|people|couples?|child(ren)?|kids?|teens?|teenagers?|females?|males?|humans?|"
+    r"husband|wife|mother|father|bride|groom)(?![a-z])", re.I)
+
+
+def people_flag(prompt):
+    """True if the prompt describes a person ("a woman", "1girl", "portrait of a man"…)."""
+    if not prompt:
+        return False
+    return bool(_PEOPLE_RE.search(str(prompt).replace("_", " ")))
+
+
 def name_flag(*names):
     """True if a model/LoRA name or file name says it's NSFW."""
     for n in names:

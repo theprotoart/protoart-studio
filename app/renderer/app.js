@@ -380,7 +380,7 @@ const protoartApp = createApp({
                             // speed: get a model ready before you press Generate ("last" = the one you last used)
                             preload_start: "last", preload_on_pick: true,
                             // content filter (off until you turn it on)
-                            hide_nsfw: false, check_pictures: false, hide_people: false, sfw_mode: false,
+                            hide_nsfw: false, check_pictures: false, hide_people: false, sfw_mode: false, use_inpaint_model: true,
                             tooltips: true,       // quick tips when pointing at buttons (Settings → Look)
                             default_model: "" },   // the model Create starts with (Models tab → ☆ Default)
         loadJSON(OPTS_KEY, {})),
@@ -420,7 +420,7 @@ const protoartApp = createApp({
       helpOpen: "",
       preloading: "",     // model being loaded in the background (kept out of the visible queue)
       readyModel: "",     // model known to be loaded and waiting
-      content: { checker_installed: false, checker_mb: 340, total: 0, nsfw: 0, unchecked: 0, scanning: false, msg: "" },
+      content: { checker_installed: false, checker_mb: 340, total: 0, nsfw: 0, unchecked: 0, faces_unchecked: 0, scanning: false, msg: "" },
       revealDetail: false,
       modelDel: "",
       folders: [],         // Settings → Moved a folder?: your folders and whether each is there
@@ -440,6 +440,17 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.2.1 (test version): fixes from your notes", items: [
+              "<b>ControlNets work again with a LoRA switched on</b>: DiffusionBee's ControlNets (Depth, Tile, Line art, Scribble, OpenPose) are built partly from your model, and a LoRA in the mix broke that copy, so the app tried to download the official ones instead (which failed without internet). The LoRA parts are now left out of the copy.",
+              "<b>Clear messages when a one-time download can't happen</b>: instead of “does not appear to have a file named config.json” or “Can't load image processor”, the app says it couldn't reach Hugging Face and what to check.",
+              "<b>Inpainting models go where they belong</b>: an inpainting checkpoint (like dreamshaper_8Inpainting) is recognised from the file, labelled “inpainting”, kept out of Create, and used for Image to image → Inpaint and Expand (switch: 🖌 Paint with an inpainting model).",
+              "<b>LoRAs for another model type are left out, not an error</b>: a FLUX.1 LoRA with FLUX.2 (or SD 1.5 with SDXL) is skipped for that picture with a note, and the picture is made.",
+              "<b>LoRAs in your watched model folders are found</b> (Models → Watch a folder), like your ERNIE .safetensors LoRA in a sub-folder: press ↻ Refresh after adding one.",
+              "<b>🎲 New random mix swaps every LoRA</b>, including ones added by hand or by a preset (before, only the randomizer's own picks changed).",
+              "<b>Hide People hides pictures of people</b> in the Library: the prompt describes a person, or the face finder (the one Restore faces uses) sees a face. Older pictures: <b>check now</b> next to the picture count.",
+              "<b>Image to image</b>: progress of Edit with words shows in Image to image (not Create); <b>✕ Clear results</b>; drop another picture on 1 · Picture to replace it; <b>enhance now</b> keeps the text in the tab that asked for it.",
+              "<b>Embedding training on 8 GB Macs</b>: everything else is unloaded first, memory-saving is on for the text encoder too, pictures are 448 px under 16 GB, and running out of memory saves your progress with a clear message.",
+              "<b>Tidier lists</b>: LoRA list markers and sizes line up on every row, the queue's ⤵ no longer covers the model name, ● People / Not People filters in the LoRA list, and the left panel no longer scrolls sideways.",
+              "<b>No developer menu in the installed app</b>: View → Reload / Toggle Developer Tools are gone (they're only in the test version you start from the folder).",
               "<b>How to</b>: 📜 Model licences is now a fold-out row under Troubleshooting (click to open), so it no longer takes up half the page.",
               "<b>QR code / pattern ControlNets removed</b>: they gave flat grey pictures on Apple Silicon Macs, so this version doesn't offer them (the pattern picker and the Shape maker are gone too). A QR / pattern ControlNet file you added shows in Models → Embeddings, VAEs &amp; ControlNets as not supported; <b>Open folder</b> there takes you to it if you want to delete it. Every other ControlNet works as before.",
               "<b>Recommended settings for each ControlNet</b>: picking one in Image to image puts in the settings it works best with straight away (strength, when it guides, steps), shown in a box under the picker with <b>undo</b>. If you change something that would spoil the result (for example far too few steps), the box turns orange and says why, with <b>Use recommended settings</b>.",
@@ -641,7 +652,8 @@ const protoartApp = createApp({
           sections: [
             { h: "Starting from a picture", items: [
               "<b>✨ Edit with words</b> uses FLUX.2 Klein (it's at the top of the model list while that mode is on). Its <i>✨ enhance now</i> turns a quick note into a clear instruction. The other modes have <b>✨ Enhance prompt</b> and the negative prompt's ✨ suggest / 🎲 random too.",
-              "Pictures made in Image to image stay in Image to image and the Library; they don't fill Create's screen.",
+              "Pictures made in Image to image stay in Image to image and the Library; they don't fill Create's screen. <b>✕ Clear results</b> takes them off the screen. Drop another picture on 1 · Picture to replace it.",
+              "<b>Inpainting models</b> (files like <i>dreamshaper_8Inpainting</i>) are made for filling in painted areas: the app recognises them, keeps them out of Create, and Inpaint and Expand use one automatically when your model at the top is the same type (switch: <b>🖌 Paint with an inpainting model</b>).",
               "Drop a picture, or use <b>🖼 Img2img</b> on any Library image.",
               "The <b>model</b> for Image to image is chosen at the top of the window, next to the brand plate.",
               "<b>Change strength</b>: low (0.3) keeps most of the original, high (0.8+) changes a lot.",
@@ -774,6 +786,7 @@ const protoartApp = createApp({
           sections: [
             { h: "Finding images", items: [
               "Search by prompt, filter by model, version type (originals, enhanced, face-restored…) or ★ starred.",
+              "<b>Hide People</b> hides pictures of people: ones whose prompt describes a person, ones where the face finder sees a face, and ones made with models or LoRAs you tagged ● People. Pictures made before this version: <b>check now</b> next to the picture count looks for faces in them once (on this Mac). <b>Hide NSFW</b> hides NSFW pictures.",
               "<b>Search by seed</b>: type a seed in the amber <b>seed</b> box to see only pictures made with it, or type a number in the search box to find that seed and prompts containing it. In a picture's details, <b>find all with this seed</b> does the same.",
               "<b>Filter by LoRA</b> shows images made with particular LoRAs; clicking a LoRA in an image's details does the same.",
               "<b>Hide NSFW</b> covers pictures flagged NSFW; <b>Hide People</b> hides pictures made with a model or LoRA you tagged ● People (the same switch as in Create and Settings)." ] },
@@ -1198,10 +1211,20 @@ const protoartApp = createApp({
       ];
       return list.filter((f) => f.id === "all" || f.count);
     },
+    inpaintModel() {
+      // Image to image → Inpaint / Expand with an SD 1.5 (or SDXL) model: an inpainting checkpoint of the same type,
+      // when you have one, does the painting (it's made for filling in; Create never uses it). Off: your own model.
+      if (this.opts.use_inpaint_model === false) return null;
+      return this.models.find((m) => m.inpaint && m.family === this.family && this.isInstalled(m) && this.safeModel(m)) || null;
+    },
+    inpaintModels() {
+      return this.models.filter((m) => m.inpaint && this.isInstalled(m));
+    },
     filteredModels() {
       const q = this.modelSearch.trim().toLowerCase();
-      // favourites first, then the usual order
-      const list = [...this.installedModels].sort((a, b) => (this.isFav(b) ? 1 : 0) - (this.isFav(a) ? 1 : 0));
+      // favourites first, then the usual order; inpainting models only fill in painted areas (Image to image)
+      const list = [...this.installedModels].filter((m) => !m.inpaint)
+        .sort((a, b) => (this.isFav(b) ? 1 : 0) - (this.isFav(a) ? 1 : 0));
       return list.filter((m) => {
         if (this.modelFilter === "fav" ? !this.isFav(m)
             : this.modelFilter === "mine" ? !m.id.startsWith("file:")
@@ -1259,7 +1282,8 @@ const protoartApp = createApp({
       const q = this.loraSearch.trim().toLowerCase();
       const k = this.loraKind;
       return this.sortLoras(this.addableLoras.filter((l) => (!q || l.name.toLowerCase().includes(q))
-        && (!this.loraFavOnly || this.isFavLora(l)) && (!k || this.loraKindOf(l) === k || l.flavor === k)));
+        && (!this.loraFavOnly || this.isFavLora(l))
+        && (!k || (k === "people" ? !!l.people : k === "not_people" ? !l.people : this.loraKindOf(l) === k || l.flavor === k))));
     },
     loraKinds() {  // what the LoRA list can be narrowed to: file kind, and Pony / Illustrious / NoobAI when present
       const kinds = new Map();
@@ -1269,7 +1293,10 @@ const protoartApp = createApp({
         if (l.flavor) kinds.set(l.flavor, (kinds.get(l.flavor) || 0) + 1);
       }
       const label = { safetensors: ".safetensors", diffusionbee: "DiffusionBee", ...Object.fromEntries(Object.entries(FLAVOR_LABEL)) };
-      return [...kinds.entries()].map(([id, n]) => ({ id, n, label: label[id] || id }));
+      const out = [...kinds.entries()].map(([id, n]) => ({ id, n, label: label[id] || id }));
+      const people = this.addableLoras.filter((l) => l.people).length;  // ● People: LoRAs of real people
+      out.push({ id: "people", n: people, label: "● People" }, { id: "not_people", n: this.addableLoras.length - people, label: "Not People" });
+      return out;
     },
     shownLoras() {
       return this.filteredLoras.slice(0, 200); // render at most 200 rows at once (keeps older Macs smooth)
@@ -1540,8 +1567,8 @@ const protoartApp = createApp({
       const ok = (m) => (m.family === "sd15" || m.family === "sdxl") && m.engine !== "mlx";
       const mark = (list) => list.map((m) => ({ ...m, i2iOk: ok(m) }));
       return [
-        { name: "SD 1.5 · image to image, inpaint, ControlNet (built-in + yours), image prompt (IP-Adapter)", models: mark(this.installedModels.filter((m) => m.family === "sd15")) },
-        { name: "SDXL / Pony · image to image, inpaint, image prompt (IP-Adapter), your SDXL ControlNets", models: mark(this.installedModels.filter((m) => m.family === "sdxl")) },
+        { name: "SD 1.5 · image to image, inpaint, ControlNet (built-in + yours), image prompt (IP-Adapter)", models: mark(this.installedModels.filter((m) => m.family === "sd15" && !m.inpaint)) },
+        { name: "SDXL / Pony · image to image, inpaint, image prompt (IP-Adapter), your SDXL ControlNets", models: mark(this.installedModels.filter((m) => m.family === "sdxl" && !m.inpaint)) },
       ].filter((g) => g.models.length);
     },
     convShown() {
@@ -1693,8 +1720,7 @@ const protoartApp = createApp({
     },
     randomPool() {
       // LoRAs the randomizer may pick: ones that work with this model (and not already added by hand)
-      const mine = new Set(this.form.loras.filter((l) => !this.loraRand.picked.includes(l.name)).map((l) => l.name));
-      return this.compatibleLoras.filter((l) => !mine.has(l.name));
+      return this.compatibleLoras;
     },
     hiresTarget() {
       const ram = this.sys.ram_gb || 8;
@@ -1728,7 +1754,7 @@ const protoartApp = createApp({
     i2iRunning() {
       // the running job is an Image to image one (started from that tab)
       const j = this.runningJob;
-      return !!(j && j.cmd === "generate" && j.i2i);
+      return !!(j && j.i2i && ["generate", "edit_words", "heal"].includes(j.cmd));
     },
     recSteps() {
       // Recommended step count for the chosen sampler: [recommended, low, high].
@@ -3242,6 +3268,10 @@ const protoartApp = createApp({
     clearSession() {  // Create's "clear all": Image to image's results stay where they are
       this.session = this.session.filter((r) => I2I_KINDS.includes(r.kind));
     },
+    clearI2iResults() {  // Image to image's "clear all": takes its results off the screen (they stay in the Library)
+      this.session = this.session.filter((r) => !I2I_KINDS.includes(r.kind));
+      this.i2iCompare = false;
+    },
 
     // -------------------------------------------------------------- generate
     createArgs(overrides) {
@@ -3333,8 +3363,23 @@ const protoartApp = createApp({
       if (choice && choice !== "go") choice.apply();
       w.resolve(!!choice);
     },
+    dropMismatchedLoras() {
+      // a LoRA made for another model type (a FLUX.1 LoRA with FLUX.2, an SD 1.5 one with SDXL…) can't be used: it's
+      // left out of this picture with a note, instead of the whole picture failing (presets and older settings
+      // could bring one in). LoRAs whose type isn't known are left alone.
+      const fam = this.family, names = { flux: "FLUX.1", flux2: "FLUX.2", sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE" };
+      const bad = this.form.loras.filter((x) => {
+        const l = this.loras.find((y) => y.name === x.name);
+        return l && l.family && l.family !== "unknown" && l.family !== fam;
+      });
+      if (!bad.length) return;
+      this.form.loras = this.form.loras.filter((x) => !bad.includes(x));
+      const what = bad.map((x) => { const l = this.loras.find((y) => y.name === x.name); return `${x.name} (${names[l.family] || l.family})`; });
+      this.status = `Left out ${what.join(", ")}: made for another model type than ${this.familyLabel}`;
+    },
     async generate() {
       if (!(await this.slowCheck("create"))) return;
+      this.dropMismatchedLoras();
       if (this.loraRand.every && this.randomPool.length) await this.randomLoras(true);
       const res = await this.runJob("generate", this.createArgs());
       if (res) this.models = await call("list_models"); // refresh "downloaded" flags
@@ -3387,8 +3432,9 @@ const protoartApp = createApp({
     // -------------------------------------------------------------- LoRA randomizer
     async randomLoras(quiet) {
       const r = this.loraRand;
-      // take back the previous random pick (and the trigger words it added), keep LoRAs added by hand
-      this.form.loras = this.form.loras.filter((l) => !r.picked.includes(l.name));
+      // a new mix replaces every LoRA in the list (the ones added by hand or by a preset too: before, only the
+      // randomizer's own picks changed, so the first LoRA never did); the trigger words it added go too
+      this.form.loras = [];
       for (const w of r.words) if (this.inPrompt(w)) this.form.prompt = this.removeWord(this.form.prompt, w);
       r.picked = [];
       r.words = [];
@@ -4445,13 +4491,22 @@ const protoartApp = createApp({
     // -------------------------------------------------------------- enhance prompt / start image
     async enhanceNow(style) {
       const edit = style === "edit";
-      const res = await this.runJob("enhance_prompt", { prompt: this.form.prompt, width: this.form.width, height: this.form.height,
-                                                        model: this.form.model, family: edit ? "edit" : this.family });
+      const f = this.form, owner = f.prompt_owner === "i2i" ? "i2i" : "create";  // the tab that asked
+      const res = await this.runJob("enhance_prompt", { prompt: f.prompt, width: f.width, height: f.height,
+                                                        model: f.model, family: edit ? "edit" : this.family });
       if (res) {
-        this.undoPrompt = res.original;
-        this.form.prompt = res.prompt;
-        if (!edit) this.autoNegative();
-        this.status = edit ? "Instruction made clearer" : "Prompt enhanced (and a matching negative prompt written if yours was empty)";
+        const here = (f.prompt_owner === "i2i" ? "i2i" : "create") === owner;
+        if (here) {
+          this.undoPrompt = res.original;
+          f.prompt = res.prompt;
+          if (!edit) this.autoNegative();
+        } else if (owner === "i2i") {
+          f.i2i_prompt = res.prompt;  // you moved to another tab meanwhile: it goes back where it came from
+        } else {
+          f.create_prompt = res.prompt;
+        }
+        this.status = (edit ? "Instruction made clearer" : "Prompt enhanced (and a matching negative prompt written if yours was empty)")
+          + (here ? "" : ` (in ${owner === "i2i" ? "Image to image" : "Create"})`);
       }
     },
     async loadConvertList() {
@@ -4698,6 +4753,7 @@ const protoartApp = createApp({
       if (r) this.controlMap = r.src;
     },
     async generateI2I() {
+      if (!["edit", "remove"].includes(this.form.i2i_mode)) this.dropMismatchedLoras();
       const f = this.form;
       if (!f.init_image) return (this.error = "Add a picture first.");
       if (f.i2i_mode === "remove") {  // 🩹 spot healing: no model or prompt involved
@@ -4741,6 +4797,8 @@ const protoartApp = createApp({
         if (!f.control.type) delete args.control;
       }
       delete args.inpaint;
+      const im = this.inpaintModel;
+      if (im && ["inpaint", "outpaint"].includes(f.i2i_mode)) args.model = im.id;  // a model made for inpainting
       const res = await this.runJob("generate", args);
       if (res) this.models = await call("list_models");
     },
@@ -4802,7 +4860,7 @@ const protoartApp = createApp({
     onStartDrop(e) {
       this.startDragOver = false;
       const file = [...(e.dataTransfer?.files || [])].find(isPicture);
-      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) this.form.init_image = p; });
+      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) { this.form.init_image = p; this.controlMap = null; } });
     },
     onStartPicked(e) {
       const file = e.target.files?.[0];
@@ -5039,7 +5097,7 @@ const protoartApp = createApp({
       const PAGE = 120; // small pages keep older Macs smooth with big libraries
       if (more !== true) this.loadContentStatus();
       const rows = await call("library_query", {
-        hide_nsfw: this.hideNsfw,
+        hide_nsfw: this.hideNsfw, hide_people: !!this.opts.hide_people,
         text: this.lib.text || null, seed: String(this.lib.seed ?? "").trim() || null,
         model: this.lib.model || null, kind: this.lib.kind || null,
         starred_only: this.lib.starred, loras: this.lib.loras, limit: PAGE,
@@ -5616,7 +5674,8 @@ const protoartApp = createApp({
       // hides the models and LoRAs you tagged ● People (made of real people)
       this.opts.hide_people = !!on;
       await this.saveOpts();
-      if (!on) { this.status = "People models and LoRAs shown again"; return; }
+      if (this.tab === "library") this.queryLibrary();
+      if (!on) { this.status = "People models, LoRAs and pictures shown again"; return; }
       const dropped = this.form.loras.filter((l) => this.loras.find((x) => x.name === l.name)?.people);
       if (dropped.length) this.form.loras = this.form.loras.filter((l) => !dropped.includes(l));
       let msg = dropped.length ? `removed ${dropped.length} People LoRA${dropped.length === 1 ? "" : "s"} from the mix` : "";
@@ -5627,6 +5686,13 @@ const protoartApp = createApp({
       const n = this.models.filter((m) => m.people).length + this.loras.filter((l) => l.people).length;
       this.status = (n ? `${n} People model${n === 1 ? "" : "s"}/LoRA${n === 1 ? "" : "s"} hidden` :
         "Nothing is tagged People yet: click the ● after a name in Create's lists to tag one") + (msg ? " · " + msg : "");
+    },
+    async peopleScan() {  // Library → Hide People: look for faces in the older pictures (once)
+      const r = await this.runJob("people_scan", {});
+      if (r) {
+        this.status = `Checked ${r.checked} picture${r.checked === 1 ? "" : "s"}: ${r.with_people} with people`;
+        await this.queryLibrary();
+      }
     },
     async markPeople(kind, item) {
       // ● before a model or LoRA name: tag / untag it as made of real people (Hide People)

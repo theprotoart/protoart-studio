@@ -134,8 +134,10 @@
         <div class="slot-line">
           <label class="check"><input type="checkbox" v-model="lib.starred" @change="queryLibrary()"> ★ Starred only</label>
           <label class="check nsfw-switch" :class="{on: hideNsfw, locked: opts.sfw_mode}" :title="opts.sfw_mode ? 'Safe-for-work mode is on: NSFW stays hidden (Settings → Content filter)' : 'Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings.'"><input type="checkbox" :checked="hideNsfw" :disabled="opts.sfw_mode" @change="setHideNsfw($event.target.checked)"> {{ opts.sfw_mode ? '🛡 SFW' : 'Hide NSFW' }}</label>
-          <label class="check" :class="{on: opts.hide_people}" title="Hide pictures made with models or LoRAs you tagged ● People (made of real people). Same switch in Create and Settings."><input type="checkbox" :checked="opts.hide_people" @change="setHidePeople($event.target.checked)"> Hide People</label>
+          <label class="check" :class="{on: opts.hide_people}" title="Hide pictures of people (the prompt describes a person, or faces are found in the picture) and pictures made with models or LoRAs you tagged ● People. Same switch in Create and Settings."><input type="checkbox" :checked="opts.hide_people" @change="setHidePeople($event.target.checked)"> Hide People</label>
           <span class="hint">{{ libShown.length }} image{{ libShown.length===1?'':'s' }}<template v-if="hideNsfw && content.nsfw"> · {{ content.nsfw }} hidden</template><template v-if="libPeopleHidden"> · {{ libPeopleHidden }} People hidden</template></span>
+          <span v-if="opts.hide_people && content.faces_unchecked" class="hint">· {{ content.faces_unchecked }} older picture{{ content.faces_unchecked === 1 ? '' : 's' }} not checked for people yet
+            <button class="link" @click="peopleScan" title="Look for faces in them once (on this Mac, ~100 MB the first time), so Hide People hides pictures of people too">check now</button></span>
           <span class="spacer"></span>
           <button v-if="libLoras.length" class="ghost" :class="{on: libLoraOpen || lib.loras.length}" @click="libLoraOpen = !libLoraOpen"
                   title="Show images made with particular LoRAs">Filter by LoRA{{ lib.loras.length ? ' (' + lib.loras.length + ')' : '' }}</button>
@@ -404,7 +406,7 @@
         <div class="lora-rand">
           <div class="lora-rand-line">
             <button class="ghost" @click="randomLoras()" :disabled="!randomPool.length"
-                    :title="'Add a random mix of LoRAs that work with ' + familyLabel + ' (' + randomPool.length + ' to choose from). Click again for a different mix.'">🎲 Random LoRAs</button>
+                    :title="'Replace the LoRAs with a random mix of ones that work with ' + familyLabel + ' (' + randomPool.length + ' to choose from). Click again for a different mix.'">🎲 Random LoRAs</button>
             <span class="hint">pick</span>
             <select v-model.number="loraRand.min" title="The fewest LoRAs to pick"><option v-for="v in [1,2,3,4]" :key="v" :value="v">{{ v }}</option></select>
             <span class="hint">to</span>
@@ -417,7 +419,7 @@
             <span class="hint">and</span>
             <input type="number" min="-2" max="2" step="0.05" v-model.number="loraRand.wmax" class="num" title="Highest strength a random LoRA gets (1 = full)">
           </div>
-          <label class="check lora-rand-every" title="Each time you press Generate, swap the random LoRAs for a new mix (the LoRAs you added yourself stay)">
+          <label class="check lora-rand-every" title="Each time you press Generate, every LoRA in the list is swapped for a new random mix">
             <input type="checkbox" v-model="loraRand.every"> New random mix every time I press Generate</label>
         </div>
         <template v-for="(l, i) in form.loras" :key="l.name">
@@ -1812,7 +1814,8 @@
              @click="$refs.startPick.click()">
           Drop a picture here <span class="hint">(or click to choose · or “Send to Image to image” on any library picture)</span>
         </div>
-        <div v-else-if="['inpaint', 'remove', 'edit'].includes(form.i2i_mode)" class="i2i-src mask-editor">
+        <div v-else-if="['inpaint', 'remove', 'edit'].includes(form.i2i_mode)" class="i2i-src mask-editor" :class="{over: startDragOver}"
+             @dragover.prevent="startDragOver=true" @dragleave="startDragOver=false" @drop.prevent="onStartDrop" title="Drop another picture here to replace this one">
           <div class="mask-stage">
             <img :src="fileUrl(form.init_image)" @load="initMaskCanvas" ref="maskImg" draggable="false">
             <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove($event); brushAt($event)" @pointerup="maskUp"
@@ -1824,7 +1827,7 @@
           </div>
           <button class="link" @click="form.init_image = ''; controlMap = null">remove</button>
         </div>
-        <div v-else class="i2i-src">
+        <div v-else class="i2i-src" :class="{over: startDragOver}" @dragover.prevent="startDragOver=true" @dragleave="startDragOver=false" @drop.prevent="onStartDrop" title="Drop another picture here to replace this one">
           <img :src="fileUrl(form.init_image)" @load="onInitLoad">
           <button class="link" @click="form.init_image = ''; controlMap = null">remove</button>
         </div>
@@ -1835,6 +1838,12 @@
           <button :class="{on: form.i2i_mode === 'inpaint'}" @click="setI2iMode('inpaint')" title="Paint over a part and redraw only that part">🖌 Inpaint</button>
           <button :class="{on: form.i2i_mode === 'outpaint'}" @click="setI2iMode('outpaint')" title="Make the picture bigger and fill in the new area">↔ Expand</button>
           <button :class="{on: form.i2i_mode === 'remove'}" @click="setI2iMode('remove')" title="Paint over something and it disappears, filled in from what's around it (no prompt or model needed)">🩹 Remove</button>
+        </div>
+        <div v-if="['inpaint', 'outpaint'].includes(form.i2i_mode) && inpaintModels.some((m) => m.family === family)" class="hint inpaint-model-note">
+          <label class="check" title="Inpainting models are made for filling in painted areas: edges blend in better. Off: your model at the top does it.">
+            <input type="checkbox" :checked="opts.use_inpaint_model !== false" @change="opts.use_inpaint_model = $event.target.checked; saveOpts()">
+            🖌 Paint with an inpainting model</label>
+          <template v-if="inpaintModel">: <b>{{ inpaintModel.label }}</b> (your LoRAs and settings still apply)</template>
         </div>
         <template v-if="form.i2i_mode === 'change'">
           <label class="check"><input type="checkbox" v-model="form.i2i_use_init"> Start from this picture (image-to-image)</label>
@@ -2097,6 +2106,8 @@
           <span class="hint" v-else-if="busy">another job is running (see Create); this one waits its turn</span>
           <span class="spacer"></span>
           <label v-if="i2iLatest && form.init_image && !i2iRunning" class="check"><input type="checkbox" v-model="i2iCompare"> compare with the original</label>
+          <button v-if="i2iResults.length && !i2iRunning" class="ghost small" @click="clearI2iResults"
+                  title="Take the results off this screen (they stay in the Library)">✕ Clear results</button>
         </div>
         <div v-if="i2iRunning" class="bar"><div :style="{width: progressPct + '%'}"></div></div>
         <div class="i2i-stage" :class="{split: i2iCompare && i2iLatest && form.init_image && !i2iRunning}">

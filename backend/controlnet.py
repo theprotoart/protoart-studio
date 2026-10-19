@@ -297,7 +297,7 @@ def _load_user_xl(kind, name, path, layout, unet, dtype, emit, family="sdxl"):
         # a few parts missing (some older SD 1.5 files): start from the UNet's own weights for those, as before
         del cn
         gc.collect()
-        cn = diffusers.ControlNetModel.from_unet(unet).to(dtype=dtype)
+        cn = clean_from_unet(unet).to(dtype=dtype)
         empty = False
     state = {k: v.to(dtype) for k, v in state.items() if k in want}
     try:
@@ -344,6 +344,29 @@ def is_cached(kind):
         return False
 
 
+def clean_from_unet(unet):
+    """A ControlNet started from the model's own UNet, like diffusers' from_unet, but without any LoRA in it. With a
+    LoRA switched on the UNet's layers carry extra LoRA parts (".base_layer", "lora_A"…), and copying them broke every
+    DiffusionBee ControlNet ("Missing key(s) … Unexpected key(s) … lora_A"): the LoRA parts are left out and the
+    base weights used."""
+    import diffusers
+    cn = diffusers.ControlNetModel.from_unet(unet, load_weights_from_unet=False)
+    cn.load_state_dict(unet_base_state(unet.state_dict(), cn.state_dict().keys()), strict=False)
+    return cn
+
+
+def unet_base_state(unet_state, want):
+    """The UNet's weights without LoRA parts, keyed as the ControlNet names them (only the ones it has)."""
+    want, out = set(want), {}
+    for k, v in unet_state.items():
+        if ".lora_" in k or "lora_magnitude" in k or "lora_embedding" in k:
+            continue
+        k = k.replace(".base_layer.", ".")
+        if k in want:
+            out[k] = v
+    return out
+
+
 def load(kind, unet, dtype, emit=lambda m: None):
     """Return a diffusers ControlNetModel for this kind (SD 1.5)."""
     import diffusers
@@ -362,7 +385,7 @@ def load(kind, unet, dtype, emit=lambda m: None):
                     and not k.startswith(("zeros_", "ones_", "temb_coefficients", "causal_mask", "aux_output_conv",
                                           "alphas_cumprod"))}
             import torch
-            cn = diffusers.ControlNetModel.from_unet(unet)
+            cn = clean_from_unet(unet)
             state = convert_controlnet_checkpoint(ckpt, cn.config)
             missing, unexpected = cn.load_state_dict(state, strict=False)
             print(f"[controlnet] DiffusionBee {kind}: {len(state)} weights, {len(missing)} missing, "

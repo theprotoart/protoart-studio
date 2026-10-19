@@ -188,8 +188,10 @@ def _custom_models():
         except Exception:
             continue
         base = MODELS["sdxl_int8" if family == "sdxl" else "sd15"]
+        inpaint = model_hub.is_inpaint_header(header)
         out["file:" + p.name] = {
-            "label": f"{p.stem} ({'SDXL' if family == 'sdxl' else 'SD 1.5'} checkpoint)",
+            "label": f"{p.stem} ({'SDXL' if family == 'sdxl' else 'SD 1.5'} {'inpainting' if inpaint else 'checkpoint'})",
+            **({"inpaint": True} if inpaint else {}),
             "family": family, "file": str(p), "download_gb": 0, "quant": None,
             # full-precision checkpoints: SDXL needs Low-memory mode under 16 GB
             "min_ram_gb": 16 if family == "sdxl" else 8, "low_memory_min_ram_gb": 8 if family == "sdxl" else None,
@@ -200,8 +202,10 @@ def _custom_models():
     try:
         import diffusionbee
         for i in diffusionbee.checkpoints():
+            inpaint = "inpaint" in i["name"].lower()
             out["tdict:" + Path(i["file"]).name] = {
-                "label": f"{i['name']} (DiffusionBee)", "family": "sd15", "tdict": i["file"],
+                "label": f"{i['name']} (DiffusionBee{' inpainting' if inpaint else ''})", "family": "sd15", "tdict": i["file"],
+                **({"inpaint": True} if inpaint else {}),
                 "download_gb": 0, "quant": None, "min_ram_gb": 8, "source": "diffusionbee",
                 "defaults": dict(MODELS["sd15"]["defaults"]),
             }
@@ -603,7 +607,7 @@ class Engine:
              "clip_skip": recommended_clip_skip(v, k), "flavor": model_flavor(v, k),
              "path": (str(v.get("file") or v.get("tdict") or v.get("local_dir") or "") or None) if ":" in k else None,
              "family_set": bool(v.get("family_set")), "detected_family": v.get("detected_family"),
-             "single_file": bool(v.get("file") or v.get("tdict")) and ":" in k,
+             "single_file": bool(v.get("file") or v.get("tdict")) and ":" in k, "inpaint": bool(v.get("inpaint")),
              "nsfw_auto": nsfw_words.name_flag(v["label"], k, os.path.basename(
                  str(v.get("file") or v.get("tdict") or v.get("local_dir") or "")))}
             for k, v in all_models().items()
@@ -1252,7 +1256,7 @@ class Engine:
                 path = self._save(image, settings)
                 record = self.library.add_image(path, settings, kind="generated")
                 record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
-                record = self._content_check(record, image)
+                record = self._people_check(self._content_check(record, image), image)
                 results.append(record)
                 self.emit({"type": "image", "record": record})
             return results
@@ -1384,6 +1388,63 @@ class Engine:
         except Exception as e:
             print("[engine] picture check failed:", e, flush=True)
         return record
+
+    def _face_finder_ready(self):
+        """The face finder, if its files are on this Mac (it's the one Restore faces uses). Never downloads here."""
+        import detailer
+        if self.face_finder is None:
+            d = paths.WEIGHTS_DIR / "facexlib"
+            if not any(d.glob("detection_Resnet50*")):
+                return None
+            self.face_finder = detailer.FaceFinder(d)
+        return self.face_finder
+
+    def _people_check(self, record, image):
+        """Count the faces in a new picture (for Hide People), unless its prompt already says it shows a person."""
+        if record is None or record.get("people_prompt"):
+            return record
+        try:
+            ff = self._face_finder_ready()
+            if ff is None:
+                return record
+            small = image.copy()
+            small.thumbnail((640, 640))
+            n = len(ff.find(small, min_score=0.7, min_size=20))
+            self.library.set_faces(record["id"], n)
+            record = dict(record, faces=n)
+        except Exception as e:
+            print("[engine] face check failed:", e, flush=True)
+        return record
+
+    def people_scan(self, args):
+        """Look for faces in every Library picture not checked yet (Hide People). Downloads the face finder once."""
+        from PIL import Image
+        import detailer
+        todo = self.library.faces_unchecked()
+        if self.face_finder is None:
+            self.emit({"type": "status", "msg": "Loading the face finder (first time ~100 MB)…"})
+            self.face_finder = detailer.FaceFinder(paths.WEIGHTS_DIR / "facexlib")
+        done, found, missing = 0, 0, 0
+        started = time.time()
+        for i, (image_id, path) in enumerate(todo):
+            if self.cancel_event.is_set():
+                break
+            if i % 5 == 0:
+                self.emit({"type": "progress", "image": 1, "images": 1, "step": i, "steps": len(todo)})
+                self.emit({"type": "status", "msg": f"Looking for people {i + 1} of {len(todo)}…"})
+            try:
+                with Image.open(path) as im:
+                    im = im.convert("RGB")
+                    im.thumbnail((640, 640))
+                    n = len(self.face_finder.find(im, min_score=0.7, min_size=20))
+            except (OSError, ValueError):
+                missing += 1
+                continue
+            self.library.set_faces(image_id, n)
+            done += 1
+            found += 1 if n else 0
+        print(f"[timing] looked for faces in {done} pictures in {time.time() - started:.1f}s", flush=True)
+        return {"checked": done, "with_people": found, "missing": missing}
 
     def nsfw_scan(self, args):
         """Check every picture in the Library that hasn't been checked yet (downloads the checker once)."""
@@ -1721,6 +1782,9 @@ class Engine:
         d = spec["defaults"]
         family = spec["family"]
         is_sd = family in ("sd15", "sdxl") and spec.get("engine") != "mlx"
+        if spec.get("inpaint") and not (args.get("mask") or isinstance(args.get("outpaint"), dict)):
+            raise UserError(f"{spec['label']} is an inpainting model: it only fills in painted areas. It's used by "
+                            "Image to image → Inpaint and Expand; pick another model to make or change whole pictures.")
 
         width = int(args.get("width") or d["width"])
         height = int(args.get("height") or d["height"])
@@ -2093,7 +2157,7 @@ class Engine:
                 ("img2img" if (init_image is not None or control) else "generated")
             record = self.library.add_image(path, settings, kind=kind)
             record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
-            record = self._content_check(record, image)
+            record = self._people_check(self._content_check(record, image), image)
             results.append(record)
             self.emit({"type": "image", "record": record})
         return results

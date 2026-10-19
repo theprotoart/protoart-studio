@@ -1826,3 +1826,21 @@ button.cmp-key.on:hover:not(:disabled) { background: radial-gradient(ellipse at 
 
 /* How to → 📜 Model licences: folds up like the tab sections */
 .licence-acc { margin: 9px 0 18px; }
+
+/* Image to image → 1 · Picture: dropping another picture on the one there replaces it */
+.i2i-src.over { outline: 2px dashed var(--amber, #ffae2b); outline-offset: 3px; border-radius: 4px; }
+/* queue rows: room on the right for ⏭ / ⤵ / ▲▼ / ✕ so they never sit on the job's text (the ⤵ covered the model name) */
+.job { padding-right: 96px; }
+.job .job-skip { right: 66px; }
+.job .job-skip.job-later { right: 36px; }
+/* LoRA rows: fixed columns (name | ★ ● ⚑ | source · size), so the markers and sizes line up on every row */
+.lora-item { grid-template-columns: minmax(0, 1fr) 63px 128px !important; }
+.lora-item > .hint { overflow: hidden; text-overflow: ellipsis; text-align: right; }
+/* the left panels never scroll sideways: everything fits (the Pause / Stop / Stop all row wraps if it must) */
+.controls, .i2i-left, .train-left { overflow-x: hidden; }
+.stop-group { flex-wrap: wrap; min-width: 0; }
+.stop-group > button { min-width: 0; flex: 1 1 auto; }
+.controls .row, .i2i-left .row { flex-wrap: wrap; row-gap: 4px; min-width: 0; }
+.controls .row > *, .i2i-left .row > * { min-width: 0; }
+.controls button.link, .i2i-left button.link { white-space: normal; text-align: left; }
+.controls .hint, .i2i-left .hint { overflow-wrap: anywhere; }
