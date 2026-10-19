@@ -115,7 +115,39 @@
     "hide nsfw": "Cover pictures, LoRAs and models marked NSFW",
     "hide people": "Hide pictures, LoRAs and models tagged with real people",
     "incl. prompt": "Also save the prompt in the preset",
+    "use": "Use this",
+    "＋ save": "Save the prompt in the box so you can use it again",
+    "choose a folder of images…": "Pick the folder with your training pictures (they aren't moved or changed)",
+    "change folder…": "Pick another folder",
+    "use in create": "Pick this model in Create",
+    "↻ refresh": "Look for new or removed files again",
+    "vectorize": "Trace the picture into an SVG drawing of flat colour shapes",
+    "show my files": "Open the folder the converted files were saved in",
+    "＋ add watched folders…": "Watch more folders of models: every model in them appears in the app (⌘-click to pick several)",
+    "↻ look for libraries again": "Look again for Stability Matrix, ComfyUI, A1111 / Forge, InvokeAI and Fooocus libraries, and re-read your watched folders",
+    "pick a library folder…": "Use another app's model library that's somewhere unusual (e.g. on an external drive)",
+    "how much space do they use?": "Show how much disk space the downloaded models take",
+    "fix a type → models tab": "Correct a model or LoRA that's listed under the wrong type",
+    "models tab": "Open the Models tab",
+    "get photocraft (free, open source)": "Open PhotoCraft's download page",
+    "★ starred only": "Show only the pictures you starred",
+    "mirror images too (doubles variety; skip for text or logos)": "Also train on left-right flipped copies: more variety, but don't use it for text, logos or one-sided details",
   };
+  // Buttons whose label changes (counts, shortcuts): matched by pattern.
+  const BY_PATTERN = [
+    [/^(\/|~)/, "Open this folder in Finder"],
+    [/^generate\b/, "Make the picture(s) with these settings (⌘↵). While something is running it's added to the queue"],
+    [/^add to queue$/, "Add this job to the queue: it runs when the one before it finishes"],
+    [/^make comparison grid/, "Make one picture for each value and put them side by side in a grid"],
+    [/^(all|added|sd 1\.5|sdxl|flux|flux\.2|ernie|pony|illustrious|noobai|anima)( \d+)?$/, "Show only this type"],
+    [/^(embeddings|vaes|controlnets) \d+$/, "Show this kind of file"],
+    [/^🖼 start from a picture/, "Go to Image to image to start from a picture or use ControlNet"],
+    [/\bsd 1\.5 · your file\b|\(your file\)|· your file|checkpoint\)|\(diffusionbee\)/, "Use this model"],
+    [/^(png|jpeg) \(/, "The file format new pictures are saved in"],
+    [/^embed (the prompt|nothing)/, "What's written inside each saved picture file"],
+    [/^(delete permanently|move to the trash)/, "What Delete does with a picture's file"],
+    [/^(load a model as soon as|load anyway when|low-memory mode|show a live preview|check each picture|hide people models|hide nsfw pictures|when i add a lora|move my existing images|move the models already|also train the text encoder)/, "Switch this on or off (the note below explains it)"],
+  ];
 
   let enabled = true;
   let tipEl = null;
@@ -146,9 +178,11 @@
       node.removeAttribute("title");  // so macOS doesn't show its own, slower tip as well
     }
     if (node.dataset.tip) return node.dataset.tip;
-    if (node.tagName === "BUTTON" || node.tagName === "LABEL") {
+    if (node.tagName === "BUTTON" || node.tagName === "LABEL" || node.getAttribute("role") === "button") {
       const label = (node.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
-      return BY_TEXT[label] || "";
+      if (BY_TEXT[label]) return BY_TEXT[label];
+      const hit = BY_PATTERN.find(([re]) => re.test(label));
+      return hit ? hit[1] : "";
     }
     return "";
   }
@@ -168,11 +202,50 @@
     t.style.top = `${Math.round(Math.max(pad, y))}px`;
   }
 
+  const CONTROL = "button, label, input, select, textarea, a, [role=button], [role=switch]";
+
+  function ownTip(node) {
+    const t = node.getAttribute && node.getAttribute("title");
+    if (t) { node.dataset.tip = t; node.removeAttribute("title"); }
+    return (node.dataset && node.dataset.tip) || "";
+  }
+
+  // A slider, menu or box with no tip of its own borrows the one of the words that name it: its <label for>,
+  // the label or hint just before it (e.g. "fidelity" ▸ slider), or the label it sits in.
+  function borrowedTip(node) {
+    if (!/^(INPUT|SELECT|TEXTAREA)$/.test(node.tagName)) return "";
+    if (node.id) {
+      const l = document.querySelector(`label[for="${CSS.escape(node.id)}"]`);
+      if (l && (ownTip(l) || "")) return l.dataset.tip;
+    }
+    for (let sib = node.previousElementSibling, n = 0; sib && n < 3; sib = sib.previousElementSibling, n++) {
+      const t = ownTip(sib) || (sib.querySelector && [...sib.querySelectorAll("[title], [data-tip]")].map(ownTip).find(Boolean));
+      if (t) return t;
+      if (/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(sib.tagName)) break;  // that one belongs to another control
+    }
+    return "";
+  }
+
+  // From what the pointer is on, up to the page: the first thing that has something to say.
+  function findTip(target) {
+    for (let node = target, depth = 0; node && node !== document.body && depth < 8; node = node.parentElement, depth++) {
+      if (node.nodeType !== 1) continue;
+      const text = textFor(node) || borrowedTip(node);
+      if (text) return { node, text };
+      if (node.matches && node.matches(CONTROL) && node.tagName !== "LABEL") {
+        // a control with nothing to say: an enclosing label or card title may still explain it
+        continue;
+      }
+    }
+    return null;
+  }
+
   document.addEventListener("mouseover", (e) => {
-    const node = e.target.closest && e.target.closest("[title], [data-tip], button, label.check");
+    const hit = e.target && e.target.nodeType === 1 ? findTip(e.target) : null;
+    const node = hit && hit.node;
     if (!node || node === current) return;
     hide();
-    const text = textFor(node);
+    const text = hit.text;
     if (!enabled || !text) return;
     current = node;
     timer = setTimeout(() => {
@@ -198,5 +271,6 @@
     },
     get enabled() { return enabled; },
     _byText: BY_TEXT,
+    _find: (n) => findTip(n),
   };
 })();

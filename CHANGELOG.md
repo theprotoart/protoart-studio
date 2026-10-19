@@ -2,6 +2,15 @@
 
 ## 1.2.1 (test version)
 
+- 🏷 LoRA tags (`loraTags`, localStorage `protoart.loraTags`; Models → LoRA tags panel with batch tag / untag /
+  rename): `tag:` filters in `loraKinds`, `#tag` search in Create and Image to image
+- Expand with FLUX.2: model menu shows FLUX.2 Klein (`i2iUsesKlein`), "outpaint" enhancer style
+  (`prompt_enhance.SYSTEM["outpaint"]`), results kept in Image to image (`I2I_KINDS` + inpaint / outpaint)
+- Image to image: Picture card first; Sampler and LoRAs hidden when FLUX.2 is used
+- Models tab: Embeddings, VAEs & ControlNets foldable (`shopFolds.extras`); Your model files moved to the bottom
+- Tooltips: `tips.js` walks up from the pointer, borrows the label / hint next to sliders, menus and boxes, pattern
+  tips (`BY_PATTERN`); titles added to ~30 menus and fields
+- Create: collapse / expand and Reset all on one row (`.controls > .cfold-all` no wrap)
 - ↔ Expand with FLUX.2 Klein + fal's outpaint LoRA (`Engine.outpaint_klein`, `green_canvas`, `OUTPAINT_LORA` pinned
   revision, 76 MB, Apache-2.0): pure-green border canvas, prompt "Fill the green spaces according to the image", LoRA
   scale 1.1, through the Edit with words queue entry (`edit_words` with `outpaint`); original pixels composited back.

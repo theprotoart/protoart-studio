@@ -89,16 +89,16 @@
       <!-- Image to image: the model -->
       <div v-else-if="tab==='i2i'" class="slot-model">
         <span class="eng slot-label">Model</span>
-        <select :value="form.i2i_mode === 'edit' ? 'flux2_klein_mlx_q4' : form.model" @change="pickI2iModel($event.target.value)">
+        <select title="The model Image to image uses: FLUX.2 Klein for Edit with words and Expand, or an SD 1.5 / SDXL model for the other modes" :value="i2iUsesKlein ? 'flux2_klein_mlx_q4' : form.model" @change="pickI2iModel($event.target.value)">
           <optgroup v-if="editModel()" label="FLUX.2 · ✨ Edit with words (uses More pictures instead of image prompt / ControlNet)">
-            <option value="flux2_klein_mlx_q4">FLUX.2 Klein 4B · ✨ Edit with words{{ editModel().cached ? '' : ' · ' + Math.round(editModel().download_gb) + ' GB download' }}</option>
+            <option value="flux2_klein_mlx_q4">FLUX.2 Klein 4B · {{ form.i2i_mode === 'outpaint' ? '↔ Expand with the outpaint LoRA' : '✨ Edit with words' }}{{ editModel().cached ? '' : ' · ' + Math.round(editModel().download_gb) + ' GB download' }}</option>
           </optgroup>
           <optgroup v-for="g in i2iModelGroups" :key="g.name" :label="g.name">
             <option v-for="m in g.models" :key="m.id" :value="m.id" :disabled="!m.i2iOk">
               {{ m.label }}{{ m.people ? ' ●' : '' }}{{ m.nsfw ? ' ⚑' : '' }}{{ m.i2iOk ? (m.cached ? '' : ' · ' + Math.round(m.download_gb) + ' GB download') : ' — not for image to image' }}</option>
           </optgroup>
         </select>
-        <span v-if="form.i2i_mode === 'edit'" class="hint">FLUX.2 · ⚡ fast engine · the other modes use {{ currentModel ? currentModel.label : 'the Create model' }}</span>
+        <span v-if="i2iUsesKlein" class="hint">FLUX.2 · ⚡ fast engine · the other modes use {{ currentModel ? currentModel.label : 'the Create model' }}</span>
         <span v-else class="hint">{{ familyLabel }}<template v-if="form.loras.length"> · {{ form.loras.length }} LoRA{{ form.loras.length === 1 ? "" : "s" }}</template></span>
       </div>
       <!-- Tools: the engine -->
@@ -131,11 +131,11 @@
             <button v-if="selectMode" class="primary small lib-compare" :disabled="selected.length < 2" @click="openCompareView"
                     :title="selected.length < 2 ? 'Select 2 or more pictures to compare them side by side' : 'Show the selected pictures side by side (up to 6)'">⇆ Compare{{ selected.length > 1 ? ' (' + Math.min(selected.length, 6) + ')' : '' }}</button>
           </span>
-          <select v-model="lib.model" @change="queryLibrary()">
+          <select title="Show only pictures made with this model" v-model="lib.model" @change="queryLibrary()">
             <option value="">All models</option>
             <option v-for="m in libModels" :key="m.id" :value="m.id">{{ m.label }}</option>
           </select>
-          <select v-model="lib.kind" @change="queryLibrary()">
+          <select title="Show only one kind of picture: originals, image-to-image results, face-restored, enhanced…" v-model="lib.kind" @change="queryLibrary()">
             <option value="">All versions</option><option value="generated">Originals</option>
             <option value="img2img">Image-to-image</option><option value="faces">Face-restored</option><option value="enhanced">Enhanced</option><option value="healed">Objects removed</option><option value="word_edit">Edited with words</option>
           </select>
@@ -255,9 +255,8 @@
   <main v-if="tab==='create'" class="create">
     <aside class="controls">
       <div class="cfold-all">
-        <button class="link small" @click="cfAll(true)" title="Fold every section down to one line">collapse all</button> ·
-        <button class="link small" @click="cfAll(false)">expand all</button>
-        <span class="hint">· click a section's name to fold it</span>
+        <button class="link small" @click="cfAll(true)" title="Fold every section down to one line (or click a section's name to fold just that one)">collapse all</button> ·
+        <button class="link small" @click="cfAll(false)" title="Open every section (or click a section's name to open just that one)">expand all</button>
         <span class="spacer"></span>
         <button class="bat-toggle reset-toggle" :class="{on: resetFlip}" :disabled="!currentModel || resetFlip" @click="flipResetAll"
                 title="Reset all of Create: prompt and negative prompt cleared, this model's own size, steps, guidance and sampler, no LoRAs, no image prompt, extras off, every section folded. Your model and saved presets stay. The lever springs back by itself.">
@@ -436,7 +435,7 @@
         </div>
         <textarea class="tape tape-neg" v-model="form.negative_prompt" rows="2" placeholder="What to avoid…"></textarea>
         <div class="seed-row neg-seed"><label>Seed <span class="hint">-1 = random · the same seed and settings make the same picture</span></label>
-          <input type="number" class="amber-num" v-model.number="form.seed">
+          <input title="Seed: the same seed and settings make the same picture. -1 = a new random one each time" type="number" class="amber-num" v-model.number="form.seed">
           <button class="link" v-if="form.seed !== -1" @click="form.seed = -1" title="Back to a new random seed each time">🎲 random</button></div>
       </section>
 
@@ -498,7 +497,7 @@
         </template>
         <div class="lora-search-row">
           <input class="lora-search" v-model="loraSearch" @focus="loraOpen = true"
-                 :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ')'">
+                 :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ', or #tag)'">
           <button class="chip" :class="{on: loraFavOnly}" @click="loraFavOnly = !loraFavOnly; loraOpen = true"
                   title="Show only your ★ favourite LoRAs (click the ★ on a LoRA to add it)">★ <small>{{ favLoras.length }}</small></button>
         </div>
@@ -510,6 +509,7 @@
           <select v-model="loraKind" title="Show only one kind of LoRA">
             <option value="">All kinds ({{ addableLoras.length }})</option>
             <option v-for="k in loraKinds" :key="k.id" :value="k.id">{{ k.label }} ({{ k.n }})</option>
+            <option value="__tags">🏷 Make or manage your own tags…</option>
           </select>
         </div>
         <div v-if="loraOpen" class="lora-list">
@@ -577,13 +577,13 @@
         </div>
         <div class="span2 size-row">
           <div><label>Width</label>
-            <input type="number" list="dims-list" min="256" max="2048" step="8" :value="form.width"
+            <input title="Width in pixels" type="number" list="dims-list" min="256" max="2048" step="8" :value="form.width"
                    @input="setSide('width', $event.target.value, false)" @change="setSide('width', $event.target.value, true)"></div>
           <button class="ghost link-btn" :class="{on: form.size_link}" @click="toggleSizeLink"
                   :title="form.size_link ? 'Width and height are linked (keeps the shape). Click to unlink.' : 'Link width and height to keep the shape'">
             🔗</button>
           <div><label>Height</label>
-            <input type="number" list="dims-list" min="256" max="2048" step="8" :value="form.height"
+            <input title="Height in pixels" type="number" list="dims-list" min="256" max="2048" step="8" :value="form.height"
                    @input="setSide('height', $event.target.value, false)" @change="setSide('height', $event.target.value, true)"></div>
           <button class="ghost link-btn" @click="swapSize" title="Swap width and height (portrait ⇄ landscape)">⇄</button>
           <datalist id="dims-list"><option v-for="v in dims" :key="v" :value="v"></option></datalist>
@@ -595,7 +595,7 @@
             ⚡ Fast mode <span class="hint">LCM speed LoRA · 6 steps instead of 25–30 (≈3–5× faster, slightly softer detail)</span></label>
         </div>
         <div class="span2"><label>Sampler <span v-if="form.fast && currentModel?.fast_mode" class="hint">· LCM is used in fast mode</span></label>
-          <select v-model="form.sampler" @change="onSamplerChange" :disabled="form.fast && currentModel?.fast_mode"
+          <select title="The sampler: how the picture is worked out step by step. ⚡ ones need fewer steps, ★ ones give the most detail" v-model="form.sampler" @change="onSamplerChange" :disabled="form.fast && currentModel?.fast_mode"
                   :class="{'rec-sampler': samplerIsPick(form.sampler)}">
             <template v-if="samplerPicks().fast.length">
               <optgroup :label="'⚡ Fastest for ' + pickFor()"><option v-for="s in samplerPicks().fast" :key="'f' + s.id" :value="s.id">{{ s.label }}{{ s.steps ? ' · ~' + s.steps[0] + ' steps' : '' }}</option></optgroup>
@@ -711,9 +711,9 @@
             <span class="hint">{{ cmp.open ? 'on · click here to turn it off' : 'off · same picture, different settings, side by side' }}</span></summary>
           <div class="grid2">
             <div><label>Across</label>
-              <select v-model="cmp.x" @change="cmpDefaults('x')"><option v-for="(lbl, k) in cmpAxes" :key="k" :value="k">{{ lbl }}</option></select></div>
+              <select title="What changes from column to column in the comparison grid" v-model="cmp.x" @change="cmpDefaults('x')"><option v-for="(lbl, k) in cmpAxes" :key="k" :value="k">{{ lbl }}</option></select></div>
             <div><label>Down <span class="hint">optional</span></label>
-              <select v-model="cmp.y" @change="cmpDefaults('y')"><option value="">—</option><option v-for="(lbl, k) in cmpAxes" :key="k" :value="k" :disabled="k === cmp.x">{{ lbl }}</option></select></div>
+              <select title="What changes from row to row (— = one row only)" v-model="cmp.y" @change="cmpDefaults('y')"><option value="">—</option><option v-for="(lbl, k) in cmpAxes" :key="k" :value="k" :disabled="k === cmp.x">{{ lbl }}</option></select></div>
             <div class="span2"><label>Values across <span class="hint">click to pick · {{ cmpList('xv').length }} picked</span></label>
               <div class="cmp-keys">
                 <button v-for="o in cmpOptions(cmp.x)" :key="o.v" class="cmp-key" :class="{on: cmpHas('xv', o.v)}" @click="cmpToggle('xv', o.v, cmp.x)" :title="o.title || ''">{{ o.label }}</button>
@@ -728,7 +728,7 @@
               <input v-model="cmp.yv" :placeholder="cmpPlaceholder(cmp.y)"><span class="hint">{{ cmpHelp(cmp.y) }}</span></details></div>
             <div v-if="['lora_weight','lora'].includes(cmp.x) || ['lora_weight','lora'].includes(cmp.y)" class="span2">
               <label>Which LoRA <span class="hint">{{ cmp.x === 'lora' || cmp.y === 'lora' ? 'is swapped for each value (“none” = without it)' : 'gets the different weights' }}</span></label>
-              <select v-model="cmp.lora"><option value="">{{ form.loras.length ? 'all active LoRAs' : '(add a LoRA above)' }}</option>
+              <select title="Which LoRA's weight the grid changes" v-model="cmp.lora"><option value="">{{ form.loras.length ? 'all active LoRAs' : '(add a LoRA above)' }}</option>
                 <option v-for="l in form.loras" :key="l.name" :value="l.name">{{ l.name }}</option></select></div>
           </div>
           <div class="row">
@@ -960,35 +960,6 @@
   <!-- ============================ MODELS ============================ -->
   <main v-if="tab==='models'" class="models-tab">
     <div class="model-panels">
-      <section class="mpanel" id="mp-own" :class="{open: mpanels.own}">
-        <h3 @click="toggleModelsPanel('own')"><i class="led" :class="{on: mpanels.own}"></i>Your model files <span class="hint">· {{ localModels.length }} added from this Mac · offline, nothing is copied or uploaded</span></h3>
-        <div v-if="mpanels.own" class="mpanel-body">
-    <p class="hint">Use base models you already have: SD 1.5 / SDXL checkpoint files (<code>.safetensors</code>, <code>.ckpt</code>)
-      or diffusers model folders (any model type, including ERNIE and newer ones). They're read where they are.</p>
-    <div class="row">
-      <button @click="addLocalModels">Add model files or folders…</button>
-      <button class="ghost" @click="openModelFolders" title="Folders whose models are all listed: Settings → Model folders">Watch a folder… (Settings)</button>
-    </div>
-    <p class="hint">A folder that also holds LoRAs (including DiffusionBee <code>.tdict</code> files) is used as a LoRA folder too.</p>
-    <p class="hint"><b>Add model files</b>: pick particular models; only those are added. <b>Watch a folder</b>: pick a folder
-      (an external drive is fine) and every model in it is used, including ones you put there later. Either way nothing is
-      copied: the files stay where they are and must be there (drive connected) to be used.</p>
-    <div v-if="localErr" class="error-box">{{ localErr }}</div>
-    <div v-if="localOk" class="ok-box">{{ localOk }} <button class="link" @click="localOk = ''">ok</button></div>
-    <table v-if="localModels.length || modelDirs.dirs.length">
-      <tr v-for="m in localModels" :key="m.id"><td>{{ m.label }}</td>
-        <td class="hint">{{ familyName(m.family) }}<template v-if="m.class_name && m.family === 'other'"> ({{ m.class_name }})</template> · {{ m.file || m.local_dir || '' }}</td>
-        <td class="rm-cell"><template v-if="isAddedLocal(m.id)">
-              <button class="ghost small lock-btn" :class="{on: !unlocked[m.id]}" @click="unlocked[m.id] = !unlocked[m.id]"
-                      :title="unlocked[m.id] ? 'Unlocked: Remove works. Click to lock again.' : 'Locked so it can\'t be removed by accident. Click to unlock.'">{{ unlocked[m.id] ? '🔓' : '🔒' }}</button>
-              <button class="ghost small" :disabled="!unlocked[m.id]" @click="removeLocalModel(m.id)"
-                      title="Take it off the list (the file itself stays on your Mac)">Remove</button></template>
-            <span v-else class="hint">in a watched folder</span></td></tr>
-    </table>
-    <div class="row"><button class="ghost" @click="refreshModels">↻ Refresh model and LoRA lists</button>
-      <span class="hint">after adding files to your folders</span></div>
-        </div>
-      </section>
       <section class="mpanel" id="mp-civitai" :class="{open: mpanels.civitai}">
         <h3 @click="toggleModelsPanel('civitai')"><i class="led" :class="{on: mpanels.civitai}"></i>Add from Civitai <span class="hint">· LoRAs, embeddings, VAEs, SD 1.5 / SDXL ControlNets and SD 1.5 / SDXL / Pony checkpoints · {{ civ.keySet ? 'signed in (API key saved)' : 'needs a free account for most downloads' }}</span></h3>
         <div v-if="mpanels.civitai" class="mpanel-body">
@@ -1144,6 +1115,40 @@
     <p v-if="loraFix.msg" class="hint">{{ loraFix.msg }}</p>
         </div>
       </section>
+      <section class="mpanel" id="mp-tags" :class="{open: mpanels.tags}">
+        <h3 @click="toggleModelsPanel('tags')"><i class="led" :class="{on: mpanels.tags}"></i>🏷 LoRA tags <span class="hint">· your own labels (pencil, ink, anime…) to group LoRAs and filter the lists by them</span></h3>
+        <div v-if="mpanels.tags" class="mpanel-body">
+          <div v-if="allLoraTags.length" class="chips tag-chips">
+            <span class="hint">Your tags:</span>
+            <button v-for="t in allLoraTags" :key="t.tag" class="chip" :class="{on: tagBatch.q === '#' + t.tag}"
+                    @click="tagBatch.q = tagBatch.q === '#' + t.tag ? '' : '#' + t.tag" :title="'Show the ' + t.n + ' LoRA' + (t.n === 1 ? '' : 's') + ' tagged ' + t.tag">🏷 {{ t.tag }} <small>{{ t.n }}</small></button>
+          </div>
+          <div class="row">
+            <input v-model="tagBatch.q" placeholder="Search LoRAs by name, or #tag…" style="max-width:320px" title="Type part of a name, or # and a tag (e.g. #pencil)">
+            <label class="check" title="Tick every LoRA listed below"><input type="checkbox" :checked="tagList.length && tagBatch.sel.length === tagList.length"
+                   @change="tagBatch.sel = $event.target.checked ? tagList.map((l) => l.name) : []"> select all {{ tagList.length }} listed</label>
+          </div>
+          <div class="row trig-batch">
+            <input v-model="tagBatch.tag" placeholder="a tag, e.g. pencil (several: pencil, sketch)" style="max-width:280px" @keydown.enter="tagLoras('add')"
+                   title="One tag or several separated by commas">
+            <button class="ghost" :disabled="!tagBatch.sel.length || !tagBatch.tag.trim()" @click="tagLoras('add')" title="Give every ticked LoRA this tag">＋ Tag {{ tagBatch.sel.length }} selected</button>
+            <button class="ghost" :disabled="!tagBatch.sel.length || !tagBatch.tag.trim()" @click="tagLoras('remove')" title="Take this tag off every ticked LoRA">− Untag {{ tagBatch.sel.length }} selected</button>
+            <button v-if="tagBatch.q.startsWith('#') && allLoraTags.some((t) => t.tag === tagBatch.q.slice(1))" class="ghost" :disabled="!tagBatch.tag.trim()"
+                    @click="renameLoraTag(tagBatch.q.slice(1)); tagBatch.q = '#' + cleanTags(tagBatch.tag)[0]" title="Rename this tag on every LoRA that has it (to an existing tag: merges them)">Rename 🏷 {{ tagBatch.q.slice(1) }}</button>
+          </div>
+          <table class="trig-table">
+            <tr v-for="l in tagList" :key="'t' + l.name">
+              <td><input type="checkbox" :checked="tagBatch.sel.includes(l.name)" @change="tagBatch.sel = $event.target.checked ? [...tagBatch.sel, l.name] : tagBatch.sel.filter((x) => x !== l.name)"></td>
+              <td class="tt-name">{{ l.name }}<div class="hint">{{ familyName(l.family) }}</div></td>
+              <td class="tt-tags"><span v-for="t in loraTagsOf(l.name)" :key="t" class="chip static tag-chip">🏷 {{ t }}
+                <button class="link small-link" @click="removeLoraTag(l.name, t)" :title="'Take 🏷 ' + t + ' off this LoRA'">✕</button></span>
+                <span v-if="!loraTagsOf(l.name).length" class="hint">no tags</span></td>
+            </tr>
+          </table>
+          <p class="hint">Filter by a tag in Create's (and Image to image's) LoRA list: pick 🏷 tag in the list's menu, or type #tag in its search box.
+            Tags are kept by this app on this Mac; nothing in the LoRA files changes.</p>
+        </div>
+      </section>
       <section class="mpanel" id="mp-trig" :class="{open: mpanels.trig}">
         <h3 @click="toggleModelsPanel('trig'); if (mpanels.trig) loadTrigList()"><i class="led" :class="{on: mpanels.trig}"></i>Trigger words <span class="hint">· see, edit, add or remove the words that switch LoRAs on, for one or many at once</span></h3>
         <div v-if="mpanels.trig" class="mpanel-body">
@@ -1218,8 +1223,9 @@
     <div v-if="!shopModels.length" class="empty">No models match.</div>
 
     <!-- Embeddings, VAEs and ControlNets: the smaller files that go with a model -->
-    <section class="card extras-card">
-      <h3>Embeddings, VAEs &amp; ControlNets <span class="hint">the smaller files that work with a base model</span></h3>
+    <section class="card extras-card mpanel" :class="{open: !shopShut('extras')}">
+      <h3 @click="shopFoldToggle('extras')" title="Click to fold or open"><i class="led" :class="{on: !shopShut('extras')}"></i>Embeddings, VAEs &amp; ControlNets <span class="hint">· {{ embeddings.length + vaes.length + userControlnets.length }} · the smaller files that work with a base model</span></h3>
+      <template v-if="!shopShut('extras')">
       <div class="extras-bar">
         <div class="seg">
           <button v-for="t in [['emb', 'Embeddings', embeddings.length], ['vae', 'VAEs', vaes.length], ['cn', 'ControlNets', userControlnets.length]]" :key="t[0]"
@@ -1246,7 +1252,40 @@
         </tr>
         <tr v-if="!extrasShown.length"><td class="hint" colspan="3">Nothing here yet. Add from Civitai (above) or drop files into the folder.</td></tr>
       </table>
+      </template>
     </section>
+    <!-- Your model files: at the bottom of the tab -->
+    <div class="model-panels own-bottom">
+      <section class="mpanel" id="mp-own" :class="{open: mpanels.own}">
+        <h3 @click="toggleModelsPanel('own')"><i class="led" :class="{on: mpanels.own}"></i>Your model files <span class="hint">· {{ localModels.length }} added from this Mac · offline, nothing is copied or uploaded</span></h3>
+        <div v-if="mpanels.own" class="mpanel-body">
+    <p class="hint">Use base models you already have: SD 1.5 / SDXL checkpoint files (<code>.safetensors</code>, <code>.ckpt</code>)
+      or diffusers model folders (any model type, including ERNIE and newer ones). They're read where they are.</p>
+    <div class="row">
+      <button @click="addLocalModels">Add model files or folders…</button>
+      <button class="ghost" @click="openModelFolders" title="Folders whose models are all listed: Settings → Model folders">Watch a folder… (Settings)</button>
+    </div>
+    <p class="hint">A folder that also holds LoRAs (including DiffusionBee <code>.tdict</code> files) is used as a LoRA folder too.</p>
+    <p class="hint"><b>Add model files</b>: pick particular models; only those are added. <b>Watch a folder</b>: pick a folder
+      (an external drive is fine) and every model in it is used, including ones you put there later. Either way nothing is
+      copied: the files stay where they are and must be there (drive connected) to be used.</p>
+    <div v-if="localErr" class="error-box">{{ localErr }}</div>
+    <div v-if="localOk" class="ok-box">{{ localOk }} <button class="link" @click="localOk = ''">ok</button></div>
+    <table v-if="localModels.length || modelDirs.dirs.length">
+      <tr v-for="m in localModels" :key="m.id"><td>{{ m.label }}</td>
+        <td class="hint">{{ familyName(m.family) }}<template v-if="m.class_name && m.family === 'other'"> ({{ m.class_name }})</template> · {{ m.file || m.local_dir || '' }}</td>
+        <td class="rm-cell"><template v-if="isAddedLocal(m.id)">
+              <button class="ghost small lock-btn" :class="{on: !unlocked[m.id]}" @click="unlocked[m.id] = !unlocked[m.id]"
+                      :title="unlocked[m.id] ? 'Unlocked: Remove works. Click to lock again.' : 'Locked so it can\'t be removed by accident. Click to unlock.'">{{ unlocked[m.id] ? '🔓' : '🔒' }}</button>
+              <button class="ghost small" :disabled="!unlocked[m.id]" @click="removeLocalModel(m.id)"
+                      title="Take it off the list (the file itself stays on your Mac)">Remove</button></template>
+            <span v-else class="hint">in a watched folder</span></td></tr>
+    </table>
+    <div class="row"><button class="ghost" @click="refreshModels">↻ Refresh model and LoRA lists</button>
+      <span class="hint">after adding files to your folders</span></div>
+        </div>
+      </section>
+    </div>
   </main>
 
   <!-- ============================ TOOLS ============================ -->
@@ -1619,7 +1658,7 @@
             <input type="range" min="0.1" max="0.8" step="0.05" v-model.number="post.enh.denoise_strength" title="Low = cleaner, faithful · high = more texture and changes">
             <label title="How tightly it sticks to the original's shapes and faces. High = stays true; low = freer.">Resemblance <span class="mod-val">{{ post.enh.controlnet_scale }}</span></label>
             <input type="range" min="0.2" max="1.5" step="0.05" v-model.number="post.enh.controlnet_scale" title="High = stays true to the original · low = freer">
-            <label>Steps</label><input type="number" min="4" max="50" v-model.number="post.enh.num_inference_steps">
+            <label>Steps</label><input title="Enhancer steps: more adds detail but takes longer" type="number" min="4" max="50" v-model.number="post.enh.num_inference_steps">
             <label>Work at <span class="mod-val">{{ enhWorkSide() }}</span></label>
             <div class="seg mod-seg">
               <button v-for="w in [{id: 'auto', label: 'Auto'}, {id: 512, label: '512'}, {id: 768, label: '768'}]" :key="w.id"
@@ -1627,8 +1666,8 @@
                       :title="w.id === 'auto' ? 'Picks 512 px for Instant / Turbo / Fast on Macs with less than 16 GB, otherwise 768 px' : w.id === 512 ? 'Quicker and lighter on memory; smaller result' : 'The enhancer\'s own size: bigger result, more than twice the work'">{{ w.label }}</button>
             </div>
             <label>Solver</label>
-            <select v-model="post.enh.solver"><option>DDIM</option><option>DPMSolver</option><option>Euler</option></select>
-            <label>Seed <span class="hint">-1 = random</span></label><input type="number" v-model.number="post.enh.seed">
+            <select title="The enhancer's solver: DDIM is the standard; the others can look slightly different" v-model="post.enh.solver"><option>DDIM</option><option>DPMSolver</option><option>Euler</option></select>
+            <label>Seed <span class="hint">-1 = random</span></label><input title="Seed for the enhancer: -1 = random, a number gives the same result again" type="number" v-model.number="post.enh.seed">
             <label>Prompt <span class="hint">blank = its own</span></label>
             <input v-model="post.enh.prompt" placeholder="masterpiece, best quality…">
           </details>
@@ -1848,79 +1887,6 @@
   <!-- ============================ IMAGE TO IMAGE ============================ -->
   <main v-if="tab==='i2i'" class="i2i">
     <section class="i2i-left">
-      <div v-if="form.i2i_mode === 'edit'" class="card edit-model-card">
-        <h3>✨ Edit with words <span class="hint">FLUX.2 Klein 4B · ⚡ fast engine · whatever model Create has</span></h3>
-        <p class="hint">Say what to change and it changes just that, keeping the rest of the picture: “make the jacket red”,
-          “add sunglasses”, “replace the sky with a sunset”, “turn it into a watercolour painting”, “remove the people in the background”.</p>
-        <p v-if="editModel() && !editModel().cached" class="hint warn">The first edit downloads FLUX.2 Klein (~{{ editModel().download_gb }} GB), then it works offline.</p>
-      </div>
-      <div v-if="form.i2i_mode !== 'edit'" class="card i2ifold" :class="{shut: i2iShut('steps')}">
-        <h3 @click="i2iFoldToggle('steps')">Sampler, steps &amp; guidance <span class="hint">{{ currentModel ? currentModel.label : '' }} · model is chosen at the top</span>
-          <span v-if="i2iShut('steps')" class="cfold-sum">{{ (samplers.find((x) => x.id === form.sampler) || {}).label || '' }} · {{ form.steps }} steps · CFG {{ form.cfg }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
-        <label class="i2i-sampler-label">Sampler <span class="hint">· the same as Create's</span></label>
-        <select v-model="form.sampler" @change="onSamplerChange" class="i2i-sampler" :class="{'rec-sampler': samplerIsPick(form.sampler)}">
-          <template v-if="samplerPicks().fast.length">
-            <optgroup :label="'⚡ Fastest for ' + pickFor()"><option v-for="s in samplerPicks().fast" :key="'if' + s.id" :value="s.id">{{ s.label }}{{ s.steps ? ' · ~' + s.steps[0] + ' steps' : '' }}</option></optgroup>
-            <optgroup v-if="samplerPicks().qualityOnly.length" :label="'★ Best quality for ' + pickFor()"><option v-for="s in samplerPicks().qualityOnly" :key="'iq' + s.id" :value="s.id">{{ s.label }}{{ s.steps ? ' · ~' + s.steps[0] + ' steps' : '' }}</option></optgroup>
-            <optgroup label="All other samplers"><option v-for="s in samplerPicks().rest" :key="'ir' + s.id" :value="s.id">{{ s.label }}</option></optgroup>
-          </template>
-          <template v-else><option v-for="s in samplers" :key="'ia' + s.id" :value="s.id">{{ s.label }}</option></template>
-        </select>
-        <div v-if="samplerPicks().fast.length" class="chips i2i-sampler-picks"><span class="hint">⚡</span>
-          <button v-for="s in samplerPicks().fast" :key="'icf' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)">{{ s.label }}</button>
-          <span class="hint">★</span>
-          <button v-for="s in samplerPicks().quality" :key="'icq' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)">{{ s.label }}</button>
-        </div>
-        <div class="grid2 i2i-model-opts">
-          <div class="span2 knob-row">
-            <rack-knob v-model.number="form.steps" :min="1" :max="150" :step="1" label="Steps"
-                       :default-value="recSteps ? recSteps[0] : (currentModel?.defaults?.steps ?? 25)"></rack-knob>
-            <rack-knob v-model.number="form.cfg" :min="0" :max="30" :step="0.5" label="Guidance" :default-value="currentModel?.defaults?.cfg ?? 7"></rack-knob>
-          </div>
-        </div>
-        <div v-if="clipSkipOk" class="clip-skip i2i-clip">
-          <span class="clip-label" title="CLIP skip: stop reading the prompt this many layers before the text encoder's last one. 1 = normal. 2 is what many anime-style SD 1.5 models and LoRAs were made with; it can make them follow the prompt in their intended style.">CLIP skip</span>
-          <div class="seg small-seg">
-            <button v-for="o in clipSkipOptions" :key="o.v" :class="{on: (form.clip_skip || 1) === o.v, rec: o.v === clipSkipRec}" @click="setClipSkip(o.v)"
-                    :title="o.title + (o.v === clipSkipRec ? ' · recommended for this model' : '')">{{ o.label }}<span v-if="o.v === clipSkipRec" class="rec-star">★</span></button>
-          </div>
-          <span class="hint">{{ clipSkipText }}</span>
-          <button v-if="clipSkipRec && (form.clip_skip || 1) !== clipSkipRec" class="link" @click="setClipSkip(clipSkipRec)">use recommended</button>
-        </div>
-        <div v-if="clipSkipOk && clipSkipHint" class="hint clip-hint">
-          LoRA “{{ clipSkipHint.name }}” was trained with CLIP skip {{ clipSkipHint.value }}
-          <button class="link" @click="form.clip_skip = clipSkipHint.value">use {{ clipSkipHint.value }}</button>
-        </div>
-        <div class="row small">
-          <button v-if="recSettings" class="ghost rec-btn" :class="{on: form.steps === recSettings.steps && form.cfg === recSettings.cfg}"
-                  @click="form.steps = recSettings.steps; form.cfg = recSettings.cfg"
-                  :title="'Steps and guidance that suit ' + recSettings.label + ' with ' + (currentModel ? currentModel.label : 'this model')">★ Recommended: {{ recSettings.steps }} steps · guidance {{ recSettings.cfg }}</button>
-        </div>
-        <div class="hint">{{ familyLabel }} · the sampler, steps and guidance are shared with Create.</div>
-      </div>
-
-      <div v-if="form.i2i_mode !== 'edit'" class="card i2i-loras i2ifold" :class="{shut: i2iShut('loras')}">
-        <h3 @click="i2iFoldToggle('loras', $event)">LoRAs <span class="hint">· {{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · shared with Create</span>
-          <button v-if="form.loras.length" class="link small-link" @click="form.loras = []">clear all</button><span class="cfold-chev" aria-hidden="true"></span></h3>
-        <div v-for="(l, i) in form.loras" :key="l.name" class="lora-row">
-          <span class="lora-name" :title="l.name">{{ l.name }}</span>
-          <input type="range" min="-2" max="2" step="0.05" v-model.number="l.weight">
-          <input type="number" min="-5" max="5" step="0.05" v-model.number="l.weight" class="num">
-          <button class="ghost" @click="form.loras.splice(i,1)" title="Remove">✕</button>
-        </div>
-        <input class="lora-search" v-model="i2iLora.q" @focus="i2iLora.open = true"
-               :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ')'">
-        <div v-if="i2iLora.open" class="lora-list">
-          <button v-for="l in i2iShownLoras" :key="l.name" class="lora-item" @click="addLoraByName(l.name); i2iLora.q = ''">
-            <span class="l-name" :title="l.name">{{ l.name }}</span><span class="marks"><span v-if="isFavLora(l)" class="fav-star on">★</span></span>
-            <span class="hint l-meta" :title="loraMetaTitle(l)"><span class="l-tag">{{ loraTag(l) }}</span><span class="l-size">{{ l.size_mb }} MB</span></span>
-          </button>
-          <div v-if="!i2iShownLoras.length" class="hint m-empty">{{ addableLoras.length ? 'No LoRAs match.' : 'No more ' + familyLabel + ' LoRAs to add.' }}</div>
-          <button class="link close-list" @click="i2iLora.open = false; i2iLora.q = ''">close list</button>
-        </div>
-        <p v-if="form.loras.length" class="hint">Trigger words and 🎲 Random LoRAs are in Create.</p>
-      </div>
-
       <div class="card">
         <h3>1 · Picture</h3>
         <div v-if="!form.init_image" class="start-drop" :class="{over: startDragOver}"
@@ -2087,6 +2053,79 @@
         <label v-if="form.i2i_mode !== 'edit' && !(form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model')" class="check"><input type="checkbox" v-model="form.use_init_size"> Use the picture's size (otherwise the size from Create)</label>
       </div>
 
+      <div v-if="form.i2i_mode === 'edit'" class="card edit-model-card">
+        <h3>✨ Edit with words <span class="hint">FLUX.2 Klein 4B · ⚡ fast engine · whatever model Create has</span></h3>
+        <p class="hint">Say what to change and it changes just that, keeping the rest of the picture: “make the jacket red”,
+          “add sunglasses”, “replace the sky with a sunset”, “turn it into a watercolour painting”, “remove the people in the background”.</p>
+        <p v-if="editModel() && !editModel().cached" class="hint warn">The first edit downloads FLUX.2 Klein (~{{ editModel().download_gb }} GB), then it works offline.</p>
+      </div>
+      <div v-if="!i2iUsesKlein" class="card i2ifold" :class="{shut: i2iShut('steps')}">
+        <h3 @click="i2iFoldToggle('steps')">Sampler, steps &amp; guidance <span class="hint">{{ currentModel ? currentModel.label : '' }} · model is chosen at the top</span>
+          <span v-if="i2iShut('steps')" class="cfold-sum">{{ (samplers.find((x) => x.id === form.sampler) || {}).label || '' }} · {{ form.steps }} steps · CFG {{ form.cfg }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
+        <label class="i2i-sampler-label">Sampler <span class="hint">· the same as Create's</span></label>
+        <select title="The sampler (shared with Create): ⚡ ones need fewer steps, ★ ones give the most detail" v-model="form.sampler" @change="onSamplerChange" class="i2i-sampler" :class="{'rec-sampler': samplerIsPick(form.sampler)}">
+          <template v-if="samplerPicks().fast.length">
+            <optgroup :label="'⚡ Fastest for ' + pickFor()"><option v-for="s in samplerPicks().fast" :key="'if' + s.id" :value="s.id">{{ s.label }}{{ s.steps ? ' · ~' + s.steps[0] + ' steps' : '' }}</option></optgroup>
+            <optgroup v-if="samplerPicks().qualityOnly.length" :label="'★ Best quality for ' + pickFor()"><option v-for="s in samplerPicks().qualityOnly" :key="'iq' + s.id" :value="s.id">{{ s.label }}{{ s.steps ? ' · ~' + s.steps[0] + ' steps' : '' }}</option></optgroup>
+            <optgroup label="All other samplers"><option v-for="s in samplerPicks().rest" :key="'ir' + s.id" :value="s.id">{{ s.label }}</option></optgroup>
+          </template>
+          <template v-else><option v-for="s in samplers" :key="'ia' + s.id" :value="s.id">{{ s.label }}</option></template>
+        </select>
+        <div v-if="samplerPicks().fast.length" class="chips i2i-sampler-picks"><span class="hint">⚡</span>
+          <button v-for="s in samplerPicks().fast" :key="'icf' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)">{{ s.label }}</button>
+          <span class="hint">★</span>
+          <button v-for="s in samplerPicks().quality" :key="'icq' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)">{{ s.label }}</button>
+        </div>
+        <div class="grid2 i2i-model-opts">
+          <div class="span2 knob-row">
+            <rack-knob v-model.number="form.steps" :min="1" :max="150" :step="1" label="Steps"
+                       :default-value="recSteps ? recSteps[0] : (currentModel?.defaults?.steps ?? 25)"></rack-knob>
+            <rack-knob v-model.number="form.cfg" :min="0" :max="30" :step="0.5" label="Guidance" :default-value="currentModel?.defaults?.cfg ?? 7"></rack-knob>
+          </div>
+        </div>
+        <div v-if="clipSkipOk" class="clip-skip i2i-clip">
+          <span class="clip-label" title="CLIP skip: stop reading the prompt this many layers before the text encoder's last one. 1 = normal. 2 is what many anime-style SD 1.5 models and LoRAs were made with; it can make them follow the prompt in their intended style.">CLIP skip</span>
+          <div class="seg small-seg">
+            <button v-for="o in clipSkipOptions" :key="o.v" :class="{on: (form.clip_skip || 1) === o.v, rec: o.v === clipSkipRec}" @click="setClipSkip(o.v)"
+                    :title="o.title + (o.v === clipSkipRec ? ' · recommended for this model' : '')">{{ o.label }}<span v-if="o.v === clipSkipRec" class="rec-star">★</span></button>
+          </div>
+          <span class="hint">{{ clipSkipText }}</span>
+          <button v-if="clipSkipRec && (form.clip_skip || 1) !== clipSkipRec" class="link" @click="setClipSkip(clipSkipRec)">use recommended</button>
+        </div>
+        <div v-if="clipSkipOk && clipSkipHint" class="hint clip-hint">
+          LoRA “{{ clipSkipHint.name }}” was trained with CLIP skip {{ clipSkipHint.value }}
+          <button class="link" @click="form.clip_skip = clipSkipHint.value">use {{ clipSkipHint.value }}</button>
+        </div>
+        <div class="row small">
+          <button v-if="recSettings" class="ghost rec-btn" :class="{on: form.steps === recSettings.steps && form.cfg === recSettings.cfg}"
+                  @click="form.steps = recSettings.steps; form.cfg = recSettings.cfg"
+                  :title="'Steps and guidance that suit ' + recSettings.label + ' with ' + (currentModel ? currentModel.label : 'this model')">★ Recommended: {{ recSettings.steps }} steps · guidance {{ recSettings.cfg }}</button>
+        </div>
+        <div class="hint">{{ familyLabel }} · the sampler, steps and guidance are shared with Create.</div>
+      </div>
+
+      <div v-if="!i2iUsesKlein" class="card i2i-loras i2ifold" :class="{shut: i2iShut('loras')}">
+        <h3 @click="i2iFoldToggle('loras', $event)">LoRAs <span class="hint">· {{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · shared with Create</span>
+          <button v-if="form.loras.length" class="link small-link" @click="form.loras = []">clear all</button><span class="cfold-chev" aria-hidden="true"></span></h3>
+        <div v-for="(l, i) in form.loras" :key="l.name" class="lora-row">
+          <span class="lora-name" :title="l.name">{{ l.name }}</span>
+          <input type="range" min="-2" max="2" step="0.05" v-model.number="l.weight">
+          <input type="number" min="-5" max="5" step="0.05" v-model.number="l.weight" class="num">
+          <button class="ghost" @click="form.loras.splice(i,1)" title="Remove">✕</button>
+        </div>
+        <input class="lora-search" v-model="i2iLora.q" @focus="i2iLora.open = true"
+               :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ', or #tag)'">
+        <div v-if="i2iLora.open" class="lora-list">
+          <button v-for="l in i2iShownLoras" :key="l.name" class="lora-item" @click="addLoraByName(l.name); i2iLora.q = ''">
+            <span class="l-name" :title="l.name">{{ l.name }}</span><span class="marks"><span v-if="isFavLora(l)" class="fav-star on">★</span></span>
+            <span class="hint l-meta" :title="loraMetaTitle(l)"><span class="l-tag">{{ loraTag(l) }}</span><span class="l-size">{{ l.size_mb }} MB</span></span>
+          </button>
+          <div v-if="!i2iShownLoras.length" class="hint m-empty">{{ addableLoras.length ? 'No LoRAs match.' : 'No more ' + familyLabel + ' LoRAs to add.' }}</div>
+          <button class="link close-list" @click="i2iLora.open = false; i2iLora.q = ''">close list</button>
+        </div>
+        <p v-if="form.loras.length" class="hint">Trigger words and 🎲 Random LoRAs are in Create.</p>
+      </div>
+
       <div v-if="form.i2i_mode !== 'change'" class="card hint cn-off">
         <div>2 · ControlNet is off while {{ form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
         <div v-if="form.i2i_mode === 'edit'" class="cn-off-tips">Edit with words already keeps the layout, and <b>More pictures</b> above lend it a style, an outfit or a face.
@@ -2097,7 +2136,7 @@
       </div>
       <div v-else class="card">
         <h3>2 · ControlNet <span class="hint">{{ family === 'sdxl' ? 'SDXL' : 'SD 1.5' }} · makes the result follow the picture's structure</span></h3>
-        <select v-model="form.control.type" @change="controlMap = null">
+        <select title="The ControlNet: what the result follows from your picture (outlines, depth, pose, line art…). None = off" v-model="form.control.type" @change="controlMap = null">
           <option value="">None</option>
           <option v-for="t in controlTypesShown" :key="t.id" :value="t.id">{{ t.label }}{{ t.diffusionbee ? ' · from DiffusionBee' : '' }}</option>
         </select>
@@ -2153,8 +2192,14 @@
       <div class="card">
         <h3>3 · Prompt</h3>
         <textarea class="tape" v-model="form.prompt" rows="3"
-                  :placeholder="form.i2i_mode === 'edit' ? 'The change, in a sentence: make the jacket red · add a hat · turn it into a watercolour…' : 'What the result should look like…'"></textarea>
-        <div v-if="form.i2i_mode !== 'edit' && form.i2i_mode !== 'remove'" class="row small i2i-enhance">
+                  :placeholder="form.i2i_mode === 'edit' ? 'The change, in a sentence: make the jacket red · add a hat · turn it into a watercolour…' : i2iUsesKlein ? 'Optional: what goes around the picture · more of the street · a sunny beach · the rest of the room…' : 'What the result should look like…'"></textarea>
+        <div v-if="i2iUsesKlein && form.i2i_mode === 'outpaint'" class="row small i2i-enhance">
+          <button class="link" @click="enhanceNow('outpaint')" :disabled="!form.prompt.trim()"
+                  title="Turn a quick note (“more of the street”) into a clear description of what should fill the new space, in the plain sentences FLUX.2 understands">✨ enhance now</button>
+          <button v-if="undoPrompt" class="link" @click="form.prompt = undoPrompt; undoPrompt = null">↩ undo</button>
+          <span class="hint">FLUX.2 reads plain sentences: describe what goes around the picture</span>
+        </div>
+        <div v-if="form.i2i_mode !== 'edit' && form.i2i_mode !== 'remove' && !i2iUsesKlein" class="row small i2i-enhance">
           <label class="check" title="Before each picture, a small language model turns your prompt into a detailed one (the same switch as in Create)">
             <input type="checkbox" v-model="form.enhance_prompt"> ✨ Enhance prompt when generating</label>
           <button class="link" @click="enhanceNow" :disabled="!form.prompt.trim()" title="Rewrite the prompt now, so you can read and edit it first">enhance now</button>
@@ -2172,7 +2217,7 @@
         </div>
         <div class="row small prompt-presets">
           <span class="hint">📒 My prompts</span>
-          <select :value="''" @change="applyPromptPreset($event.target.value); $event.target.value = ''">
+          <select title="Put a prompt you saved earlier in the box" :value="''" @change="applyPromptPreset($event.target.value); $event.target.value = ''">
             <option value="">{{ promptOnlyPresets.length ? 'use a saved prompt…' : 'none saved yet' }}</option>
             <option v-for="p in promptOnlyPresets" :key="p.name" :value="p.name">{{ p.name }}</option>
           </select>
@@ -2294,7 +2339,7 @@
       <template v-if="train.mode !== 'merge'">
       <div class="card">
         <h3>1 · Base model</h3>
-        <select v-model="train.model" @change="onTrainModelChange">
+        <select title="The base model the LoRA or embedding learns on: use it with this model (and its family) afterwards" v-model="train.model" @change="onTrainModelChange">
           <optgroup v-for="g in trainModelGroups" :key="g.name" :label="g.name">
             <option v-for="m in g.models" :key="m.id" :value="m.id" :disabled="!!trainBlock(m)">
               {{ m.label }}{{ m.flavor ? ' · ' + flavorName(m.flavor) : '' }}{{ m.id === 'sdxl_base_fp16' && !m.cached ? ' · ' + m.download_gb + ' GB download' : '' }}{{ trainBlock(m) ? ' — ' + trainBlock(m) : '' }}</option>
@@ -2322,7 +2367,7 @@
           <div class="hint">{{ train.items.length }} images<template v-if="trainSkipped"> · {{ trainSkipped }} left out (training uses {{ train.items.length - trainSkipped }})</template> · {{ trainCaptioned }} with captions
             <span v-if="train.items.length < 10"> · 10–30 images usually work best</span></div>
           <div class="row wrap-row">
-            <select v-model="train.capMode" style="max-width:190px">
+            <select title="How captions are written: tags for anime / illustration pictures, sentences for photos and realistic ones" v-model="train.capMode" style="max-width:190px">
               <option value="tags">Danbooru tags (anime/illustration)</option>
               <option value="describe">Sentences (photos/realistic)</option>
             </select>
@@ -2347,13 +2392,13 @@
               <button :class="{on: train.emb.kind === 'style'}" @click="train.emb.kind = 'style'" title="How pictures look: an art style, colours, mood">Style</button>
             </div></div>
           <div><label>Vectors <span class="hint">detail capacity</span></label>
-            <select v-model.number="train.emb.vectors"><option :value="1">1 (simple idea)</option><option :value="2">2 (standard)</option><option :value="4">4 (more detail)</option><option :value="8">8 (styles, most detail)</option></select></div>
+            <select title="How many vectors the embedding has: more holds more detail but needs more training" v-model.number="train.emb.vectors"><option :value="1">1 (simple idea)</option><option :value="2">2 (standard)</option><option :value="4">4 (more detail)</option><option :value="8">8 (styles, most detail)</option></select></div>
           <div><label>Steps</label>
-            <select v-model.number="train.emb.steps"><option :value="500">500 (quick test)</option><option :value="1000">1000</option><option :value="1500">1500 (standard)</option><option :value="3000">3000 (thorough)</option></select></div>
+            <select title="Training steps for the embedding" v-model.number="train.emb.steps"><option :value="500">500 (quick test)</option><option :value="1000">1000</option><option :value="1500">1500 (standard)</option><option :value="3000">3000 (thorough)</option></select></div>
           <div><label>Save a checkpoint every</label>
-            <select v-model.number="train.emb.save_every"><option :value="0">only at the end</option><option :value="250">250 steps</option><option :value="500">500 steps</option></select></div>
+            <select title="Also save in-between versions of the embedding" v-model.number="train.emb.save_every"><option :value="0">only at the end</option><option :value="250">250 steps</option><option :value="500">500 steps</option></select></div>
         </div>
-        <label class="check"><input type="checkbox" v-model="train.flip"> Mirror pictures too (skip for text or one-sided subjects)</label>
+        <label class="check" title="Also train on left-right flipped copies: more variety, but leave it off for text, logos or one-sided details"><input type="checkbox" v-model="train.flip"> Mirror pictures too (skip for text or one-sided subjects)</label>
       </div>
       <div class="train-go">
         <button class="primary" :disabled="!embReady" @click="startEmbeddingTraining">Start training</button>
@@ -2416,14 +2461,14 @@
             <input v-model="train.trigger" placeholder="e.g. pxlstyle"></div>
           <div class="span2"><label>Output format</label>
             <div v-if="trainFastErnie" class="hint">Saved in the fast engine's own LoRA format; works with the ⚡ fast-engine ERNIE.</div>
-            <select v-else v-model="train.format" :disabled="trainFamily === 'ernie'">
+            <select title="The LoRA file format: Kohya .safetensors works in most apps (A1111, ComfyUI, Draw Things…)" v-else v-model="train.format" :disabled="trainFamily === 'ernie'">
               <option value="kohya">.safetensors (Kohya) · works in A1111, ComfyUI, Draw Things, DiffusionBee, Protoart</option>
               <option value="diffusers">.safetensors (Diffusers/PEFT) · for diffusers scripts</option>
             </select></div>
           <div><label>Precision</label>
-            <select v-model="train.precision"><option value="fp16">fp16 (half the file size)</option><option value="fp32">fp32</option></select></div>
+            <select title="fp16 makes a file half the size with no visible difference; fp32 keeps full precision" v-model="train.precision"><option value="fp16">fp16 (half the file size)</option><option value="fp32">fp32</option></select></div>
           <div><label>Save a checkpoint every</label>
-            <select v-model.number="train.save_every"><option :value="0">only at the end</option><option :value="250">250 steps</option><option :value="500">500 steps</option></select></div>
+            <select title="Also save in-between versions, to compare them or keep one from before it over-learned" v-model.number="train.save_every"><option :value="0">only at the end</option><option :value="250">250 steps</option><option :value="500">500 steps</option></select></div>
         </div>
       </div>
 
@@ -2433,18 +2478,18 @@
           <button v-for="p in trainPresets" :key="p.id" :class="{on: train.preset === p.id}" @click="applyTrainPreset(p)" :title="p.tip">{{ p.label }}</button>
         </div>
         <div class="grid2">
-          <div><label>Steps</label><input type="number" min="50" max="10000" step="50" v-model.number="train.steps"></div>
+          <div><label>Steps</label><input title="Training steps: more learns more but takes longer and can over-learn (Standard ≈ 100 per image)" type="number" min="50" max="10000" step="50" v-model.number="train.steps"></div>
           <div><label>Learning rate</label>
-            <select v-model.number="train.lr"><option :value="0.00005">0.00005 (gentle)</option><option :value="0.0001">0.0001 (standard)</option><option :value="0.0002">0.0002 (fast)</option></select></div>
+            <select title="Learning rate: how big each learning step is. Standard suits most; gentle for styles, fast for quick tests" v-model.number="train.lr"><option :value="0.00005">0.00005 (gentle)</option><option :value="0.0001">0.0001 (standard)</option><option :value="0.0002">0.0002 (fast)</option></select></div>
           <div><label>Rank <span class="hint">detail capacity</span></label>
-            <select v-model.number="train.rank"><option :value="4">4 (tiny file)</option><option :value="8">8</option><option :value="16">16 (standard)</option><option :value="32">32 (more detail)</option></select></div>
+            <select title="Rank: how much the LoRA can hold. Higher = more detail and a bigger file" v-model.number="train.rank"><option :value="4">4 (tiny file)</option><option :value="8">8</option><option :value="16">16 (standard)</option><option :value="32">32 (more detail)</option></select></div>
           <div><label>Resolution</label>
-            <select v-model.number="train.resolution">
+            <select title="Training picture size: the model's own size works best; bigger is slower and needs more memory" v-model.number="train.resolution">
               <option :value="512">512{{ trainFamily === 'sd15' ? ' (SD 1.5 native)' : '' }}</option><option :value="640">640</option>
               <option :value="768">768{{ trainFamily === 'sdxl' ? ' (lighter for SDXL)' : ' (slower)' }}</option>
               <option v-if="trainFamily !== 'sd15'" :value="1024">1024 ({{ trainFamily === 'ernie' ? 'ERNIE' : 'SDXL' }} native)</option></select></div>
           <div class="span2"><label>What to train</label>
-            <select v-model="train.targets"><option value="attention">Attention layers (lighter, good for styles/characters)</option><option value="full">Attention + feed-forward (stronger, bigger file)</option></select></div>
+            <select title="Which parts of the model learn: attention layers (lighter) or attention + feed-forward (stronger, bigger file)" v-model="train.targets"><option value="attention">Attention layers (lighter, good for styles/characters)</option><option value="full">Attention + feed-forward (stronger, bigger file)</option></select></div>
         </div>
         <label class="check"><input type="checkbox" v-model="train.flip"> Mirror images too (doubles variety; skip for text or one-sided subjects)</label>
         <label class="check" :class="{dim: trainFamily !== 'sd15'}"><input type="checkbox" v-model="train.train_text_encoder" :disabled="trainFamily !== 'sd15'">
@@ -2571,7 +2616,7 @@
         </div>
         <div class="row frame-copy">
           <span class="hint">Save square copies (with captions) to a new folder:</span>
-          <select v-model.number="frame.size"><option :value="512">512 × 512</option><option :value="768">768 × 768</option><option :value="1024">1024 × 1024</option></select>
+          <select title="The size of the square copies" v-model.number="frame.size"><option :value="512">512 × 512</option><option :value="768">768 × 768</option><option :value="1024">1024 × 1024</option></select>
           <button @click="makeSquareCopies" :disabled="frame.busy">{{ frame.busy ? 'Saving…' : 'Save copies' }}</button>
           <template v-if="frame.copied">
             <button class="link" @click="showInFolder(frame.copied.folder)">Show in Finder</button>
@@ -2947,7 +2992,7 @@
       while you write the prompt. It only uses idle time and never downloads anything.</p>
     <div class="row">
       <span class="hint">When the app opens, load</span>
-      <select v-model="opts.preload_start" @change="saveOpts" style="width:auto">
+      <select title="Which model to load in the background when the app opens, so the first picture starts sooner" v-model="opts.preload_start" @change="saveOpts" style="width:auto">
         <option value="">nothing (load on Generate)</option>
         <option value="last">{{ opts.default_model ? 'my default model' : 'the model I used last' }}</option>
         <option v-for="m in installedModels" :key="m.id" :value="m.id">{{ m.label }}</option>
@@ -3032,7 +3077,7 @@
     <p class="hint">“✏️ Edit in…” (in the Library, Tools and Image to image) opens a copy of the picture in this app. Each time you
       save there, the new version is added to your Library, linked to the original. The original is never changed.</p>
     <div class="row">
-      <select v-model="opts.editor" @change="saveOpts" style="width:auto">
+      <select title="The app ✏️ Edit opens pictures in; saved edits come back to the Library" v-model="opts.editor" @change="saveOpts" style="width:auto">
         <option v-for="e in editorChoices" :key="e" :value="e">{{ e }}</option>
         <option v-if="!editorChoices.includes(opts.editor)" :value="opts.editor">{{ opts.editor }}</option>
       </select>

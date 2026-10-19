@@ -151,3 +151,11 @@ class OutpaintCanvasTests(unittest.TestCase):
         L = Engine.OUTPAINT_LORA
         self.assertEqual(len(L["revision"]), 40)
         self.assertEqual(L["prompt"], "Fill the green spaces according to the image")
+
+
+class OutpaintEnhanceStyleTests(unittest.TestCase):
+    def test_outpaint_style(self):
+        from postprocess.prompt_enhance import style_for, SYSTEM, EXAMPLES
+        self.assertEqual(style_for("outpaint"), "outpaint")
+        self.assertIn("outpaint", SYSTEM)
+        self.assertIn("outpaint", EXAMPLES)

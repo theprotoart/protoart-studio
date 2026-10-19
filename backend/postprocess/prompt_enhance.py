@@ -32,6 +32,12 @@ SYSTEM = {
         "model. Say exactly what to change (and how it should look afterwards) and that everything else stays the "
         "same. One or two sentences, under 45 words. Don't describe the whole picture. Always write in English. "
         "Output only the instruction."),
+    "outpaint": (
+        "A picture is being made bigger: new space is added around it and an image model fills it in. Rewrite the "
+        "user's short note into one or two plain sentences describing what should appear in the new space around the "
+        "picture so it continues naturally: the surroundings, the rest of the scene, the background, matching the "
+        "picture's lighting and style. Under 45 words. Don't describe the subject that's already there. Always write "
+        "in English. Output only the description."),
 }
 EXAMPLES = {
     "natural": ("a fox in snow",
@@ -43,6 +49,10 @@ EXAMPLES = {
              "1girl, solo, holding sword, katana, long hair, black hair, red eyes, determined expression, "
              "fighting stance, school uniform, pleated skirt, wind, falling leaves, autumn, sunset, dramatic lighting, "
              "dynamic angle, cowboy shot, detailed background, anime style"),
+    "outpaint": ("more of the cafe",
+                 "The rest of the cosy cafe continues around her: wooden tables and chairs, a counter with a coffee "
+                 "machine on one side, framed posters on the walls and warm window light, in the same soft, film-like "
+                 "photographic style."),
     "edit": ("make her jacket red",
              "Change the woman's jacket to a deep red leather jacket with the same cut and fit, keeping her face, "
              "pose, hair, the background and the lighting exactly as they are."),
@@ -53,8 +63,8 @@ QUALITY_TAGS = ["masterpiece", "best quality", "highly detailed"]
 def style_for(family):
     """Tags for the Stable Diffusion models (SD 1.5, SDXL incl. Pony / Illustrious / NoobAI), sentences for the
     models that read language (ERNIE, FLUX, FLUX.2); "edit" rewrites an editing instruction (Edit with words)."""
-    if family == "edit":
-        return "edit"
+    if family in ("edit", "outpaint"):
+        return family
     return "tags" if family in ("sd15", "sdxl") else "natural"
 
 
@@ -94,7 +104,7 @@ class PromptEnhancer:
         inputs = tok(text, return_tensors="pt").to(self.device)
         start = inputs["input_ids"].shape[1]
         emit = self.emit
-        limit = {"tags": 110, "edit": 80}.get(style, 170)
+        limit = {"tags": 110, "edit": 80, "outpaint": 80}.get(style, 170)
 
         class Watch(StoppingCriteria):
             def __call__(self, input_ids, scores, **kw):

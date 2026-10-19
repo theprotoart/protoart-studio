@@ -2013,3 +2013,15 @@ table.libs td:first-child { white-space: nowrap; }
 .sel-stack > .lib-deselect:active:not(:disabled) { transform: translateX(-50%) translateY(1px); }
 /* ⇆ Compare sits in the toolbar (always in view while you scroll), right of ✕ Deselect all */
 .sel-stack > .lib-compare { position: absolute; top: calc(100% + 8px); left: calc(100% + 14px); white-space: nowrap; z-index: 2; }
+.own-bottom { margin-top: 14px; }
+
+/* 🏷 your own LoRA tags */
+.tag-chips { margin-bottom: 8px; }
+.tag-chip { display: inline-flex; align-items: center; gap: 4px; margin: 0 4px 4px 0; }
+.tag-chip .small-link { padding: 0 2px; }
+.tt-tags { min-width: 200px; }
+
+/* Create's top line: collapse / expand and the Reset all lever on one tidy row (the lever no longer wraps onto a
+   line of its own, which left a tall empty gap above Model) */
+.controls > .cfold-all { flex-wrap: nowrap; align-items: center; min-height: 30px; margin: 0 0 8px; gap: 6px; }
+.controls > .cfold-all .reset-toggle { margin-left: auto; }

@@ -114,7 +114,7 @@ const SAMPLER_PICKS = {
 };
 const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}];
 const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677" };
-const I2I_KINDS = ["img2img", "healed", "word_edit"];  // pictures made in Image to image
+const I2I_KINDS = ["img2img", "healed", "word_edit", "inpaint", "outpaint", "controlnet"];  // pictures made in Image to image
 const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "FLUX.2", sd2: "SD 2" };
 const OPTS_KEY = "beestudio.opts";
 const PERF_KEY = "protoart.perf";
@@ -448,6 +448,12 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.2.1 (test version): fixes from your notes", items: [
+              "<b>🏷 Your own LoRA tags</b> (Models → 🏷 LoRA tags): tag LoRAs (e.g. <i>pencil</i>), many at once, then filter Create's and Image to image's LoRA lists by a tag (pick 🏷 pencil in the list's menu, or type <i>#pencil</i> in its search).",
+              "<b>Expand with FLUX.2</b> now picks FLUX.2 Klein in the model menu for you, has its own <b>✨ enhance now</b> (turns “more of the street” into a clear description of what goes around the picture), and its result stays in Image to image instead of Create.",
+              "<b>Image to image: the picture comes first</b>, at the top next to the preview; Sampler, steps &amp; guidance and LoRAs follow (and hide when FLUX.2 does the work, as they don't apply).",
+              "<b>Models tab</b>: Embeddings, VAEs &amp; ControlNets folds up like the other lists, and <b>Your model files</b> moved to the bottom.",
+              "<b>Tips everywhere</b>: every button, slider, menu and switch now shows a tip when you point at it (sliders such as Fidelity use the words next to them).",
+              "<b>Tidier top of Create</b>: collapse all · expand all and the Reset all lever share one line, with no gap above Model.",
               "<b>↔ Expand with FLUX.2 + outpaint LoRA</b> (Image to image → Expand): fills the new area on any picture, whatever model made it, using FLUX.2 Klein with fal's outpaint LoRA (Apache-2.0, 76 MB, downloaded once). Your picture stays exactly as it was. The SD 1.5 / SDXL way is still there (<i>The model at the top</i>).",
               "<b>📚 Use the model library you already have</b>: Protoart Studio looks for <b>Stability Matrix</b>, <b>ComfyUI</b>, <b>Automatic1111 / Forge</b>, <b>InvokeAI</b> and <b>Fooocus</b> on your Mac and asks “Existing model library detected. Would you like to use it?”. Checkpoints, LoRAs, embeddings, VAEs and ControlNets are read where they are: nothing is copied, moved, renamed or changed. Change it in Settings → Model folders.",
               "<b>Watch as many model folders as you like</b> (Settings → Model folders → ＋ Add watched folders; ⌘-click to pick several), and <b>↻ Refresh</b> reads them again if new files didn't show the first time.",
@@ -638,6 +644,7 @@ const protoartApp = createApp({
               "The switch next to <b>Compare settings</b> shows whether it's on; click the heading or <b>Turn off compare</b> to close it." ] },
             { h: "LoRAs & embeddings", items: [
               "Add as many LoRAs as you like, each with its own weight (−2 to 2).",
+              "<b>🏷 Your own tags</b>: in Models → 🏷 LoRA tags, search your LoRAs, tick some (or <i>select all</i>), type a tag such as <i>pencil</i> and press <b>＋ Tag</b>. Then in Create or Image to image pick <b>🏷 pencil</b> in the LoRA list's menu, or type <b>#pencil</b> in its search box, to see only those. A LoRA can have several tags; <b>✕</b> on a tag takes it off, and <b>Rename</b> renames a tag everywhere (renaming to an existing tag merges them). <i>🏷 Make or manage your own tags…</i> at the bottom of the list's menu opens the panel.",
               "<b>Reading the LoRA list</b>: under each name are its type and size. <b>BEE</b> means the LoRA comes from your DiffusionBee folder (read where it is); ⚠ after the type means it may not match the model you picked. Point at a row to see it all spelled out.",
               "<b>Only LoRAs made for the chosen model's type are listed</b>: an ERNIE model shows only ERNIE LoRAs, SD 1.5 only SD 1.5 ones, and so on (Pony / Illustrious LoRAs count as SDXL). Switching to another type of model removes LoRAs that don't fit.",
               "<b>Fix a type</b> (Models tab): <b>Show all</b> lists every LoRA and base model file; <b>🔒</b> locks a row so a stray click can't change its type (a type you pick locks itself; click the lock to change it).",
@@ -701,9 +708,12 @@ const protoartApp = createApp({
               "<b>Change strength</b> 0.7–0.9 replaces what's painted; 1.0 starts from scratch there. <b>Edge softness</b> blends the edges.",
               "<b>Redraw only the painted area at full detail</b> is best for small things like hands, eyes or text: it redraws a box around your strokes at full resolution and pastes it back.",
               "Works with your normal SD 1.5 and SDXL models; everything you didn't paint stays exactly as it was." ] },
+            { h: "The Image to image layout", items: [
+              "From the top: <b>1 · Picture</b> (your picture and the mode: Edit with words, Change it, Inpaint, Expand, Remove), then <b>Sampler, steps &amp; guidance</b> and <b>LoRAs</b> (both fold up; hidden when FLUX.2 Klein does the work), <b>2 · ControlNet</b> and <b>3 · Prompt</b>. The preview and results are on the right." ] },
             { h: "↔ Expand (outpaint)", items: [
               "Choose <b>Expand</b> and how many pixels to add on each side (or use <i>make it wider / taller</i>). The new area is filled in to match.",
               "<b>Fill the new area with ✨ FLUX.2 + outpaint LoRA</b> (the default): works on any picture, whatever model made it (SD 1.5, SDXL, FLUX, a photo). It uses FLUX.2 Klein (the Edit with words model) with <b>fal's outpaint LoRA</b> (Apache-2.0, free to use, 76 MB, downloaded once). The picture goes in with a green border where the new area will be, and the model fills it in. The prompt is optional: add what should appear around the picture. Your picture itself is kept exactly as it was.",
+              "Choosing ✨ FLUX.2 + outpaint LoRA puts <b>FLUX.2 Klein</b> in the model menu at the top for you (picking another model there switches Expand to that model). Its <b>✨ enhance now</b> link (under the prompt) turns a quick note like “more of the street” into a clear description of what should fill the new space. The result appears in Image to image, next to your picture, and in the Library.",
               "<b>The model at the top</b>: the SD 1.5 / SDXL model you picked (or its inpainting model) fills the new area instead. Describe the whole scene in the prompt, including what should appear around the original.",
               "Expanding a little at a time (up to about half the picture's size per side) gives the best results; expand again for more." ] },
             { h: "ControlNet (SD 1.5, and your own SDXL ones)", items: [
@@ -864,6 +874,7 @@ const protoartApp = createApp({
               "Settings → Model folders → <b>Model libraries from other apps</b>: <b>↻ Look for libraries again</b> (also re-reads every watched folder, for files the app missed the first time), <b>Pick a library folder…</b> for one somewhere unusual (an external drive, or Stability Matrix's <i>Data</i> / <i>Models</i> folder), and <b>Stop using</b> to take one off the lists again.",
               "A plain folder of models (not another app's library) goes in <b>Watched model folders</b> instead: add as many as you like." ] },
             { h: "Organising your models and LoRAs", items: [
+              "<b>Embeddings, VAEs &amp; ControlNets</b> folds up too (click its name), and <b>Your model files</b> (base models you added from this Mac) is at the bottom of the tab.",
               "<b>On this Mac</b>, <b>Available to download</b> and the other lists fold up (click their names), under the Your model files / Civitai / Hugging Face / Fix a type panels. Filters at the top include <b>Pony</b>, <b>Illustrious</b> and <b>NoobAI</b>.",
               "<b>+ Add from your Mac</b> says “✓ Model imported” when it's done; inpainting models are recognised and go to Image to image → Inpaint / Expand.",
               "<b>Trigger words</b> panel: search LoRAs, edit each one's words, or tick several and add / remove a word on all of them. Your words are added to the prompt when you add the LoRA. <b>↺ Back to the file's words</b> forgets your edits.",
@@ -951,6 +962,12 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "Things fixed in 1.2.1 (and what to do if you still see them)", items: [
+              "<b>A button or slider showed no tip</b>: fixed; every control now has one (point at it for a moment). Tips can be switched off with <b>Tips</b> at the top of the window.",
+              "<b>The expanded picture appeared in Create</b>: fixed; Expand, Inpaint and ControlNet results now stay in Image to image (and the Library).",
+              "<b>Expand with FLUX.2 showed Stable Diffusion in the model menu</b>: fixed; it shows FLUX.2 Klein, which is what fills the new area. Picking another model there switches Expand to <i>The model at the top</i>.",
+              "<b>Can't find Your model files in the Models tab</b>: it's now the last panel at the bottom of the tab. <b>Embeddings, VAEs &amp; ControlNets</b> can be folded by clicking its name.",
+              "<b>A 🏷 tag filter shows nothing</b>: the list only shows LoRAs that fit the model you picked; a tag on SDXL LoRAs shows nothing while an SD 1.5 model is picked. Tags are kept on this Mac (Settings → Reset settings clears them).",
+              "<b>A big gap at the top of Create</b> (the Reset all lever on a line of its own): fixed; it shares one line with collapse all · expand all.",
               "<b>Where's Compare side by side?</b> It moved up into the toolbar: <b>⇆ Compare</b>, right of ✕ Deselect all, so it's always in view however far you scroll. It lights up once 2 or more pictures are selected.",
               "<b>Reset all stayed flipped (“Reset · undo”)</b>: fixed; the lever is now spring-loaded and returns to rest right after resetting. There's no undo, so save a preset first if you want your settings back later.",
               "<b>Dragging to select pictures felt sticky</b> (Library → Select): fixed; it now follows the pointer smoothly, keeps scrolling while you rest at the top or bottom edge, and stops as soon as you let go (even outside the window). Start the drag on a picture or in the gap between pictures, not on its ★ or other buttons.",
@@ -1119,7 +1136,9 @@ const protoartApp = createApp({
       embMsg: "",
       modelFilter: "all",
       shop: { family: "all", search: "", fav: false }, // Models tab
-      mpanels: { own: false, civitai: false, hub: false, fix: false, trig: false },
+      mpanels: { own: false, civitai: false, hub: false, fix: false, trig: false, tags: false },
+      loraTags: loadJSON("protoart.loraTags", {}),  // your own tags on LoRAs: { "LoRA name": ["pencil", "ink"] }
+      tagBatch: { q: "", sel: [], tag: "" },         // Models → LoRA tags
       trigBatch: { q: "", sel: [], word: "", busy: false },  // Models → Trigger words // Models tab panels (closed until you open one)
       shopFolds: loadJSON("protoart.shopFolds", { get: true, big: true }),  // Models tab model groups folded (On this Mac open)
       dl: { path: "", default: "", custom: false, missing: null, free_gb: null, sizeGb: null, move: true, busy: false }, // downloaded-models folder
@@ -1232,6 +1251,17 @@ const protoartApp = createApp({
         ...this.models.filter((m) => m.nsfw_mark != null).map((m) => ({ kind: "model", name: m.id, label: m.label, nsfw: m.nsfw_mark })),
         ...this.loras.filter((l) => l.nsfw_mark != null).map((l) => ({ kind: "lora", name: l.name, label: l.name, nsfw: l.nsfw_mark })),
       ];
+    },
+    allLoraTags() {  // every tag you've used, with how many LoRAs have it
+      const m = new Map();
+      for (const [name, tags] of Object.entries(this.loraTags || {})) for (const t of tags || []) m.set(t, (m.get(t) || 0) + 1);
+      return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([tag, n]) => ({ tag, n }));
+    },
+    tagList() {  // Models → LoRA tags: the LoRAs matching the search (name, or #tag), 100 at most
+      const q = this.tagBatch.q.trim().toLowerCase();
+      const tq = q.startsWith("#") ? q.slice(1) : "";
+      return this.loras.filter((l) => !q || (tq ? this.loraTagsOf(l.name).some((t) => t.includes(tq))
+        : l.name.toLowerCase().includes(q) || this.loraTagsOf(l.name).includes(q))).slice(0, 100);
     },
     trigList() {  // Models → Trigger words: the LoRAs matching the search (60 at most)
       const q = this.trigBatch.q.trim().toLowerCase();
@@ -1402,9 +1432,12 @@ const protoartApp = createApp({
     filteredLoras() {
       const q = this.loraSearch.trim().toLowerCase();
       const k = this.loraKind;
-      return this.sortLoras(this.addableLoras.filter((l) => (!q || l.name.toLowerCase().includes(q))
+      const tagQ = q.startsWith("#") ? q.slice(1) : "";
+      return this.sortLoras(this.addableLoras.filter((l) => (!q || (tagQ ? this.loraTagsOf(l.name).some((t) => t.includes(tagQ))
+          : l.name.toLowerCase().includes(q) || this.loraTagsOf(l.name).includes(q)))
         && (!this.loraFavOnly || this.isFavLora(l))
-        && (!k || (k === "people" ? !!l.people : k === "not_people" ? !l.people : this.loraKindOf(l) === k || l.flavor === k))));
+        && (!k || (k.startsWith("tag:") ? this.loraTagsOf(l.name).includes(k.slice(4))
+          : k === "people" ? !!l.people : k === "not_people" ? !l.people : this.loraKindOf(l) === k || l.flavor === k))));
     },
     loraKinds() {  // what the LoRA list can be narrowed to: file kind, and Pony / Illustrious / NoobAI when present
       const kinds = new Map();
@@ -1417,6 +1450,9 @@ const protoartApp = createApp({
       const out = [...kinds.entries()].map(([id, n]) => ({ id, n, label: label[id] || id }));
       const people = this.addableLoras.filter((l) => l.people).length;  // ● People: LoRAs of real people
       out.push({ id: "people", n: people, label: "● People" }, { id: "not_people", n: this.addableLoras.length - people, label: "Not People" });
+      const tags = new Map();  // your own 🏷 tags
+      for (const l of this.addableLoras) for (const t of this.loraTagsOf(l.name)) tags.set(t, (tags.get(t) || 0) + 1);
+      for (const [t, n] of [...tags.entries()].sort((a, b) => a[0].localeCompare(b[0]))) out.push({ id: "tag:" + t, n, label: "🏷 " + t });
       return out;
     },
     shownLoras() {
@@ -1425,7 +1461,9 @@ const protoartApp = createApp({
     // Image to image's own LoRA picker (the same LoRAs as Create: both tabs use one model and one LoRA list)
     i2iShownLoras() {
       const q = this.i2iLora.q.trim().toLowerCase();
-      return this.sortLoras(this.addableLoras.filter((l) => !q || l.name.toLowerCase().includes(q))).slice(0, 200);
+      const tq = q.startsWith("#") ? q.slice(1) : "";  // #pencil: your 🏷 tag
+      return this.sortLoras(this.addableLoras.filter((l) => !q || (tq ? this.loraTagsOf(l.name).some((t) => t.includes(tq))
+        : l.name.toLowerCase().includes(q) || this.loraTagsOf(l.name).includes(q)))).slice(0, 200);
     },
     moreLoras() {
       return Math.max(0, this.filteredLoras.length - 200);
@@ -1800,6 +1838,9 @@ const protoartApp = createApp({
     createSession() {  // Create's pictures: Image to image's results stay in Image to image (and the Library)
       return this.session.filter((r) => !I2I_KINDS.includes(r.kind));
     },
+    i2iUsesKlein() {  // Image to image runs on FLUX.2 Klein: Edit with words, or Expand with the outpaint LoRA
+      return this.form.i2i_mode === "edit" || (this.form.i2i_mode === "outpaint" && this.form.outpaint_engine !== "model");
+    },
     i2iResults() {
       return this.session.filter((r) => I2I_KINDS.includes(r.kind));
     },
@@ -2019,6 +2060,9 @@ const protoartApp = createApp({
   },
 
   watch: {
+    loraKind(v) {  // "🏷 Manage tags…" in the LoRA list's filter opens the tags panel
+      if (v === "__tags") { this.loraKind = ""; this.openModelsPanel("tags"); }
+    },
     // picking a ControlNet in Image to image puts in the settings it works best with (strength, timing,
     // steps… which are easy to miss); "undo" puts yours back
     "form.control.type"(v, old) {
@@ -2440,12 +2484,51 @@ const protoartApp = createApp({
         await this.afterLibChange(`Re-read ${this.modelDirs.dirs.length} watched folder${this.modelDirs.dirs.length === 1 ? "" : "s"} · ${this.localModels.length} of your models found`);
       } catch (e) { this.status = e.message; } finally { this.libBusy = false; }
     },
+    loraTagsOf(name) {
+      return (this.loraTags && this.loraTags[name]) || [];
+    },
+    cleanTags(text) {  // "Pencil, ink sketch" → ["pencil", "ink sketch"]
+      return String(text || "").split(",").map((t) => t.trim().toLowerCase().replace(/^#/, "").replace(/\s+/g, " ").slice(0, 30)).filter(Boolean);
+    },
+    saveLoraTags() {
+      saveJSON("protoart.loraTags", this.loraTags);
+    },
+    tagLoras(action) {  // ＋ / − a tag on every selected LoRA
+      const tags = this.cleanTags(this.tagBatch.tag);
+      if (!tags.length || !this.tagBatch.sel.length) return;
+      const next = { ...this.loraTags };
+      for (const name of this.tagBatch.sel) {
+        const cur = new Set(next[name] || []);
+        for (const t of tags) action === "add" ? cur.add(t) : cur.delete(t);
+        if (cur.size) next[name] = [...cur].sort(); else delete next[name];
+      }
+      this.loraTags = next;
+      this.saveLoraTags();
+      this.status = `${action === "add" ? "Tagged" : "Untagged"} ${this.tagBatch.sel.length} LoRA${this.tagBatch.sel.length === 1 ? "" : "s"}: ${tags.map((t) => "🏷 " + t).join(", ")}`;
+    },
+    removeLoraTag(name, tag) {
+      const left = this.loraTagsOf(name).filter((t) => t !== tag);
+      const next = { ...this.loraTags };
+      if (left.length) next[name] = left; else delete next[name];
+      this.loraTags = next;
+      this.saveLoraTags();
+    },
+    renameLoraTag(tag) {  // rename (or merge) a tag everywhere
+      const to = this.cleanTags(this.tagBatch.tag)[0];
+      if (!to || to === tag) return;
+      const next = {};
+      for (const [name, tags] of Object.entries(this.loraTags)) next[name] = [...new Set(tags.map((t) => (t === tag ? to : t)))].sort();
+      this.loraTags = next;
+      this.saveLoraTags();
+      this.status = `🏷 ${tag} is now 🏷 ${to}`;
+    },
     loraTag(l) {
       // Short so it fits beside the size on every row: BEE = from DiffusionBee, then the LoRA's type.
       const bits = [];
       if (l.source === "diffusionbee") bits.push("BEE");
       if (l.family === "unknown") bits.push("type?");
       if (l.flavor && this.flavorName(l.flavor)) bits.push(this.flavorName(l.flavor) + (this.currentFlavor && l.flavor !== this.currentFlavor ? " ⚠" : ""));
+      for (const t of this.loraTagsOf(l.name)) bits.push("🏷 " + t);
       return bits.join(" · ");
     },
     loraMetaTitle(l) {
@@ -2453,6 +2536,8 @@ const protoartApp = createApp({
       if (l.source === "diffusionbee") bits.push("BEE: from your DiffusionBee folder (read in place)");
       if (l.family === "unknown") bits.push("type unknown");
       if (l.flavor) bits.push(this.flavorName(l.flavor) + (this.currentFlavor && l.flavor !== this.currentFlavor ? " (may not match this model)" : ""));
+      const tags = this.loraTagsOf(l.name);
+      if (tags.length) bits.push("your tags: " + tags.join(", "));
       bits.push(l.size_mb + " MB");
       return bits.join(" · ");
     },
@@ -4918,10 +5003,10 @@ const protoartApp = createApp({
 
     // -------------------------------------------------------------- enhance prompt / start image
     async enhanceNow(style) {
-      const edit = style === "edit";
+      const edit = style === "edit" || style === "outpaint";  // instructions for FLUX.2 Klein, not a whole prompt
       const f = this.form, owner = f.prompt_owner === "i2i" ? "i2i" : "create";  // the tab that asked
       const res = await this.runJob("enhance_prompt", { prompt: f.prompt, width: f.width, height: f.height,
-                                                        model: f.model, family: edit ? "edit" : this.family });
+                                                        model: f.model, family: edit ? style : this.family });
       if (res) {
         const here = (f.prompt_owner === "i2i" ? "i2i" : "create") === owner;
         if (here) {
@@ -4933,7 +5018,7 @@ const protoartApp = createApp({
         } else {
           f.create_prompt = res.prompt;
         }
-        this.status = (edit ? "Instruction made clearer" : "Prompt enhanced (and a matching negative prompt written if yours was empty)")
+        this.status = (style === "outpaint" ? "Described what goes around the picture" : edit ? "Instruction made clearer" : "Prompt enhanced (and a matching negative prompt written if yours was empty)")
           + (here ? "" : ` (in ${owner === "i2i" ? "Image to image" : "Create"})`);
       }
     },
@@ -5269,9 +5354,13 @@ const protoartApp = createApp({
         this.controlTypes = await call("control_types").catch(() => this.controlTypes);
       }
     },
-    pickI2iModel(id) {  // Image to image's model list: FLUX.2 Klein means ✨ Edit with words; any other model leaves it
-      if (id === "flux2_klein_mlx_q4") return this.setI2iMode("edit");
+    pickI2iModel(id) {  // Image to image's model list: FLUX.2 Klein means ✨ Edit with words (or Expand with its LoRA)
+      if (id === "flux2_klein_mlx_q4") {
+        if (this.form.i2i_mode === "outpaint") { this.form.outpaint_engine = "klein"; return; }
+        return this.setI2iMode("edit");
+      }
       if (this.form.i2i_mode === "edit") this.setI2iMode("change");
+      if (this.form.i2i_mode === "outpaint") this.form.outpaint_engine = "model";  // expand with the model you picked
       this.selectModel(id);
     },
     editModel() {  // the model Edit with words uses
