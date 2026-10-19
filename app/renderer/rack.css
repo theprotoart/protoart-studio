@@ -1977,3 +1977,18 @@ table.libs td:first-child { white-space: nowrap; }
 .sel-box { position: fixed; z-index: 50; pointer-events: none; border: 1px solid var(--amber, #ffae2b);
   background: rgba(var(--glow-rgb, 255, 174, 43), .14); border-radius: 2px; }
 .sel-tip { white-space: nowrap; }
+
+/* the picture details window keeps one size while you step through pictures (‹ ›): it no longer grows or shrinks
+   with each picture's shape or prompt length; the picture fits inside, the details scroll */
+.modal > .detail { width: min(1500px, calc(100vw - 140px)); height: min(920px, calc(100vh - 48px)); max-height: none;
+  display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr); }
+.modal > .detail > .detail-img { height: 100%; min-height: 0; background: #000; }
+.modal > .detail > .detail-img img { width: 100%; height: 100%; max-height: none; object-fit: contain; }
+.modal > .detail > .meta { height: 100%; max-height: none; min-height: 0; overflow-y: auto; }
+@media (max-width: 1000px) {
+  .modal > .detail { grid-template-columns: 1fr; grid-template-rows: 48% minmax(0, 1fr); }
+}
+/* Close at the top, Delete well apart from it, so one isn't pressed by mistake for the other */
+.detail-facts { align-items: stretch; }
+.detail-side { justify-content: space-between; min-height: 230px; gap: 10px; }
+.detail-side .danger-outline { margin-top: auto; }

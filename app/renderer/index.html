@@ -1480,8 +1480,9 @@
           <button v-if="!patch.running" class="primary patch-run" :disabled="!tool.source || !patchChain.steps.length" @click="patchRun"
                   :title="tool.source ? 'Run the picture through the patched modules, in cable order. Each module uses its own settings below.' : 'Drop a picture into Tools first'">▶ Run patch</button>
           <button v-else class="danger patch-run" @click="patchStop" title="Stop after this step">■ Stop · {{ patch.step }}/{{ patch.steps }}</button>
-          <button class="ghost small" :disabled="!!patch.running" @click="patchReset('default')" title="Picture → Enhance → Faces → Result">↺ default</button>
-          <button class="ghost small" :disabled="!!patch.running || !patch.cables.length" @click="patchReset('clear')" title="Pull out every cable">clear cables</button>
+          <button class="ghost small" :disabled="!!patch.running" @click="patchReset('reset')" title="Pull out every cable and put the modules back in their places">↺ reset</button>
+          <button class="ghost small" :disabled="!!patch.running || !patch.cables.length" @click="patchReset('clear')" title="Pull out every cable (the modules stay where they are)">clear cables</button>
+          <button class="link small" :disabled="!!patch.running" @click="patchReset('example')" title="Plug in an example chain: Picture → Enhance → Faces → Result">example</button>
           <select class="patch-add" :value="''" :disabled="!!patch.running" @change="patchAddModule($event.target.value); $event.target.value = ''"
                   title="Add another copy of a module (like a second rack unit), to run it twice in one chain">
             <option value="">＋ Add a module…</option>
@@ -3218,8 +3219,8 @@
         </table>
         <div class="detail-side">
           <button class="ghost" @click="detail=null" title="Close (Esc)">✕ Close</button>
-          <button class="danger-outline" @click="askDelete([detail.id])">Delete</button>
           <span v-if="detailList.length > 1" class="hint">{{ detailIndex + 1 }} of {{ detailList.length }}</span>
+          <button class="danger-outline" @click="askDelete([detail.id])" title="Delete this picture (asks first)">🗑 Delete</button>
         </div>
         </div>
         <p v-if="detail.parent_id" class="hint">{{ kindLabel(detail.kind) }} version of

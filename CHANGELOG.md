@@ -12,6 +12,10 @@
 - Library: drag-to-select / box select in Select mode (`galDown`, `.sel-box`, autoscroll at the edges); picture
   details: ‹ › no longer close the window (the global `button:active` translate moved them off the pointer, so the
   click hit the backdrop); Close / Delete beside the facts (`.detail-facts`, `.detail-side`); Esc closes
+- Picture details window: fixed size (`.modal > .detail`), picture fits inside, details scroll; Delete spaced away from
+  Close
+- Patchbay starts with no cables (`PATCH_DEFAULT = []`, one-time clear via `protoart.patchV2`); buttons ↺ reset /
+  clear cables / example
 - Train: ✕ Clear the chosen training pictures (`trainClearFolder`; files untouched)
 - Patchbay: control bar moved above the panel; modules reorder by dragging the name plate or ‹ › (`patch.order`,
   `protoart.patchOrder`, `patchMoveModule`, `patchHeadDown`); ↺ default resets the order

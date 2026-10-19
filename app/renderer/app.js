@@ -164,7 +164,8 @@ const PATCH_NODES = [
 const PATCH_X = (i) => 78 + i * 140;           // jack columns in the panel's own 1000-wide drawing
 const PATCH_IN_Y = 118, PATCH_OUT_Y = 206;
 const CABLE_COLOURS = ["#c8372d", "#e0882a", "#2f7fc1", "#3d9a4b", "#d9b52c", "#8a4fb5"];
-const PATCH_DEFAULT = [{ from: "src", to: "enhance", c: 0 }, { from: "enhance", to: "faces", c: 1 }, { from: "faces", to: "result", c: 2 }];
+const PATCH_DEFAULT = [];  // the patchbay starts with no cables: you plug in what you want
+const PATCH_EXAMPLE = [{ from: "src", to: "enhance", c: 0 }, { from: "enhance", to: "faces", c: 1 }, { from: "faces", to: "result", c: 2 }];
 // Starting guesses (seconds per step per megapixel) until this Mac has real measurements.
 const DEFAULT_SPS_PER_MP = { sd15: 2.4, sdxl: 3.5, ernie: 9, flux: 12, flux2: 7 };
 const DEFAULT_LOAD_S = { sd15: 15, sdxl: 30, ernie: 60, flux: 60, flux2: 40 };
@@ -456,10 +457,10 @@ const protoartApp = createApp({
               "<b>Models tab</b>: ↻ Refresh and + Add from your Mac swapped places; <b>On this Mac</b> and the download lists fold up under Fix a type; Pony, Illustrious and NoobAI filters; a clear “✓ Model imported” note after adding one.",
               "<b>Trigger words panel</b> (Models tab): search your LoRAs, edit their trigger words in place, or tick several and add / remove a word on all of them at once.",
               "<b>Library</b>: ☑ Select sits in the middle of the toolbar; select 2–6 pictures and <b>⇆ Compare side by side</b>; in a picture's details, <b>‹ ›</b> (or ← →) step through the pictures.",
-              "<b>Select by dragging</b> (Library → ☑ Select): drag across pictures, or draw a box from the space between them, to select many at once; start on a selected picture to unselect. Fixed: the picture details' <b>‹ ›</b> arrows closed the picture instead of going to the next one. <b>✕ Close</b> and <b>Delete</b> now sit beside the picture's details (Esc closes too).",
+              "<b>Select by dragging</b> (Library → ☑ Select): drag across pictures, or draw a box from the space between them, to select many at once; start on a selected picture to unselect. Fixed: the picture details' <b>‹ ›</b> arrows closed the picture instead of going to the next one. <b>✕ Close</b> and <b>🗑 Delete</b> now sit beside the picture's details, well apart so one isn't pressed for the other (Esc closes too). The window keeps the same size while you step through pictures.",
               "<b>Train → ✕ Clear</b>: start again with no training pictures chosen (the folder and its files aren't changed).",
               "<b>Patchbay: add more modules</b> (Tools): ＋ Add a module puts in another Faces, Enhance, Remove or Depth, so you can run Restore faces twice (or any module again) in one chain; the panel widens for them.",
-              "<b>Patchbay controls on top, and modules you can move</b>: Run patch, default, clear cables and ＋ Add a module now sit above the panel. Drag a module's name left or right (or point at it and press ‹ ›) to put the modules in the order you like; ↺ default puts them back.",
+              "<b>Patchbay controls on top, and modules you can move</b>: Run patch, ↺ reset, clear cables and ＋ Add a module now sit above the panel, and the patchbay <b>starts with no cables</b>: plug in only what you want (or press <i>example</i> for Picture → Enhance → Faces → Result). Drag a module's name left or right (or point at it and press ‹ ›) to put the modules in the order you like; ↺ reset puts them back and pulls out the cables.",
               "<b>🔎 Search the manual</b>: a search box at the top of How to shows every matching tip from all the sections.",
               "<b>ControlNets work again with a LoRA switched on</b>: DiffusionBee's ControlNets (Depth, Tile, Line art, Scribble, OpenPose) are built partly from your model, and a LoRA in the mix broke that copy, so the app tried to download the official ones instead (which failed without internet). The LoRA parts are now left out of the copy.",
               "<b>Clear messages when a one-time download can't happen</b>: instead of “does not appear to have a file named config.json” or “Can't load image processor”, the app says it couldn't reach Hugging Face and what to check.",
@@ -717,10 +718,10 @@ const protoartApp = createApp({
           sections: [
             { h: "🔌 Patchbay: run the tools in your own order", items: [
               "<b>＋ Add a module</b> (above the panel) puts in another copy of Faces, Enhance, Remove or Depth, like a second rack unit: cable it in to run that tool twice in one chain (for example Restore faces, then Restore faces again). <b>✕ last added</b> takes the newest copy out.",
-              "<b>Moving modules</b>: drag a module's name plate left or right, or point at it and press <b>‹</b> / <b>›</b>. PICTURE stays first and RESULT last. Moving a module doesn't change what runs: the <b>cables</b> set the order the picture goes through (shown in the amber readout). <b>↺ default</b> puts the modules and cables back.",
+              "<b>Moving modules</b>: drag a module's name plate left or right, or point at it and press <b>‹</b> / <b>›</b>. PICTURE stays first and RESULT last. Moving a module doesn't change what runs: the <b>cables</b> set the order the picture goes through (shown in the amber readout). <b>↺ reset</b> puts the modules back in their places and pulls out every cable.",
               "Switch on <b>PATCHBAY</b> (the toggle at the top of the right-hand column). The back of the rack appears: every tool has an <b>IN</b> and an <b>OUT</b> jack. <b>PICTURE</b> (your picture) has only an OUT, <b>RESULT</b> (the Library) only an IN.",
               "<b>Plug cables</b>: drag from an OUT jack to an IN jack (or click one, then the other). The picture goes PICTURE → along the cables → RESULT, so the order of the cables is the order the tools run in. The amber readout under the panel spells it out, for example <i>PICTURE ▸ REMOVE ▸ FACES ▸ ENHANCE ▸ RESULT</i>. Green lamps show the tools that are in the chain.",
-              "<b>Unplug</b>: drag a plug away from its jack, or double-click a cable. One cable per jack: plugging into a used jack replaces its cable. Loops aren't allowed, and <b>VECTOR</b> has to be last (it makes a drawing, not a picture). <b>↺ default</b> puts back PICTURE ▸ ENHANCE ▸ FACES ▸ RESULT; <b>clear cables</b> pulls them all out.",
+              "<b>Unplug</b>: drag a plug away from its jack, or double-click a cable. One cable per jack: plugging into a used jack replaces its cable. Loops aren't allowed, and <b>VECTOR</b> has to be last (it makes a drawing, not a picture). The patchbay starts with <b>no cables</b>. <b>example</b> plugs in PICTURE ▸ ENHANCE ▸ FACES ▸ RESULT; <b>clear cables</b> pulls them all out; <b>↺ reset</b> also puts the modules back in their places.",
               "<b>▶ Run patch</b> runs each patched tool in turn, each on the previous one's result, using that tool's own settings in its module below (upscale, face model, depth look, colours…). <b>REMOVE</b> uses what you painted on the picture: if nothing is painted yet, Run patch turns Paint on so you can paint first. Every step is saved in the Library; the last one shows in the picture window to compare. <b>■ Stop</b> stops after the current step.",
               "Your cables are remembered on this Mac, and the patchbay stays hidden until you switch it on." ] },
             { h: "🩹 Remove objects and ✒️ Vectorize", items: [
@@ -1104,7 +1105,7 @@ const protoartApp = createApp({
       PATCH_NODES,
       patchInY: PATCH_IN_Y,
       patchOutY: PATCH_OUT_Y,
-      patch: { on: loadJSON("protoart.patchOn", false), cables: loadJSON("protoart.patch", PATCH_DEFAULT),
+      patch: { on: loadJSON("protoart.patchOn", false), cables: loadJSON("protoart.patchV2", false) ? loadJSON("protoart.patch", PATCH_DEFAULT) : [],  // 1.2.1: cables start cleared
                extra: loadJSON("protoart.patchExtra", []),  // more copies of modules you added: [{id: "faces#2", type: "faces"}]
                order: loadJSON("protoart.patchOrder", []),  // the modules' left-to-right order, if you moved them
                moving: null,  // a module being dragged sideways by its name plate
@@ -3320,6 +3321,7 @@ const protoartApp = createApp({
     },
     patchSave() {
       saveJSON("protoart.patch", this.patch.cables);
+      saveJSON("protoart.patchV2", true);  // cables you plug in from now on are kept
     },
     patchX(i) {
       return PATCH_X(i);
@@ -3452,8 +3454,8 @@ const protoartApp = createApp({
     },
     patchReset(kind) {
       if (this.patch.running) return;
-      this.patch.cables = kind === "clear" ? [] : JSON.parse(JSON.stringify(PATCH_DEFAULT));
-      if (kind !== "clear") { this.patch.order = []; saveJSON("protoart.patchOrder", []); }  // modules back in their places
+      this.patch.cables = kind === "example" ? JSON.parse(JSON.stringify(PATCH_EXAMPLE)) : [];
+      if (kind === "reset") { this.patch.order = []; saveJSON("protoart.patchOrder", []); }  // modules back in their places
       this.patch.msg = "";
       this.patchSave();
     },
