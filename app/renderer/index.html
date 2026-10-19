@@ -1532,6 +1532,19 @@
           </select>
           <button v-if="patch.extra.length" class="ghost small" :disabled="!!patch.running" @click="patchRemoveModule()" title="Take out the last module you added (and its cables)">✕ last added</button>
         </div>
+        <div class="patch-presets row">
+          <span class="hint">Signal flows</span>
+          <select :value="patch.preset" :disabled="!!patch.running || !patch.presets.length" @change="patchLoadPreset($event.target.value)"
+                  title="Load a signal flow you saved: its cables, the copies you added, the module order and the copies' settings">
+            <option value="">{{ patch.presets.length ? 'load a saved flow…' : 'none saved yet' }}</option>
+            <option v-for="p in patch.presets" :key="p.name" :value="p.name">{{ p.name }}</option>
+          </select>
+          <button v-if="patch.preset" class="ghost small" @click="patchDeletePreset" title="Delete this saved flow (asks first)">🗑</button>
+          <input v-model="patch.presetName" class="patch-preset-name" placeholder="name this flow…" maxlength="40" @keydown.enter="patchSavePreset"
+                 title="A name for the signal flow on the patchbay now (the same name replaces the one saved before)">
+          <button class="ghost small" :disabled="!patch.presetName.trim()" @click="patchSavePreset"
+                  title="Save the cables, the copies you added, the module order and the copies' own settings as a preset">💾 Save flow</button>
+        </div>
         <svg ref="patchSvg" class="patchbay" :view-box.camel="'0 0 ' + patchW + ' 300'" role="img" aria-label="Patchbay: drag cables from OUT jacks to IN jacks"
              @pointermove="patchMove" @pointerup="patchUp" @pointerdown.self="patchCancel">
           <defs>
@@ -1557,11 +1570,11 @@
             <circle :cx="sx" cy="276" r="5" fill="url(#pbScrew)" stroke="#222" stroke-width=".8"/>
             <path :d="'M' + (sx - 3) + ',24 h6 M' + (sx - 3) + ',276 h6'" stroke="#444" stroke-width="1.2"/>
           </g>
-          <g v-for="(n, i) in patchNodes" :key="'pn' + n.id" :class="{'pb-moving': patch.moving && patch.moving.id === n.id}"
+          <g v-for="(n, i) in patchNodes" :key="'pn' + n.id" :class="{'pb-moving': patch.moving && patch.moving.id === n.id, 'pb-selected': patch.sel === n.id}"
              :transform="patch.moving && patch.moving.id === n.id ? 'translate(' + patch.moving.dx + ',0)' : null">
             <template v-if="i > 0 && i < patchNodes.length - 1">
               <rect class="pb-head" :x="patchX(i) - 66" y="40" width="132" height="54" rx="3" @pointerdown="patchHeadDown(n.id, $event)">
-                <title>Drag the name left or right to move this module (the cables decide the order the picture goes through)</title></rect>
+                <title>Click to show this module's settings · drag the name left or right to move it (the cables decide the order the picture goes through)</title></rect>
               <g v-if="i > 1" class="pb-arrow" @pointerdown.stop="patchMoveModule(n.id, i - 2)"><title>Move left</title>
                 <rect :x="patchX(i) - 62" y="42" width="18" height="18" rx="2"/><text :x="patchX(i) - 53" y="55" text-anchor="middle">‹</text></g>
               <g v-if="i < patchNodes.length - 2" class="pb-arrow" @pointerdown.stop="patchMoveModule(n.id, i)"><title>Move right</title>
@@ -1613,6 +1626,43 @@
             <circle :cx="patch.drag.x" :cy="patch.drag.y" r="9" :fill="cableColour(patch.drag.c)" stroke="#1a1b1d" stroke-width="2"/>
           </g>
         </svg>
+        <div v-if="patch.sel" class="patch-sel-panel">
+          <template v-if="patch.sel.includes('#')">
+            <h4>⚙ {{ (patchNodes.find((n) => n.id === patch.sel) || {}).label }} <span class="hint">· this copy's own settings (the first {{ (PATCH_NODES.find((n) => n.id === patch.sel.split('#')[0]) || {}).label }} uses its rack unit below)</span>
+              <button class="link small" @click="patch.sel = ''">close</button></h4>
+            <div v-if="patch.sel.startsWith('faces') && patch.copySettings[patch.sel]" class="psel-grid">
+              <label>Model</label>
+              <div class="seg"><button v-for="m in [['codeformer', 'CodeFormer'], ['restoreformer', 'RestoreFormer']]" :key="m[0]"
+                   :class="{on: patch.copySettings[patch.sel].face_model === m[0]}" @click="patch.copySettings[patch.sel].face_model = m[0]; patchCopySave()">{{ m[1] }}</button></div>
+              <label title="How much of the restored face is used">Strength <b>{{ patch.copySettings[patch.sel].face_strength.toFixed(2) }}</b></label>
+              <input type="range" min="0.1" max="1" step="0.05" v-model.number="patch.copySettings[patch.sel].face_strength" @change="patchCopySave" title="How much of the restored face is used">
+              <template v-if="patch.copySettings[patch.sel].face_model === 'codeformer'">
+                <label title="Low: cleanest face. High: keeps more of the person's own features.">Fidelity <b>{{ patch.copySettings[patch.sel].face_fidelity.toFixed(2) }}</b></label>
+                <input type="range" min="0" max="1" step="0.05" v-model.number="patch.copySettings[patch.sel].face_fidelity" @change="patchCopySave" title="Low: cleanest face. High: keeps more of the person's own features.">
+              </template>
+            </div>
+            <div v-else-if="patch.sel.startsWith('enhance') && patch.copySettings[patch.sel]" class="psel-grid">
+              <label>Upscale</label>
+              <div class="seg"><button v-for="u in [1, 2, 3, 4]" :key="u" :class="{on: patch.copySettings[patch.sel].enh.upscale_factor === u}"
+                   @click="patch.copySettings[patch.sel].enh.upscale_factor = u; patchCopySave()">{{ u }}×</button></div>
+              <label title="How much the enhancer may change: low keeps it close to the picture, high invents more detail">Detail <b>{{ Number(patch.copySettings[patch.sel].enh.denoise_strength).toFixed(2) }}</b></label>
+              <input type="range" min="0.1" max="0.8" step="0.05" v-model.number="patch.copySettings[patch.sel].enh.denoise_strength" @change="patchCopySave" title="How much the enhancer may change">
+              <label title="More steps add detail but take longer">Steps</label>
+              <input type="number" min="4" max="50" v-model.number="patch.copySettings[patch.sel].enh.num_inference_steps" @change="patchCopySave" title="More steps add detail but take longer">
+            </div>
+            <div v-else-if="patch.sel.startsWith('depth') && patch.copySettings[patch.sel]" class="psel-grid">
+              <label>Model</label>
+              <div class="seg"><button v-for="m in [['small', 'Small'], ['base', 'Base'], ['large', 'Large']]" :key="m[0]"
+                   :class="{on: patch.copySettings[patch.sel].depth.model === m[0]}" @click="patch.copySettings[patch.sel].depth.model = m[0]; patchCopySave()">{{ m[1] }}</button></div>
+              <label>Look</label>
+              <div class="seg"><button v-for="m in [['gray', 'Grey'], ['color', 'Colour']]" :key="m[0]"
+                   :class="{on: patch.copySettings[patch.sel].depth.style === m[0]}" @click="patch.copySettings[patch.sel].depth.style = m[0]; patchCopySave()">{{ m[1] }}</button></div>
+            </div>
+            <p v-else class="hint">This copy uses what you paint on the picture, like the first one.</p>
+          </template>
+          <p v-else class="hint">⚙ {{ (patchNodes.find((n) => n.id === patch.sel) || {}).label }} uses its rack unit below (lit up now).
+            <button class="link small" @click="patch.sel = ''">close</button></p>
+        </div>
         <p class="hint patch-hint">{{ patch.msg || 'Drag from an OUT jack to an IN jack to plug a cable in (or click one, then the other). Drag a module\'s name (or press ‹ ›) to move it left or right. Drag a plugged-in end away, or double-click a cable, to unplug it. Each module uses its own settings below; REMOVE uses what you paint on the picture.' }}
           <template v-if="patchLoose.length"> · <span class="warn-text">{{ patchLoose.length === 1 ? 'one module is' : patchLoose.length + ' modules are' }} patched but not reached from PICTURE, so {{ patchLoose.length === 1 ? 'it is' : 'they are' }} skipped.</span></template></p>
       </div>
@@ -1635,7 +1685,7 @@
           </div>
         </div>
 
-        <div class="card rack-module enh-module" :class="{active: post.do_enhance}">
+        <div id="rack-enhance" class="card rack-module enh-module" :class="{active: post.do_enhance, 'patch-pick': patch.on && patch.sel === 'enhance'}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">✨</span>
             <h3>Enhance</h3><span class="mod-sub">sharper &amp; bigger · Finegrain</span></div>
           <label>Upscale</label>
@@ -1678,7 +1728,7 @@
           </div>
         </div>
 
-        <div class="card rack-module" :class="{active: post.do_faces}">
+        <div id="rack-faces" class="card rack-module" :class="{active: post.do_faces, 'patch-pick': patch.on && patch.sel === 'faces'}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🙂</span>
             <h3>Restore faces</h3><span class="mod-sub">{{ post.face_model === 'restoreformer' ? 'RestoreFormer' : 'CodeFormer' }}</span></div>
           <p class="mod-desc">Repairs blurry or distorted faces and eyes.</p>
@@ -1702,7 +1752,7 @@
           </div>
         </div>
 
-        <div class="card rack-module depth-card">
+        <div id="rack-depth" class="card rack-module depth-card" :class="{'patch-pick': patch.on && patch.sel === 'depth'}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🌊</span>
             <h3>Depth map</h3><span class="mod-sub">Depth Anything V2</span></div>
           <p class="mod-desc" title="Use it as a ControlNet depth map in Image to image (keeps the 3-D layout while changing everything else), or for editing and 3-D work.">Near things bright, far things dark. For ControlNet and 3-D work.</p>
@@ -1723,7 +1773,7 @@
           </div>
         </div>
 
-        <div class="card rack-module heal-card">
+        <div id="rack-heal" class="card rack-module heal-card" :class="{'patch-pick': patch.on && patch.sel === 'heal'}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🩹</span>
             <h3>Remove objects</h3><span class="mod-sub">spot healing</span></div>
           <template v-if="!tool.healing">
@@ -1766,7 +1816,7 @@
           </div>
         </div>
 
-        <div class="card rack-module vec-card">
+        <div id="rack-vector" class="card rack-module vec-card" :class="{'patch-pick': patch.on && patch.sel === 'vector'}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">✒️</span>
             <h3>Vectorize</h3><span class="mod-sub">picture → SVG</span></div>
           <p class="mod-desc" title="The SVG scales to any size without blur and opens in Illustrator, Affinity, Inkscape, Figma or Cricut. Photos become a poster-like look.">Flat colour shapes for logos, icons, stickers and cut files.</p>
@@ -2043,11 +2093,12 @@
             <label>Bottom <input type="number" min="0" max="1024" step="32" v-model.number="form.outpaint.bottom"></label>
           </div>
           <div class="chips">
-            <button class="chip" @click="outpaintPreset('all')">+ all sides</button>
-            <button class="chip" @click="outpaintPreset('wide')">make it wider</button>
-            <button class="chip" @click="outpaintPreset('tall')">make it taller</button>
+            <button class="chip rec" @click="outpaintPreset('wide')" title="Add a quarter of the width on the left and right (recommended: one direction at a time gives the cleanest result)">★ make it wider</button>
+            <button class="chip rec" @click="outpaintPreset('tall')" title="Add a quarter of the height at the top and bottom (recommended: one direction at a time gives the cleanest result)">★ make it taller</button>
+            <button class="chip" @click="outpaintPreset('all')" title="Add space on every side at once: the hardest case, more likely to give seams or repeated objects">+ all sides</button>
             <button class="chip" @click="outpaintPreset('none')">reset</button>
           </div>
+          <div v-if="expandAdvice" class="expand-advice" :class="expandAdvice.level">{{ expandAdvice.level === 'warn' ? '⚠ ' : '✓ ' }}{{ expandAdvice.text }}</div>
           <div class="hint" v-if="outpaintSize">New size: {{ outpaintSize }}.<template v-if="form.outpaint_engine === 'model'"> Describe the whole scene in the prompt (what should appear around it).</template></div>
         </template>
         <label v-if="form.i2i_mode !== 'edit' && !(form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model')" class="check"><input type="checkbox" v-model="form.use_init_size"> Use the picture's size (otherwise the size from Create)</label>
@@ -2194,6 +2245,8 @@
         <textarea class="tape" v-model="form.prompt" rows="3"
                   :placeholder="form.i2i_mode === 'edit' ? 'The change, in a sentence: make the jacket red · add a hat · turn it into a watercolour…' : i2iUsesKlein ? 'Optional: what goes around the picture · more of the street · a sunny beach · the rest of the room…' : 'What the result should look like…'"></textarea>
         <div v-if="i2iUsesKlein && form.i2i_mode === 'outpaint'" class="row small i2i-enhance">
+          <button class="link" @click="suggestExpandPrompt" :disabled="!form.init_image"
+                  title="Describe your picture (on this Mac) and ask for more of the same scene around it: a good starting prompt you can edit">💡 suggest from the picture</button>
           <button class="link" @click="enhanceNow('outpaint')" :disabled="!form.prompt.trim()"
                   title="Turn a quick note (“more of the street”) into a clear description of what should fill the new space, in the plain sentences FLUX.2 understands">✨ enhance now</button>
           <button v-if="undoPrompt" class="link" @click="form.prompt = undoPrompt; undoPrompt = null">↩ undo</button>
@@ -2491,7 +2544,7 @@
           <div class="span2"><label>What to train</label>
             <select title="Which parts of the model learn: attention layers (lighter) or attention + feed-forward (stronger, bigger file)" v-model="train.targets"><option value="attention">Attention layers (lighter, good for styles/characters)</option><option value="full">Attention + feed-forward (stronger, bigger file)</option></select></div>
         </div>
-        <label class="check"><input type="checkbox" v-model="train.flip"> Mirror images too (doubles variety; skip for text or one-sided subjects)</label>
+        <label class="check" title="Also train on left-right flipped copies: doubles the variety, but leave it off for text, logos or one-sided details"><input type="checkbox" v-model="train.flip"> Mirror images too (doubles variety; skip for text or one-sided subjects)</label>
         <label class="check" :class="{dim: trainFamily !== 'sd15'}"><input type="checkbox" v-model="train.train_text_encoder" :disabled="trainFamily !== 'sd15'">
           Also train the text encoder (stronger trigger word, slower, more memory){{ trainFamily !== 'sd15' ? ' · SD 1.5 only' : '' }}</label>
       </div>

@@ -2025,3 +2025,32 @@ table.libs td:first-child { white-space: nowrap; }
    line of its own, which left a tall empty gap above Model) */
 .controls > .cfold-all { flex-wrap: nowrap; align-items: center; min-height: 30px; margin: 0 0 8px; gap: 6px; }
 .controls > .cfold-all .reset-toggle { margin-left: auto; }
+
+/* Image to image result: the frame hugs the picture (no black bars beside a tall or narrow result) */
+.i2i-stage figure, [data-theme="dark"] .i2i-stage figure, [data-theme="light"] .i2i-stage figure {
+  width: fit-content; max-width: 100%; justify-self: center; background: transparent; box-shadow: none; padding: 0; }
+.i2i-stage figure img { display: block; }
+.i2i-stage figure { min-height: 0; }
+.i2i-stage figure.waiting { width: auto; justify-self: stretch; min-height: 280px; background: var(--panel2, #151618);
+  box-shadow: inset 0 3px 10px #000, inset 0 0 0 1px #000; border-radius: 4px; }
+
+/* ↔ Expand advice */
+.expand-advice { margin: 8px 0 4px; padding: 7px 10px; border-radius: 4px; font-size: 12.5px; line-height: 1.4; }
+.expand-advice.warn { background: rgba(255, 140, 60, .12); border: 1px solid rgba(255, 140, 60, .5); color: #ffc79a; }
+.expand-advice.ok { background: rgba(120, 200, 120, .08); border: 1px solid rgba(120, 200, 120, .35); color: #b9e2b0; }
+[data-theme="light"] .expand-advice.warn { color: #8a3d00; }
+[data-theme="light"] .expand-advice.ok { color: #2f6b2a; }
+.chip.rec { border-color: rgba(var(--glow-rgb, 255, 174, 43), .6); }
+
+/* patchbay: the module you clicked, its settings, and saved signal flows */
+.pb-selected .pb-head { fill: rgba(255, 196, 77, .14); stroke: rgba(255, 196, 77, .8); stroke-width: 1.2; }
+.patch-presets { gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 10px; }
+.patch-presets select { width: auto; min-width: 180px; }
+.patch-preset-name { max-width: 200px; }
+.patch-sel-panel { margin: 10px 0 4px; padding: 10px 12px; border: 1px solid rgba(255, 196, 77, .45); border-radius: 4px;
+  background: rgba(255, 196, 77, .06); }
+.patch-sel-panel h4 { margin: 0 0 8px; font-size: 12.5px; letter-spacing: .06em; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.psel-grid { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px 12px; align-items: center; max-width: 560px; }
+.rack-module.patch-pick { box-shadow: 0 0 0 2px rgba(255, 196, 77, .85), 0 0 18px rgba(255, 196, 77, .35) !important; }
+@keyframes rackFlash { 0% { filter: brightness(1.35); } 100% { filter: none; } }
+.rack-module.flash { animation: rackFlash .9s ease-out; }

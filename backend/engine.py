@@ -2703,6 +2703,50 @@ class Engine:
         canvas.paste(image.convert("RGB"), (left, top))
         return canvas, (left, top, left + w, top + h)
 
+    @staticmethod
+    def align_to_original(result, original, box, max_shift=64):
+        """FLUX.2 may redraw the scene a few pixels off. Find how far its version of your picture moved (phase
+        correlation on a small grey copy), move the whole result back by that much, and say how different the
+        picture area still is (0 = identical, 1 = unrelated; above ~0.35 it was redrawn). -> (aligned result, (dx, dy), difference)"""
+        from PIL import Image
+        import numpy as np
+        x0, y0, x1, y1 = box
+        w, h = x1 - x0, y1 - y0
+        f = min(1.0, 256 / max(w, h))
+        sw, sh = max(8, int(w * f)), max(8, int(h * f))
+        a = np.asarray(original.convert("L").resize((sw, sh), Image.BILINEAR), dtype=np.float32)
+        b = np.asarray(result.crop(box).convert("L").resize((sw, sh), Image.BILINEAR), dtype=np.float32)
+        a -= a.mean()
+        b -= b.mean()
+        win = np.outer(np.hanning(sh), np.hanning(sw)).astype(np.float32)
+        A, B = np.fft.fft2(a * win), np.fft.fft2(b * win)
+        r = A * np.conj(B)
+        r /= np.abs(r) + 1e-6
+        corr = np.fft.ifft2(r).real
+        py, px = np.unravel_index(int(np.argmax(corr)), corr.shape)
+        if py > sh // 2:
+            py -= sh
+        if px > sw // 2:
+            px -= sw
+        dx, dy = int(round(px / f)), int(round(py / f))  # how far to move the result so it lines up
+        if abs(dx) > max_shift or abs(dy) > max_shift:
+            dx, dy = 0, 0
+        if dx or dy:
+            arr = np.asarray(result.convert("RGB"))
+            pad = ((max(dy, 0), max(-dy, 0)), (max(dx, 0), max(-dx, 0)), (0, 0))
+            arr = np.pad(arr, pad, mode="edge")
+            H, W = result.height, result.width
+            # take the window that puts the shifted content back in place
+            oy, ox = (0 if dy >= 0 else -dy), (0 if dx >= 0 else -dx)
+            arr = arr[oy:oy + H, ox:ox + W]
+            result = Image.fromarray(np.ascontiguousarray(arr))
+        # how alike the two versions of your picture are, shapes not just brightness: 1 − correlation
+        o = np.asarray(original.convert("L").resize((sw, sh), Image.BILINEAR), dtype=np.float32)
+        n = np.asarray(result.crop(box).convert("L").resize((sw, sh), Image.BILINEAR), dtype=np.float32)
+        o, n = o - o.mean(), n - n.mean()
+        ncc = float((o * n).sum() / (np.sqrt((o * o).sum() * (n * n).sum()) + 1e-6))
+        return result, (dx, dy), max(0.0, 1.0 - ncc)
+
     def outpaint_klein(self, args):
         """↔ Expand with FLUX.2 Klein + the outpaint LoRA: works for any picture, whatever model made it."""
         import mlx_engine
@@ -2741,7 +2785,9 @@ class Engine:
             tmp = paths.HOME / "tmp"
             tmp.mkdir(parents=True, exist_ok=True)
             first = tmp / f"expand_src_{os.getpid()}.png"
-            canvas.save(first)
+            # the reference at exactly the output size (multiples of 16, under 1 MP): the model's copy of your
+            # picture then lands on the same pixels (mflux would otherwise centre-crop it on its own)
+            canvas.resize((width, height), Image.LANCZOS).save(first)
             out = tmp / f"expand_out_{os.getpid()}.png"
             self.emit({"type": "status", "msg": "Expanding with FLUX.2 Klein + outpaint LoRA (fast engine)…"})
 
@@ -2769,8 +2815,29 @@ class Engine:
         except mlx_engine.EngineError as e:
             raise UserError(str(e))
         result = result.resize(canvas.size, Image.LANCZOS)
-        # your picture stays exactly as it was: only the new area comes from the model, blended over a few pixels
-        feather = max(2, min(12, min(w, h) // 64))
+        result, shift, diff = self.align_to_original(result, image, box)
+        print(f"[expand] lined up by {shift}, picture area differs {diff:.3f}", flush=True)
+        if diff > 0.35:
+            # FLUX.2 redrew your picture rather than keeping it: pasting the original back would leave seams and
+            # doubled objects, so its whole picture is kept as it is
+            secs = time.time() - started
+            settings = {"model": self.EDIT_MODEL, "prompt": prompt, "negative_prompt": "", "width": result.width,
+                        "height": result.height, "steps": steps, "cfg": 1.0, "sampler": "flow_euler", "seed": seed,
+                        "engine": "mlx", "loras": [{"name": "flux-2-klein-4B-outpaint-lora", "weight": L["scale"]}],
+                        "seconds": round(secs, 1), "inpaint": {"outpaint": pads, "engine": "flux2_outpaint_lora",
+                                                               "kept_original": False}}
+            path = self._save(result, settings, suffix="expanded")
+            record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="outpaint")
+            record["thumb"] = str(thumbs.make(record["id"], path, result) or "") or None
+            record = self._content_check(record, result)
+            self.emit({"type": "status", "msg": "FLUX.2 redrew the picture a little, so its whole version was kept "
+                                                "(pasting your original back would leave seams). Try another seed, or "
+                                                "expand less at a time, to keep the original exactly."})
+            self.emit({"type": "image", "record": record})
+            return record
+        # your picture stays exactly as it was: only the new area comes from the model, blended over a band wide
+        # enough to hide the join
+        feather = max(6, min(40, min(w, h) // 24))
         keep = Image.new("L", canvas.size, 0)
         x0, y0, x1, y1 = box
         ImageDraw.Draw(keep).rectangle([x0 + (feather if pads["left"] else 0), y0 + (feather if pads["top"] else 0),
@@ -2784,7 +2851,8 @@ class Engine:
         settings = {"model": self.EDIT_MODEL, "prompt": prompt, "negative_prompt": "", "width": result.width,
                     "height": result.height, "steps": steps, "cfg": 1.0, "sampler": "flow_euler", "seed": seed,
                     "engine": "mlx", "loras": [{"name": "flux-2-klein-4B-outpaint-lora", "weight": L["scale"]}],
-                    "seconds": round(secs, 1), "inpaint": {"outpaint": pads, "engine": "flux2_outpaint_lora"}}
+                    "seconds": round(secs, 1), "inpaint": {"outpaint": pads, "engine": "flux2_outpaint_lora",
+                                                           "kept_original": True, "aligned": list(shift)}}
         path = self._save(result, settings, suffix="expanded")
         record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="outpaint")
         record["thumb"] = str(thumbs.make(record["id"], path, result) or "") or None

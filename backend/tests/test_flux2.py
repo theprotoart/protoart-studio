@@ -159,3 +159,29 @@ class OutpaintEnhanceStyleTests(unittest.TestCase):
         self.assertEqual(style_for("outpaint"), "outpaint")
         self.assertIn("outpaint", SYSTEM)
         self.assertIn("outpaint", EXAMPLES)
+
+
+class OutpaintAlignTests(unittest.TestCase):
+    def test_lines_up_a_shifted_result(self):
+        import numpy as np
+        from PIL import Image, ImageFilter
+        from engine import Engine
+        rng = np.random.default_rng(1)
+        orig = Image.fromarray((rng.random((200, 160, 3)) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(2))
+        box = (50, 20, 210, 220)
+        for sx, sy in [(10, 0), (0, -7), (-12, 5)]:
+            res = Image.new("RGB", (260, 240), (90, 90, 90))
+            res.paste(orig, (50 + sx, 20 + sy))
+            aligned, shift, diff = Engine.align_to_original(res, orig, box)
+            self.assertEqual(shift, (-sx, -sy))
+            self.assertLess(diff, 0.05)
+
+    def test_redrawn_picture_is_noticed(self):
+        import numpy as np
+        from PIL import Image, ImageFilter
+        from engine import Engine
+        rng = np.random.default_rng(2)
+        orig = Image.fromarray((rng.random((200, 160, 3)) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(2))
+        other = Image.fromarray((rng.random((240, 260, 3)) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(2))
+        _, _, diff = Engine.align_to_original(other, orig, (50, 20, 210, 220))
+        self.assertGreater(diff, 0.35)

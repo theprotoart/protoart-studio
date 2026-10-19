@@ -2,6 +2,13 @@
 
 ## 1.2.1 (test version)
 
+- Expand with FLUX.2: reference saved at the exact output size (mflux centre-crops references to /16 at their own
+  size); `Engine.align_to_original` (phase correlation, edge-padded shift, 1 − NCC) lines the result up before the
+  blend; if it was redrawn (> 0.35) the whole FLUX.2 picture is kept; wider feather; result frame without black bars
+- Expand: `initDims` read whenever the picture changes (was stale or 512 × 512, so presets used another picture's
+  size); `expandAdvice` warnings; ★ wider / taller recommended; 💡 `suggestExpandPrompt` (Florence-2 description)
+- Patchbay: click a module (`patchSelect`, `patch.sel`): rack unit lights up, copies get their own settings
+  (`patch.copySettings`, used by `patchRun`); signal flow presets (`patch.presets`, Save flow / load / delete)
 - 🏷 LoRA tags (`loraTags`, localStorage `protoart.loraTags`; Models → LoRA tags panel with batch tag / untag /
   rename): `tag:` filters in `loraKinds`, `#tag` search in Create and Image to image
 - Expand with FLUX.2: model menu shows FLUX.2 Klein (`i2iUsesKlein`), "outpaint" enhancer style

@@ -448,6 +448,9 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.2.1 (test version): fixes from your notes", items: [
+              "<b>Expand with FLUX.2: fewer seams and doubled objects</b>. Your picture goes to FLUX.2 at exactly the size it draws, its result is lined up with your picture before the two are blended (over a wider band), and if FLUX.2 redrew the picture its whole version is kept instead of a patchwork. The result also no longer sits between black bars.",
+              "<b>Expand advice</b>: ★ make it wider / ★ make it taller are the recommended choices, and a note warns when you expand both ways at once or by a lot. <b>💡 suggest from the picture</b> writes a starting prompt from your picture.",
+              "<b>Patchbay: click a module</b> to see its settings: the first copy lights up its rack unit below; a copy you added (FACES 2…) gets <b>its own settings</b> right under the panel, so two face restores can use different strengths. <b>💾 Save flow</b> keeps the whole signal flow as a preset to load again.",
               "<b>🏷 Your own LoRA tags</b> (Models → 🏷 LoRA tags): tag LoRAs (e.g. <i>pencil</i>), many at once, then filter Create's and Image to image's LoRA lists by a tag (pick 🏷 pencil in the list's menu, or type <i>#pencil</i> in its search).",
               "<b>Expand with FLUX.2</b> now picks FLUX.2 Klein in the model menu for you, has its own <b>✨ enhance now</b> (turns “more of the street” into a clear description of what goes around the picture), and its result stays in Image to image instead of Create.",
               "<b>Image to image: the picture comes first</b>, at the top next to the preview; Sampler, steps &amp; guidance and LoRAs follow (and hide when FLUX.2 does the work, as they don't apply).",
@@ -708,6 +711,11 @@ const protoartApp = createApp({
               "<b>Change strength</b> 0.7–0.9 replaces what's painted; 1.0 starts from scratch there. <b>Edge softness</b> blends the edges.",
               "<b>Redraw only the painted area at full detail</b> is best for small things like hands, eyes or text: it redraws a box around your strokes at full resolution and pastes it back.",
               "Works with your normal SD 1.5 and SDXL models; everything you didn't paint stays exactly as it was." ] },
+            { h: "↔ Expand: getting clean results", items: [
+              "<b>One direction at a time</b>: ★ make it wider (or ★ make it taller), press <i>Use the result as the new picture</i>, then expand the other way. Expanding on every side at once is the hardest case and is more likely to give seams, repeated objects or smeared corners; a note under the sizes says so.",
+              "<b>A moderate amount</b>: up to about a third of the picture per side. Bigger additions tend to repeat things from the picture or leave blurry areas.",
+              "<b>💡 suggest from the picture</b> (under the prompt, with FLUX.2) describes your picture on this Mac and asks for more of the same scene around it; edit it or press ✨ enhance now. A prompt that says what should be there (“more tables and chairs, a window on the left”) helps more than none.",
+              "If the result still has a seam, try another seed: each one fills the space differently." ] },
             { h: "The Image to image layout", items: [
               "From the top: <b>1 · Picture</b> (your picture and the mode: Edit with words, Change it, Inpaint, Expand, Remove), then <b>Sampler, steps &amp; guidance</b> and <b>LoRAs</b> (both fold up; hidden when FLUX.2 Klein does the work), <b>2 · ControlNet</b> and <b>3 · Prompt</b>. The preview and results are on the right." ] },
             { h: "↔ Expand (outpaint)", items: [
@@ -736,6 +744,8 @@ const protoartApp = createApp({
           sections: [
             { h: "🔌 Patchbay: run the tools in your own order", items: [
               "<b>＋ Add a module</b> (above the panel) puts in another copy of Faces, Enhance, Remove or Depth, like a second rack unit: cable it in to run that tool twice in one chain (for example Restore faces, then Restore faces again). <b>✕ last added</b> takes the newest copy out.",
+              "<b>Each module's settings</b>: click a module's name on the patchbay. The first FACES, ENHANCE, DEPTH, REMOVE or VECTOR lights up its rack unit below (its settings are there); a copy you added, such as FACES 2, shows <b>its own settings</b> under the panel (model, strength, fidelity for faces; upscale, detail, steps for enhance; model and look for depth), so each copy can do something different. Click the name again to close them.",
+              "<b>Saving a signal flow</b>: type a name next to <b>💾 Save flow</b> and press it: the cables, the copies you added, the module order and the copies' own settings are kept. Load it again from <i>load a saved flow…</i>; 🗑 deletes the saved one (the patchbay stays as it is).",
               "<b>Moving modules</b>: drag a module's name plate left or right, or point at it and press <b>‹</b> / <b>›</b>. PICTURE stays first and RESULT last. Moving a module doesn't change what runs: the <b>cables</b> set the order the picture goes through (shown in the amber readout). <b>↺ reset</b> puts the modules back in their places and pulls out every cable.",
               "Switch on <b>PATCHBAY</b> (the toggle at the top of the right-hand column). The back of the rack appears: every tool has an <b>IN</b> and an <b>OUT</b> jack. <b>PICTURE</b> (your picture) has only an OUT, <b>RESULT</b> (the Library) only an IN.",
               "<b>Plug cables</b>: drag from an OUT jack to an IN jack (or click one, then the other). The picture goes PICTURE → along the cables → RESULT, so the order of the cables is the order the tools run in. The amber readout under the panel spells it out, for example <i>PICTURE ▸ REMOVE ▸ FACES ▸ ENHANCE ▸ RESULT</i>. Green lamps show the tools that are in the chain.",
@@ -962,6 +972,11 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "Things fixed in 1.2.1 (and what to do if you still see them)", items: [
+              "<b>Expand with FLUX.2 gave seams, doubled objects or smeared areas</b>: much improved (the result is lined up with your picture before blending, and kept whole if FLUX.2 redrew it). The rest usually comes from asking for a lot at once: expand one direction at a time (★ make it wider, then ★ make it taller) and up to about a third per side, try another seed, and describe what should be around the picture (💡 suggest from the picture).",
+              "<b>“FLUX.2 redrew the picture a little, so its whole version was kept”</b>: its copy of your picture differed too much to paste your original back without seams. Try another seed or a smaller expansion to keep your original pixel-for-pixel.",
+              "<b>Expand's “New size” showed another picture's size</b>: fixed; it reads the size of the picture you're expanding (presets like make it wider used the old size before, which gave odd results).",
+              "<b>Black bars beside the result</b> in Image to image: fixed; the frame fits the picture.",
+              "<b>Two copies of a module ran with the same settings</b> on the patchbay: click the copy (e.g. FACES 2) to give it its own settings.",
               "<b>A button or slider showed no tip</b>: fixed; every control now has one (point at it for a moment). Tips can be switched off with <b>Tips</b> at the top of the window.",
               "<b>The expanded picture appeared in Create</b>: fixed; Expand, Inpaint and ControlNet results now stay in Image to image (and the Library).",
               "<b>Expand with FLUX.2 showed Stable Diffusion in the model menu</b>: fixed; it shows FLUX.2 Klein, which is what fills the new area. Picking another model there switches Expand to <i>The model at the top</i>.",
@@ -1151,6 +1166,10 @@ const protoartApp = createApp({
                extra: loadJSON("protoart.patchExtra", []),  // more copies of modules you added: [{id: "faces#2", type: "faces"}]
                order: loadJSON("protoart.patchOrder", []),  // the modules' left-to-right order, if you moved them
                moving: null,  // a module being dragged sideways by its name plate
+               sel: "",       // the module you clicked: its settings are shown (a copy's own, or the rack module below)
+               copySettings: loadJSON("protoart.patchCopySettings", {}),  // settings of the copies you added, by id
+               presets: loadJSON("protoart.patchPresets", []),  // saved signal flows: cables, copies, order, copy settings
+               preset: "", presetName: "",
                drag: null, running: "", step: 0, steps: 0, stopped: false, msg: "" },
       freeConfirm: null,
       logs: "",
@@ -1838,6 +1857,22 @@ const protoartApp = createApp({
     createSession() {  // Create's pictures: Image to image's results stay in Image to image (and the Library)
       return this.session.filter((r) => !I2I_KINDS.includes(r.kind));
     },
+    expandAdvice() {  // ↔ Expand: a warning when the request is the kind that tends to give seams or repeats
+      const o = this.form.outpaint, d = this.initDims;
+      if (this.form.i2i_mode !== "outpaint" || !d) return null;
+      const L = o.left || 0, R = o.right || 0, T = o.top || 0, B = o.bottom || 0;
+      if (!(L || R || T || B)) return null;
+      const added = (d.w + L + R) * (d.h + T + B) / (d.w * d.h) - 1;
+      const sides = [L, R, T, B].filter(Boolean).length;
+      const bigSide = Math.max(L / d.w, R / d.w, T / d.h, B / d.h);
+      if (sides >= 3 || (L || R) && (T || B)) {
+        return { level: "warn", text: "Expanding in both directions at once (wider and taller) is the hardest case: expect seams, repeated objects or smeared patches, especially in the corners. For the cleanest result, make it wider first, press “Use the result as the new picture”, then make it taller." };
+      }
+      if (bigSide > 0.5 || added > 0.8) {
+        return { level: "warn", text: `That adds ${Math.round(added * 100)}% more picture. Big additions often repeat things from the picture or leave blurry areas; add up to about a third of the picture per side, then expand again from the result.` };
+      }
+      return { level: "ok", text: "One direction at a time, a moderate amount: this gives the cleanest results." };
+    },
     i2iUsesKlein() {  // Image to image runs on FLUX.2 Klein: Edit with words, or Expand with the outpaint LoRA
       return this.form.i2i_mode === "edit" || (this.form.i2i_mode === "outpaint" && this.form.outpaint_engine !== "model");
     },
@@ -2094,7 +2129,16 @@ const protoartApp = createApp({
     rnd: { deep: true, handler(v) { saveJSON("beestudio.rnd", v); } },
     loraSort(v) { saveJSON("protoart.loraSort", v); },
     loraRand: { deep: true, handler(v) { saveJSON("protoart.loraRand", v); } },
-    "form.init_image"() { this.initDims = null; },
+    "form.init_image": {
+      immediate: true,
+      handler(v) {  // the picture's real size, for Expand's sizes and presets (also when the paint area isn't shown)
+        this.initDims = null;
+        if (!v) return;
+        const im = new Image();
+        im.onload = () => { if (this.form.init_image === v && im.naturalWidth) this.initDims = { w: im.naturalWidth, h: im.naturalHeight }; };
+        im.src = this.fileUrl(v);
+      },
+    },
     "tool.source"() { this.tool.healing = false; },  // a new picture in Tools: stop painting on the old one
     train: { deep: true, handler(v) {
       const { items, result, lossHistory, dirty, ...keep } = v;
@@ -3482,6 +3526,62 @@ const protoartApp = createApp({
       this.patchSave();
       window.ProtoSound?.play("plug");
     },
+    patchCopyInit(id) {  // a copy starts with the settings its module has now; after that they're its own
+      const type = String(id).split("#")[0], P = this.post;
+      if (this.patch.copySettings[id]) return;
+      const start = { faces: { face_strength: P.face_strength, face_model: P.face_model, face_fidelity: P.face_fidelity },
+                      enhance: { enh: JSON.parse(JSON.stringify(P.enh)) },
+                      depth: { depth: { ...P.depth } } }[type];
+      if (!start) return;
+      this.patch.copySettings = { ...this.patch.copySettings, [id]: start };
+      this.patchCopySave();
+    },
+    patchCopySave() {
+      saveJSON("protoart.patchCopySettings", this.patch.copySettings);
+    },
+    patchSelect(id) {  // click a module: its settings come into view
+      if (id === "src" || id === "result") return;
+      this.patch.sel = this.patch.sel === id ? "" : id;
+      if (!this.patch.sel) return;
+      if (String(id).includes("#")) { this.patchCopyInit(id); return; }  // a copy: its own settings show under the panel
+      this.$nextTick(() => {  // the module itself: scroll to its rack unit and light it up
+        const el = document.getElementById("rack-" + id);
+        if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+      });
+    },
+    patchSavePreset() {
+      const name = (this.patch.presetName || "").trim().slice(0, 40);
+      if (!name) return;
+      const p = { name, cables: JSON.parse(JSON.stringify(this.patch.cables)), extra: JSON.parse(JSON.stringify(this.patch.extra)),
+                  order: [...(this.patch.order || [])], copySettings: JSON.parse(JSON.stringify(this.patch.copySettings)) };
+      this.patch.presets = [...this.patch.presets.filter((x) => x.name !== name), p].sort((a, b) => a.name.localeCompare(b.name));
+      saveJSON("protoart.patchPresets", this.patch.presets);
+      this.patch.preset = name;
+      this.patch.presetName = "";
+      this.patch.msg = `Signal flow saved as “${name}”`;
+    },
+    patchLoadPreset(name) {
+      const p = this.patch.presets.find((x) => x.name === name);
+      if (!p || this.patch.running) return;
+      this.patch.extra = JSON.parse(JSON.stringify(p.extra || []));
+      this.patch.order = [...(p.order || [])];
+      this.patch.copySettings = { ...this.patch.copySettings, ...JSON.parse(JSON.stringify(p.copySettings || {})) };
+      this.patch.cables = JSON.parse(JSON.stringify(p.cables || []));
+      saveJSON("protoart.patchExtra", this.patch.extra);
+      saveJSON("protoart.patchOrder", this.patch.order);
+      this.patchCopySave();
+      this.patchSave();
+      this.patch.preset = name;
+      this.patch.sel = "";
+      this.patch.msg = `Loaded “${name}”`;
+    },
+    async patchDeletePreset() {
+      const name = this.patch.preset;
+      if (!name || !(await this.confirmAsk(`Delete the signal flow “${name}”?`, "Only the saved preset is removed; the patchbay stays as it is.", "Delete"))) return;
+      this.patch.presets = this.patch.presets.filter((x) => x.name !== name);
+      saveJSON("protoart.patchPresets", this.patch.presets);
+      this.patch.preset = "";
+    },
     patchMoveModule(id, to) {  // put a module in another place, left to right (PICTURE and RESULT stay at the ends)
       const mid = this.patchNodes.slice(1, -1).map((n) => n.id);
       const from = mid.indexOf(id);
@@ -3513,6 +3613,7 @@ const protoartApp = createApp({
         this.patch.moving = null;
         const i = this.patchNodes.findIndex((n) => n.id === mv.id) - 1;
         if (Math.abs(mv.dx) > 20) this.patchMoveModule(mv.id, i + Math.round(mv.dx / 140));
+        else this.patchSelect(mv.id);  // a click, not a drag: show this module's settings
         return;
       }
       const d = this.patch.drag;
@@ -3577,10 +3678,13 @@ const protoartApp = createApp({
       for (let k = n; this.patch.extra.some((x) => x.id === id); k++) id = `${type}#${k + 1}`;
       this.patch.extra = [...this.patch.extra, { id, type }];
       saveJSON("protoart.patchExtra", this.patch.extra);
+      this.patchCopyInit(id);
+      this.patch.sel = id;  // show the new copy's own settings
       this.patch.msg = `Added ${(PATCH_NODES.find((x) => x.id === type) || {}).label} ${id.split("#")[1]}: cable it in where you want it to run again`;
       window.ProtoSound?.play("plug");
     },
     patchRemoveModule(id) {
+      if (this.patch.sel && (!id || this.patch.sel === id)) this.patch.sel = "";
       const ex = this.patch.extra;
       if (!ex.length) return;
       id = id || ex[ex.length - 1].id;
@@ -3619,12 +3723,15 @@ const protoartApp = createApp({
           if (id === "heal") {
             rec = await this.runJob("heal", { ...cur, mask, method: this.form.heal_method || "lama", from_tools: true });
           } else if (id === "faces") {
-            rec = await this.runJob("postprocess", { ...cur, action: "faces", ...this.faceArgs() });
+            const c = this.patch.copySettings[node];  // a copy you added has its own settings
+            rec = await this.runJob("postprocess", { ...cur, action: "faces", ...(c ? { strength: c.face_strength, face_model: c.face_model, face_fidelity: c.face_fidelity } : this.faceArgs()) });
           } else if (id === "enhance") {
-            const { seed, ...options } = this.post.enh;
+            const c = this.patch.copySettings[node];
+            const { seed, ...options } = (c && c.enh) || this.post.enh;
             rec = await this.runJob("postprocess", { ...cur, action: "enhance", seed, options });
           } else if (id === "depth") {
-            rec = await this.runJob("postprocess", { ...cur, action: "depth", depth_model: this.post.depth.model, style: this.post.depth.style });
+            const dset = (this.patch.copySettings[node] && this.patch.copySettings[node].depth) || this.post.depth;
+            rec = await this.runJob("postprocess", { ...cur, action: "depth", depth_model: dset.model, style: dset.style });
           } else if (id === "vector") {
             const v = this.post.vec;
             rec = await this.runJob("vectorize", { ...cur, colors: v.colors, detail: v.detail, smooth: v.smooth });
@@ -4375,7 +4482,8 @@ const protoartApp = createApp({
       this.initDims = { w: e.target.naturalWidth, h: e.target.naturalHeight };
     },
     outpaintPreset(kind) {
-      const d = this.initDims || { w: 512, h: 512 };
+      const d = this.initDims;
+      if (!d && kind !== "none") return (this.status = "Still reading the picture's size: try again in a moment");
       const step = (v) => Math.round(v / 32) * 32;
       if (kind === "all") Object.assign(this.form.outpaint, { left: step(d.w / 4), right: step(d.w / 4), top: step(d.h / 4), bottom: step(d.h / 4) });
       else if (kind === "wide") Object.assign(this.form.outpaint, { left: step(d.w / 4), right: step(d.w / 4), top: 0, bottom: 0 });
@@ -5436,6 +5544,16 @@ const protoartApp = createApp({
       const file = e.target.files?.[0];
       e.target.value = "";
       if (file) this.imageToPrompt(window.bee.pathForFile(file));
+    },
+    async suggestExpandPrompt() {  // 💡 Expand: describe the picture, then ask for more of the same scene around it
+      const f = this.form;
+      if (!f.init_image) return (this.error = "Add a picture first.");
+      const res = await this.runJob("interrogate", { path: f.init_image, mode: "quick", detail: "detailed" });
+      if (!res || !res.prompt) return;
+      const desc = String(res.prompt).replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
+      this.undoPrompt = f.prompt;
+      f.prompt = `The same scene continues naturally around the picture, with matching lighting, colours and style: ${desc}.`;
+      this.status = "Suggested a prompt from your picture · edit it, or press ✨ enhance now";
     },
     async imageToPrompt(path) {
       if (!path) {
