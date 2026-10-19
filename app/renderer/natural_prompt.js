@@ -66,14 +66,48 @@
     return s;
   }
 
-  /** opts: { subject: 'random'|'1girl'|'1boy'|'2girls'|'1girl 1boy'|'scenery', detail: 1-3, style: true|false }
+  // animals (subject "animal"), by kind so the place and the details fit: [names, places, coat, doing]
+  const ANIMAL_KINDS = {
+    land: [["fox", "wolf", "red panda", "snow leopard", "tiger", "lion", "deer", "stag", "rabbit", "hedgehog", "elephant",
+            "giraffe", "panda", "koala", "brown bear", "bison", "highland cow", "goat", "lamb", "squirrel", "raccoon", "horse",
+            "white stallion"],
+           ["in a misty forest", "in a sunny meadow full of wildflowers", "on a snowy mountain slope", "by a calm lake",
+            "in tall golden grass", "in a bamboo grove", "on a mossy log", "in a desert at sunset", "in a city park"],
+           ["fur", "coat", "eyes", "whiskers", "markings"],
+           ["sitting quietly", "running", "looking straight at the viewer", "curled up asleep", "playing", "leaping",
+            "drinking from a stream", "walking slowly", "stretching", "resting in the sun"]],
+    pet: [["golden retriever", "French bulldog", "border collie", "Siamese cat", "tabby cat", "Maine Coon cat", "corgi",
+           "dachshund", "Persian cat", "pug"],
+          ["in a cozy living room", "on a windowsill", "in a garden", "on a sofa", "in a city park", "on a sunny porch",
+           "on a beach", "in the snow"],
+          ["fur", "eyes", "whiskers", "ears", "coat"],
+          ["sitting quietly", "looking straight at the viewer", "curled up asleep", "playing with a ball", "yawning",
+           "tilting its head", "running", "peeking out from behind a cushion"]],
+    bird: [["owl", "barn owl", "raven", "hummingbird", "parrot", "peacock", "flamingo", "kingfisher", "robin", "eagle"],
+           ["on a mossy branch", "in a misty forest", "by a calm lake", "among cherry blossoms", "on an old fence post",
+            "in a tropical rainforest", "above a mountain valley"],
+           ["feathers", "eyes", "wings", "beak"],
+           ["perched on a branch", "spreading its wings", "in mid-flight", "looking straight at the viewer", "preening"]],
+    sea: [["sea turtle", "whale", "dolphin", "octopus", "koi fish", "jellyfish", "seahorse", "manta ray"],
+          ["under a coral reef", "in clear blue water", "in a deep ocean with light rays", "in a garden pond",
+           "in a kelp forest"],
+          ["scales", "skin", "fins", "tentacles", "patterns"],
+          ["gliding slowly", "swimming toward the viewer", "drifting", "turning in the light"]],
+  };
+
+  /** opts: { subject: 'random'|'1girl'|'1boy'|'2girls'|'1girl 1boy'|'scenery'|'animal', detail: 1-3, style: true|false }
    *  returns { prompt } (no negative prompt: these models don't use one) */
   function generate(opts = {}) {
     const detail = Math.max(1, Math.min(3, opts.detail || 2));
     let subject = opts.subject || "random";
-    if (subject === "random") subject = pick(["1girl", "1girl", "1boy", "1boy", "2girls", "1girl 1boy", "scenery"]);
+    if (subject === "random") subject = pick(["1girl", "1girl", "1boy", "1boy", "2girls", "1girl 1boy", "scenery", "animal"]);
     const out = [];
-    if (subject === "scenery") {
+    if (subject === "animal") {
+      const [names, places, coat, doing] = ANIMAL_KINDS[pick(["land", "land", "pet", "pet", "bird", "sea"])];
+      const look = pick(["curious", "sleepy", "majestic", "tiny", "fluffy", "old", "young", "playful", "proud", "elegant", "alert"]);
+      out.push(`${pick(["Close-up", "Medium shot", "Wide shot", "Low-angle view", "Portrait"])} of ${an(look + " " + pick(names))}, ${pick(doing)} ${pick(places)} ${pick(P.time)}.`);
+      if (detail >= 2) out.push(`Its ${pick(coat)} ${pick(["catch the light", "are rendered in fine detail", "stand out against the background"])}.`);
+    } else if (subject === "scenery") {
       out.push(`${pick(["Wide shot", "Aerial view", "Low-angle view", "Panoramic view", "Distant view"])} of ${pick(P.scene)} ${pick(P.time)}, lit by ${pick(P.light.filter((l) => !/window|candle|neon|lantern/.test(l)))}.`);
       if (detail >= 2) out.push(`No people, just the landscape${maybe(0.5) ? ", with a few birds in the sky" : ""}.`);
     } else if (subject === "2girls" || subject === "1girl 1boy") {
@@ -89,7 +123,7 @@
       out.push(`${pick(P.shot)} of ${p}, ${pick(P.action)} ${pick(P.place)} ${pick(P.time)}.`);
       if (detail >= 2 && maybe(0.7)) out.push(`${subject === "1boy" ? "He" : "She"} has ${pick(P.extra)}.`);
     }
-    if (detail >= 2 && subject !== "scenery") out.push(`The scene is lit by ${pick(P.light)}.`);
+    if (detail >= 2 && subject !== "scenery") out.push(`The scene is lit by ${pick(P.light.filter((l) => subject !== "animal" || !/candle|neon/.test(l)))}.`);
     if (opts.style !== false) out.push(`The picture looks like ${pick(subject === "scenery" ? P.look.filter((l) => !/portrait/.test(l)) : P.look)}.`);
     if (detail >= 3) out.push(pick(P.mood));
     return { prompt: out.join(" ") };

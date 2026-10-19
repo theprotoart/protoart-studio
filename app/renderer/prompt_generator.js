@@ -78,18 +78,28 @@
   }
 
   /**
-   * opts: { subject: 'random'|'1girl'|'1boy'|'2girls'|'1girl 1boy'|'scenery',
+   * opts: { subject: 'random'|'1girl'|'1boy'|'2girls'|'1girl 1boy'|'scenery'|'animal',
    *         quality: 'standard'|'illustrious'|'pony'|'none', detail: 1-3, style: true|false }
    * returns { prompt, negative }
    */
+  // animals (subject "animal")
+  const ANIMAL_TAGS = ["cat", "dog", "fox", "wolf", "bird", "owl", "rabbit", "horse", "deer", "tiger", "lion", "bear",
+    "panda", "red panda", "dragon", "fish", "butterfly", "frog", "squirrel", "hedgehog", "otter", "raccoon", "shiba inu",
+    "penguin", "parrot", "snake", "turtle", "whale", "dolphin", "octopus", "cow", "pig", "sheep", "goat", "bison"];
+
   function generate(opts = {}) {
     const quality = QUALITY[opts.quality] ? opts.quality : "standard";
     const detail = Math.max(1, Math.min(3, opts.detail || 2));
     let subject = opts.subject || "random";
-    if (subject === "random") subject = pick(["1girl", "1girl", "1girl", "1boy", "1boy", "2girls", "1girl 1boy", "scenery"]);
+    if (subject === "random") subject = pick(["1girl", "1girl", "1girl", "1boy", "1boy", "2girls", "1girl 1boy", "scenery", "animal"]);
 
     const tags = [...QUALITY[quality]];
-    if (subject === "scenery") {
+    if (subject === "animal") {
+      tags.push("no humans", "animal focus", pick(ANIMAL_TAGS));
+      tags.push(...pickN(["full body", "looking at viewer", "sitting", "standing", "lying", "running", "fluffy", "fur",
+                          "feathers", "whiskers", "tail", "paws", "open mouth", "closed eyes"], 1 + detail));
+      tags.push(pick(T.setting.filter((t) => !/(classroom|bedroom|bathroom|office|cafe|library)/.test(t))), pick(T.time_weather));
+    } else if (subject === "scenery") {
       tags.push("no humans", "scenery");
       tags.push(...pickN(T.scenery_extra.filter((t) => t !== "no humans" && t !== "scenery"), 1 + detail));
       tags.push(pick(T.setting), pick(T.time_weather));

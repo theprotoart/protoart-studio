@@ -293,6 +293,8 @@ const protoartApp = createApp({
       edits: { pending: [], timer: null, notInstalled: false, folder: "" },
       editorChoices: ["PhotoCraft", "Adobe Photoshop 2025", "Pixelmator Pro", "Affinity Photo 2", "GIMP", "Preview"],
       wild: { open: false, files: [], folder: "", preview: [] },
+      i2iFolds: loadJSON("protoart.i2iFolds", {}),  // Image to image cards folded down to their title
+      ptool: "",  // Create → the prompt tools row: which small panel is open ("enhance", "saved", "image", "random")
       batch: { open: false, text: "", keepPrompt: false },
       loraRand: Object.assign({ min: 1, max: 2, wmin: 0.6, wmax: 1.0, every: false, knownOnly: true, picked: [], words: [] },
                               loadJSON("protoart.loraRand", {})),
@@ -358,7 +360,7 @@ const protoartApp = createApp({
       lastModel: null,
       now: Date.now(),
       i2p: Object.assign({ mode: "describe", append: false }, loadJSON("beestudio.i2p", {})),
-      rnd: Object.assign({ subject: "random", quality: "standard", detail: 2, style: true }, loadJSON("beestudio.rnd", {})),
+      rnd: Object.assign({ subject: "random", quality: "standard", detail: 2, style: true, every: false }, loadJSON("beestudio.rnd", {})),
       post: defaultPost(),
       ask: null,             // the "Are you sure?" box (confirmAsk)
       promptPresets: loadJSON("protoart.prompts", []),   // 📒 My prompts
@@ -418,6 +420,8 @@ const protoartApp = createApp({
       ProtoLooks: window.ProtoAdjust ? window.ProtoAdjust.LOOKS : [],
       adjFilters: ADJ_FILTERS,
       helpOpen: "",
+      helpQ: "",
+      compareView: null,  // Library → ⇆ Compare side by side: the selected pictures  // How to → search the manual
       preloading: "",     // model being loaded in the background (kept out of the visible queue)
       readyModel: "",     // model known to be loaded and waiting
       content: { checker_installed: false, checker_mb: 340, total: 0, nsfw: 0, unchecked: 0, faces_unchecked: 0, scanning: false, msg: "" },
@@ -440,6 +444,17 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.2.1 (test version): fixes from your notes", items: [
+              "<b>Tidier prompt tools</b> (Create): one row of small keys under the prompt: <b>✨ Enhance · 📒 Saved · 🖼 From image · 🎲 Random · { } Wildcards · 📋 List</b>. Each opens its own small panel underneath, one at a time; a lamp shows when Enhance or New random prompt is on.",
+              "<b>🎲 Random prompts with animals</b> (pets, wild animals, birds and sea life, each in a place that suits it), and <b>New random prompt every time I press Generate</b>.",
+              "<b>Reset all is a blue lever</b> (top of Create): flip it to clear both prompts, put every setting back to the start and fold every section; flip it back to undo (until you change something).",
+              "<b>Seed</b> now sits under the negative prompt. <b>📒 Negative prompt presets</b>: save a negative prompt on its own and use it with any prompt.",
+              "<b>★ Recommended steps and guidance for the sampler you picked</b> (next to Reset to defaults, and in Image to image): ⚡ fast samplers get fewer steps, ★ best-quality ones more.",
+              "<b>Image to image</b>: the Sampler, steps &amp; guidance card has its own sampler menu, and it and the LoRAs card fold up like Create's sections.",
+              "<b>Models tab</b>: ↻ Refresh and + Add from your Mac swapped places; <b>On this Mac</b> and the download lists fold up under Fix a type; Pony, Illustrious and NoobAI filters; a clear “✓ Model imported” note after adding one.",
+              "<b>Trigger words panel</b> (Models tab): search your LoRAs, edit their trigger words in place, or tick several and add / remove a word on all of them at once.",
+              "<b>Library</b>: ☑ Select sits in the middle of the toolbar; select 2–6 pictures and <b>⇆ Compare side by side</b>; in a picture's details, <b>‹ ›</b> (or ← →) step through the pictures.",
+              "<b>Patchbay: add more modules</b> (Tools): ＋ Add a module puts in another Faces, Enhance, Remove or Depth, so you can run Restore faces twice (or any module again) in one chain; the panel widens for them.",
+              "<b>🔎 Search the manual</b>: a search box at the top of How to shows every matching tip from all the sections.",
               "<b>ControlNets work again with a LoRA switched on</b>: DiffusionBee's ControlNets (Depth, Tile, Line art, Scribble, OpenPose) are built partly from your model, and a LoRA in the mix broke that copy, so the app tried to download the official ones instead (which failed without internet). The LoRA parts are now left out of the copy.",
               "<b>Clear messages when a one-time download can't happen</b>: instead of “does not appear to have a file named config.json” or “Can't load image processor”, the app says it couldn't reach Hugging Face and what to check.",
               "<b>Inpainting models go where they belong</b>: an inpainting checkpoint (like dreamshaper_8Inpainting) is recognised from the file, labelled “inpainting”, kept out of Create, and used for Image to image → Inpaint and Expand (switch: 🖌 Paint with an inpainting model).",
@@ -556,6 +571,11 @@ const protoartApp = createApp({
           ] },
         { id: "create", go: "create", icon: "✨", title: "Create", summary: "Make images from a text prompt",
           sections: [
+            { h: "Prompt tools", items: [
+              "Under the prompt, one row of keys: <b>✨ Enhance</b> (rewrite the prompt with more detail now, or every time you Generate), <b>📒 Saved</b> (prompts you kept), <b>🖼 From image</b> (turn a picture into a prompt; or drop a picture on the prompt box), <b>🎲 Random</b> (a random prompt: a woman, a man, two people, a landscape or an animal), <b>{ } Wildcards</b> and <b>📋 List</b>. Each opens its own panel underneath; click it again to close it.",
+              "<b>🎲 New random prompt every time I press Generate</b> (in Random's panel): each picture gets a fresh random prompt. <b>New random mix</b> under LoRAs does the same for LoRAs (every LoRA in the list is swapped).",
+              "<b>📒 Negative prompts</b>: the small menu above the negative prompt box keeps negative prompts on their own (＋ save), to use with any prompt. The <b>Seed</b> is under the negative prompt.",
+              "<b>Reset all</b> (the blue lever at the top): flip it to clear both prompts, put every setting back to the start and fold all the sections. Flip it back to undo, until you change something." ] },
             { h: "Making an image", items: [
               "Pick a <b>model</b> (filter by type or search). Not downloaded yet? It downloads once, then works offline.",
               "Type a <b>prompt</b> describing what you want, and a <b>negative prompt</b> for what to avoid.",
@@ -690,6 +710,7 @@ const protoartApp = createApp({
         { id: "tools", go: "tools", icon: "🧰", title: "Tools", summary: "Enhance, 🎚 adjust, restore faces, 🩹 remove objects, ✒️ vectorize, 🔌 patchbay, image → prompt, convert files",
           sections: [
             { h: "🔌 Patchbay: run the tools in your own order", items: [
+              "<b>＋ Add a module</b> (under the panel) puts in another copy of Faces, Enhance, Remove or Depth, like a second rack unit: cable it in to run that tool twice in one chain (for example Restore faces, then Restore faces again). <b>✕ last added</b> takes the newest copy out.",
               "Switch on <b>PATCHBAY</b> (the toggle at the top of the right-hand column). The back of the rack appears: every tool has an <b>IN</b> and an <b>OUT</b> jack. <b>PICTURE</b> (your picture) has only an OUT, <b>RESULT</b> (the Library) only an IN.",
               "<b>Plug cables</b>: drag from an OUT jack to an IN jack (or click one, then the other). The picture goes PICTURE → along the cables → RESULT, so the order of the cables is the order the tools run in. The amber readout under the panel spells it out, for example <i>PICTURE ▸ REMOVE ▸ FACES ▸ ENHANCE ▸ RESULT</i>. Green lamps show the tools that are in the chain.",
               "<b>Unplug</b>: drag a plug away from its jack, or double-click a cable. One cable per jack: plugging into a used jack replaces its cable. Loops aren't allowed, and <b>VECTOR</b> has to be last (it makes a drawing, not a picture). <b>↺ default</b> puts back PICTURE ▸ ENHANCE ▸ FACES ▸ RESULT; <b>clear cables</b> pulls them all out.",
@@ -785,6 +806,7 @@ const protoartApp = createApp({
         { id: "library", go: "library", icon: "🗂", title: "Library", summary: "Everything you've made, searchable",
           sections: [
             { h: "Finding images", items: [
+              "<b>☑ Select</b> (middle of the toolbar), tick 2–6 pictures and press <b>⇆ Compare side by side</b>. In a picture's details, <b>‹ ›</b> or the ← → keys go to the previous / next picture.",
               "Search by prompt, filter by model, version type (originals, enhanced, face-restored…) or ★ starred.",
               "<b>Hide People</b> hides pictures of people: ones whose prompt describes a person, ones where the face finder sees a face, and ones made with models or LoRAs you tagged ● People. Pictures made before this version: <b>check now</b> next to the picture count looks for faces in them once (on this Mac). <b>Hide NSFW</b> hides NSFW pictures.",
               "<b>Search by seed</b>: type a seed in the amber <b>seed</b> box to see only pictures made with it, or type a number in the search box to find that seed and prompts containing it. In a picture's details, <b>find all with this seed</b> does the same.",
@@ -816,6 +838,11 @@ const protoartApp = createApp({
           ] },
         { id: "models", go: "models", icon: "📦", title: "Models", summary: "What's on this Mac, and what you can download",
           sections: [
+            { h: "Organising your models and LoRAs", items: [
+              "<b>On this Mac</b>, <b>Available to download</b> and the other lists fold up (click their names), under the Your model files / Civitai / Hugging Face / Fix a type panels. Filters at the top include <b>Pony</b>, <b>Illustrious</b> and <b>NoobAI</b>.",
+              "<b>+ Add from your Mac</b> says “✓ Model imported” when it's done; inpainting models are recognised and go to Image to image → Inpaint / Expand.",
+              "<b>Trigger words</b> panel: search LoRAs, edit each one's words, or tick several and add / remove a word on all of them. Your words are added to the prompt when you add the LoRA. <b>↺ Back to the file's words</b> forgets your edits.",
+              "New files not showing? Press <b>↻ Refresh</b> (top of the Models tab, or in Create's model list). LoRAs anywhere in a watched model folder are found too." ] },
             { h: "Finding a model", items: [
               "<b>On this Mac</b>: models that are downloaded, your own files, DiffusionBee models and ones you added. Only these appear in Create's model list, so it stays short.",
               "<b>Available to download</b>: models this Mac can run. <b>⤓ Download</b> fetches it now (progress and time left show on the card and in the queue; <b>Stop</b> stops it and keeps what's already downloaded). <b>Use</b> picks it right away; it then downloads the first time you press Generate.",
@@ -897,6 +924,12 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "Things fixed in 1.2.1 (and what to do if you still see them)", items: [
+              "<b>“This needs a one-time download from Hugging Face, and your Mac couldn't reach huggingface.co”</b>: a ControlNet, the pose finder or another helper isn't on your Mac yet. Check the internet connection and that Strict offline is off (Settings → Privacy), then try again; afterwards it works offline. DiffusionBee's ControlNets (Depth, Tile, Line art, Scribble, OpenPose) need no download.",
+              "<b>A LoRA “was made for FLUX.1, so it can't be used with FLUX.2”</b>: LoRAs for another model type are now left out of the picture with a note. If a LoRA is listed under the wrong type, fix it in Models → Fix a type.",
+              "<b>A LoRA or model you just added doesn't show</b>: press ↻ Refresh (Models tab, or Create's model list). LoRAs in watched model folders are found too; a LoRA folder can be added in Settings → LoRA folders.",
+              "<b>“Command buffer execution failed: Insufficient Memory” while training</b>: the Mac ran out of graphics memory. Quit other apps and train again; embeddings train at 448 px on Macs under 16 GB, and progress is saved if memory runs out.",
+              "<b>An inpainting model makes an error in Create</b>: inpainting models only fill in painted areas. They're used by Image to image → Inpaint and Expand." ] },
             { h: "“The engine stopped”", items: [
               "<b>Why:</b> the engine is the part of the app that makes pictures. If macOS stops it, it's usually because the Mac ran out of memory (big sizes, Hi-res fix and Face detailer together, or other heavy apps open).",
               "<b>What happens:</b> the app restarts the engine by itself and adds waiting jobs back; only the job that was running needs to be made again. If it keeps happening it stops restarting and asks you to press <b>Restart engine</b> (Tools or Settings).",
@@ -1017,6 +1050,7 @@ const protoartApp = createApp({
       libLoraOpen: false,
       modelDirs: { dirs: [], local: [] },
       localErr: "",
+      localOk: "",  // "Model imported" note after Add from your Mac
       train: Object.assign({ model: "", folder: "", items: [], capMode: "tags", name: "", trigger: "", format: "kohya", kind: "character",
                              precision: "fp16", save_every: 0, preset: "standard", steps: 1000, lr: 0.0001, rank: 16,
                              resolution: 512, targets: "attention", flip: true, train_text_encoder: false,
@@ -1040,7 +1074,9 @@ const protoartApp = createApp({
       embMsg: "",
       modelFilter: "all",
       shop: { family: "all", search: "", fav: false }, // Models tab
-      mpanels: { own: false, civitai: false, hub: false, fix: false }, // Models tab panels (closed until you open one)
+      mpanels: { own: false, civitai: false, hub: false, fix: false, trig: false },
+      trigBatch: { q: "", sel: [], word: "", busy: false },  // Models → Trigger words // Models tab panels (closed until you open one)
+      shopFolds: loadJSON("protoart.shopFolds", { get: true, big: true }),  // Models tab model groups folded (On this Mac open)
       dl: { path: "", default: "", custom: false, missing: null, free_gb: null, sizeGb: null, move: true, busy: false }, // downloaded-models folder
       modelSearch: "",
       tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false, promptText: "", view: "split", split: 0.5 },
@@ -1048,6 +1084,7 @@ const protoartApp = createApp({
       patchInY: PATCH_IN_Y,
       patchOutY: PATCH_OUT_Y,
       patch: { on: loadJSON("protoart.patchOn", false), cables: loadJSON("protoart.patch", PATCH_DEFAULT),
+               extra: loadJSON("protoart.patchExtra", []),  // more copies of modules you added: [{id: "faces#2", type: "faces"}]
                drag: null, running: "", step: 0, steps: 0, stopped: false, msg: "" },
       freeConfirm: null,
       logs: "",
@@ -1149,6 +1186,10 @@ const protoartApp = createApp({
         ...this.loras.filter((l) => l.nsfw_mark != null).map((l) => ({ kind: "lora", name: l.name, label: l.name, nsfw: l.nsfw_mark })),
       ];
     },
+    trigList() {  // Models → Trigger words: the LoRAs matching the search (60 at most)
+      const q = this.trigBatch.q.trim().toLowerCase();
+      return this.loras.filter((l) => !q || l.name.toLowerCase().includes(q)).slice(0, 60);
+    },
     loraFixList() {
       // LoRAs and your own base model files, by name (or only the ones of unknown type)
       const q = this.loraFix.q.trim().toLowerCase();
@@ -1183,7 +1224,9 @@ const protoartApp = createApp({
     },
     shopModels() {
       const q = this.shop.search.trim().toLowerCase();
-      const list = this.models.filter((m) => this.safeModel(m) && (this.shop.family === "all" || m.family === this.shop.family) &&
+      const fam = this.shop.family;
+      const list = this.models.filter((m) => this.safeModel(m) &&
+        (fam === "all" || (fam.startsWith("fl:") ? m.flavor === fam.slice(3) : m.family === fam)) &&
         (!this.shop.fav || this.isFav(m)) &&
         (!q || `${m.label} ${FAMILY_LABEL[m.family]} ${m.quant || ""}`.toLowerCase().includes(q)));
       return [
@@ -1210,6 +1253,37 @@ const protoartApp = createApp({
         { id: "hub", label: "Added", count: count((m) => m.id.startsWith("hf:") || m.id.startsWith("local:")) },
       ];
       return list.filter((f) => f.id === "all" || f.count);
+    },
+    detailList() {  // the pictures the open one is among (the ‹ › arrows step through them)
+      if (!this.detail) return [];
+      if (this.tab === "library") return this.libShown;
+      if (this.tab === "i2i") return this.i2iResults;
+      return this.createSession;
+    },
+    detailIndex() {
+      return this.detailList.findIndex((r) => r.id === this.detail?.id);
+    },
+    helpHits() {  // How to → search: every tip whose text has all the words typed
+      const words = this.helpQ.toLowerCase().split(/\s+/).filter(Boolean);
+      if (!words.length) return [];
+      const strip = (h) => String(h).replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").toLowerCase();
+      const out = [];
+      for (const t of this.helpTabs || []) {
+        for (const sec of t.sections || []) {
+          const head = strip(t.title + " " + sec.h);
+          for (const line of sec.items || []) {
+            const text = head + " " + strip(line);
+            if (words.every((w) => text.includes(w))) out.push({ tabId: t.id, tab: t.title, icon: t.icon, sec: sec.h, html: line });
+          }
+        }
+      }
+      return out;
+    },
+    negPresets() {  // 📒 negative prompts saved on their own
+      return this.promptPresets.filter((p) => p.kind === "negative");
+    },
+    promptOnlyPresets() {
+      return this.promptPresets.filter((p) => p.kind !== "negative");
     },
     inpaintModel() {
       // Image to image → Inpaint / Expand with an SD 1.5 (or SDXL) model: an inpainting checkpoint of the same type,
@@ -1537,6 +1611,18 @@ const protoartApp = createApp({
     toolJob() {
       return this.tool.working ? this.queue.find((j) => ["postprocess", "heal", "vectorize"].includes(j.cmd)) : null;
     },
+    patchNodes() {  // PICTURE, the modules, the copies you added, then RESULT (always last)
+      const base = PATCH_NODES.filter((n) => n.id !== "result");
+      const extra = (this.patch.extra || []).map((x) => {
+        const t = PATCH_NODES.find((n) => n.id === x.type) || {};
+        const k = x.id.split("#")[1] || "2";
+        return { ...t, id: x.id, label: `${t.label} ${k}`, sub: (t.sub || "") + " · copy" };
+      });
+      return [...base, ...extra, PATCH_NODES.find((n) => n.id === "result")];
+    },
+    patchW() {  // the panel's drawing widens with every module you add
+      return Math.max(1000, 156 + (this.patchNodes.length - 1) * 140);
+    },
     patchChain() {  // the modules the picture goes through, in order: follow the cables from PICTURE's OUT
       const out = [];
       let at = "src";
@@ -1756,6 +1842,18 @@ const protoartApp = createApp({
       const j = this.runningJob;
       return !!(j && j.i2i && ["generate", "edit_words", "heal"].includes(j.cmd));
     },
+    recSettings() {
+      // ★ Recommended for the picked sampler: ⚡ fastest ones at the low end of their step range, ★ best-quality ones
+      // further up (where they shine), others at their usual count; guidance is the model's own
+      const r = this.recSteps, m = this.currentModel;
+      if (!r || !m) return null;
+      const picks = this.samplerPicks ? this.samplerPicks() : { fast: [], quality: [] };
+      const id = this.form.sampler, s = this.samplers.find((x) => x.id === id);
+      const kind = picks.fast.some((x) => x.id === id) ? "fast" : (picks.quality || []).some((x) => x.id === id) ? "best" : "";
+      const steps = kind === "fast" ? r[1] : kind === "best" ? Math.round((r[0] + r[2]) / 2) : r[0];
+      const cfg = m.defaults?.cfg ?? this.form.cfg;
+      return { steps, cfg, kind, label: s ? s.label : "this sampler" };
+    },
     recSteps() {
       // Recommended step count for the chosen sampler: [recommended, low, high].
       const s = this.samplers.find((x) => x.id === this.form.sampler);
@@ -1888,7 +1986,11 @@ const protoartApp = createApp({
       if (v === "tools" && this.adj.open && !adjEngine && this.adj.rec && !this.adj.busy)
         this.$nextTick(() => this.openAdjust(this.adj.rec, true));
     } },
-    form: { deep: true, handler(v) { saveJSON(FORM_KEY, v); } },
+    form: { deep: true, handler(v) {
+      saveJSON(FORM_KEY, v);
+      // Reset all's lever stays flipped (= undo is possible) until you change something after the reset
+      if (this.resetUndo && Date.now() - (this._resetAt || 0) > 2500) this.resetUndo = null;
+    } },
     "adj.p": { deep: true, handler() { this.adjRender(); } },
     "adj.before"() { this.adjRender(); },
     "adj.view"() { this.adjRender(); },
@@ -1908,7 +2010,12 @@ const protoartApp = createApp({
   async mounted() {
     window.ProtoTips?.setEnabled(this.opts.tooltips !== false);
     window.addEventListener("keydown", (e) => this.adjKey(e));  // Adjust: \ flips Edited / Original
-    window.addEventListener("keydown", (e) => this.selKey(e));  // painting: tool keys, Esc cancels a selection
+    window.addEventListener("keydown", (e) => this.selKey(e));
+    window.addEventListener("keydown", (e) => {  // a picture's details: ← → step through the pictures, Esc closes
+      if (!this.detail || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || "")) return;
+      if (e.key === "ArrowLeft") { this.detailStep(-1); e.preventDefault(); }
+      else if (e.key === "ArrowRight") { this.detailStep(1); e.preventDefault(); }
+    });  // painting: tool keys, Esc cancels a selection
     setInterval(() => {
       if (this.queue.length || Object.keys(this.stopping).length) this.now = Date.now();
       this.stopForGood();
@@ -2130,6 +2237,7 @@ const protoartApp = createApp({
     },
     async addLocalModels() {
       this.localErr = "";
+      this.localOk = "";
       if (!window.bee.pickModels) {
         this.localErr = "Quit and reopen Protoart Studio once to enable this button (the app itself was updated).";
         return;
@@ -2143,6 +2251,12 @@ const protoartApp = createApp({
           this.modelDirs = { ...this.modelDirs, local };
           this.models = await call("list_models");
           this.status = `Added ${r.found.length} model${r.found.length === 1 ? "" : "s"}: ` + r.found.map((m) => m.label).join(", ");
+          this.localOk = `✓ ${r.found.length === 1 ? "Model" : r.found.length + " models"} imported successfully: ` +
+            r.found.map((m) => m.label + (m.inpaint ? " (inpainting: used by Image to image → Inpaint / Expand)" : "")).join(", ") +
+            (this.tab === "create" ? "" : ". It's in Create's model list now.");
+          clearTimeout(this._okT);
+          this._okT = setTimeout(() => (this.localOk = ""), 20000);
+          if (this.tab === "models") this.mpanels = { ...this.mpanels, own: true };
           if (this.tab === "create") {
             // show it in the list, and pick it straight away when it's just one
             this.modelFilter = "all";
@@ -2152,6 +2266,7 @@ const protoartApp = createApp({
         }
         await this.useLoraFolders(r.lora_folders);
         if (r.errors.length) this.localErr = r.errors.join("\n");
+        else if (!r.found.length && !(r.lora_folders || []).length) this.localErr = "No models were found there (a model is a .safetensors / .ckpt file of 1.5 GB or more, or a folder with model_index.json).";
       } catch (e) {
         this.localErr = e.message;
       }
@@ -2493,14 +2608,21 @@ const protoartApp = createApp({
     async resetCreateAll() {
       const m = this.currentModel;
       if (!m) return;
+      this._resetAt = Date.now();
       this.resetUndo = JSON.parse(JSON.stringify(this.form));
-      const keep = { model: this.form.model, prompt: this.form.prompt, negative_prompt: this.form.negative_prompt };
+      this.resetFolds = JSON.parse(JSON.stringify(this.cfolds || {}));
+      // a clean slate: no prompt or negative prompt either (Image to image's own prompt is left alone)
+      const keep = { model: this.form.model, prompt: "", negative_prompt: "", prompt_owner: this.form.prompt_owner,
+                     i2i_prompt: this.form.i2i_prompt, i2i_negative: this.form.i2i_negative };
       this.form = Object.assign(defaultForm(), keep);
       this.cmp.open = false;
+      this.lastEnhanced = null;
       this.lorasAside = {};
       saveJSON("protoart.lorasAside", this.lorasAside);
       await this.onModelChange();
-      this.status = `All Create settings reset (your prompt, model and presets stay) · undo puts them back`;
+      this.cfAll(true);  // every section folded down to one line
+      this._resetAt = Date.now();
+      this.status = "Create is reset: prompts cleared, everything back to the start, sections folded · flip the switch back to undo";
     },
     resetTools() {
       this.toolsUndo = JSON.parse(JSON.stringify(this.post));
@@ -2517,6 +2639,7 @@ const protoartApp = createApp({
       if (!this.resetUndo) return;
       this.form = this.resetUndo;
       this.resetUndo = null;
+      if (this.resetFolds) { this.cfolds = this.resetFolds; saveJSON("protoart.createFolds", this.cfolds); this.resetFolds = null; }
       this.status = "Settings restored";
     },
     async onModelChange() {
@@ -2619,6 +2742,40 @@ const protoartApp = createApp({
       else {
         const n = (this.form.negative_prompt || "").trim().replace(/,\s*$/, "");
         this.form.negative_prompt = (n ? n + ", " : "") + w;
+      }
+    },
+    loadTrigListSoon() {
+      clearTimeout(this._trigT);
+      this._trigT = setTimeout(() => this.loadTrigList(), 300);
+    },
+    async loadTrigList() {  // read the trigger words of the listed LoRAs (a few at a time)
+      const todo = this.trigList.filter((l) => !this.trigInfo[l.name]).map((l) => l.name);
+      for (let i = 0; i < todo.length; i += 6) await Promise.all(todo.slice(i, i + 6).map((n) => this.fetchTriggers(n)));
+      this.trigBatch.sel = this.trigBatch.sel.filter((n) => this.trigList.some((l) => l.name === n));
+    },
+    async saveTriggerWords(name, text) {
+      const words = String(text || "").split(",").map((w) => w.trim()).filter(Boolean);
+      const saved = await call("lora_triggers_save", { name, words });
+      this.trigInfo[name] = Object.assign({}, this.trigInfo[name] || { found: [], suggested: [] }, { saved: saved || null });
+    },
+    async batchTriggers(how) {  // add / remove words for every selected LoRA, or put the file's own words back
+      const b = this.trigBatch, add = b.word.split(",").map((w) => w.trim()).filter(Boolean);
+      b.busy = true;
+      try {
+        for (const name of b.sel) {
+          await this.fetchTriggers(name);
+          if (how === "reset") { await this.saveTriggerWords(name, ""); continue; }
+          let words = [...this.activeTriggers(name)];
+          if (how === "add") for (const w of add) { if (!words.some((x) => x.toLowerCase() === w.toLowerCase())) words.push(w); }
+          else words = words.filter((x) => !add.some((w) => w.toLowerCase() === x.toLowerCase()));
+          await this.saveTriggerWords(name, words.join(", "));
+        }
+        this.status = how === "reset" ? `${b.sel.length} LoRAs use the words in their files again`
+          : `${how === "add" ? "Added" : "Removed"} “${add.join(", ")}” ${how === "add" ? "to" : "from"} ${b.sel.length} LoRA${b.sel.length === 1 ? "" : "s"}`;
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        b.busy = false;
       }
     },
     startTrigEdit(name) {
@@ -3066,7 +3223,7 @@ const protoartApp = createApp({
       return PATCH_X(i);
     },
     patchJack(id, kind) {  // a jack's position in the panel's drawing
-      const i = PATCH_NODES.findIndex((n) => n.id === id);
+      const i = this.patchNodes.findIndex((n) => n.id === id);
       return { x: PATCH_X(i), y: kind === "in" ? PATCH_IN_Y : PATCH_OUT_Y };
     },
     cablePath(a, b) {  // a hanging cable: it sags under its own weight, more the longer it is
@@ -3137,7 +3294,7 @@ const protoartApp = createApp({
       this.patch.msg = "";
       if (from === to) return;
       if (from === "src" && to === "result") return (this.patch.msg = "Patch at least one module between PICTURE and RESULT.");
-      if (from === "vector" && to !== "result") return (this.patch.msg = "VECTOR makes an SVG drawing, so it can only go to RESULT (it has to be last).");
+      if (from.split("#")[0] === "vector" && to !== "result") return (this.patch.msg = "VECTOR makes an SVG drawing, so it can only go to RESULT (it has to be last).");
       // no loops: the module being patched into mustn't already lead back here
       let at = to;
       for (let n = 0; n < 10; n++) {
@@ -3170,7 +3327,27 @@ const protoartApp = createApp({
       this.patch.msg = "";
       this.patchSave();
     },
+    patchAddModule(type) {
+      if (!type) return;
+      const n = 1 + (this.patch.extra || []).filter((x) => x.type === type).length + 1;
+      let id = `${type}#${n}`;
+      for (let k = n; this.patch.extra.some((x) => x.id === id); k++) id = `${type}#${k + 1}`;
+      this.patch.extra = [...this.patch.extra, { id, type }];
+      saveJSON("protoart.patchExtra", this.patch.extra);
+      this.patch.msg = `Added ${(PATCH_NODES.find((x) => x.id === type) || {}).label} ${id.split("#")[1]}: cable it in where you want it to run again`;
+      window.ProtoSound?.play("plug");
+    },
+    patchRemoveModule(id) {
+      const ex = this.patch.extra;
+      if (!ex.length) return;
+      id = id || ex[ex.length - 1].id;
+      this.patch.extra = ex.filter((x) => x.id !== id);
+      this.patch.cables = this.patch.cables.filter((c) => c.from !== id && c.to !== id);
+      saveJSON("protoart.patchExtra", this.patch.extra);
+      this.patchSave();
+    },
     patchStepLabel(id) {
+      id = String(id).split("#")[0];
       return { heal: "Removing what you painted", faces: "Restoring faces", enhance: "Enhancing & upscaling",
                depth: "Making a depth map", vector: "Vectorizing" }[id] || id;
     },
@@ -3178,7 +3355,7 @@ const protoartApp = createApp({
       const steps = this.patchChain.steps;
       if (!this.tool.source) return (this.error = "Drop a picture into Tools first.");
       if (!steps.length) return (this.error = "Patch a cable from PICTURE's OUT into a module's IN first.");
-      if (steps.includes("heal") && !(this.mask.data && this.mask.for === this.tool.source.path)) {
+      if (steps.some((x) => String(x).split("#")[0] === "heal") && !(this.mask.data && this.mask.for === this.tool.source.path)) {
         this.toolPaintRemove(true);
         return (this.error = "REMOVE is patched in: paint over what to remove on the picture (Remove objects → 🖌 Paint is now on), then press ▶ Run patch again.");
       }
@@ -3191,8 +3368,8 @@ const protoartApp = createApp({
       this.tool.latest = null;
       try {
         for (let k = 0; k < steps.length; k++) {
-          const id = steps[k];
-          this.patch.running = id;
+          const node = steps[k], id = String(node).split("#")[0];  // a copy you added runs like its module
+          this.patch.running = node;
           this.patch.step = k + 1;
           this.tool.working = { label: `Patch ${k + 1}/${steps.length} · ${this.patchStepLabel(id)}`, started: Date.now() };
           let rec = null;
@@ -3380,6 +3557,7 @@ const protoartApp = createApp({
     async generate() {
       if (!(await this.slowCheck("create"))) return;
       this.dropMismatchedLoras();
+      if (this.rnd.every) this.randomPrompt();  // 🎲 a new random prompt each time
       if (this.loraRand.every && this.randomPool.length) await this.randomLoras(true);
       const res = await this.runJob("generate", this.createArgs());
       if (res) this.models = await call("list_models"); // refresh "downloaded" flags
@@ -3394,6 +3572,47 @@ const protoartApp = createApp({
       } catch (e) {
         this.error = e.message;
       }
+    },
+    shopShut(id) {
+      return !!this.shopFolds[id];
+    },
+    shopFoldToggle(id) {
+      this.shopFolds = { ...this.shopFolds, [id]: !this.shopFolds[id] };
+      saveJSON("protoart.shopFolds", this.shopFolds);
+    },
+    detailStep(d) {  // ‹ / › in a picture's details: the previous / next picture
+      const list = this.detailList, i = this.detailIndex + d;
+      if (i < 0 || i >= list.length) return;
+      this.openDetail(list[i]);
+    },
+    openCompareView() {
+      const ids = this.selected.slice(0, 6);
+      const byId = new Map(this.libShown.map((r) => [r.id, r]));
+      this.compareView = ids.map((id) => byId.get(id)).filter(Boolean);
+      if (this.selected.length > 6) this.status = "Showing the first 6 selected pictures";
+    },
+    openHelpAt(h) {  // a search result → open its section and scroll to it
+      this.helpOpen = h.tabId;
+      this.$nextTick(() => {
+        const el = [...document.querySelectorAll(".acc-item.open .acc-sec h4")].find((x) => x.textContent.trim() === h.sec);
+        (el || document.querySelector(".acc-item.open"))?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    },
+    i2iShut(k) {
+      return !!this.i2iFolds[k];
+    },
+    i2iFoldToggle(k, e) {
+      if (e && e.target.closest("button, a, input, select")) return;  // "clear all" etc. in the title still work
+      this.i2iFolds = { ...this.i2iFolds, [k]: !this.i2iFolds[k] };
+      saveJSON("protoart.i2iFolds", this.i2iFolds);
+    },
+    togglePtool(k) {  // one prompt-tool panel open at a time (Wildcards keeps its own switch)
+      if (k === "wild") {
+        this.ptool = "";
+        return this.openWildcards();
+      }
+      this.wild.open = false;
+      this.ptool = this.ptool === k ? "" : k;
     },
     async openWildcards() {
       this.wild.open = !this.wild.open;
@@ -4964,22 +5183,25 @@ const protoartApp = createApp({
       this.lastAutoNegative = this.form.negative_prompt;
     },
     // 📒 My prompts: saved prompt + negative prompt pairs (kept on this Mac)
-    savePromptPreset() {  // opens 📒 My prompts with a name ready to edit
-      this.promptBox = { name: this.promptPresetName() };
+    savePromptPreset(kind) {  // opens 📒 My prompts with a name ready to edit (kind "negative": the negative prompt only)
+      this.promptBox = { name: this.promptPresetName(kind), kind: kind === "negative" ? "negative" : "prompt" };
     },
     confirmSavePrompt() {
       const name = (this.promptBox?.name || "").trim();
       if (!name) return;
+      const neg = this.promptBox?.kind === "negative";
       const list = this.promptPresets.filter((p) => p.name !== name);
-      list.unshift({ name, prompt: this.form.prompt, negative: this.form.negative_prompt || "" });
+      list.unshift(neg ? { name, kind: "negative", negative: this.form.negative_prompt || "" }
+                       : { name, prompt: this.form.prompt, negative: this.form.negative_prompt || "" });
       this.promptPresets = list.slice(0, 200);
       saveJSON("protoart.prompts", this.promptPresets);
       this.promptBox = null;
       this.status = `Saved “${name}” in 📒 My prompts`;
     },
-    promptPresetName() {
-      const words = this.form.prompt.replace(/[(),:\[\]]/g, " ").split(/\s+/).filter(Boolean).slice(0, 6).join(" ");
-      let name = words || "My prompt";
+    promptPresetName(kind) {
+      const src = kind === "negative" ? (this.form.negative_prompt || "") : this.form.prompt;
+      const words = (kind === "negative" ? "Negative: " : "") + src.replace(/[(),:\[\]]/g, " ").split(/\s+/).filter(Boolean).slice(0, 5).join(" ");
+      let name = words.trim() || (kind === "negative" ? "My negative prompt" : "My prompt");
       let i = 2;
       while (this.promptPresets.some((p) => p.name === name)) name = `${words} (${i++})`;
       return name;
@@ -4987,6 +5209,12 @@ const protoartApp = createApp({
     applyPromptPreset(name) {
       const p = this.promptPresets.find((x) => x.name === name);
       if (!p) return;
+      if (p.kind === "negative") {  // a negative prompt preset: only the negative prompt changes
+        this.undoNegative = this.form.negative_prompt;
+        this.form.negative_prompt = p.negative || "";
+        this.status = `“${name}” is in the negative prompt`;
+        return;
+      }
       this.undoPrompt = this.form.prompt;
       this.form.prompt = p.prompt;
       if (p.negative != null) this.form.negative_prompt = p.negative;
@@ -5361,7 +5589,7 @@ const protoartApp = createApp({
       if (k === "prompt") return f.prompt ? cut(f.prompt.replace(/\s+/g, " "), 52) : "empty";
       if (k === "loras") return f.loras.length ? cut(f.loras.map((l) => l.name).join(", "), 46) : "none";
       if (k === "ipa") return f.ip_adapter && f.ip_adapter.image ? "on" : "none";
-      if (k === "size") return `${f.width}×${f.height} · ${f.fast && this.currentModel?.fast_mode ? "⚡ fast" : f.steps + " steps"} · CFG ${f.cfg} · ${f.num_images} image${f.num_images === 1 ? "" : "s"} · seed ${f.seed}`;
+      if (k === "size") return `${f.width}×${f.height} · ${f.fast && this.currentModel?.fast_mode ? "⚡ fast" : f.steps + " steps"} · CFG ${f.cfg} · ${f.num_images} image${f.num_images === 1 ? "" : "s"}`;
       if (k === "extras") {
         const on = [];
         if (this.clipSkipOk && Number(f.clip_skip) > 1) on.push("CLIP skip " + f.clip_skip);

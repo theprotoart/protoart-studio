@@ -2,6 +2,21 @@
 
 ## 1.2.1 (test version)
 
+- Create prompt tools: one toolbar (`ptools`, `ptool`, `togglePtool`) with Enhance / Saved / From image / Random /
+  Wildcards / List panels; random subject "animal" (`natural_prompt.js` ANIMAL_KINDS, `prompt_generator.js`
+  ANIMAL_TAGS); `rnd.every` new random prompt on each Generate
+- Reset all: horizontal blue lever (`reset-toggle`): clears prompts, defaults, folds every section; flip back = undo
+- Seed under the negative prompt; negative prompt presets (`kind: "negative"` in 📒 My prompts, `negPresets`)
+- `recSettings`: ★ recommended steps / guidance for the sampler (fast: low end, best quality: higher)
+- Image to image: sampler menu in Steps card; foldable cards (`i2iFolds`)
+- Models tab: Refresh / Add from your Mac swapped; model groups as folding panels (`shopFolds`); Pony / Illustrious /
+  NoobAI filters; "Model imported" note (`localOk`); Trigger words panel with batch add / remove / reset
+  (`trigBatch`, `batchTriggers`)
+- Library: Select in the middle; ⇆ Compare side by side (`compareView`); ‹ › and arrow keys in picture details
+  (`detailList`, `detailStep`)
+- Patchbay: extra module copies (`patch.extra`, `patchNodes`, `patchAddModule`); width follows the module count
+  (`:view-box.camel`, the in-DOM template lowercased `viewBox`)
+- How to: search (`helpQ`, `helpHits`)
 - ControlNet: `controlnet.clean_from_unet` / `unet_base_state` build the ControlNet from the UNet without LoRA (PEFT)
   layers (".base_layer" / "lora_A"): DiffusionBee ControlNets failed with "Missing key(s) … Unexpected key(s) …
   lora_A" whenever a LoRA was on, then fell back to a download

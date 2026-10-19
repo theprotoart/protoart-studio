@@ -122,6 +122,9 @@
           <input v-model="lib.text" placeholder="Search prompts or a seed…" @input="queryLibraryDebounced">
           <input v-model="lib.seed" class="amber-num lib-seed" inputmode="numeric" placeholder="seed"
                  title="Show only pictures made with exactly this seed" @input="queryLibraryDebounced">
+          <button v-if="!selectMode" class="lib-select-btn" @click="selectMode=true"
+                  title="Pick pictures: compare them side by side, export, compress, mark or delete several at once">☑ Select</button>
+          <button v-else class="lib-select-btn on" @click="exitSelect">☑ Selecting · Done</button>
           <select v-model="lib.model" @change="queryLibrary()">
             <option value="">All models</option>
             <option v-for="m in libModels" :key="m.id" :value="m.id">{{ m.label }}</option>
@@ -142,7 +145,6 @@
           <button v-if="libLoras.length" class="ghost" :class="{on: libLoraOpen || lib.loras.length}" @click="libLoraOpen = !libLoraOpen"
                   title="Show images made with particular LoRAs">Filter by LoRA{{ lib.loras.length ? ' (' + lib.loras.length + ')' : '' }}</button>
           <button class="ghost" @click="openFolder(imagesDir.path)" title="Open the image folder in Finder">📁 Image folder</button>
-          <button v-if="!selectMode" @click="selectMode=true">Select</button>
         </div>
       </div>
       <!-- Models: filters, search and adding your own -->
@@ -150,16 +152,16 @@
         <span class="eng slot-label">Models <span class="hint">on this Mac appear in Create; the others download the first time you use them</span></span>
         <div class="slot-line">
           <div class="seg">
-            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'FLUX.2'}, {id: 'ernie', label: 'ERNIE'}, {id: 'sdxl', label: 'SDXL'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
-                    :class="{on: shop.family === f.id}" @click="shop.family = f.id">{{ f.label }}</button>
+            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'FLUX.2'}, {id: 'ernie', label: 'ERNIE'}, {id: 'sdxl', label: 'SDXL'}, {id: 'fl:pony', label: 'Pony'}, {id: 'fl:illustrious', label: 'Illustrious'}, {id: 'fl:noobai', label: 'NoobAI'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
+                    :class="{on: shop.family === f.id}" @click="shop.family = f.id" :title="f.id.startsWith('fl:') ? f.label + ' models (SDXL-based, with their own prompt style and quality tags)' : ''">{{ f.label }}</button>
           </div>
           <button class="chip" :class="{on: shop.fav}" @click="shop.fav = !shop.fav" title="Show only your ★ favourite models">★ Favorites <small>{{ favModels.length }}</small></button>
           <input v-model="shop.search" placeholder="Search models…">
           <span class="spacer"></span>
-          <button @click="addLocalModels" title="Checkpoint files (.safetensors / .ckpt) or model folders already on this Mac">+ Add from your Mac…</button>
+          <button class="ghost" @click="refreshModels" title="Look again for models and LoRAs: new files in your folders, finished downloads">↻ Refresh</button>
           <button class="ghost" @click="openModelSettings('hub')" title="Paste a Hugging Face model id or link">+ Add from Hugging Face…</button>
           <button class="ghost" @click="openModelSettings('civitai')" title="Paste a civitai.com model link: LoRAs and checkpoints">+ Add from Civitai…</button>
-          <button class="ghost" @click="refreshModels" title="Look again for models and LoRAs: new files in your folders, finished downloads">↻ Refresh</button>
+          <button @click="addLocalModels" title="Checkpoint files (.safetensors / .ckpt) or model folders already on this Mac">+ Add from your Mac…</button>
         </div>
       </div>
       <!-- Settings: the look -->
@@ -182,6 +184,12 @@
         <button class="ghost tips-btn sfw-btn" :class="{on: opts.sfw_mode}" @click="setSfwMode(!opts.sfw_mode)"
                 :title="opts.sfw_mode ? 'Safe-for-work mode is on: click to switch it off (asks first)' : 'Safe-for-work mode: refuse adult prompts, hide and block NSFW pictures, LoRAs and models (asks first)'">🛡<span class="lbl"> SFW {{ opts.sfw_mode ? 'on' : 'off' }}</span></button>
         </div>
+      </div>
+      <!-- How to: its name plate and a search box -->
+      <div v-else-if="tab==='help'" class="slot-help">
+        <div class="slot-plate"><b>How to</b><span>The operator's manual</span></div>
+        <input class="help-search" v-model="helpQ" type="search" placeholder="Search the manual… (e.g. LoRA, inpaint, seed)"
+               title="Type a word or two: every matching tip from all the sections is shown at the top of the page">
       </div>
       <!-- other tabs: an engraved name plate -->
       <div v-else class="slot-plate">
@@ -245,9 +253,12 @@
         <button class="link small" @click="cfAll(false)">expand all</button>
         <span class="hint">· click a section's name to fold it</span>
         <span class="spacer"></span>
-        <button class="link small" @click="resetCreateAll" :disabled="!currentModel"
-                title="Everything in Create back to the start: this model's own size, steps, guidance and sampler, no LoRAs, no image prompt, extras off, 1 image, random seed. Your prompt, model and saved presets stay.">↺ reset all</button>
-        <button v-if="resetUndo" class="link small" @click="undoResetCreate">undo</button>
+        <button class="bat-toggle reset-toggle" :class="{on: !!resetUndo}" role="switch" :aria-checked="!!resetUndo"
+                :disabled="!currentModel" @click="resetUndo ? undoResetCreate() : resetCreateAll()"
+                :title="resetUndo ? 'Flip back to put everything back as it was (until you change something)' : 'Flip to reset all of Create: prompt and negative prompt cleared, this model\'s own size, steps, guidance and sampler, no LoRAs, no image prompt, extras off, every section folded. Your model and saved presets stay.'">
+          <span class="bt-switch"><i class="bt-plate"></i><i class="bt-nut"></i><i class="bt-lever"></i><i class="bt-ball"></i></span>
+          <span class="bt-state">{{ resetUndo ? 'Reset · undo' : 'Reset all' }}</span>
+        </button>
       </div>
 
       <section class="cfold" :class="{shut: cfShut('model')}">
@@ -262,6 +273,7 @@
           <button class="link" @click="fixLoraType('')" title="A model file listed as the wrong type (SD 1.5 / SDXL)? Fix it in the Models tab">fix a type</button>
         </div>
         <div v-if="localErr" class="hint warn add-model-msg">{{ localErr }} <button class="link" @click="localErr = ''">ok</button></div>
+        <div v-if="localOk" class="ok-box add-model-msg">{{ localOk }} <button class="link" @click="localOk = ''">ok</button></div>
         <div class="model-filter">
           <button v-for="f in modelFilters" :key="f.id" class="chip" :class="{on: modelFilter===f.id}"
                   @click="modelFilter=f.id">{{ f.label }} <small>{{ f.count }}</small></button>
@@ -293,46 +305,75 @@
           <textarea class="tape" v-model="form.prompt" rows="4" placeholder="Describe the image… or drop a picture here to turn it into a prompt" @keydown.meta.enter="generate"></textarea>
           <div v-if="dragOver" class="drop-hint">Drop to {{ i2p.mode==='tags' ? 'tag' : 'describe' }} this image</div>
         </div>
-        <div class="row small enh">
-          <label class="check"><input type="checkbox" v-model="form.enhance_prompt"> ✨ Enhance prompt when generating</label>
-          <button class="link" @click="enhanceNow" :disabled="!form.prompt.trim()">enhance now</button>
-          <button v-if="undoPrompt" class="link" @click="form.prompt = undoPrompt; undoPrompt = null">↩ undo</button>
-          <span class="hint">{{ naturalPrompts() ? 'writes a detailed description' : 'writes tags (best for ' + familyLabel + ')' }}</span>
+        <div class="ptools" role="toolbar" aria-label="Prompt tools">
+          <button class="ptool" :class="{open: ptool === 'enhance'}" @click="togglePtool('enhance')"
+                  :title="'Enhance: rewrite your prompt with more detail (' + (naturalPrompts() ? 'a detailed description' : 'tags, best for ' + familyLabel) + ')'">
+            <i class="ptool-lamp" :class="{on: form.enhance_prompt}"></i>✨<b>Enhance</b></button>
+          <button class="ptool" :class="{open: ptool === 'saved'}" @click="togglePtool('saved')" title="📒 Prompts you saved: use one, or save this one">📒<b>Saved</b></button>
+          <button class="ptool" :class="{open: ptool === 'image'}" @click="togglePtool('image')" title="Turn a picture into a prompt (or drop a picture on the prompt box)">🖼<b>From image</b></button>
+          <button class="ptool" :class="{open: ptool === 'random'}" @click="randomPrompt(); ptool = 'random'; wild.open = false"
+                  :title="naturalPrompts() ? 'A random scene written in sentences (what ' + familyLabel + ' reads best); its options open below' : 'A random Danbooru-style tag prompt; its options open below'">
+            <i class="ptool-lamp" :class="{on: rnd.every}"></i>🎲<b>Random</b></button>
+          <button class="ptool" :class="{open: wild.open}" @click="togglePtool('wild')" title="Wildcards: {red|blue} picks one per image; __name__ picks a line from a wildcard file">{ }<b>Wildcards</b></button>
+          <button class="ptool" :class="{open: batch.open}" @click="batch.open = true" title="Prompt list: queue one job per line of a list of prompts">📋<b>List</b></button>
+          <button v-if="undoPrompt" class="link ptool-undo" @click="form.prompt = undoPrompt; undoPrompt = null" title="Put the prompt back as it was">↩ undo</button>
         </div>
-        <div class="row small prompt-presets">
-          <span class="hint">📒 My prompts</span>
-          <select :value="''" @change="applyPromptPreset($event.target.value); $event.target.value = ''" title="Put a saved prompt (and its negative prompt) back in the boxes">
-            <option value="">{{ promptPresets.length ? 'use a saved prompt…' : 'none saved yet' }}</option>
-            <option v-for="p in promptPresets" :key="p.name" :value="p.name">{{ p.name }}</option>
-          </select>
-          <button class="link" @click="savePromptPreset" :disabled="!form.prompt.trim()" title="Keep this prompt and negative prompt under a name, to use again later">＋ save</button>
-          <button v-if="promptPresets.length" class="link" @click="deletePromptPreset" title="See, use or delete your saved prompts">manage…</button>
+        <div v-if="ptool === 'enhance'" class="wild-panel ptool-panel">
+          <div class="row small">
+            <label class="check"><input type="checkbox" v-model="form.enhance_prompt"> Enhance every time I press Generate</label>
+            <button class="ghost small" @click="enhanceNow" :disabled="!form.prompt.trim()">✨ Enhance now</button>
+          </div>
+          <div class="hint">{{ naturalPrompts() ? 'Writes a detailed description' : 'Writes tags (best for ' + familyLabel + ')' }} from what you typed; <i>enhance now</i> lets you read and edit it first.</div>
         </div>
-        <div v-if="lastEnhanced" class="enhanced-note">
-          <span class="hint">Enhanced:</span> {{ lastEnhanced.prompt }}
-          <button class="link" @click="form.prompt = lastEnhanced.prompt; form.enhance_prompt = false">use as my prompt</button>
-          <button class="link" @click="lastEnhanced = null">hide</button>
-        </div>
-        <div class="row small i2p">
-          <span class="hint">Image → prompt:</span>
-          <label class="check" title="Qwen3.5 4B (a modern vision model) writes a detailed prompt in sentences: best for FLUX, FLUX.2, ERNIE and SDXL. ~3 GB the first time"><input type="radio" value="describe" v-model="i2p.mode"> Describe</label>
-          <label class="check" title="Florence-2: a shorter description, quicker and lighter"><input type="radio" value="quick" v-model="i2p.mode"> Quick</label>
-          <label class="check" title="Anime-style tags (WD tagger): for Pony, Illustrious and SD 1.5 anime models"><input type="radio" value="tags" v-model="i2p.mode"> Danbooru tags</label>
-          <label class="check"><input type="checkbox" v-model="i2p.append"> append</label>
-          <button class="link" @click="$refs.filePick.click()">choose file…</button>
-          <input ref="filePick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onFilePicked">
-        </div>
-        <div v-if="hasWildcards" class="wild-note">
-          <span>🎲 Wildcards: each image picks its own words</span>
-          <button class="link" @click="previewWildcards">preview</button>
-          <div v-if="wild.preview.length" class="wild-preview">
-            <div v-for="(p, k) in wild.preview" :key="k" class="hint">• {{ p }}</div>
+        <div v-if="ptool === 'saved'" class="wild-panel ptool-panel">
+          <div class="row small prompt-presets">
+            <select :value="''" @change="applyPromptPreset($event.target.value); $event.target.value = ''" title="Put a saved prompt (and its negative prompt) back in the boxes">
+              <option value="">{{ promptOnlyPresets.length ? 'use a saved prompt…' : 'none saved yet' }}</option>
+              <option v-for="p in promptOnlyPresets" :key="p.name" :value="p.name">{{ p.name }}</option>
+            </select>
+            <button class="link" @click="savePromptPreset" :disabled="!form.prompt.trim()" title="Keep this prompt and negative prompt under a name, to use again later">＋ save</button>
+            <button v-if="promptPresets.length" class="link" @click="deletePromptPreset" title="See, use or delete your saved prompts">manage…</button>
           </div>
         </div>
-        <div class="gen-keys">
-          <button class="gen-key" @click="randomPrompt" :title="naturalPrompts() ? 'A random scene written in sentences (what ' + familyLabel + ' reads best)' : 'A random Danbooru-style tag prompt'"><span>🎲</span><b>Random</b></button>
-          <button class="gen-key" :class="{on: wild.open}" @click="openWildcards" title="Wildcards: {red|blue} picks one per image; __name__ picks a line from a wildcard file"><span>{ }</span><b>Wildcards</b></button>
-          <button class="gen-key" :class="{on: batch.open}" @click="batch.open = true" title="Prompt list: queue one job per line of a list of prompts"><span>📋</span><b>List</b></button>
+        <div v-if="ptool === 'image'" class="wild-panel ptool-panel">
+          <div class="row small i2p">
+            <label class="check" title="Qwen3.5 4B (a modern vision model) writes a detailed prompt in sentences: best for FLUX, FLUX.2, ERNIE and SDXL. ~3 GB the first time"><input type="radio" value="describe" v-model="i2p.mode"> Describe</label>
+            <label class="check" title="Florence-2: a shorter description, quicker and lighter"><input type="radio" value="quick" v-model="i2p.mode"> Quick</label>
+            <label class="check" title="Anime-style tags (WD tagger): for Pony, Illustrious and SD 1.5 anime models"><input type="radio" value="tags" v-model="i2p.mode"> Danbooru tags</label>
+            <label class="check" title="Add to what's in the prompt box instead of replacing it"><input type="checkbox" v-model="i2p.append"> append</label>
+            <button class="ghost small" @click="$refs.filePick.click()">Choose a picture…</button>
+          </div>
+          <div class="hint">Or drop a picture on the prompt box.</div>
+        </div>
+        <input ref="filePick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onFilePicked">
+        <div v-if="ptool === 'random'" class="wild-panel ptool-panel">
+          <div class="gen-opts">
+          <select v-model="rnd.subject" title="Subject">
+            <template v-if="naturalPrompts()">
+            <option value="random">any subject</option><option value="1girl">a woman</option><option value="1boy">a man</option>
+            <option value="2girls">two women</option><option value="1girl 1boy">a woman and a man</option><option value="scenery">a landscape</option><option value="animal">an animal</option>
+            </template>
+            <template v-else>
+            <option value="random">any subject</option><option>1girl</option><option>1boy</option>
+            <option>2girls</option><option>1girl 1boy</option><option value="scenery">scenery</option><option value="animal">animal</option>
+            </template>
+          </select>
+          <select v-if="!naturalPrompts()" v-model="rnd.quality" title="Quality tags">
+            <option value="standard">quality: standard</option><option value="illustrious">quality: Illustrious/NoobAI</option>
+            <option value="pony">quality: Pony</option><option value="none">no quality tags</option>
+          </select>
+          <select v-model.number="rnd.detail" title="How many tags">
+            <option :value="1">simple</option><option :value="2">detailed</option><option :value="3">very detailed</option>
+          </select>
+          <select v-if="naturalPrompts()" v-model="rnd.style" title="Whether to say what the picture should look like (photo, painting, anime…)">
+            <option :value="true">with a look</option><option :value="false">no look</option>
+          </select>
+        </div>
+          <div class="row small">
+            <label class="check" title="Each time you press Generate, the prompt is replaced by a new random one with these settings (like New random mix for LoRAs)">
+              <input type="checkbox" v-model="rnd.every"> New random prompt every time I press Generate</label>
+            <button class="ghost small" @click="randomPrompt" title="Another random prompt">🎲 Again</button>
+          </div>
         </div>
         <div v-if="wild.open" class="wild-panel">
           <div class="hint">
@@ -348,27 +389,17 @@
             <button class="link" @click="wild.open = false">close</button>
           </div>
         </div>
-        <div class="gen-opts">
-          <select v-model="rnd.subject" title="Subject">
-            <template v-if="naturalPrompts()">
-            <option value="random">any subject</option><option value="1girl">a woman</option><option value="1boy">a man</option>
-            <option value="2girls">two women</option><option value="1girl 1boy">a woman and a man</option><option value="scenery">a landscape</option>
-            </template>
-            <template v-else>
-            <option value="random">any subject</option><option>1girl</option><option>1boy</option>
-            <option>2girls</option><option>1girl 1boy</option><option value="scenery">scenery</option>
-            </template>
-          </select>
-          <select v-if="!naturalPrompts()" v-model="rnd.quality" title="Quality tags">
-            <option value="standard">quality: standard</option><option value="illustrious">quality: Illustrious/NoobAI</option>
-            <option value="pony">quality: Pony</option><option value="none">no quality tags</option>
-          </select>
-          <select v-model.number="rnd.detail" title="How many tags">
-            <option :value="1">simple</option><option :value="2">detailed</option><option :value="3">very detailed</option>
-          </select>
-          <select v-if="naturalPrompts()" v-model="rnd.style" title="Whether to say what the picture should look like (photo, painting, anime…)">
-            <option :value="true">with a look</option><option :value="false">no look</option>
-          </select>
+        <div v-if="hasWildcards" class="wild-note">
+          <span>🎲 Wildcards: each image picks its own words</span>
+          <button class="link" @click="previewWildcards">preview</button>
+          <div v-if="wild.preview.length" class="wild-preview">
+            <div v-for="(p, k) in wild.preview" :key="k" class="hint">• {{ p }}</div>
+          </div>
+        </div>
+        <div v-if="lastEnhanced" class="enhanced-note">
+          <span class="hint">Enhanced:</span> {{ lastEnhanced.prompt }}
+          <button class="link" @click="form.prompt = lastEnhanced.prompt; form.enhance_prompt = false">use as my prompt</button>
+          <button class="link" @click="lastEnhanced = null">hide</button>
         </div>
         <div v-if="currentFlavor" class="row small quality-row">
           <label class="check" :title="'Puts ' + flavorName(currentFlavor) + '\'s quality tags in front of the prompt (and its low-quality tags in the negative prompt) when you generate'">
@@ -385,12 +416,23 @@
           <button class="link" @click="suggestNegative(true)" title="Like suggest, plus a few random extra fixes each time">🎲 random</button>
           <button v-if="undoNegative != null" class="link" @click="form.negative_prompt = undoNegative; undoNegative = null">↩ undo</button>
         </div>
+        <div class="row small neg-presets">
+          <span class="hint">📒</span>
+          <select :value="''" @change="applyPromptPreset($event.target.value); $event.target.value = ''" title="Put a saved negative prompt in the box">
+            <option value="">{{ negPresets.length ? 'use a saved negative prompt…' : 'no negative prompts saved yet' }}</option>
+            <option v-for="p in negPresets" :key="p.name" :value="p.name">{{ p.name }}</option>
+          </select>
+          <button class="link" @click="savePromptPreset('negative')" :disabled="!(form.negative_prompt || '').trim()" title="Keep this negative prompt under a name, to use again with any prompt">＋ save</button>
+        </div>
         <div v-if="compatibleEmbeddings.length" class="trig-row emb-row">
           <span class="hint">Embeddings:</span>
           <button v-for="e in compatibleEmbeddings" :key="e.name" class="chip trig" :class="{on: inNegative(e.name) || inPrompt(e.name)}"
                   @click="toggleNegativeWord(e.name)" title="Click to add to / remove from the negative prompt (or type its name in the prompt)">{{ e.name }}</button>
         </div>
         <textarea class="tape tape-neg" v-model="form.negative_prompt" rows="2" placeholder="What to avoid…"></textarea>
+        <div class="seed-row neg-seed"><label>Seed <span class="hint">-1 = random · the same seed and settings make the same picture</span></label>
+          <input type="number" class="amber-num" v-model.number="form.seed">
+          <button class="link" v-if="form.seed !== -1" @click="form.seed = -1" title="Back to a new random seed each time">🎲 random</button></div>
       </section>
 
       <section class="i2i-hint">
@@ -513,7 +555,7 @@
       </section>
 
       <section class="grid2 cfold" :class="{shut: cfShut('size')}">
-        <label class="span2 cfold-title" @click="cfToggle('size', $event)">Size, steps &amp; seed<span v-if="cfShut('size')" class="cfold-sum">{{ cfSummary('size') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <label class="span2 cfold-title" @click="cfToggle('size', $event)">Size &amp; steps<span v-if="cfShut('size')" class="cfold-sum">{{ cfSummary('size') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <div class="span2 size-presets">
           <label>Size <span class="hint">{{ familyLabel }}</span></label>
           <div class="size-console">
@@ -576,6 +618,10 @@
           <div class="reset-row">
             <button class="ghost" @click="resetCreate" :disabled="!currentModel"
                     title="Back to this model's own size, steps, guidance and sampler; 1 image; random seed; recommended CLIP skip; extras off. Your prompt, model and LoRAs stay.">↺ Reset to defaults</button>
+            <button v-if="recSettings" class="ghost rec-btn" :class="{on: form.steps === recSettings.steps && form.cfg === recSettings.cfg}"
+                    @click="form.steps = recSettings.steps; form.cfg = recSettings.cfg"
+                    :title="'Steps and guidance that suit ' + recSettings.label + (recSettings.kind === 'fast' ? ' (a ⚡ fast sampler: fewer steps)' : recSettings.kind === 'best' ? ' (a ★ best-quality sampler: more steps for detail)' : '') + ' with ' + (currentModel ? currentModel.label : 'this model')">
+              ★ Recommended: {{ recSettings.steps }} steps · guidance {{ recSettings.cfg }}</button>
             <button v-if="resetUndo" class="link" @click="undoResetCreate">undo</button>
           </div>
         </div>
@@ -587,7 +633,7 @@
         <div>
           <div v-if="['lcm','tcd'].includes(form.sampler) && form.cfg > 2" class="hint step-hint">
             LCM/TCD want CFG 1–2 <button class="link" @click="form.cfg = 1.5">use 1.5</button></div></div>
-        <div class="span2 seed-row"><label>Seed <span class="hint">-1 = random</span></label><input type="number" class="amber-num" v-model.number="form.seed"></div>
+
       </section>
 
       <section class="cfold" :class="{shut: cfShut('extras')}">
@@ -872,6 +918,8 @@
       <button class="link" @click="selectAll">Select all {{ libShown.length }}</button>
       <button class="link" v-if="selected.length" @click="selected=[]">Clear</button>
       <span class="spacer"></span>
+      <button class="primary" :disabled="selected.length < 2" @click="openCompareView"
+              :title="selected.length < 2 ? 'Select 2 or more pictures to compare them side by side' : 'Show the selected pictures side by side (up to 6)'">⇆ Compare side by side</button>
       <button class="primary" :disabled="!selected.length" @click="openBatch()" title="Resize, convert, compress (Press), rename, apply an Adjust preset: all the selected pictures at once">🗂 Batch edit &amp; export…</button>
       <button class="ghost" :disabled="!selected.length" @click="openBatch(null, bxBuiltins()[0])" title="Make smaller copies that look the same (Press)">🗜 Compress</button>
       <button class="ghost" :disabled="!selected.length" @click="markPictures(selected.slice(), true)" title="The NSFW filter hides these">Mark NSFW</button>
@@ -922,6 +970,7 @@
       (an external drive is fine) and every model in it is used, including ones you put there later. Either way nothing is
       copied: the files stay where they are and must be there (drive connected) to be used.</p>
     <div v-if="localErr" class="error-box">{{ localErr }}</div>
+    <div v-if="localOk" class="ok-box">{{ localOk }} <button class="link" @click="localOk = ''">ok</button></div>
     <table v-if="localModels.length || modelDirs.dirs.length">
       <tr v-for="m in localModels" :key="m.id"><td>{{ m.label }}</td>
         <td class="hint">{{ familyName(m.family) }}<template v-if="m.class_name && m.family === 'other'"> ({{ m.class_name }})</template> · {{ m.file || m.local_dir || '' }}</td>
@@ -1091,10 +1140,35 @@
     <p v-if="loraFix.msg" class="hint">{{ loraFix.msg }}</p>
         </div>
       </section>
+      <section class="mpanel" id="mp-trig" :class="{open: mpanels.trig}">
+        <h3 @click="toggleModelsPanel('trig'); if (mpanels.trig) loadTrigList()"><i class="led" :class="{on: mpanels.trig}"></i>Trigger words <span class="hint">· see, edit, add or remove the words that switch LoRAs on, for one or many at once</span></h3>
+        <div v-if="mpanels.trig" class="mpanel-body">
+          <div class="row">
+            <input v-model="trigBatch.q" @input="loadTrigListSoon" placeholder="Search your LoRAs by name… (empty: the first 60)" style="max-width:320px">
+            <label class="check"><input type="checkbox" :checked="trigList.length && trigBatch.sel.length === trigList.length"
+                   @change="trigBatch.sel = $event.target.checked ? trigList.map((l) => l.name) : []"> select all {{ trigList.length }} listed</label>
+          </div>
+          <div class="row trig-batch">
+            <input v-model="trigBatch.word" placeholder="a word, or several separated by commas" style="max-width:280px" @keydown.enter="batchTriggers('add')">
+            <button class="ghost" :disabled="!trigBatch.sel.length || !trigBatch.word.trim() || trigBatch.busy" @click="batchTriggers('add')">＋ Add to {{ trigBatch.sel.length }} selected</button>
+            <button class="ghost" :disabled="!trigBatch.sel.length || !trigBatch.word.trim() || trigBatch.busy" @click="batchTriggers('remove')">− Remove from {{ trigBatch.sel.length }} selected</button>
+            <button class="ghost" :disabled="!trigBatch.sel.length || trigBatch.busy" @click="batchTriggers('reset')" title="Forget your edits: use the words found in the files again">↺ Back to the file's words</button>
+          </div>
+          <table class="trig-table">
+            <tr v-for="l in trigList" :key="l.name">
+              <td><input type="checkbox" :checked="trigBatch.sel.includes(l.name)" @change="trigBatch.sel = $event.target.checked ? [...trigBatch.sel, l.name] : trigBatch.sel.filter((x) => x !== l.name)"></td>
+              <td class="tt-name">{{ l.name }}<div class="hint">{{ familyName(l.family) }}{{ trigInfo[l.name] && trigInfo[l.name].saved ? ' · your words' : ' · from the file' }}</div></td>
+              <td class="tt-words"><input :value="(trigInfo[l.name] ? activeTriggers(l.name) : []).join(', ')" :placeholder="trigInfo[l.name] ? 'no trigger words' : 'loading…'"
+                       @change="saveTriggerWords(l.name, $event.target.value)" title="Words separated by commas; press Return or click away to save"></td>
+            </tr>
+          </table>
+          <p class="hint">Saved words are added to the prompt when you add the LoRA in Create (if “add trigger words” is on). Nothing in the LoRA files changes.</p>
+        </div>
+      </section>
     </div>
-    <section v-for="g in shopModels" :key="g.id" class="shop-group">
-      <h3>{{ g.title }} <span class="hint">{{ g.models.length }} · {{ g.hint }}</span></h3>
-      <div class="shop-grid">
+    <section v-for="g in shopModels" :key="g.id" class="shop-group mpanel" :class="{open: !shopShut(g.id)}">
+      <h3 @click="shopFoldToggle(g.id)"><i class="led" :class="{on: !shopShut(g.id)}"></i>{{ g.title }} <span class="hint">· {{ g.models.length }} · {{ g.hint }}</span></h3>
+      <div v-if="!shopShut(g.id)" class="shop-grid">
         <div v-for="m in g.models" :key="m.id" class="card shop-card" :class="{current: m.id === form.model}">
           <div class="shop-top">
             <i class="led" :class="isInstalled(m) ? 'green on' : m.enough_ram ? 'on' : 'red on'"></i>
@@ -1395,7 +1469,7 @@
       </div>
       <!-- Patchbay: the back of the rack. Cables from one module's OUT to the next one's IN set the order. -->
       <div v-if="patch.on" class="card patchbay-card" @pointerdown.self="patchCancel">
-        <svg ref="patchSvg" class="patchbay" viewBox="0 0 1000 300" role="img" aria-label="Patchbay: drag cables from OUT jacks to IN jacks"
+        <svg ref="patchSvg" class="patchbay" :view-box.camel="'0 0 ' + patchW + ' 300'" role="img" aria-label="Patchbay: drag cables from OUT jacks to IN jacks"
              @pointermove="patchMove" @pointerup="patchUp" @pointerdown.self="patchCancel">
           <defs>
             <linearGradient id="pbPanel" x1="0" y1="0" x2="0" y2="1">
@@ -1411,16 +1485,16 @@
               <stop offset="0" stop-color="#e9eaec"/><stop offset="1" stop-color="#777b82"/>
             </radialGradient>
           </defs>
-          <rect x="0" y="0" width="1000" height="300" rx="6" fill="url(#pbPanel)" stroke="#11161d" stroke-width="2" @pointerdown="patchCancel"/>
-          <rect x="22" y="12" width="956" height="22" rx="2" fill="#1f2935" opacity=".7" pointer-events="none"/>
+          <rect x="0" y="0" :width="patchW" height="300" rx="6" fill="url(#pbPanel)" stroke="#11161d" stroke-width="2" @pointerdown="patchCancel"/>
+          <rect x="22" y="12" :width="patchW - 44" height="22" rx="2" fill="#1f2935" opacity=".7" pointer-events="none"/>
           <text x="34" y="27" class="pb-silk pb-title" pointer-events="none">PATCHBAY · PB-7</text>
-          <text x="966" y="27" text-anchor="end" class="pb-silk" pointer-events="none">SIGNAL FLOWS  OUT ▸ IN</text>
-          <g v-for="sx in [10, 990]" :key="'sc' + sx" pointer-events="none">
+          <text :x="patchW - 34" y="27" text-anchor="end" class="pb-silk" pointer-events="none">SIGNAL FLOWS  OUT ▸ IN</text>
+          <g v-for="sx in [10, patchW - 10]" :key="'sc' + sx" pointer-events="none">
             <circle :cx="sx" cy="24" r="5" fill="url(#pbScrew)" stroke="#222" stroke-width=".8"/>
             <circle :cx="sx" cy="276" r="5" fill="url(#pbScrew)" stroke="#222" stroke-width=".8"/>
             <path :d="'M' + (sx - 3) + ',24 h6 M' + (sx - 3) + ',276 h6'" stroke="#444" stroke-width="1.2"/>
           </g>
-          <g v-for="(n, i) in PATCH_NODES" :key="'pn' + n.id">
+          <g v-for="(n, i) in patchNodes" :key="'pn' + n.id">
             <line v-if="i > 0" :x1="patchX(i) - 70" :x2="patchX(i) - 70" y1="44" y2="262" stroke="#1d2631" stroke-width="1.5" pointer-events="none"/>
             <line v-if="i > 0" :x1="patchX(i) - 68.5" :x2="patchX(i) - 68.5" y1="44" y2="262" stroke="#5d7085" stroke-width=".8" opacity=".5" pointer-events="none"/>
             <circle :cx="patchX(i)" cy="50" r="4.5" class="pb-led" pointer-events="none"
@@ -1470,7 +1544,7 @@
         <div class="patch-bar">
           <div class="patch-readout" :title="'The order the picture goes through: ' + patchChain.steps.join(' → ')">
             <span>PICTURE</span>
-            <template v-for="id in patchChain.steps" :key="'rd' + id"><b>▸</b><span :class="{run: patch.running === id}">{{ PATCH_NODES.find((n) => n.id === id).label }}</span></template>
+            <template v-for="id in patchChain.steps" :key="'rd' + id"><b>▸</b><span :class="{run: patch.running === id}">{{ (patchNodes.find((n) => n.id === id) || {}).label || id }}</span></template>
             <template v-if="patchChain.done"><b>▸</b><span>RESULT</span></template>
             <em v-if="!patchChain.steps.length">no cables from PICTURE yet</em>
           </div>
@@ -1479,6 +1553,12 @@
           <button v-else class="danger patch-run" @click="patchStop" title="Stop after this step">■ Stop · {{ patch.step }}/{{ patch.steps }}</button>
           <button class="ghost small" :disabled="!!patch.running" @click="patchReset('default')" title="Picture → Enhance → Faces → Result">↺ default</button>
           <button class="ghost small" :disabled="!!patch.running || !patch.cables.length" @click="patchReset('clear')" title="Pull out every cable">clear cables</button>
+          <select class="patch-add" :value="''" :disabled="!!patch.running" @change="patchAddModule($event.target.value); $event.target.value = ''"
+                  title="Add another copy of a module (like a second rack unit), to run it twice in one chain">
+            <option value="">＋ Add a module…</option>
+            <option v-for="n in PATCH_NODES.filter((x) => x.in && x.out && x.id !== 'vector')" :key="'add' + n.id" :value="n.id">{{ n.icon }} another {{ n.label }}</option>
+          </select>
+          <button v-if="patch.extra.length" class="ghost small" :disabled="!!patch.running" @click="patchRemoveModule()" title="Take out the last module you added (and its cables)">✕ last added</button>
         </div>
         <p class="hint patch-hint">{{ patch.msg || 'Drag from an OUT jack to an IN jack to plug a cable in (or click one, then the other). Drag a plugged-in end away, or double-click a cable, to unplug it. Each module uses its own settings below; REMOVE uses what you paint on the picture.' }}
           <template v-if="patchLoose.length"> · <span class="warn-text">{{ patchLoose.length === 1 ? 'one module is' : patchLoose.length + ' modules are' }} patched but not reached from PICTURE, so {{ patchLoose.length === 1 ? 'it is' : 'they are' }} skipped.</span></template></p>
@@ -1760,8 +1840,23 @@
           “add sunglasses”, “replace the sky with a sunset”, “turn it into a watercolour painting”, “remove the people in the background”.</p>
         <p v-if="editModel() && !editModel().cached" class="hint warn">The first edit downloads FLUX.2 Klein (~{{ editModel().download_gb }} GB), then it works offline.</p>
       </div>
-      <div v-if="form.i2i_mode !== 'edit'" class="card">
-        <h3>Steps &amp; guidance <span class="hint">{{ currentModel ? currentModel.label : '' }} · model is chosen at the top</span></h3>
+      <div v-if="form.i2i_mode !== 'edit'" class="card i2ifold" :class="{shut: i2iShut('steps')}">
+        <h3 @click="i2iFoldToggle('steps')">Sampler, steps &amp; guidance <span class="hint">{{ currentModel ? currentModel.label : '' }} · model is chosen at the top</span>
+          <span v-if="i2iShut('steps')" class="cfold-sum">{{ (samplers.find((x) => x.id === form.sampler) || {}).label || '' }} · {{ form.steps }} steps · CFG {{ form.cfg }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
+        <label class="i2i-sampler-label">Sampler <span class="hint">· the same as Create's</span></label>
+        <select v-model="form.sampler" @change="onSamplerChange" class="i2i-sampler" :class="{'rec-sampler': samplerIsPick(form.sampler)}">
+          <template v-if="samplerPicks().fast.length">
+            <optgroup :label="'⚡ Fastest for ' + pickFor()"><option v-for="s in samplerPicks().fast" :key="'if' + s.id" :value="s.id">{{ s.label }}{{ s.steps ? ' · ~' + s.steps[0] + ' steps' : '' }}</option></optgroup>
+            <optgroup v-if="samplerPicks().qualityOnly.length" :label="'★ Best quality for ' + pickFor()"><option v-for="s in samplerPicks().qualityOnly" :key="'iq' + s.id" :value="s.id">{{ s.label }}{{ s.steps ? ' · ~' + s.steps[0] + ' steps' : '' }}</option></optgroup>
+            <optgroup label="All other samplers"><option v-for="s in samplerPicks().rest" :key="'ir' + s.id" :value="s.id">{{ s.label }}</option></optgroup>
+          </template>
+          <template v-else><option v-for="s in samplers" :key="'ia' + s.id" :value="s.id">{{ s.label }}</option></template>
+        </select>
+        <div v-if="samplerPicks().fast.length" class="chips i2i-sampler-picks"><span class="hint">⚡</span>
+          <button v-for="s in samplerPicks().fast" :key="'icf' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)">{{ s.label }}</button>
+          <span class="hint">★</span>
+          <button v-for="s in samplerPicks().quality" :key="'icq' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)">{{ s.label }}</button>
+        </div>
         <div class="grid2 i2i-model-opts">
           <div class="span2 knob-row">
             <rack-knob v-model.number="form.steps" :min="1" :max="150" :step="1" label="Steps"
@@ -1782,12 +1877,17 @@
           LoRA “{{ clipSkipHint.name }}” was trained with CLIP skip {{ clipSkipHint.value }}
           <button class="link" @click="form.clip_skip = clipSkipHint.value">use {{ clipSkipHint.value }}</button>
         </div>
-        <div class="hint">{{ familyLabel }} · ControlNet needs SD 1.5. The sampler is set in Create.</div>
+        <div class="row small">
+          <button v-if="recSettings" class="ghost rec-btn" :class="{on: form.steps === recSettings.steps && form.cfg === recSettings.cfg}"
+                  @click="form.steps = recSettings.steps; form.cfg = recSettings.cfg"
+                  :title="'Steps and guidance that suit ' + recSettings.label + ' with ' + (currentModel ? currentModel.label : 'this model')">★ Recommended: {{ recSettings.steps }} steps · guidance {{ recSettings.cfg }}</button>
+        </div>
+        <div class="hint">{{ familyLabel }} · the sampler, steps and guidance are shared with Create.</div>
       </div>
 
-      <div v-if="form.i2i_mode !== 'edit'" class="card i2i-loras">
-        <h3>LoRAs <span class="hint">· {{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · shared with Create</span>
-          <button v-if="form.loras.length" class="link small-link" @click="form.loras = []">clear all</button></h3>
+      <div v-if="form.i2i_mode !== 'edit'" class="card i2i-loras i2ifold" :class="{shut: i2iShut('loras')}">
+        <h3 @click="i2iFoldToggle('loras', $event)">LoRAs <span class="hint">· {{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · shared with Create</span>
+          <button v-if="form.loras.length" class="link small-link" @click="form.loras = []">clear all</button><span class="cfold-chev" aria-hidden="true"></span></h3>
         <div v-for="(l, i) in form.loras" :key="l.name" class="lora-row">
           <span class="lora-name" :title="l.name">{{ l.name }}</span>
           <input type="range" min="-2" max="2" step="0.05" v-model.number="l.weight">
@@ -2049,8 +2149,8 @@
         <div class="row small prompt-presets">
           <span class="hint">📒 My prompts</span>
           <select :value="''" @change="applyPromptPreset($event.target.value); $event.target.value = ''">
-            <option value="">{{ promptPresets.length ? 'use a saved prompt…' : 'none saved yet' }}</option>
-            <option v-for="p in promptPresets" :key="p.name" :value="p.name">{{ p.name }}</option>
+            <option value="">{{ promptOnlyPresets.length ? 'use a saved prompt…' : 'none saved yet' }}</option>
+            <option v-for="p in promptOnlyPresets" :key="p.name" :value="p.name">{{ p.name }}</option>
           </select>
           <button class="link" @click="savePromptPreset" :disabled="!form.prompt.trim()">＋ save</button>
         </div>
@@ -2061,6 +2161,14 @@
           <button class="link" @click="suggestNegative(false)" :title="'Write a negative prompt that fits this prompt and ' + familyLabel + ' (' + (naturalPrompts() ? 'plain words' : 'tags') + '): low-quality tags plus the opposite of the style you asked for'">✨ suggest</button>
           <button class="link" @click="suggestNegative(true)" title="Like suggest, plus a few random extra fixes each time">🎲 random</button>
           <button v-if="undoNegative != null" class="link" @click="form.negative_prompt = undoNegative; undoNegative = null">↩ undo</button>
+        </div>
+        <div class="row small neg-presets">
+          <span class="hint">📒</span>
+          <select :value="''" @change="applyPromptPreset($event.target.value); $event.target.value = ''" title="Put a saved negative prompt in the box">
+            <option value="">{{ negPresets.length ? 'use a saved negative prompt…' : 'no negative prompts saved yet' }}</option>
+            <option v-for="p in negPresets" :key="p.name" :value="p.name">{{ p.name }}</option>
+          </select>
+          <button class="link" @click="savePromptPreset('negative')" :disabled="!(form.negative_prompt || '').trim()" title="Keep this negative prompt under a name, to use again with any prompt">＋ save</button>
         </div>
         <textarea class="tape tape-neg" v-model="form.negative_prompt" rows="2" placeholder="What to avoid…"></textarea>
         </template>
@@ -2503,6 +2611,17 @@
         <button @click="openLink('repo')" title="Source code, new versions and release notes">⬇ Updates &amp; source</button>
       </div>
       <p class="hint">When reporting a problem, say what you did, what happened, and add a screenshot. Never share your Civitai key or Hugging Face token.</p>
+    </div>
+
+    <div v-if="helpQ.trim()" class="card help-results">
+      <h3>🔎 {{ helpHits.length }} result{{ helpHits.length === 1 ? '' : 's' }} for “{{ helpQ.trim() }}”
+        <button class="link" @click="helpQ = ''">clear</button></h3>
+      <div v-if="!helpHits.length" class="hint">Nothing matches. Try another word (for example “LoRA”, “seed”, “inpaint”, “memory”), or browse the sections below.</div>
+      <div v-for="(h, i) in helpHits.slice(0, 60)" :key="i" class="help-hit">
+        <button class="link help-hit-where" @click="openHelpAt(h)">{{ h.icon }} {{ h.tab }} › {{ h.sec }}</button>
+        <div v-html="h.html"></div>
+      </div>
+      <div v-if="helpHits.length > 60" class="hint">…and {{ helpHits.length - 60 }} more: add another word to narrow it down.</div>
     </div>
 
     <h2>Quick start</h2>
@@ -2970,7 +3089,7 @@
       <template v-if="promptBox.name !== null">
         <label>Name</label>
         <input v-model="promptBox.name" @keydown.enter="confirmSavePrompt" placeholder="A name for this prompt" autofocus>
-        <p class="hint">Saves the prompt and the negative prompt. The same name replaces the one saved before.</p>
+        <p class="hint">{{ promptBox.kind === 'negative' ? 'Saves the negative prompt only: use it with any prompt from the menu above the negative prompt box.' : 'Saves the prompt and the negative prompt.' }} The same name replaces the one saved before.</p>
         <div class="row end">
           <button @click="promptBox = null">Cancel</button>
           <button class="primary" :disabled="!promptBox.name.trim()" @click="confirmSavePrompt">Save</button>
@@ -2979,7 +3098,7 @@
       <template v-else>
         <div v-if="!promptPresets.length" class="hint">Nothing saved yet.</div>
         <div v-for="p in promptPresets" :key="p.name" class="prompt-row">
-          <div class="prompt-row-text"><b>{{ p.name }}</b><span class="hint">{{ p.prompt }}</span></div>
+          <div class="prompt-row-text"><b>{{ p.name }}</b><span class="hint">{{ p.kind === 'negative' ? '⊖ negative: ' + p.negative : p.prompt }}</span></div>
           <button class="ghost small" @click="applyPromptPreset(p.name); promptBox = null">Use</button>
           <button class="ghost small" @click="removePromptPreset(p)" title="Delete (asks first)">✕</button>
         </div>
@@ -3015,7 +3134,19 @@
   </div>
 
   <!-- ============================ DETAIL ============================ -->
+  <div v-if="compareView" class="modal compare-modal" @click.self="compareView = null">
+    <div class="compare-view" :style="{gridTemplateColumns: 'repeat(' + Math.min(compareView.length, compareView.length > 4 ? 3 : compareView.length) + ', minmax(0, 1fr))'}">
+      <figure v-for="r in compareView" :key="r.id" @click="compareView = null; openDetail(r)" title="Open this picture's details">
+        <img :src="fileUrl(r.path)">
+        <figcaption><b>{{ modelLabel(r.model) }}</b> · seed {{ r.seed }} · {{ r.width }}×{{ r.height }}<template v-if="r.steps"> · {{ r.steps }} steps</template>
+          <span class="hint">{{ (r.prompt || '').slice(0, 90) }}{{ (r.prompt || '').length > 90 ? '…' : '' }}</span></figcaption>
+      </figure>
+    </div>
+    <button class="compare-close" @click="compareView = null">✕ Close</button>
+  </div>
   <div v-if="detail" class="modal" @click.self="detail=null">
+    <button v-if="detailList.length > 1" class="detail-nav prev" @click.stop="detailStep(-1)" :disabled="detailIndex <= 0" title="Previous picture (←)">‹</button>
+    <button v-if="detailList.length > 1" class="detail-nav next" @click.stop="detailStep(1)" :disabled="detailIndex >= detailList.length - 1" title="Next picture (→)">›</button>
     <div class="detail">
       <div class="detail-img" :class="{covered: covered(detail) && !revealDetail}">
         <img :src="fileUrl(detail.path)">
