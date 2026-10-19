@@ -128,6 +128,8 @@
             <button v-else class="lib-select-btn on" @click="exitSelect">☑ Selecting · Done</button>
             <button v-if="selectMode" class="ghost small lib-deselect" :disabled="!selected.length" @click="selected = []"
                     title="Unselect every picture (you stay in Select mode)">✕ Deselect all{{ selected.length ? ' (' + selected.length + ')' : '' }}</button>
+            <button v-if="selectMode" class="primary small lib-compare" :disabled="selected.length < 2" @click="openCompareView"
+                    :title="selected.length < 2 ? 'Select 2 or more pictures to compare them side by side' : 'Show the selected pictures side by side (up to 6)'">⇆ Compare{{ selected.length > 1 ? ' (' + Math.min(selected.length, 6) + ')' : '' }}</button>
           </span>
           <select v-model="lib.model" @change="queryLibrary()">
             <option value="">All models</option>
@@ -922,8 +924,6 @@
       <button class="ghost small" :disabled="!selected.length" @click="selected=[]">✕ Deselect all</button>
       <span class="hint sel-tip" title="Drag across pictures (or draw a box) to select several at once. Start the drag on a selected picture to unselect instead.">drag to select several</span>
       <span class="spacer"></span>
-      <button class="primary" :disabled="selected.length < 2" @click="openCompareView"
-              :title="selected.length < 2 ? 'Select 2 or more pictures to compare them side by side' : 'Show the selected pictures side by side (up to 6)'">⇆ Compare side by side</button>
       <button class="primary" :disabled="!selected.length" @click="openBatch()" title="Resize, convert, compress (Press), rename, apply an Adjust preset: all the selected pictures at once">🗂 Batch edit &amp; export…</button>
       <button class="ghost" :disabled="!selected.length" @click="openBatch(null, bxBuiltins()[0])" title="Make smaller copies that look the same (Press)">🗜 Compress</button>
       <button class="ghost" :disabled="!selected.length" @click="markPictures(selected.slice(), true)" title="The NSFW filter hides these">Mark NSFW</button>

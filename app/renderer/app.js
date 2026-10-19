@@ -460,7 +460,7 @@ const protoartApp = createApp({
               "<b>Image to image</b>: the Sampler, steps &amp; guidance card has its own sampler menu, and it and the LoRAs card fold up like Create's sections.",
               "<b>Models tab</b>: ↻ Refresh and + Add from your Mac swapped places; <b>On this Mac</b> and the download lists fold up under Fix a type; Pony, Illustrious and NoobAI filters; a clear “✓ Model imported” note after adding one.",
               "<b>Trigger words panel</b> (Models tab): search your LoRAs, edit their trigger words in place, or tick several and add / remove a word on all of them at once.",
-              "<b>Library</b>: ☑ Select sits in the middle of the toolbar; select 2–6 pictures and <b>⇆ Compare side by side</b>; in a picture's details, <b>‹ ›</b> (or ← →) step through the pictures.",
+              "<b>Library</b>: ☑ Select sits in the middle of the toolbar; select 2–6 pictures and press <b>⇆ Compare</b> (in the toolbar, next to ✕ Deselect all, so it stays in view while you scroll); in a picture's details, <b>‹ ›</b> (or ← →) step through the pictures.",
               "<b>Select by dragging</b> (Library → ☑ Select): drag across pictures, or draw a box from the space between them, to select many at once; start on a selected picture to unselect. Fixed: the picture details' <b>‹ ›</b> arrows closed the picture instead of going to the next one. <b>✕ Close</b> and <b>🗑 Delete</b> now sit beside the picture's details, well apart so one isn't pressed for the other (Esc closes too). The window keeps the same size while you step through pictures.",
               "<b>Compare side by side zooms</b> (mouse wheel, pinch, － ＋ / Fit / 1:1; all pictures together), <b>✕ Deselect all</b> under Selecting · Done, and smoother drag-to-select.",
               "<b>Train → ✕ Clear</b>: start again with no training pictures chosen (the folder and its files aren't changed).",
@@ -823,7 +823,7 @@ const protoartApp = createApp({
         { id: "library", go: "library", icon: "🗂", title: "Library", summary: "Everything you've made, searchable",
           sections: [
             { h: "Finding images", items: [
-              "<b>☑ Select</b> (middle of the toolbar), tick 2–6 pictures and press <b>⇆ Compare side by side</b>. In a picture's details, <b>‹ ›</b> or the ← → keys go to the previous / next picture, and <b>✕ Close</b> / <b>Delete</b> sit beside the details (Esc closes).",
+              "<b>☑ Select</b> (middle of the toolbar), tick 2–6 pictures and press <b>⇆ Compare</b> in the toolbar (next to ✕ Deselect all; it stays in view while you scroll down). In a picture's details, <b>‹ ›</b> or the ← → keys go to the previous / next picture, and <b>✕ Close</b> / <b>Delete</b> sit beside the details (Esc closes).",
               "<b>Selecting many at once</b>: in ☑ Select, drag across the pictures (or draw a box starting between them); the list scrolls when you rest the pointer at the edge. Start the drag on a picture that's already selected to unselect instead. <b>✕ Deselect all</b> (centred under ☑ Selecting · Done, and in the selection bar) unselects everything.",
               "<b>Zoom in Compare</b>: scroll the mouse wheel or pinch over any picture (or use － ＋, Fit and 1:1); drag to look around, double-click to zoom in or back out. Every picture zooms and moves together, so you can compare the same spot. <i>details</i> under a picture opens it.",
               "Search by prompt, filter by model, version type (originals, enhanced, face-restored…) or ★ starred.",
@@ -951,6 +951,7 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "Things fixed in 1.2.1 (and what to do if you still see them)", items: [
+              "<b>Where's Compare side by side?</b> It moved up into the toolbar: <b>⇆ Compare</b>, right of ✕ Deselect all, so it's always in view however far you scroll. It lights up once 2 or more pictures are selected.",
               "<b>Reset all stayed flipped (“Reset · undo”)</b>: fixed; the lever is now spring-loaded and returns to rest right after resetting. There's no undo, so save a preset first if you want your settings back later.",
               "<b>Dragging to select pictures felt sticky</b> (Library → Select): fixed; it now follows the pointer smoothly, keeps scrolling while you rest at the top or bottom edge, and stops as soon as you let go (even outside the window). Start the drag on a picture or in the gap between pictures, not on its ★ or other buttons.",
               "<b>No way to unselect</b>: press <b>✕ Deselect all</b> under ☑ Selecting · Done (or in the selection bar). <b>☑ Selecting · Done</b> leaves Select mode.",

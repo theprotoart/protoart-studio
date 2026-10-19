@@ -2011,3 +2011,5 @@ table.libs td:first-child { white-space: nowrap; }
 .sel-stack > .lib-deselect { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
   white-space: nowrap; z-index: 2; }
 .sel-stack > .lib-deselect:active:not(:disabled) { transform: translateX(-50%) translateY(1px); }
+/* ⇆ Compare sits in the toolbar (always in view while you scroll), right of ✕ Deselect all */
+.sel-stack > .lib-compare { position: absolute; top: calc(100% + 8px); left: calc(100% + 14px); white-space: nowrap; z-index: 2; }

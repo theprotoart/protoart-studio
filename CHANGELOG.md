@@ -17,7 +17,7 @@
   details: ‹ › no longer close the window (the global `button:active` translate moved them off the pointer, so the
   click hit the backdrop); Close / Delete beside the facts (`.detail-facts`, `.detail-side`); Esc closes
 - Reset all lever is momentary (`flipResetAll`, `resetFlip`): springs back, no undo; Deselect all centred under the
-  Select button (`.sel-stack`)
+  Select button (`.sel-stack`); ⇆ Compare moved into the toolbar beside it
 - Compare: linked zoom / pan (`cmp`, `cmpWheel`, `cmpZoomTo`, `cmpDown`, Fit, 1:1); Deselect all buttons;
   drag-select reworked: tile positions measured once, one update per frame, selection only touched when it changes,
   pointer capture once dragging, continuous edge scrolling, ends on pointercancel / window blur
