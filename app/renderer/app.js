@@ -423,7 +423,8 @@ const protoartApp = createApp({
       adjFilters: ADJ_FILTERS,
       helpOpen: "",
       helpQ: "",
-      compareView: null,  // Library → ⇆ Compare side by side: the selected pictures  // How to → search the manual
+      compareView: null,
+      cmp: { z: 1, x: 0, y: 0, drag: null },  // ⇆ Compare: one zoom and position for every picture  // Library → ⇆ Compare side by side: the selected pictures  // How to → search the manual
       preloading: "",     // model being loaded in the background (kept out of the visible queue)
       readyModel: "",     // model known to be loaded and waiting
       content: { checker_installed: false, checker_mb: 340, total: 0, nsfw: 0, unchecked: 0, faces_unchecked: 0, scanning: false, msg: "" },
@@ -460,6 +461,7 @@ const protoartApp = createApp({
               "<b>Trigger words panel</b> (Models tab): search your LoRAs, edit their trigger words in place, or tick several and add / remove a word on all of them at once.",
               "<b>Library</b>: ☑ Select sits in the middle of the toolbar; select 2–6 pictures and <b>⇆ Compare side by side</b>; in a picture's details, <b>‹ ›</b> (or ← →) step through the pictures.",
               "<b>Select by dragging</b> (Library → ☑ Select): drag across pictures, or draw a box from the space between them, to select many at once; start on a selected picture to unselect. Fixed: the picture details' <b>‹ ›</b> arrows closed the picture instead of going to the next one. <b>✕ Close</b> and <b>🗑 Delete</b> now sit beside the picture's details, well apart so one isn't pressed for the other (Esc closes too). The window keeps the same size while you step through pictures.",
+              "<b>Compare side by side zooms</b> (mouse wheel, pinch, － ＋ / Fit / 1:1; all pictures together), <b>✕ Deselect all</b> under Selecting · Done, and smoother drag-to-select.",
               "<b>Train → ✕ Clear</b>: start again with no training pictures chosen (the folder and its files aren't changed).",
               "<b>Patchbay: add more modules</b> (Tools): ＋ Add a module puts in another Faces, Enhance, Remove or Depth, so you can run Restore faces twice (or any module again) in one chain; the panel widens for them.",
               "<b>Patchbay controls on top, and modules you can move</b>: Run patch, ↺ reset, clear cables and ＋ Add a module now sit above the panel, and the patchbay <b>starts with no cables</b>: plug in only what you want (or press <i>example</i> for Picture → Enhance → Faces → Result). Drag a module's name left or right (or point at it and press ‹ ›) to put the modules in the order you like; ↺ reset puts them back and pulls out the cables.",
@@ -819,7 +821,8 @@ const protoartApp = createApp({
           sections: [
             { h: "Finding images", items: [
               "<b>☑ Select</b> (middle of the toolbar), tick 2–6 pictures and press <b>⇆ Compare side by side</b>. In a picture's details, <b>‹ ›</b> or the ← → keys go to the previous / next picture, and <b>✕ Close</b> / <b>Delete</b> sit beside the details (Esc closes).",
-              "<b>Selecting many at once</b>: in ☑ Select, drag across the pictures (or draw a box starting between them); the list scrolls when you reach the edge. Start the drag on a picture that's already selected to unselect instead.",
+              "<b>Selecting many at once</b>: in ☑ Select, drag across the pictures (or draw a box starting between them); the list scrolls when you rest the pointer at the edge. Start the drag on a picture that's already selected to unselect instead. <b>✕ Deselect all</b> (under ☑ Selecting · Done, and in the selection bar) unselects everything.",
+              "<b>Zoom in Compare</b>: scroll the mouse wheel or pinch over any picture (or use － ＋, Fit and 1:1); drag to look around, double-click to zoom in or back out. Every picture zooms and moves together, so you can compare the same spot. <i>details</i> under a picture opens it.",
               "Search by prompt, filter by model, version type (originals, enhanced, face-restored…) or ★ starred.",
               "<b>Hide People</b> hides pictures of people: ones whose prompt describes a person, ones where the face finder sees a face, and ones made with models or LoRAs you tagged ● People. Pictures made before this version: <b>check now</b> next to the picture count looks for faces in them once (on this Mac). <b>Hide NSFW</b> hides NSFW pictures.",
               "<b>Search by seed</b>: type a seed in the amber <b>seed</b> box to see only pictures made with it, or type a number in the search box to find that seed and prompts containing it. In a picture's details, <b>find all with this seed</b> does the same.",
@@ -3723,7 +3726,51 @@ const protoartApp = createApp({
       if (i < 0 || i >= list.length) return;
       this.openDetail(list[i]);
     },
+    cmpClamp() {  // don't let the picture slide out of its frame
+      const f = document.querySelector(".cmp-frame");
+      if (!f || this.cmp.z <= 1) { Object.assign(this.cmp, { x: 0, y: 0 }); return; }
+      const mx = (f.clientWidth * (this.cmp.z - 1)) / 2, my = (f.clientHeight * (this.cmp.z - 1)) / 2;
+      this.cmp.x = Math.max(-mx, Math.min(mx, this.cmp.x));
+      this.cmp.y = Math.max(-my, Math.min(my, this.cmp.y));
+    },
+    cmpZoomTo(z, px = 0, py = 0) {  // px, py: the point to keep still, from the frame's centre
+      const c = this.cmp, nz = Math.max(1, Math.min(16, z));
+      c.x = px - ((px - c.x) * nz) / c.z;
+      c.y = py - ((py - c.y) * nz) / c.z;
+      c.z = nz;
+      this.cmpClamp();
+    },
+    cmpZoomBy(f, e) {
+      let px = 0, py = 0;
+      if (e && e.currentTarget) { const r = e.currentTarget.getBoundingClientRect(); px = e.clientX - r.left - r.width / 2; py = e.clientY - r.top - r.height / 2; }
+      this.cmpZoomTo(this.cmp.z * f, px, py);
+    },
+    cmpWheel(e) {  // mouse wheel / trackpad pinch over any picture zooms all of them around the pointer
+      const r = e.currentTarget.getBoundingClientRect();
+      const k = e.ctrlKey ? 0.01 : 0.0018;  // a pinch arrives as small ctrl+wheel steps
+      this.cmpZoomTo(this.cmp.z * Math.exp(-e.deltaY * k), e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2);
+    },
+    cmpDown(e) {
+      if (this.cmp.z <= 1 || e.button !== 0) return;
+      e.preventDefault();
+      const c = this.cmp, sx = e.clientX - c.x, sy = e.clientY - c.y;
+      c.drag = true;
+      const move = (ev) => { c.x = ev.clientX - sx; c.y = ev.clientY - sy; this.cmpClamp(); };
+      const up = () => { c.drag = null; removeEventListener("pointermove", move); removeEventListener("pointerup", up); };
+      addEventListener("pointermove", move);
+      addEventListener("pointerup", up);
+    },
+    cmpOneToOne() {  // the zoom that shows the first picture's real pixels
+      const r = (this.compareView || [])[0], f = document.querySelector(".cmp-frame img");
+      if (!r || !f || !f.clientWidth) return 2;
+      const shown = Math.min(f.clientWidth / (f.naturalWidth || r.width), f.clientHeight / (f.naturalHeight || r.height));
+      return Math.max(1, 1 / (shown || 1));
+    },
+    cmpReset() {
+      Object.assign(this.cmp, { z: 1, x: 0, y: 0 });
+    },
     openCompareView() {
+      this.cmpReset();
       const ids = this.selected.slice(0, 6);
       const byId = new Map(this.libShown.map((r) => [r.id, r]));
       this.compareView = ids.map((id) => byId.get(id)).filter(Boolean);
@@ -6218,43 +6265,62 @@ const protoartApp = createApp({
       const scroller = (() => { for (let el = gal; el; el = el.parentElement) { const o = getComputedStyle(el).overflowY; if ((o === "auto" || o === "scroll") && el.scrollHeight > el.clientHeight) return el; } return document.scrollingElement; })();
       const fig = e.target.closest("figure[data-id]");
       const startId = fig ? Number(fig.dataset.id) : null;
-      const st = { x: e.clientX, y: e.clientY + scroller.scrollTop, scroller, gal, moved: false,
-                   remove: startId != null && this.selected.includes(startId), base: [...this.selected], lastY: e.clientY };
-      this._gal = st;
+      const top0 = scroller.scrollTop;
+      // where every picture is, measured once (in the list's own coordinates, so scrolling doesn't change them)
+      const tiles = [...gal.querySelectorAll("figure[data-id]")].map((f) => {
+        const r = f.getBoundingClientRect();
+        return { id: Number(f.dataset.id), l: r.left, r: r.right, t: r.top + top0, b: r.bottom + top0 };
+      });
+      const st = { x: e.clientX, y: e.clientY + top0, cx: e.clientX, cy: e.clientY, moved: false, raf: 0, last: "",
+                   remove: startId != null && this.selected.includes(startId), base: new Set(this.selected) };
       const box = document.createElement("div");
       box.className = "sel-box";
-      const move = (ev) => {
-        const top0 = scroller.scrollTop;
-        if (!st.moved && Math.hypot(ev.clientX - st.x, ev.clientY + top0 - st.y) < 6) return;
-        if (!st.moved) { st.moved = true; document.body.appendChild(box); }
-        const sr = scroller === document.scrollingElement ? { top: 0, bottom: innerHeight } : scroller.getBoundingClientRect();
-        const lo = Math.min(sr.bottom, innerHeight), hi = Math.max(sr.top, 0);
-        // near the edge, moving towards it: keep scrolling
-        if (ev.clientY > lo - 30 && ev.clientY >= st.lastY) scroller.scrollTop += 14;
-        else if (ev.clientY < hi + 30 && ev.clientY < st.lastY) scroller.scrollTop -= 14;
-        st.lastY = ev.clientY;
+      const sr = () => (scroller === document.scrollingElement ? { top: 0, bottom: innerHeight } : scroller.getBoundingClientRect());
+      const frame = () => {  // one update per screen refresh, and keep scrolling while the pointer rests at an edge
+        st.raf = 0;
+        const r = sr(), lo = Math.min(r.bottom, innerHeight), hi = Math.max(r.top, 0);
+        let scrolled = false;
+        if (st.cy > lo - 36) { const before = scroller.scrollTop; scroller.scrollTop += Math.min(24, 6 + (st.cy - (lo - 36))); scrolled = scroller.scrollTop !== before; }
+        else if (st.cy < hi + 36 && st.cy < st.y - scroller.scrollTop) { const before = scroller.scrollTop; scroller.scrollTop -= Math.min(24, 6 + (hi + 36 - st.cy)); scrolled = scroller.scrollTop !== before; }
         const top = scroller.scrollTop;
-        const x1 = Math.min(st.x, ev.clientX), x2 = Math.max(st.x, ev.clientX);
-        const y1 = Math.min(st.y, ev.clientY + top), y2 = Math.max(st.y, ev.clientY + top);
+        const x1 = Math.min(st.x, st.cx), x2 = Math.max(st.x, st.cx);
+        const y1 = Math.min(st.y, st.cy + top), y2 = Math.max(st.y, st.cy + top);
         Object.assign(box.style, { left: x1 + "px", top: (y1 - top) + "px", width: (x2 - x1) + "px", height: (y2 - y1) + "px" });
-        const hit = [];
-        for (const f of gal.querySelectorAll("figure[data-id]")) {
-          const r = f.getBoundingClientRect();
-          if (r.right > x1 && r.left < x2 && r.bottom + top > y1 && r.top + top < y2) hit.push(Number(f.dataset.id));
+        const hit = tiles.filter((t) => t.r > x1 && t.l < x2 && t.b > y1 && t.t < y2).map((t) => t.id);
+        const key = hit.join(",");
+        if (key !== st.last) {  // only touch the selection when it actually changes
+          st.last = key;
+          const set = new Set(st.base);
+          for (const id of hit) st.remove ? set.delete(id) : set.add(id);
+          this.selected = [...set];
         }
-        const set = new Set(st.base);
-        for (const id of hit) st.remove ? set.delete(id) : set.add(id);
-        this.selected = [...set];
+        if (scrolled) st.raf = requestAnimationFrame(frame);
+      };
+      const move = (ev) => {
+        st.cx = ev.clientX; st.cy = ev.clientY;
+        if (!st.moved) {
+          if (Math.hypot(ev.clientX - st.x, ev.clientY + scroller.scrollTop - st.y) < 4) return;
+          st.moved = true;
+          document.body.appendChild(box);
+          try { gal.setPointerCapture(e.pointerId); } catch { /* not capturable */ }  // keep the drag even off the list
+        }
+        if (!st.raf) st.raf = requestAnimationFrame(frame);
       };
       const up = () => {
         removeEventListener("pointermove", move);
         removeEventListener("pointerup", up);
+        removeEventListener("pointercancel", up);
+        removeEventListener("blur", up);
+        if (st.raf) cancelAnimationFrame(st.raf);
+        try { gal.releasePointerCapture(e.pointerId); } catch { /* already released */ }
         box.remove();
         if (st.moved) this._galDragged = Date.now();  // the click that ends a drag doesn't toggle a picture
-        this._gal = null;
       };
+      e.preventDefault();  // no text or picture dragging while selecting
       addEventListener("pointermove", move);
       addEventListener("pointerup", up);
+      addEventListener("pointercancel", up);
+      addEventListener("blur", up);
     },
     onThumbClick(r) {
       if (this.selectMode && Date.now() - (this._galDragged || 0) < 120) return;

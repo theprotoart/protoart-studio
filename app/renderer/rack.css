@@ -1993,3 +1993,16 @@ table.libs td:first-child { white-space: nowrap; }
 .detail-side { justify-content: space-between; min-height: 230px; gap: 10px; }
 .detail-side .danger-outline { margin-top: auto; }
 .out-engine + .hint + .hint { margin-top: 8px; }
+
+/* ⇆ Compare: zoom (wheel / pinch / buttons) and drag, the same for every picture */
+.compare-tools { display: flex; align-items: center; gap: 8px; width: min(96vw, 1800px); flex-wrap: wrap; }
+.compare-tools .spacer { flex: 1; }
+.cmp-pct { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; color: #eee; }
+.compare-tools .hint { color: #aaa; }
+.cmp-frame { overflow: hidden; border-radius: 4px; background: #000; cursor: zoom-in; touch-action: none; }
+.cmp-frame.zoomed { cursor: grab; }
+.cmp-frame.panning { cursor: grabbing; }
+.cmp-frame img { transform-origin: 50% 50%; will-change: transform; user-select: none; }
+.compare-view figure { cursor: default; }
+.lib-deselect { margin-left: 4px; }
+.compare-tools { background: rgba(18, 18, 20, .9); padding: 6px 10px; border-radius: 6px; }

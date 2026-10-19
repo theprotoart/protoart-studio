@@ -139,6 +139,8 @@
           <label class="check nsfw-switch" :class="{on: hideNsfw, locked: opts.sfw_mode}" :title="opts.sfw_mode ? 'Safe-for-work mode is on: NSFW stays hidden (Settings → Content filter)' : 'Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings.'"><input type="checkbox" :checked="hideNsfw" :disabled="opts.sfw_mode" @change="setHideNsfw($event.target.checked)"> {{ opts.sfw_mode ? '🛡 SFW' : 'Hide NSFW' }}</label>
           <label class="check" :class="{on: opts.hide_people}" title="Hide pictures of people (the prompt describes a person, or faces are found in the picture) and pictures made with models or LoRAs you tagged ● People. Same switch in Create and Settings."><input type="checkbox" :checked="opts.hide_people" @change="setHidePeople($event.target.checked)"> Hide People</label>
           <span class="hint">{{ libShown.length }} image{{ libShown.length===1?'':'s' }}<template v-if="hideNsfw && content.nsfw"> · {{ content.nsfw }} hidden</template><template v-if="libPeopleHidden"> · {{ libPeopleHidden }} People hidden</template></span>
+          <button v-if="selectMode" class="ghost small lib-deselect" :disabled="!selected.length" @click="selected = []"
+                  title="Unselect every picture (you stay in Select mode)">✕ Deselect all{{ selected.length ? ' (' + selected.length + ')' : '' }}</button>
           <span v-if="opts.hide_people && content.faces_unchecked" class="hint">· {{ content.faces_unchecked }} older picture{{ content.faces_unchecked === 1 ? '' : 's' }} not checked for people yet
             <button class="link" @click="peopleScan" title="Look for faces in them once (on this Mac, ~100 MB the first time), so Hide People hides pictures of people too">check now</button></span>
           <span class="spacer"></span>
@@ -916,7 +918,7 @@
     <div v-if="selectMode" class="select-bar">
       <span>{{ selected.length }} selected</span>
       <button class="link" @click="selectAll">Select all {{ libShown.length }}</button>
-      <button class="link" v-if="selected.length" @click="selected=[]">Clear</button>
+      <button class="ghost small" :disabled="!selected.length" @click="selected=[]">✕ Deselect all</button>
       <span class="hint sel-tip" title="Drag across pictures (or draw a box) to select several at once. Start the drag on a selected picture to unselect instead.">drag to select several</span>
       <span class="spacer"></span>
       <button class="primary" :disabled="selected.length < 2" @click="openCompareView"
@@ -3188,14 +3190,26 @@
 
   <!-- ============================ DETAIL ============================ -->
   <div v-if="compareView" class="modal compare-modal" @click.self="compareView = null">
+    <div class="compare-tools">
+      <button class="ghost small" @click="cmpZoomBy(1 / 1.5)" :disabled="cmp.z <= 1" title="Zoom out">－</button>
+      <span class="cmp-pct" title="Zoom (mouse wheel or pinch over a picture)">{{ Math.round(cmp.z * 100) }}%</span>
+      <button class="ghost small" @click="cmpZoomBy(1.5)" :disabled="cmp.z >= 16" title="Zoom in">＋</button>
+      <button class="ghost small" @click="cmpReset" :disabled="cmp.z === 1" title="Fit the whole picture">Fit</button>
+      <button class="ghost small" @click="cmpZoomTo(cmpOneToOne())" title="Actual pixels">1:1</button>
+      <span class="hint">Scroll or pinch over a picture to zoom, drag to look around · all pictures move together</span>
+      <span class="spacer"></span>
+      <button class="compare-close" @click="compareView = null">✕ Close</button>
+    </div>
     <div class="compare-view" :style="{gridTemplateColumns: 'repeat(' + Math.min(compareView.length, compareView.length > 4 ? 3 : compareView.length) + ', minmax(0, 1fr))'}">
-      <figure v-for="r in compareView" :key="r.id" @click="compareView = null; openDetail(r)" title="Open this picture's details">
-        <img :src="fileUrl(r.path)">
+      <figure v-for="r in compareView" :key="r.id">
+        <div class="cmp-frame" :class="{zoomed: cmp.z > 1, panning: !!cmp.drag}" @wheel.prevent="cmpWheel" @pointerdown="cmpDown" @dblclick="cmp.z > 1 ? cmpReset() : cmpZoomBy(2.5, $event)">
+          <img :src="fileUrl(r.path)" draggable="false" :style="{transform: 'translate(' + cmp.x + 'px,' + cmp.y + 'px) scale(' + cmp.z + ')'}">
+        </div>
         <figcaption><b>{{ modelLabel(r.model) }}</b> · seed {{ r.seed }} · {{ r.width }}×{{ r.height }}<template v-if="r.steps"> · {{ r.steps }} steps</template>
+          <button class="link small-link" @click="compareView = null; openDetail(r)">details</button>
           <span class="hint">{{ (r.prompt || '').slice(0, 90) }}{{ (r.prompt || '').length > 90 ? '…' : '' }}</span></figcaption>
       </figure>
     </div>
-    <button class="compare-close" @click="compareView = null">✕ Close</button>
   </div>
   <div v-if="detail" class="modal" @click.self="detail=null">
     <button v-if="detailList.length > 1" class="detail-nav prev" @click.stop="detailStep(-1)" :disabled="detailIndex <= 0" title="Previous picture (←)">‹</button>
