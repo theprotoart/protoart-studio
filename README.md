@@ -34,8 +34,8 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 - **Tools** (rack modules): Finegrain enhance & upscale, face restoration (CodeFormer or RestoreFormer), 🩹 remove objects
   (paint right in Tools; smart or quick fill), ✒️ vectorize to SVG, image → prompt (Qwen3.5 vision model, Florence-2 or
   WD tagger), depth maps, 🎚 Adjust (Lightroom / Color Efex-style), DiffusionBee file conversion, Original / Result /
-  Split / Side-by-side views, and a 🔌 patchbay to run Remove, Faces, Enhance, Depth and Vectorize in any order with cables
-- **Library:** search by prompt, seed, model or LoRA; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
+  Split / Side-by-side views, and a 🔌 patchbay to run Remove, Faces, Enhance, Depth and Vectorize in any order with cables (modules can be moved and added twice)
+- **Library:** search by prompt, seed, model or LoRA; drag to select many; ⇆ compare side by side with linked zoom; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
   first); batch edit & export; 🗜 compress to the smallest file that still looks the same
 - **Train:** LoRA training (SD 1.5 / SDXL; ERNIE on 32 GB+ Macs), embedding training (SD 1.5), square crop / keep-whole
   framing, and merging LoRAs of the same type into one

@@ -637,6 +637,7 @@ const protoartApp = createApp({
               "The switch next to <b>Compare settings</b> shows whether it's on; click the heading or <b>Turn off compare</b> to close it." ] },
             { h: "LoRAs & embeddings", items: [
               "Add as many LoRAs as you like, each with its own weight (−2 to 2).",
+              "<b>Reading the LoRA list</b>: under each name are its type and size. <b>BEE</b> means the LoRA comes from your DiffusionBee folder (read where it is); ⚠ after the type means it may not match the model you picked. Point at a row to see it all spelled out.",
               "<b>Only LoRAs made for the chosen model's type are listed</b>: an ERNIE model shows only ERNIE LoRAs, SD 1.5 only SD 1.5 ones, and so on (Pony / Illustrious LoRAs count as SDXL). Switching to another type of model removes LoRAs that don't fit.",
               "<b>Fix a type</b> (Models tab): <b>Show all</b> lists every LoRA and base model file; <b>🔒</b> locks a row so a stray click can't change its type (a type you pick locks itself; click the lock to change it).",
               "LoRAs whose type the app couldn't work out aren't shown for any model; the list says how many and <b>Give them a type →</b> takes you to fix them. <b>LoRA missing or the wrong type? Fix it →</b> does the same for one that's filed under the wrong type.",
@@ -811,6 +812,7 @@ const protoartApp = createApp({
               "Let the app caption the images (tags for anime/illustration, sentences for photos), then edit them.",
               "Describe what is <i>not</i> the thing you're teaching; the trigger word stands for what is." ] },
             { h: "Training", items: [
+              "<b>Pick your pictures</b> with <i>Choose a folder of images…</i> (2 · Training images); <b>✕ Clear</b> forgets them so you can start again with another folder. Nothing in the folder is changed or deleted (if you edited captions without saving, it asks first).",
               "<b>Quick / Standard / Thorough</b> set steps, learning rate and rank. Standard is about 100 steps per image.",
               "Watch the progress, time left and the loss chart (it should drift down and level off). <b>Stop</b> keeps the progress so far.",
               "SD 1.5 suits 8 GB Macs. <b>SDXL and Pony / Illustrious / NoobAI</b> can be trained too: pick the built-in SDXL (it trains on the full-precision SDXL Base, a 7 GB download if it isn't on your Mac yet) or any full SDXL checkpoint you've added. Under 16 GB it works but is very slow (often many hours); train at 768 to lighten it. LoRAs trained on a Pony model are labelled Pony automatically. ERNIE can be trained on the <b>⚡ fast-engine ERNIE</b> (it learns a LoRA on top of the 4-bit model, with low-memory settings): it suits 16 GB+ Macs and is experimental on 8 GB, where it may run out of memory or take many hours. The full-precision ERNIE needs 32 GB+.",
@@ -831,7 +833,8 @@ const protoartApp = createApp({
             { h: "Working with an image", items: [
               "Click an image to see its prompt and settings; <b>↺ Reuse prompt</b> puts just its prompt in Create (your model and settings stay), <b>Use these settings</b> loads everything. Hovering a picture shows <b>↺ Prompt</b> too.",
               "Restore faces, enhance & upscale, or <b>🖼 Send to Image to image</b> straight from there.",
-              "Delete one image or many (<b>Select</b>); files are removed from your Mac or moved to the Trash (Settings)." ] },
+              "Delete one image or many (<b>Select</b>); files are removed from your Mac or moved to the Trash (Settings).",
+              "<b>The details window</b> keeps the same size as you step through pictures with <b>‹ ›</b> or ← →. <b>✕ Close</b> is at the top of the buttons beside the details and <b>🗑 Delete</b> at the bottom, well apart (Delete always asks first). Esc closes." ] },
             { h: "🗂 Batch edit & export (like PhotoMill)", items: [
               "<b>Select</b> pictures (or <b>Select all</b>), then <b>🗂 Batch edit &amp; export…</b>. Copies are saved to a folder you pick (default <i>Pictures → Protoart Exports</i>); the pictures in the Library are never changed, and nothing is ever overwritten (a -2, -3… is added).",
               "<b>Adjust</b>: apply one of the Looks or your own Adjust presets to every picture. <b>Size</b>: keep, long side, short side, fit in a box (for example 1080 × 1350) or percent; <b>Never enlarge</b> keeps small pictures as they are.",
@@ -935,7 +938,8 @@ const protoartApp = createApp({
               "Live preview, low-memory mode (SDXL) and the backend log (useful when something goes wrong)." ] },
             { h: "Finding your way around Settings", items: [
               "Click a section's heading to fold it away (▾); the app remembers which ones you folded. Long lists (your marks, People tags) start folded.",
-              "In a narrow window the sections stack in one column, so nothing is cut off." ] },
+              "In a narrow window the sections stack in one column, so nothing is cut off.",
+              "<b>Model folders</b>: <b>＋ Add watched folders…</b> as many times as you like (⌘-click to pick several at once); each is listed as Folder 1, 2… with Remove. <b>↻ Refresh</b> reads them again. Below, <b>Model libraries from other apps</b> uses a Stability Matrix / ComfyUI / A1111 / InvokeAI / Fooocus library in place." ] },
             { h: "Look", items: [
               "The Look switch is at the top of the window when Settings is open.",
               "<b>Dark</b> (black faceplate, the default), <b>Light</b> (brushed aluminium with orange trim) or <b>Match macOS</b> (follows your Mac's light / dark appearance)." ] },
@@ -946,6 +950,13 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "Things fixed in 1.2.1 (and what to do if you still see them)", items: [
+              "<b>Dragging to select pictures felt sticky</b> (Library → Select): fixed; it now follows the pointer smoothly, keeps scrolling while you rest at the top or bottom edge, and stops as soon as you let go (even outside the window). Start the drag on a picture or in the gap between pictures, not on its ★ or other buttons.",
+              "<b>No way to unselect</b>: press <b>✕ Deselect all</b> under ☑ Selecting · Done (or in the selection bar). <b>☑ Selecting · Done</b> leaves Select mode.",
+              "<b>Couldn't zoom in Compare side by side</b>: scroll the mouse wheel or pinch over a picture, or use － ＋ / Fit / 1:1 at the top; drag to look around. Every picture follows, so the same spot is compared. Clicking a picture no longer closes Compare: use <i>details</i> under it.",
+              "<b>The picture details window changed size between pictures</b>: fixed; it keeps one size and the picture fits inside. <b>Close and Delete were too close</b>: Delete is now at the bottom of that column, well away from Close, and still asks before deleting.",
+              "<b>The patchbay's cables are gone</b>: from 1.2.1 it starts empty, so you only plug in what you want. Press <b>example</b> for Picture → Enhance → Faces → Result, or drag OUT to IN. Cables you plug in are remembered. Modules can be moved by their names; <b>↺ reset</b> puts them back.",
+              "<b>“BEE” in the LoRA list</b>: that LoRA is from your DiffusionBee folder (used where it is). The type and size now sit under the name, so the rows line up.",
+              "<b>Train still shows an old folder of pictures</b>: press <b>✕ Clear</b> next to <i>open</i> (2 · Training images). The folder and its files aren't touched.",
               "<b>Expand with FLUX.2: “needs a one-time download of the outpaint LoRA”</b>: the 76 MB LoRA (and FLUX.2 Klein, if you haven't used Edit with words yet) download the first time. Connect to the internet and turn Strict offline off (Settings → Privacy) once; afterwards it works offline. Or pick <i>The model at the top</i>.",
               "<b>Expand with FLUX.2 left a green edge or a seam</b>: expand less at a time (up to about half the picture per side), try another seed, or add to the prompt what should be around the picture. Very thin borders (a few pixels) don't work well; 64 px or more is best.",
               "<b>The ‹ › arrows in a picture's details closed it</b>: the arrow moved slightly when pressed, so the click landed on the dark background, which closes the window. Fixed: the arrows stay put. The ← → keys also work.",
