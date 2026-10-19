@@ -456,6 +456,8 @@ const protoartApp = createApp({
               "<b>Models tab</b>: ↻ Refresh and + Add from your Mac swapped places; <b>On this Mac</b> and the download lists fold up under Fix a type; Pony, Illustrious and NoobAI filters; a clear “✓ Model imported” note after adding one.",
               "<b>Trigger words panel</b> (Models tab): search your LoRAs, edit their trigger words in place, or tick several and add / remove a word on all of them at once.",
               "<b>Library</b>: ☑ Select sits in the middle of the toolbar; select 2–6 pictures and <b>⇆ Compare side by side</b>; in a picture's details, <b>‹ ›</b> (or ← →) step through the pictures.",
+              "<b>Select by dragging</b> (Library → ☑ Select): drag across pictures, or draw a box from the space between them, to select many at once; start on a selected picture to unselect. Fixed: the picture details' <b>‹ ›</b> arrows closed the picture instead of going to the next one. <b>✕ Close</b> and <b>Delete</b> now sit beside the picture's details (Esc closes too).",
+              "<b>Train → ✕ Clear</b>: start again with no training pictures chosen (the folder and its files aren't changed).",
               "<b>Patchbay: add more modules</b> (Tools): ＋ Add a module puts in another Faces, Enhance, Remove or Depth, so you can run Restore faces twice (or any module again) in one chain; the panel widens for them.",
               "<b>Patchbay controls on top, and modules you can move</b>: Run patch, default, clear cables and ＋ Add a module now sit above the panel. Drag a module's name left or right (or point at it and press ‹ ›) to put the modules in the order you like; ↺ default puts them back.",
               "<b>🔎 Search the manual</b>: a search box at the top of How to shows every matching tip from all the sections.",
@@ -811,7 +813,8 @@ const protoartApp = createApp({
         { id: "library", go: "library", icon: "🗂", title: "Library", summary: "Everything you've made, searchable",
           sections: [
             { h: "Finding images", items: [
-              "<b>☑ Select</b> (middle of the toolbar), tick 2–6 pictures and press <b>⇆ Compare side by side</b>. In a picture's details, <b>‹ ›</b> or the ← → keys go to the previous / next picture.",
+              "<b>☑ Select</b> (middle of the toolbar), tick 2–6 pictures and press <b>⇆ Compare side by side</b>. In a picture's details, <b>‹ ›</b> or the ← → keys go to the previous / next picture, and <b>✕ Close</b> / <b>Delete</b> sit beside the details (Esc closes).",
+              "<b>Selecting many at once</b>: in ☑ Select, drag across the pictures (or draw a box starting between them); the list scrolls when you reach the edge. Start the drag on a picture that's already selected to unselect instead.",
               "Search by prompt, filter by model, version type (originals, enhanced, face-restored…) or ★ starred.",
               "<b>Hide People</b> hides pictures of people: ones whose prompt describes a person, ones where the face finder sees a face, and ones made with models or LoRAs you tagged ● People. Pictures made before this version: <b>check now</b> next to the picture count looks for faces in them once (on this Mac). <b>Hide NSFW</b> hides NSFW pictures.",
               "<b>Search by seed</b>: type a seed in the amber <b>seed</b> box to see only pictures made with it, or type a number in the search box to find that seed and prompts containing it. In a picture's details, <b>find all with this seed</b> does the same.",
@@ -935,6 +938,7 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "Things fixed in 1.2.1 (and what to do if you still see them)", items: [
+              "<b>The ‹ › arrows in a picture's details closed it</b>: the arrow moved slightly when pressed, so the click landed on the dark background, which closes the window. Fixed: the arrows stay put. The ← → keys also work.",
               "<b>My Stability Matrix / ComfyUI models weren't found</b>: Settings → Model folders → <b>↻ Look for libraries again</b>. If it's on an external drive, connect it first; if it's somewhere unusual, use <b>Pick a library folder…</b> and choose the library's main folder (for Stability Matrix, the <i>Data</i> folder that holds <i>Models</i>). A plain folder of models goes in Watched model folders instead.",
               "<b>Some models from the other app don't show</b>: a few formats other apps use aren't supported here yet (for example GGUF files, and diffusion-model-only files that need a separate text encoder), so they're left out of the lists. The other app can still use them, and nothing in the library is ever changed.",
               "<b>“⚠ not found (is the drive connected?)”</b> next to a library: its folder isn't there right now. Connect the drive and press ↻ Look for libraries again.",
@@ -2038,6 +2042,7 @@ const protoartApp = createApp({
       if (!this.detail || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || "")) return;
       if (e.key === "ArrowLeft") { this.detailStep(-1); e.preventDefault(); }
       else if (e.key === "ArrowRight") { this.detailStep(1); e.preventDefault(); }
+      else if (e.key === "Escape" && !this.ask && !this.confirmDel) { this.detail = null; e.preventDefault(); }
     });  // painting: tool keys, Esc cancels a selection
     setInterval(() => {
       if (this.queue.length || Object.keys(this.stopping).length) this.now = Date.now();
@@ -4318,6 +4323,13 @@ const protoartApp = createApp({
       if (!this.train.name) this.train.name = d.split("/").filter(Boolean).pop().replace(/[^\w\- ]+/g, "_");
       await this.trainScan(true);
     },
+    async trainClearFolder() {  // forget the chosen pictures (the folder and its files aren't touched)
+      if (this.train.dirty && !(await this.confirmAsk("Clear the training pictures?", "Your caption edits haven't been saved yet and will be lost. The pictures and the folder stay as they are.", "Clear"))) return;
+      Object.assign(this.train, { folder: "", items: [], dirty: false, name: "" });
+      this.frame.copied = null;
+      this.frame.msg = "";
+      this.status = "Training pictures cleared · nothing in the folder was changed";
+    },
     async trainScan(applyPreset) {
       try {
         const r = await call("train_scan", { folder: this.train.folder });
@@ -6184,7 +6196,52 @@ const protoartApp = createApp({
       this.selectMode = false;
       this.selected = [];
     },
+    galDown(e) {  // Select mode: drag across pictures (or draw a box) to select several; start on a picked one to unpick
+      if (!this.selectMode || e.button !== 0 || e.target.closest("button")) return;
+      const gal = e.currentTarget;
+      const scroller = (() => { for (let el = gal; el; el = el.parentElement) { const o = getComputedStyle(el).overflowY; if ((o === "auto" || o === "scroll") && el.scrollHeight > el.clientHeight) return el; } return document.scrollingElement; })();
+      const fig = e.target.closest("figure[data-id]");
+      const startId = fig ? Number(fig.dataset.id) : null;
+      const st = { x: e.clientX, y: e.clientY + scroller.scrollTop, scroller, gal, moved: false,
+                   remove: startId != null && this.selected.includes(startId), base: [...this.selected], lastY: e.clientY };
+      this._gal = st;
+      const box = document.createElement("div");
+      box.className = "sel-box";
+      const move = (ev) => {
+        const top0 = scroller.scrollTop;
+        if (!st.moved && Math.hypot(ev.clientX - st.x, ev.clientY + top0 - st.y) < 6) return;
+        if (!st.moved) { st.moved = true; document.body.appendChild(box); }
+        const sr = scroller === document.scrollingElement ? { top: 0, bottom: innerHeight } : scroller.getBoundingClientRect();
+        const lo = Math.min(sr.bottom, innerHeight), hi = Math.max(sr.top, 0);
+        // near the edge, moving towards it: keep scrolling
+        if (ev.clientY > lo - 30 && ev.clientY >= st.lastY) scroller.scrollTop += 14;
+        else if (ev.clientY < hi + 30 && ev.clientY < st.lastY) scroller.scrollTop -= 14;
+        st.lastY = ev.clientY;
+        const top = scroller.scrollTop;
+        const x1 = Math.min(st.x, ev.clientX), x2 = Math.max(st.x, ev.clientX);
+        const y1 = Math.min(st.y, ev.clientY + top), y2 = Math.max(st.y, ev.clientY + top);
+        Object.assign(box.style, { left: x1 + "px", top: (y1 - top) + "px", width: (x2 - x1) + "px", height: (y2 - y1) + "px" });
+        const hit = [];
+        for (const f of gal.querySelectorAll("figure[data-id]")) {
+          const r = f.getBoundingClientRect();
+          if (r.right > x1 && r.left < x2 && r.bottom + top > y1 && r.top + top < y2) hit.push(Number(f.dataset.id));
+        }
+        const set = new Set(st.base);
+        for (const id of hit) st.remove ? set.delete(id) : set.add(id);
+        this.selected = [...set];
+      };
+      const up = () => {
+        removeEventListener("pointermove", move);
+        removeEventListener("pointerup", up);
+        box.remove();
+        if (st.moved) this._galDragged = Date.now();  // the click that ends a drag doesn't toggle a picture
+        this._gal = null;
+      };
+      addEventListener("pointermove", move);
+      addEventListener("pointerup", up);
+    },
     onThumbClick(r) {
+      if (this.selectMode && Date.now() - (this._galDragged || 0) < 120) return;
       if (this.selectMode) this.toggleSelect(r);
       else this.openDetail(r);
     },

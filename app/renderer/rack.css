@@ -1915,7 +1915,7 @@ button.rec-btn.on { border-color: var(--lit-edge); box-shadow: 0 0 8px rgba(var(
 .help-hit-where { font-size: 12px; margin-bottom: 3px; }
 /* Library: Select in the middle of the toolbar; picture details ‹ › arrows; ⇆ Compare side by side */
 .lib-select-btn.on { border-color: var(--lit-edge); box-shadow: 0 0 8px rgba(var(--glow-rgb), .45); }
-.detail-nav { position: fixed; top: 50%; transform: translateY(-50%); z-index: 3; width: 46px; height: 76px; padding: 0;
+.detail-nav { position: fixed; top: calc(50% - 38px); z-index: 3; width: 46px; height: 76px; padding: 0;
   font-size: 40px; line-height: 1; border-radius: 8px; background: rgba(20, 20, 22, .72); color: #f2ecdc;
   border: 1px solid rgba(255, 255, 255, .15); }
 .detail-nav.prev { left: 14px; }
@@ -1962,3 +1962,18 @@ table.libs td:first-child { white-space: nowrap; }
 .pb-arrow rect { fill: #1f2935; stroke: #5d7085; stroke-width: .8; }
 .pb-arrow text { fill: #e7e2d4; font: 700 15px -apple-system, sans-serif; pointer-events: none; }
 .pb-arrow:hover rect { fill: #2c3a4b; }
+
+/* the ‹ › arrows must not move when pressed: a press used to nudge them down (the usual button "push"), the click
+   then landed on the dark background and closed the picture instead of stepping to the next one */
+.detail-nav, .detail-nav:active:not(:disabled) { transform: none !important; }
+.detail-nav:hover:not(:disabled) { background: rgba(40, 40, 44, .9); }
+/* Close and Delete next to the picture's facts, not at the end of the button row */
+.detail-facts { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: end; }
+.detail-side { display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 110px; }
+.detail-side .hint { text-align: center; }
+
+/* Library Select: drag across pictures or draw a box to select several */
+.gallery.selecting { user-select: none; -webkit-user-select: none; }
+.sel-box { position: fixed; z-index: 50; pointer-events: none; border: 1px solid var(--amber, #ffae2b);
+  background: rgba(var(--glow-rgb, 255, 174, 43), .14); border-radius: 2px; }
+.sel-tip { white-space: nowrap; }

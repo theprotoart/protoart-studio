@@ -9,6 +9,10 @@
   Using one adds its folders to `model_dirs`, `lora_dirs`, `embedding_dirs` and the new `vae_dirs` /
   `controlnet_dirs` (`vaes.EXTRA_DIRS`, `controlnet.EXTRA_DIRS`); Stop using removes only what it added
 - Watched model folders: several at once, numbered list, ↻ Refresh (`refreshWatched`)
+- Library: drag-to-select / box select in Select mode (`galDown`, `.sel-box`, autoscroll at the edges); picture
+  details: ‹ › no longer close the window (the global `button:active` translate moved them off the pointer, so the
+  click hit the backdrop); Close / Delete beside the facts (`.detail-facts`, `.detail-side`); Esc closes
+- Train: ✕ Clear the chosen training pictures (`trainClearFolder`; files untouched)
 - Patchbay: control bar moved above the panel; modules reorder by dragging the name plate or ‹ › (`patch.order`,
   `protoart.patchOrder`, `patchMoveModule`, `patchHeadDown`); ↺ default resets the order
 - LoRA rows: DiffusionBee shown as "BEE"; tag and size in fixed columns (`loraTag`, `.l-meta`), under the name in a

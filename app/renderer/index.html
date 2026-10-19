@@ -817,7 +817,7 @@
         · <button class="link" @click="clearSession" title="Take them off this screen; they stay in the Library">clear all</button>&nbsp;<span class="hint">(they stay in the Library)</span></div>
       <div class="gallery session-gallery">
         <figure v-for="r in createSession" :key="r.id" @click="openDetail(r)" :class="{covered: covered(r)}">
-          <img :src="thumbUrl(r)" loading="lazy" decoding="async"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
+          <img :src="thumbUrl(r)" loading="lazy" decoding="async" draggable="false"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
           <span v-if="r.kind && r.kind!=='generated'" class="badge">{{ kindLabel(r.kind) }}</span>
           <button class="close-x" @click.stop="hideFromSession(r)" title="Close: take it off this screen (it stays in the Library)">✕</button>
           <button class="star" :class="{on: r.starred}" @click.stop="toggleStar(r)" title="Star">★</button>
@@ -917,6 +917,7 @@
       <span>{{ selected.length }} selected</span>
       <button class="link" @click="selectAll">Select all {{ libShown.length }}</button>
       <button class="link" v-if="selected.length" @click="selected=[]">Clear</button>
+      <span class="hint sel-tip" title="Drag across pictures (or draw a box) to select several at once. Start the drag on a selected picture to unselect instead.">drag to select several</span>
       <span class="spacer"></span>
       <button class="primary" :disabled="selected.length < 2" @click="openCompareView"
               :title="selected.length < 2 ? 'Select 2 or more pictures to compare them side by side' : 'Show the selected pictures side by side (up to 6)'">⇆ Compare side by side</button>
@@ -934,8 +935,8 @@
               @click="toggleLibLora(l.name)">{{ l.name }} <small>{{ l.count }}</small></button>
     </div>
     <div v-if="!libShown.length" class="empty">No images match.</div>
-    <div class="gallery" :class="{selecting: selectMode}">
-      <figure v-for="r in libShown" :key="r.id" @click="onThumbClick(r)" :class="{picked: selected.includes(r.id), covered: covered(r)}">
+    <div class="gallery" :class="{selecting: selectMode}" @pointerdown="galDown">
+      <figure v-for="r in libShown" :key="r.id" :data-id="r.id" @click="onThumbClick(r)" :class="{picked: selected.includes(r.id), covered: covered(r)}">
         <span v-if="selectMode" class="pick">{{ selected.includes(r.id) ? '✓' : '' }}</span>
         <img :src="thumbUrl(r)" loading="lazy" decoding="async"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
         <span v-else-if="r.nsfw && !hideNsfw" class="badge nsfw-badge" :title="nsfwReason(r)">18+</span>
@@ -2300,6 +2301,7 @@
         <div class="row">
           <button @click="trainPickFolder">{{ train.folder ? 'Change folder…' : 'Choose a folder of images…' }}</button>
           <button v-if="train.folder" class="link" @click="openFolder(train.folder)">open</button>
+          <button v-if="train.folder" class="ghost small" :disabled="queue.some(j => j.cmd === 'train_lora' || j.cmd === 'train_embedding')" @click="trainClearFolder" title="Start again with no pictures chosen (nothing in the folder is changed or deleted)">✕ Clear</button>
         </div>
         <div v-if="train.folder" class="hint">{{ train.folder }}</div>
         <template v-if="train.items.length">
@@ -3195,6 +3197,7 @@
       <div class="meta">
         <p class="prompt">{{ detail.prompt }}</p>
         <p v-if="detail.negative_prompt" class="hint">Negative: {{ detail.negative_prompt }}</p>
+        <div class="detail-facts">
         <table>
           <tr><td>Model</td><td>{{ modelLabel(detail.model) }}</td></tr>
           <tr><td>Sampler</td><td>{{ detail.sampler }} · {{ detail.steps }} steps · CFG {{ detail.cfg }}</td></tr>
@@ -3213,6 +3216,12 @@
               <button class="link small-link" v-if="detail.nsfw_mark != null" @click="markPictures([detail.id], null)">automatic</button>
             </span></td></tr>
         </table>
+        <div class="detail-side">
+          <button class="ghost" @click="detail=null" title="Close (Esc)">✕ Close</button>
+          <button class="danger-outline" @click="askDelete([detail.id])">Delete</button>
+          <span v-if="detailList.length > 1" class="hint">{{ detailIndex + 1 }} of {{ detailList.length }}</span>
+        </div>
+        </div>
         <p v-if="detail.parent_id" class="hint">{{ kindLabel(detail.kind) }} version of
           <button class="link" @click="openById(detail.parent_id)">image #{{ detail.parent_id }}</button></p>
 
@@ -3250,8 +3259,6 @@
           <button @click="editIn(detail)" :title="'Open in ' + editorName() + '; saved edits come back to the Library'">✏️ Edit in {{ editorName() }}</button>
           <button @click="compressOne(detail)" title="Export a smaller copy that looks the same, or resize / convert it (Library → Batch edit &amp; export)">🗜 Compress / export…</button>
           <button @click="showInFolder(detail.path)">Show in Finder</button>
-          <button class="danger-outline" @click="askDelete([detail.id])">Delete</button>
-          <button class="ghost" @click="detail=null">Close</button>
         </div>
       </div>
     </div>
