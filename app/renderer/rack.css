@@ -2004,5 +2004,10 @@ table.libs td:first-child { white-space: nowrap; }
 .cmp-frame.panning { cursor: grabbing; }
 .cmp-frame img { transform-origin: 50% 50%; will-change: transform; user-select: none; }
 .compare-view figure { cursor: default; }
-.lib-deselect { margin-left: 4px; }
 .compare-tools { background: rgba(18, 18, 20, .9); padding: 6px 10px; border-radius: 6px; }
+
+/* ✕ Deselect all hangs centred under ☑ Selecting · Done, on the second toolbar line */
+.sel-stack { position: relative; display: inline-flex; flex: none; }
+.sel-stack > .lib-deselect { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  white-space: nowrap; z-index: 2; }
+.sel-stack > .lib-deselect:active:not(:disabled) { transform: translateX(-50%) translateY(1px); }

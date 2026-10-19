@@ -122,9 +122,13 @@
           <input v-model="lib.text" placeholder="Search prompts or a seed…" @input="queryLibraryDebounced">
           <input v-model="lib.seed" class="amber-num lib-seed" inputmode="numeric" placeholder="seed"
                  title="Show only pictures made with exactly this seed" @input="queryLibraryDebounced">
-          <button v-if="!selectMode" class="lib-select-btn" @click="selectMode=true"
-                  title="Pick pictures: compare them side by side, export, compress, mark or delete several at once">☑ Select</button>
-          <button v-else class="lib-select-btn on" @click="exitSelect">☑ Selecting · Done</button>
+          <span class="sel-stack">
+            <button v-if="!selectMode" class="lib-select-btn" @click="selectMode=true"
+                    title="Pick pictures: compare them side by side, export, compress, mark or delete several at once">☑ Select</button>
+            <button v-else class="lib-select-btn on" @click="exitSelect">☑ Selecting · Done</button>
+            <button v-if="selectMode" class="ghost small lib-deselect" :disabled="!selected.length" @click="selected = []"
+                    title="Unselect every picture (you stay in Select mode)">✕ Deselect all{{ selected.length ? ' (' + selected.length + ')' : '' }}</button>
+          </span>
           <select v-model="lib.model" @change="queryLibrary()">
             <option value="">All models</option>
             <option v-for="m in libModels" :key="m.id" :value="m.id">{{ m.label }}</option>
@@ -139,8 +143,6 @@
           <label class="check nsfw-switch" :class="{on: hideNsfw, locked: opts.sfw_mode}" :title="opts.sfw_mode ? 'Safe-for-work mode is on: NSFW stays hidden (Settings → Content filter)' : 'Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings.'"><input type="checkbox" :checked="hideNsfw" :disabled="opts.sfw_mode" @change="setHideNsfw($event.target.checked)"> {{ opts.sfw_mode ? '🛡 SFW' : 'Hide NSFW' }}</label>
           <label class="check" :class="{on: opts.hide_people}" title="Hide pictures of people (the prompt describes a person, or faces are found in the picture) and pictures made with models or LoRAs you tagged ● People. Same switch in Create and Settings."><input type="checkbox" :checked="opts.hide_people" @change="setHidePeople($event.target.checked)"> Hide People</label>
           <span class="hint">{{ libShown.length }} image{{ libShown.length===1?'':'s' }}<template v-if="hideNsfw && content.nsfw"> · {{ content.nsfw }} hidden</template><template v-if="libPeopleHidden"> · {{ libPeopleHidden }} People hidden</template></span>
-          <button v-if="selectMode" class="ghost small lib-deselect" :disabled="!selected.length" @click="selected = []"
-                  title="Unselect every picture (you stay in Select mode)">✕ Deselect all{{ selected.length ? ' (' + selected.length + ')' : '' }}</button>
           <span v-if="opts.hide_people && content.faces_unchecked" class="hint">· {{ content.faces_unchecked }} older picture{{ content.faces_unchecked === 1 ? '' : 's' }} not checked for people yet
             <button class="link" @click="peopleScan" title="Look for faces in them once (on this Mac, ~100 MB the first time), so Hide People hides pictures of people too">check now</button></span>
           <span class="spacer"></span>
@@ -255,11 +257,10 @@
         <button class="link small" @click="cfAll(false)">expand all</button>
         <span class="hint">· click a section's name to fold it</span>
         <span class="spacer"></span>
-        <button class="bat-toggle reset-toggle" :class="{on: !!resetUndo}" role="switch" :aria-checked="!!resetUndo"
-                :disabled="!currentModel" @click="resetUndo ? undoResetCreate() : resetCreateAll()"
-                :title="resetUndo ? 'Flip back to put everything back as it was (until you change something)' : 'Flip to reset all of Create: prompt and negative prompt cleared, this model\'s own size, steps, guidance and sampler, no LoRAs, no image prompt, extras off, every section folded. Your model and saved presets stay.'">
+        <button class="bat-toggle reset-toggle" :class="{on: resetFlip}" :disabled="!currentModel || resetFlip" @click="flipResetAll"
+                title="Reset all of Create: prompt and negative prompt cleared, this model's own size, steps, guidance and sampler, no LoRAs, no image prompt, extras off, every section folded. Your model and saved presets stay. The lever springs back by itself.">
           <span class="bt-switch"><i class="bt-plate"></i><i class="bt-nut"></i><i class="bt-lever"></i><i class="bt-ball"></i></span>
-          <span class="bt-state">{{ resetUndo ? 'Reset · undo' : 'Reset all' }}</span>
+          <span class="bt-state">Reset all</span>
         </button>
       </div>
 

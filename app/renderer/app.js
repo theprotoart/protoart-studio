@@ -324,6 +324,7 @@ const protoartApp = createApp({
       loraSort: loadJSON("protoart.loraSort", "az"),   // LoRA list order
       loraKind: "",                                      // LoRA list filter ('' = all)   // the brush-size ring that follows the pointer while painting
       initDims: null,
+      resetFlip: false,      // the Reset all lever, while it's flipped (it springs back by itself)
       resetUndo: null,       // Create settings before "Reset to defaults", for one undo
       quitAsk: false,        // Tools -> Force quit: waiting for confirmation
       engineExits: [],       // when the engine stopped unexpectedly (to avoid restart loops)
@@ -453,7 +454,7 @@ const protoartApp = createApp({
               "<b>LoRA lists line up</b>: DiffusionBee LoRAs are marked <b>BEE</b>, and the type and size sit under the name so long names have room.",
               "<b>Tidier prompt tools</b> (Create): one row of small keys under the prompt: <b>✨ Enhance · 📒 Saved · 🖼 From image · 🎲 Random · { } Wildcards · 📋 List</b>. Each opens its own small panel underneath, one at a time; a lamp shows when Enhance or New random prompt is on.",
               "<b>🎲 Random prompts with animals</b> (pets, wild animals, birds and sea life, each in a place that suits it), and <b>New random prompt every time I press Generate</b>.",
-              "<b>Reset all is a blue lever</b> (top of Create): flip it to clear both prompts, put every setting back to the start and fold every section; flip it back to undo (until you change something).",
+              "<b>Reset all is a blue lever</b> (top of Create): flip it to clear both prompts, put every setting back to the start and fold every section. It's spring-loaded: the lever goes straight back to rest, and there's no undo, so save a preset first if you might want your settings again.",
               "<b>Seed</b> now sits under the negative prompt. <b>📒 Negative prompt presets</b>: save a negative prompt on its own and use it with any prompt.",
               "<b>★ Recommended steps and guidance for the sampler you picked</b> (next to Reset to defaults, and in Image to image): ⚡ fast samplers get fewer steps, ★ best-quality ones more.",
               "<b>Image to image</b>: the Sampler, steps &amp; guidance card has its own sampler menu, and it and the LoRAs card fold up like Create's sections.",
@@ -586,7 +587,7 @@ const protoartApp = createApp({
               "Under the prompt, one row of keys: <b>✨ Enhance</b> (rewrite the prompt with more detail now, or every time you Generate), <b>📒 Saved</b> (prompts you kept), <b>🖼 From image</b> (turn a picture into a prompt; or drop a picture on the prompt box), <b>🎲 Random</b> (a random prompt: a woman, a man, two people, a landscape or an animal), <b>{ } Wildcards</b> and <b>📋 List</b>. Each opens its own panel underneath; click it again to close it.",
               "<b>🎲 New random prompt every time I press Generate</b> (in Random's panel): each picture gets a fresh random prompt. <b>New random mix</b> under LoRAs does the same for LoRAs (every LoRA in the list is swapped).",
               "<b>📒 Negative prompts</b>: the small menu above the negative prompt box keeps negative prompts on their own (＋ save), to use with any prompt. The <b>Seed</b> is under the negative prompt.",
-              "<b>Reset all</b> (the blue lever at the top): flip it to clear both prompts, put every setting back to the start and fold all the sections. Flip it back to undo, until you change something." ] },
+              "<b>Reset all</b> (the blue lever at the top): flip it to clear both prompts, put every setting back to the start and fold all the sections. The lever springs straight back to rest; there's no undo, so save a preset first (PRESET → Save current settings as) if you might want them again." ] },
             { h: "Making an image", items: [
               "Pick a <b>model</b> (filter by type or search). Not downloaded yet? It downloads once, then works offline.",
               "Type a <b>prompt</b> describing what you want, and a <b>negative prompt</b> for what to avoid.",
@@ -823,7 +824,7 @@ const protoartApp = createApp({
           sections: [
             { h: "Finding images", items: [
               "<b>☑ Select</b> (middle of the toolbar), tick 2–6 pictures and press <b>⇆ Compare side by side</b>. In a picture's details, <b>‹ ›</b> or the ← → keys go to the previous / next picture, and <b>✕ Close</b> / <b>Delete</b> sit beside the details (Esc closes).",
-              "<b>Selecting many at once</b>: in ☑ Select, drag across the pictures (or draw a box starting between them); the list scrolls when you rest the pointer at the edge. Start the drag on a picture that's already selected to unselect instead. <b>✕ Deselect all</b> (under ☑ Selecting · Done, and in the selection bar) unselects everything.",
+              "<b>Selecting many at once</b>: in ☑ Select, drag across the pictures (or draw a box starting between them); the list scrolls when you rest the pointer at the edge. Start the drag on a picture that's already selected to unselect instead. <b>✕ Deselect all</b> (centred under ☑ Selecting · Done, and in the selection bar) unselects everything.",
               "<b>Zoom in Compare</b>: scroll the mouse wheel or pinch over any picture (or use － ＋, Fit and 1:1); drag to look around, double-click to zoom in or back out. Every picture zooms and moves together, so you can compare the same spot. <i>details</i> under a picture opens it.",
               "Search by prompt, filter by model, version type (originals, enhanced, face-restored…) or ★ starred.",
               "<b>Hide People</b> hides pictures of people: ones whose prompt describes a person, ones where the face finder sees a face, and ones made with models or LoRAs you tagged ● People. Pictures made before this version: <b>check now</b> next to the picture count looks for faces in them once (on this Mac). <b>Hide NSFW</b> hides NSFW pictures.",
@@ -950,6 +951,7 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "Things fixed in 1.2.1 (and what to do if you still see them)", items: [
+              "<b>Reset all stayed flipped (“Reset · undo”)</b>: fixed; the lever is now spring-loaded and returns to rest right after resetting. There's no undo, so save a preset first if you want your settings back later.",
               "<b>Dragging to select pictures felt sticky</b> (Library → Select): fixed; it now follows the pointer smoothly, keeps scrolling while you rest at the top or bottom edge, and stops as soon as you let go (even outside the window). Start the drag on a picture or in the gap between pictures, not on its ★ or other buttons.",
               "<b>No way to unselect</b>: press <b>✕ Deselect all</b> under ☑ Selecting · Done (or in the selection bar). <b>☑ Selecting · Done</b> leaves Select mode.",
               "<b>Couldn't zoom in Compare side by side</b>: scroll the mouse wheel or pinch over a picture, or use － ＋ / Fit / 1:1 at the top; drag to look around. Every picture follows, so the same spot is compared. Clicking a picture no longer closes Compare: use <i>details</i> under it.",
@@ -2036,7 +2038,7 @@ const protoartApp = createApp({
     } },
     form: { deep: true, handler(v) {
       saveJSON(FORM_KEY, v);
-      // Reset all's lever stays flipped (= undo is possible) until you change something after the reset
+      // ↺ Reset to defaults' undo link lasts until you change something after it
       if (this.resetUndo && Date.now() - (this._resetAt || 0) > 2500) this.resetUndo = null;
     } },
     "adj.p": { deep: true, handler() { this.adjRender(); } },
@@ -2727,13 +2729,17 @@ const protoartApp = createApp({
       await this.onModelChange(); // size, steps, guidance and the default sampler for this model
       this.status = `Create settings reset to the defaults for ${m.label}`;
     },
+    flipResetAll() {  // a spring-loaded lever: flips, resets, and returns to rest a moment later
+      if (this.resetFlip) return;
+      this.resetFlip = true;
+      this.resetCreateAll();
+      setTimeout(() => { this.resetFlip = false; }, 550);
+    },
     // Create → reset all: every setting back to the start (prompt, model and presets stay)
     async resetCreateAll() {
       const m = this.currentModel;
       if (!m) return;
-      this._resetAt = Date.now();
-      this.resetUndo = JSON.parse(JSON.stringify(this.form));
-      this.resetFolds = JSON.parse(JSON.stringify(this.cfolds || {}));
+      this.resetUndo = null;  // no undo: the lever springs back
       // a clean slate: no prompt or negative prompt either (Image to image's own prompt is left alone)
       const keep = { model: this.form.model, prompt: "", negative_prompt: "", prompt_owner: this.form.prompt_owner,
                      i2i_prompt: this.form.i2i_prompt, i2i_negative: this.form.i2i_negative };
@@ -2744,8 +2750,7 @@ const protoartApp = createApp({
       saveJSON("protoart.lorasAside", this.lorasAside);
       await this.onModelChange();
       this.cfAll(true);  // every section folded down to one line
-      this._resetAt = Date.now();
-      this.status = "Create is reset: prompts cleared, everything back to the start, sections folded · flip the switch back to undo";
+      this.status = "Create is reset: prompts cleared, everything back to the start, sections folded";
     },
     resetTools() {
       this.toolsUndo = JSON.parse(JSON.stringify(this.post));
