@@ -1012,6 +1012,7 @@ const protoartApp = createApp({
               "<b>ControlNet gave a flat grey picture, noise or nothing</b>: fixed (the model kept its precision only in Create before). If a map still looks wrong, press <b>Preview the map</b> first: an empty map means the picture had no clear edges or no person for OpenPose.",
               "<b>Image to image, ControlNet or Inpaint took 20+ minutes on an 8 GB Mac</b>: fixed for the same reason. Still slow? Quit big apps (browsers with many tabs, Photoshop, the Claude app) while generating: on 8 GB everything else squeezes the model into the disk. SDXL on 8 GB is slow by nature (1–3 minutes a picture); a model on an external drive loads more slowly the first time.",
               "<b>“Couldn't reach huggingface.co” for Tile / OpenPose / Scribble while online</b>: fixed. If it says a file wasn't found on Hugging Face, the model's page moved: tell us which one.",
+              "<b>The app opened with no models at all</b> (new install or new version, models on an external drive): macOS is asking whether Protoart Studio may read the drive, and the question can hide behind the app's window. Find it (it says “would like to access files on a removable volume”) and click <b>Allow</b>; the models appear straight away. The status line says so after a few seconds.",
               "<b>A folder on an external drive showed nothing until a restart</b>: macOS asks once before an app may read a removable drive. Click <b>Allow</b>, then <b>↻ Refresh</b> in Settings → Model folders. Missed it? System Settings → Privacy &amp; Security → Files and Folders → Protoart Studio → Removable Volumes. Settings now shows ⚠ next to a folder it can't read.",
               "<b>An old .ckpt model won't load</b> (“Weights only load failed”): Tools → Convert → <b>Old .ckpt files…</b> → Convert, then pick the .safetensors copy in Create.",
               "<b>conv_in.weight … [320, 9, 3, 3]</b> with an inpainting model: fixed; it's used by Inpaint and Expand (not Create, which needs a normal model)." ] },
@@ -2317,9 +2318,18 @@ const protoartApp = createApp({
       this.backendDead = false;
       try {
         await call("set_settings", this.opts);
-        [this.sys, this.models, this.presets, this.imagesDir, this.queue] = await Promise.all([
-          call("system_info"), call("list_models"), call("presets_list"), call("images_dir_get"), call("queue_get"),
-        ]);
+        // Reading a folder on an external drive waits until you answer macOS's "removable volume" question, which
+        // can hide behind other windows: say so instead of looking empty.
+        const slow = setTimeout(() => {
+          this.status = "Still reading your folders… If macOS asks to let Protoart Studio access a removable volume (it may be behind this window), click Allow.";
+        }, 8000);
+        try {
+          [this.sys, this.models, this.presets, this.imagesDir, this.queue] = await Promise.all([
+            call("system_info"), call("list_models"), call("presets_list"), call("images_dir_get"), call("queue_get"),
+          ]);
+        } finally {
+          clearTimeout(slow);
+        }
         this.queue = this.queue.filter((x) => x.cmd !== "preload");
         this.loadContentStatus();
         call("privacy_get").then((r) => { this.strictOffline = !!(r && r.strict); }).catch(() => {});
