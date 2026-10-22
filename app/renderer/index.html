@@ -437,6 +437,14 @@
         <div class="seed-row neg-seed"><label>Seed <span class="hint">-1 = random · the same seed and settings make the same picture</span></label>
           <input title="Seed: the same seed and settings make the same picture. -1 = a new random one each time" type="number" class="amber-num" v-model.number="form.seed">
           <button class="link" v-if="form.seed !== -1" @click="form.seed = -1" title="Back to a new random seed each time">🎲 random</button></div>
+        <div v-if="['sd15', 'sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="seed-row var-row">
+          <label title="A variation seed: keeps the picture (same seed) and changes small details. 0 = off; 0.05–0.2 small changes; higher changes more">Small change
+            <span class="hint">{{ form.var_strength > 0 ? 'variation seed nudges the picture' : 'off' }}</span></label>
+          <input type="range" min="0" max="0.6" step="0.01" v-model.number="form.var_strength" title="How much the variation seed changes: 0 = off, 0.05–0.2 small details">
+          <span class="mod-val">{{ Number(form.var_strength).toFixed(2) }}</span>
+          <input type="number" class="amber-num var-seed" v-model.number="form.var_seed" :disabled="!form.var_strength" title="Variation seed: -1 = a new one each time">
+          <button class="link" @click="smallChange" title="Keep this seed (the last picture's, if it was random) and try a new small change">🎲 try a small change</button>
+        </div>
       </section>
 
       <section class="i2i-hint">
@@ -571,7 +579,7 @@
         <div class="span2 size-presets">
           <label>Size <span class="hint">{{ familyLabel }}</span></label>
           <div class="size-console">
-            <rack-switch label="Max size" :options="sizeTiers.map(t => ({id: t.id, label: t.label, sub: t.side, title: t.side + ' × ' + t.side + ' (keeps the current shape)'}))"
+            <rack-switch label="Max size" :spread="sizeTiers.length > 3 ? 170 : 110" :options="sizeTiers.map(t => ({id: t.id, label: t.label, sub: t.side, title: t.side + ' × ' + t.side + ' (keeps the current shape)'}))"
                          :model-value="currentTier" @update:model-value="id => applyTier(sizeTiers.find(t => t.id === id))"
                          off-label="custom size"></rack-switch>
             <div class="size-side">
@@ -1897,6 +1905,7 @@
           <p class="mod-desc" title="Makes standard .safetensors copies of your DiffusionBee models, LoRAs and embeddings, so they work in other apps too (A1111, ComfyUI, Draw Things…). Your DiffusionBee files are left as they are. Works offline.">Copies your DiffusionBee models, LoRAs and embeddings as .safetensors for other apps. Originals untouched.</p>
           <div class="mod-foot">
             <button class="primary mod-go" @click="conv.items ? (conv.items = null) : loadConvertList()">{{ conv.items ? 'Hide the list' : 'Show my files' }}</button>
+            <button class="mod-go" @click="pickConvertFiles" title="Pick DiffusionBee .tdict files, or folders that hold them, anywhere on this Mac (an external drive too)">Pick files or a folder…</button>
             <button class="mod-go" @click="ck.items ? (ck.items = null) : loadCkptList()" title="Older .ckpt checkpoints that won't load (or that you'd rather keep as the safer format): makes a .safetensors copy, read safely. The .ckpt is left as it is.">{{ ck.items ? 'Hide .ckpt list' : 'Old .ckpt files…' }}</button>
             <span class="mod-plate">Converter · CV-6</span>
           </div>
@@ -1927,7 +1936,9 @@
         <div v-if="ck.msg" class="hint">{{ ck.msg }}</div>
       </div>
       <div v-if="conv.items" class="card convert-card convert-panel">
-        <h3>🔁 Your DiffusionBee files <span class="hint">pick what to convert · .tdict → .safetensors</span>
+        <h3>🔁 {{ conv.picked ? 'The files you picked' : 'Your DiffusionBee files' }} <span class="hint">pick what to convert · .tdict → .safetensors</span>
+          <button class="ghost small" @click="pickConvertFiles" title="Pick other .tdict files or folders">Pick files or a folder…</button>
+          <button v-if="conv.picked" class="ghost small" @click="loadConvertList()" title="Back to the files the app found on its own">Show all mine</button>
           <button class="ghost small conv-close" @click="conv.items = null" title="Close the list">✕</button></h3>
         <div class="row">
           <input v-model="conv.search" placeholder="Search…" style="flex:1">
@@ -2984,7 +2995,8 @@
           <span :class="f.found ? 'led green on' : 'led red on'" class="led" style="margin-right:8px"></span>
           <button class="link" @click="openFolder(f.path)" :disabled="!f.found">{{ f.path }}</button>
           <span v-if="!f.found" class="hint warn"> · not found (moved, renamed, or the drive isn't connected)</span></td>
-        <td><button :class="f.found ? 'ghost small' : 'small primary'" @click="relinkFolder(f.path)">{{ f.found ? 'Moved it…' : 'Find it…' }}</button></td></tr>
+        <td class="nowrap"><button :class="f.found ? 'ghost small' : 'small primary'" @click="relinkFolder(f.path)">{{ f.found ? 'Moved it…' : 'Find it…' }}</button>
+          <button class="ghost small" @click="forgetFolder(f.path)" title="Stop using this folder: its models, LoRAs and embeddings leave the lists. The files stay where they are (nothing is deleted).">Remove</button></td></tr>
     </table>
     <p v-else class="hint">No folders of yours yet (add them under Models and LoRA folders).</p>
     <div v-if="relinkMsg" class="hint">{{ relinkMsg }}</div>
@@ -3331,6 +3343,13 @@
           <button class="ghost small" @click="applyPromptPreset(p.name); promptBox = null">Use</button>
           <button class="ghost small" @click="removePromptPreset(p)" title="Delete (asks first)">✕</button>
         </div>
+        <div class="row prompt-io">
+          <button class="ghost small" :disabled="!promptPresets.length" @click="exportPrompts" title="Save all your prompts to a file (.json), to keep a copy or share them">⤓ Export…</button>
+          <button class="ghost small" @click="$refs.promptImport.click()" title="Add prompts from a file: a .json exported here, or a .txt with one prompt per line">⤒ Import…</button>
+          <input ref="promptImport" type="file" accept=".json,.txt,application/json,text/plain" hidden @change="importPrompts">
+          <span class="hint">{{ promptPresets.length }} saved</span>
+        </div>
+        <div v-if="promptIoMsg" class="hint">{{ promptIoMsg }}</div>
         <div class="row end"><button @click="promptBox = null">Close</button></div>
       </template>
     </div>
@@ -3354,7 +3373,9 @@
   <div v-if="ctx" class="ctx-backdrop" @click="ctx = null" @contextmenu.prevent="ctx = null">
     <div class="ctx-menu" :style="{left: ctx.x + 'px', top: ctx.y + 'px'}" @click.stop>
       <div class="ctx-title">{{ ctx.ids.length > 1 ? ctx.ids.length + ' pictures' : 'Picture #' + ctx.r.id }}</div>
-      <button v-if="ctx.ids.length === 1" @click="openDetail(ctx.r); ctx = null">Open details</button>
+      <button v-if="ctx.ids.length === 1 && !ctx.inDetail" @click="openDetail(ctx.r); ctx = null">Open details</button>
+      <button v-if="ctx.ids.length === 1" @click="savePictureAs(ctx.r); ctx = null">💾 Save picture as…</button>
+      <button v-if="ctx.ids.length === 1" @click="copyPicture(ctx.r); ctx = null">⧉ Copy picture</button>
       <button v-if="ctx.ids.length === 1" @click="toggleStar(ctx.r); ctx = null">{{ ctx.r.starred ? '★ Unstar' : '☆ Star' }}</button>
       <button v-if="ctx.ids.length === 1" @click="useAsStart(ctx.r); ctx = null">🖼 Send to Image to image</button>
       <button v-if="ctx.ids.length === 1" @click="openInTools(ctx.r); ctx = null">🧰 Send to Tools</button>
@@ -3415,7 +3436,7 @@
     <button v-if="detailList.length > 1" class="detail-nav next" @click.stop="detailStep(1)" :disabled="detailIndex >= detailList.length - 1" title="Next picture (→)">›</button>
     <div class="detail">
       <div class="detail-img" :class="{covered: covered(detail) && !revealDetail}">
-        <img :src="fileUrl(detail.path)">
+        <img :src="fileUrl(detail.path)" @contextmenu.prevent="openCtx($event, detail, true)" title="Right-click to save or copy the picture">
         <button v-if="covered(detail) && !revealDetail" class="nsfw-reveal" :disabled="opts.sfw_mode" @click="revealDetail = true">{{ opts.sfw_mode ? 'Hidden by safe-for-work mode' : 'Hidden by the NSFW filter · Show picture' }}</button>
       </div>
       <div class="meta">
@@ -3482,6 +3503,7 @@
           <button @click="openAdjust(detail)" title="Opens it in Tools with Lightroom-style light and colour sliders and Color Efex-style filters; saves an adjusted copy">🎚 Adjust</button>
           <button @click="editIn(detail)" :title="'Open in ' + editorName() + '; saved edits come back to the Library'">✏️ Edit in {{ editorName() }}</button>
           <button @click="compressOne(detail)" title="Export a smaller copy that looks the same, or resize / convert it (Library → Batch edit &amp; export)">🗜 Compress / export…</button>
+          <button @click="savePictureAs(detail)" title="Save a copy of the picture where you choose (it also stays in the Library)">💾 Save as…</button>
           <button @click="showInFolder(detail.path)">Show in Finder</button>
         </div>
       </div>

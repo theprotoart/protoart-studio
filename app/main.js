@@ -262,6 +262,34 @@ handle("window:reset", () => {
   return true;
 });
 // Reveal in Finder only selects the item; it never opens or runs it.
+// A picture's details / the Library's right-click menu: "Save picture as…" (a copy where you choose) and "Copy picture".
+function pictureFile(p) {
+  if (typeof p !== "string" || !path.isAbsolute(p) || !IMAGE_EXT.has(path.extname(p).toLowerCase())) return null;
+  try { return fs.statSync(p).isFile() ? p : null; } catch { return null; }
+}
+handle("image:saveAs", async (_e, p) => {
+  const src = pictureFile(p);
+  if (!src) return { ok: false, msg: "That picture wasn't found." };
+  const res = await dialog.showSaveDialog(win, {
+    title: "Save a copy of this picture",
+    defaultPath: path.join(app.getPath("downloads"), path.basename(src)),
+    buttonLabel: "Save",
+    filters: [{ name: "Picture", extensions: [path.extname(src).slice(1).toLowerCase()] }],
+  });
+  if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+  if (path.resolve(res.filePath) === path.resolve(src)) return { ok: true, path: src };
+  await fs.promises.copyFile(src, res.filePath);
+  return { ok: true, path: res.filePath };
+});
+handle("image:copy", (_e, p) => {
+  const src = pictureFile(p);
+  if (!src) return false;
+  const { clipboard, nativeImage } = require("electron");
+  const img = nativeImage.createFromPath(src);
+  if (img.isEmpty()) return false;
+  clipboard.writeImage(img);
+  return true;
+});
 handle("shell:showItem", (_e, p) => {
   if (typeof p === "string" && path.isAbsolute(p)) shell.showItemInFolder(p);
 });
@@ -293,6 +321,16 @@ handle("dialog:pickFolder", async (_e, opts) => {
   });
   if (res.canceled) return null;
   return o.multi ? res.filePaths : res.filePaths[0];
+});
+// Tools → Convert: DiffusionBee .tdict files, or folders that hold them, from anywhere on this Mac.
+handle("dialog:pickTdict", async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: "Choose DiffusionBee files (.tdict) or folders to convert",
+    properties: ["openFile", "openDirectory", "multiSelections"],
+    filters: [{ name: "DiffusionBee files", extensions: ["tdict"] }],
+    buttonLabel: "Choose",
+  });
+  return res.canceled ? [] : res.filePaths;
 });
 handle("dialog:pickModels", async () => {
   const res = await dialog.showOpenDialog(win, {

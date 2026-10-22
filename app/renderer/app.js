@@ -77,6 +77,7 @@ function defaultPost() {  // Tools settings on a fresh install
 function defaultForm() {
   return { model: "sdxl", prompt: "", negative_prompt: "", width: 1024, height: 1024, steps: 30, cfg: 6,
     sampler: "", seed: -1, num_images: 1, loras: [],
+    var_seed: -1, var_strength: 0,  // 🎲 Small change (variation seed): 0 = off
     vae: "",
     restore_faces: false, face_strength: 0.8, face_model: "codeformer", face_fidelity: 0.5, enhance_prompt: false, clip_skip: 1, quality_tags: true,
     init_image: "", strength: 0.6, use_init_size: false, size_link: false, size_ratio: 1,
@@ -381,6 +382,7 @@ const protoartApp = createApp({
       post: defaultPost(),
       ask: null,             // the "Are you sure?" box (confirmAsk)
       promptPresets: loadJSON("protoart.prompts", []),   // 📒 My prompts
+      promptIoMsg: "",
       promptBox: null,       // the 📒 My prompts window: {name} = saving, {name: null} = managing
       undoNegative: null,
       lastAutoNegative: "",
@@ -467,6 +469,8 @@ const protoartApp = createApp({
               "<b>Inpainting models</b> (files with “inpainting” in the name) load for Inpaint and Expand instead of failing with a conv_in size error.",
               "<b>Patchbay</b>: a <b>SELECT</b> tab at the bottom of each module picks it; the rack unit below then shows <b>that module's settings</b>, with a ⚙ FACES 2 badge so you know which copy you're editing (no second settings panel). <b>✕</b> on a module takes it off the rack (bring it back from Add a module). New <b>🔎 DETAIL</b> module: a light redraw with an “add detail” LoRA. <b>🛡 Protect areas…</b>: paint parts of the picture the rack must not change. The picture forming shows in Tools while it runs.",
               "<b>CodeFormer presets</b> (Restore faces, in Create and Tools): Balanced, Keep likeness, Heavy repair, Subtle touch-up, Old photo, Gentle. Each sets fidelity and strength; you can still change both.",
+              "<b>🎲 Small change</b> (under Seed, SD 1.5 and SDXL): keep a picture you like and change only small details. Press <i>try a small change</i> (it keeps the last picture's seed and picks a variation seed), then Generate; press it again for another. The slider sets how much changes (0 = off, 0.05–0.2 small details, 0.6 a lot). The variation seed and strength are saved with the picture, so Use these settings brings them back.",
+              "<b>📒 My prompts</b>: ⤓ Export saves them all to a file (to keep a copy or give to a friend); ⤒ Import adds prompts from such a file, or from a .txt with one prompt per line. Prompts with the same name and text aren't added twice.",
               "<b>🔄 Contrast prompt</b> (Create → ✨ Enhance, and Image to image): suggests the same scene turned into its opposite, like a waterfall frozen into blue-white ice or a summer street after light snowfall. ↩ undo puts yours back.",
               "<b>Your own defaults</b>: 💾 Save as this model's defaults (sampler, steps, guidance) next to Reset in Create and in Image to image's Steps card; they load whenever you pick that model. A LoRA's ☆ sets the weight it starts at.",
               "<b>Library: right-click a picture</b> for Open, Star, Send to Image to image or Tools, Show in Finder and Delete.",
@@ -474,6 +478,12 @@ const protoartApp = createApp({
               "<b>Old .ckpt models</b>: Tools → Convert → <b>Old .ckpt files…</b> makes a .safetensors copy that loads (read safely: nothing inside the file is run; the .ckpt is left as it is).",
               "<b>Settings → Main folder</b>: pick one folder (an external drive is fine) and its Models, LoRAs, Embeddings, VAE and ControlNet sub-folders are all used. <b>↻ Refresh</b> re-reads everything; a drive macOS hasn't allowed yet, or one that isn't plugged in, now says so.",
               "<b>LoRA tags can also be trigger words</b> (tick “also as trigger words”), the LoRA list remembers it's open, Klein 4B is the name for FLUX.2 [klein] 4B everywhere, the outpaint LoRA no longer shows in Create, and the active LoRAs in Create stand out.",
+              "<b>🎲 Small change</b> (Create, under Seed, SD 1.5 and SDXL): a variation seed that keeps the picture and changes small details. Press <i>try a small change</i> after a picture you like; 0.05–0.2 is subtle, higher changes more.",
+              "<b>📒 My prompts: ⤓ Export / ⤒ Import</b> to keep a copy of your saved prompts or share them (a .json file, or a .txt with one prompt per line).",
+              "<b>Save a picture anywhere</b>: 💾 Save as… in a picture's details, or right-click the picture (Save picture as… / Copy picture), in the details and in the Library.",
+              "<b>SD 1.5 sizes</b>: Med+ (704) on the Max size dial, and Square 704, Tall 704 × 1024, Tall 768 × 1024 and Wide 1024 × 704 shapes.",
+              "<b>Settings → Moved a folder?</b> now has <b>Remove</b> for a folder you don't use any more (the files stay where they are). <b>Tools → Convert → Pick files or a folder…</b> converts DiffusionBee .tdict files from anywhere.",
+              "<b>Library toolbar in a narrow window</b>: ⇆ Compare no longer gets cut off, and the selection bar wraps instead of running off the edge.",
               "Smaller things: the splash meter's red zone sits on the scale, the prompt list says “Add prompts above” instead of “Queue 0 jobs”, and Close / Delete in a picture's details no longer overlap its text." ] },
             { h: "1.2.1 (test version): fixes from your notes", items: [
               "<b>Expand with FLUX.2: fewer seams and doubled objects</b>. Your picture goes to FLUX.2 at exactly the size it draws, its result is lined up with your picture before the two are blended (over a wider band), and if FLUX.2 redrew the picture its whole version is kept instead of a patchwork. The result also no longer sits between black bars.",
@@ -1014,6 +1024,7 @@ const protoartApp = createApp({
               "<b>“Couldn't reach huggingface.co” for Tile / OpenPose / Scribble while online</b>: fixed. If it says a file wasn't found on Hugging Face, the model's page moved: tell us which one.",
               "<b>The app opened with no models at all</b> (new install or new version, models on an external drive): macOS is asking whether Protoart Studio may read the drive, and the question can hide behind the app's window. Find it (it says “would like to access files on a removable volume”) and click <b>Allow</b>; the models appear straight away. The status line says so after a few seconds.",
               "<b>A folder on an external drive showed nothing until a restart</b>: macOS asks once before an app may read a removable drive. Click <b>Allow</b>, then <b>↻ Refresh</b> in Settings → Model folders. Missed it? System Settings → Privacy &amp; Security → Files and Folders → Protoart Studio → Removable Volumes. Settings now shows ⚠ next to a folder it can't read.",
+              "<b>The engine stopped with “Failed to allocate private MTLBuffer” at 768 × 768</b>: the same full-precision problem as above (it asked for over 5 GB in one go); fixed. If it happens with an IP-Adapter image prompt on an 8 GB Mac, use 512–640.",
               "<b>An old .ckpt model won't load</b> (“Weights only load failed”): Tools → Convert → <b>Old .ckpt files…</b> → Convert, then pick the .safetensors copy in Create.",
               "<b>conv_in.weight … [320, 9, 3, 3]</b> with an inpainting model: fixed; it's used by Inpaint and Expand (not Create, which needs a normal model)." ] },
             { h: "Things fixed in 1.2.1 (and what to do if you still see them)", items: [
@@ -1153,7 +1164,7 @@ const protoartApp = createApp({
               "<b>Restart backend</b> (Settings) clears most stuck states without closing the app." ] },
           ] },
       ],
-      conv: { items: null, search: "", kind: "", selected: [], out_dir: "", free_gb: 0, loras_to_lora_folder: true, result: null },
+      conv: { items: null, search: "", kind: "", selected: [], out_dir: "", free_gb: 0, loras_to_lora_folder: true, result: null, picked: false },
       controlTypes: [],
       controlMap: null,
       cnApplied: null,  // {type, before}: the guide's settings were put in when this ControlNet was picked (undo)
@@ -1954,6 +1965,8 @@ const protoartApp = createApp({
       // Small / Medium / Large for each model type (side of an equivalent square).
       const t = { sd15: [512, 640, 768], sdxl: [768, 1024, 1280], ernie: [640, 768, 1024], flux: [512, 768, 1024], flux2: [512, 768, 1024], other: [512, 768, 1024] };
       const [s, m, l] = t[this.family] || t.other;
+      if (this.family === "sd15")  // SD 1.5 also gets 704: a little more detail than 640, still quick on 8 GB
+        return [{ id: "s", label: "Small", side: 512 }, { id: "m", label: "Medium", side: 640 }, { id: "m2", label: "Med+", side: 704 }, { id: "l", label: "Large", side: 768 }];
       return [{ id: "s", label: "Small", side: s }, { id: "m", label: "Medium", side: m }, { id: "l", label: "Large", side: l }];
     },
     currentTier() {
@@ -1966,7 +1979,8 @@ const protoartApp = createApp({
       const sets = {
         sd15: [["Square 1:1", 512, 512], ["Portrait 2:3", 512, 768], ["Landscape 3:2", 768, 512],
                ["Portrait 3:4", 576, 768], ["Landscape 4:3", 768, 576], ["Tall 9:16", 432, 768],
-               ["Wide 16:9", 768, 432], ["Large square", 768, 768]],
+               ["Wide 16:9", 768, 432], ["Square 704", 704, 704], ["Large square", 768, 768],
+               ["Tall 704 × 1024", 704, 1024], ["Tall 768 × 1024", 768, 1024], ["Wide 1024 × 704", 1024, 704]],
         sdxl: [["Square 1:1", 1024, 1024], ["Portrait 2:3", 832, 1216], ["Landscape 3:2", 1216, 832],
                ["Portrait 3:4", 896, 1152], ["Landscape 4:3", 1152, 896], ["Tall 9:16", 768, 1344],
                ["Wide 16:9", 1344, 768], ["Small square", 768, 768]],
@@ -3267,6 +3281,14 @@ const protoartApp = createApp({
       if (warn && gone.length)
         this.status = `Can't find ${gone.length === 1 ? gone[0].path : gone.length + " of your folders"} · moved it or drive not connected? Settings → Moved a folder?`;
     },
+    async forgetFolder(path) {
+      if (!(await this.confirmAsk("Stop using this folder?", path + "\n\nIts models, LoRAs and embeddings leave the lists. The files stay where they are: nothing is deleted.", "Remove"))) return;
+      try {
+        const r = await call("folder_forget", { path });
+        this.folders = r.folders;
+        await this.afterLibChange("Stopped using " + path.split("/").pop() + " · its files weren't touched");
+      } catch (e) { this.error = e.message; }
+    },
     async relinkFolder(old) {
       const name = old.split("/").filter(Boolean).pop();
       const picked = await window.bee.pickFolder({ title: `Where is “${name}” now?`, button: "Use this folder" });
@@ -3509,8 +3531,10 @@ const protoartApp = createApp({
       const m = this.currentModel;
       if (!m) return "";
       const big = Math.max(this.form.width, this.form.height);
-      if (m.family === "sd15" && big > 768)
+      if (m.family === "sd15" && big > 1024)
         return "SD 1.5 is made for 512–768 px. This size is several times slower and looks worse.";
+      if (m.family === "sd15" && big > 768 && Math.min(this.form.width, this.form.height) > 768)
+        return "SD 1.5 is made for 512–768 px: up to 1024 on one side works (tall or wide pictures), but both sides above 768 can repeat things.";
       if (m.family !== "sd15" && big > 1280 && this.sys.ram_gb && this.sys.ram_gb < 16)
         return "Large sizes need a lot of memory; on this Mac 1024 is the sweet spot.";
       return "";
@@ -4085,6 +4109,14 @@ const protoartApp = createApp({
     },
 
     // -------------------------------------------------------------- generate
+    smallChange() {  // 🎲 Small change: the same picture (seed kept) with small details changed
+      const last = this.session[0];
+      if (this.form.seed === -1 && last && last.seed != null) this.form.seed = last.seed;
+      if (this.form.seed === -1) this.form.seed = Math.floor(Math.random() * 2 ** 31);
+      this.form.var_seed = Math.floor(Math.random() * 2 ** 31);
+      if (!this.form.var_strength) this.form.var_strength = 0.1;
+      this.status = `Small change ready: seed ${this.form.seed} kept, variation seed ${this.form.var_seed} at ${this.form.var_strength.toFixed(2)}. Press Generate.`;
+    },
     createArgs(overrides) {
       // everything the Create tab sends; pictures, masks and ControlNet live in the Image to image tab
       const args = JSON.parse(JSON.stringify(this.form));
@@ -5436,13 +5468,20 @@ const protoartApp = createApp({
       this.models = await call("list_models").catch(() => this.models);
       this.loadCkptList();
     },
-    async loadConvertList() {
+    async pickConvertFiles() {
+      const picked = await window.bee.pickTdict();
+      if (picked && picked.length) this.loadConvertList(picked);
+    },
+    async loadConvertList(picked) {
       try {
-        const r = await call("convert_list");
+        const r = await call("convert_list", Array.isArray(picked) ? { paths: picked } : {});
+        this.conv.picked = !!r.picked;
+        if (r.picked) this.conv.selected = r.items.map((i) => i.file);  // what you picked is ticked
         this.conv.items = r.items;
         this.conv.free_gb = r.free_gb;
         if (!this.conv.out_dir) this.conv.out_dir = r.default_out;
-        if (!r.items.length) this.error = "No DiffusionBee files found (~/.diffusionbee).";
+        if (!r.items.length) this.error = r.picked ? "No DiffusionBee files (.tdict) that can be converted were found there."
+          : "No DiffusionBee files found (~/.diffusionbee). Use “Pick files or a folder…” for ones somewhere else.";
       } catch (e) {
         this.error = e.message;
       }
@@ -5916,6 +5955,58 @@ const protoartApp = createApp({
     savePromptPreset(kind) {  // opens 📒 My prompts with a name ready to edit (kind "negative": the negative prompt only)
       this.promptBox = { name: this.promptPresetName(kind), kind: kind === "negative" ? "negative" : "prompt" };
     },
+    exportPrompts() {  // 📒 My prompts → a .json file (the save dialog asks where)
+      const data = { app: "Protoart Studio", kind: "prompts", version: 1, prompts: this.promptPresets };
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Protoart prompts ${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      this.promptIoMsg = `Exported ${this.promptPresets.length} prompt${this.promptPresets.length === 1 ? "" : "s"}.`;
+    },
+    importPrompts(e) {  // a .json from Export, or a .txt with one prompt per line (# lines skipped)
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) { this.promptIoMsg = "That file is too big for a prompt list."; return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = String(reader.result || "");
+        let incoming = [];
+        try {
+          const j = JSON.parse(text);
+          const arr = Array.isArray(j) ? j : Array.isArray(j?.prompts) ? j.prompts : [];
+          incoming = arr.filter((p) => p && typeof p === "object" && typeof p.name === "string")
+            .map((p) => p.kind === "negative"
+              ? { name: p.name.slice(0, 120), kind: "negative", negative: String(p.negative || "").slice(0, 4000) }
+              : { name: p.name.slice(0, 120), prompt: String(p.prompt || "").slice(0, 4000), negative: String(p.negative || "").slice(0, 4000) });
+        } catch {
+          incoming = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"))
+            .map((l) => ({ name: l.replace(/[(),:\[\]]/g, " ").split(/\s+/).filter(Boolean).slice(0, 5).join(" ").slice(0, 60) || "Imported prompt", prompt: l.slice(0, 4000), negative: "" }));
+        }
+        if (!incoming.length) { this.promptIoMsg = "No prompts found in that file."; return; }
+        const list = [...this.promptPresets];
+        let added = 0, renamed = 0;
+        for (const p of incoming) {
+          const same = list.find((x) => x.name === p.name);
+          if (same && (same.prompt || "") === (p.prompt || "") && (same.negative || "") === (p.negative || "")) continue;  // already there
+          if (same) {  // same name, different text: keep both
+            let i = 2, base = p.name;
+            while (list.some((x) => x.name === p.name)) p.name = `${base} (${i++})`;
+            renamed++;
+          }
+          list.push(p);
+          added++;
+        }
+        this.promptPresets = list.slice(0, 500);
+        saveJSON("protoart.prompts", this.promptPresets);
+        this.promptIoMsg = `Imported ${added} prompt${added === 1 ? "" : "s"}` + (renamed ? ` (${renamed} renamed to keep both)` : "") + (added < incoming.length ? ` · ${incoming.length - added} were already here` : "") + ".";
+      };
+      reader.readAsText(file);
+    },
     confirmSavePrompt() {
       const name = (this.promptBox?.name || "").trim();
       if (!name) return;
@@ -5923,7 +6014,7 @@ const protoartApp = createApp({
       const list = this.promptPresets.filter((p) => p.name !== name);
       list.unshift(neg ? { name, kind: "negative", negative: this.form.negative_prompt || "" }
                        : { name, prompt: this.form.prompt, negative: this.form.negative_prompt || "" });
-      this.promptPresets = list.slice(0, 200);
+      this.promptPresets = list.slice(0, 500);
       saveJSON("protoart.prompts", this.promptPresets);
       this.promptBox = null;
       this.status = `Saved “${name}” in 📒 My prompts`;
@@ -6769,6 +6860,7 @@ const protoartApp = createApp({
         prompt: r.prompt, negative_prompt: r.negative_prompt, width: r.width, height: r.height,
         steps: r.steps, cfg: r.cfg, sampler: r.sampler, seed: r.seed, enhance_prompt: false,
         clip_skip: s.clip_skip || 1,
+        var_seed: s.var_strength ? s.var_seed : -1, var_strength: s.var_strength || 0,
         loras: JSON.parse(JSON.stringify(r.loras)), num_images: 1,
         init_image: s.init_image || "", strength: s.strength || 0.6,
       });
@@ -6789,9 +6881,21 @@ const protoartApp = createApp({
       this.selectMode = false;
       this.selected = [];
     },
-    openCtx(e, r) {  // right-click a picture: a small menu (the selected pictures, if it's one of them)
-      const ids = this.selectMode && this.selected.includes(r.id) && this.selected.length > 1 ? [...this.selected] : [r.id];
-      this.ctx = { x: Math.min(e.clientX, innerWidth - 240), y: Math.min(e.clientY, innerHeight - 280), r, ids };
+    openCtx(e, r, inDetail = false) {  // right-click a picture: a small menu (the selected pictures, if it's one of them)
+      const ids = !inDetail && this.selectMode && this.selected.includes(r.id) && this.selected.length > 1 ? [...this.selected] : [r.id];
+      this.ctx = { x: Math.min(e.clientX, innerWidth - 240), y: Math.min(e.clientY, innerHeight - 340), r, ids, inDetail };
+    },
+    async savePictureAs(r) {
+      try {
+        const res = await window.bee.saveImageAs(r.path);
+        if (res && res.ok) this.status = "Saved a copy: " + res.path.replace(/^\/Users\/[^/]+/, "~");
+        else if (res && !res.canceled) this.error = res.msg || "Couldn't save the picture.";
+      } catch (e) { this.error = e.message; }
+    },
+    async copyPicture(r) {
+      try {
+        this.status = (await window.bee.copyImage(r.path)) ? "Picture copied: paste it into another app (⌘V)" : "Couldn't copy that picture.";
+      } catch (e) { this.error = e.message; }
     },
     galDown(e) {  // Select mode: drag across pictures (or draw a box) to select several; start on a picked one to unpick
       if (!this.selectMode || e.button !== 0 || e.target.closest("button")) return;

@@ -10,10 +10,15 @@ contextBridge.exposeInMainWorld("bee", {
   onLog: (fn) => ipcRenderer.on("backend:log", (_e, s) => fn(s)),
   onExit: (fn) => ipcRenderer.on("backend:exit", (_e, info) => fn(info)),
   showInFolder: (p) => ipcRenderer.invoke("shell:showItem", p),
+  // Save a copy of a picture where you choose / put it on the clipboard (to paste into another app).
+  saveImageAs: (p) => ipcRenderer.invoke("image:saveAs", p),
+  copyImage: (p) => ipcRenderer.invoke("image:copy", p),
   openFolder: (p) => ipcRenderer.invoke("shell:openFolder", p),
   pickFolder: (current) => ipcRenderer.invoke("dialog:pickFolder", current),
   // Pick model files (.safetensors/.ckpt) and/or model folders from this Mac.
   pickModels: () => ipcRenderer.invoke("dialog:pickModels"),
+  // Tools → Convert: pick .tdict files or folders.
+  pickTdict: () => ipcRenderer.invoke("dialog:pickTdict"),
   // Pick embedding files (.safetensors / .pt) to copy into Protoart's embeddings folder.
   pickEmbeddings: () => ipcRenderer.invoke("dialog:pickEmbeddings"),
   // Adjust: read a picture's bytes, and save the adjusted PNG for the backend to add to the Library.

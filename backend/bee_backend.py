@@ -775,6 +775,31 @@ def handle_quick(cmd, a):
         return True
     if cmd == "convert_list":
         out = []
+        picked = [p for p in (a.get("paths") or []) if isinstance(p, str) and os.path.isabs(p)]
+        if picked:  # Tools → Convert → Pick files or a folder…: .tdict files anywhere you choose
+            import tdict_reader
+            want, folders = set(), []
+            for p in picked:
+                rp = os.path.realpath(p)
+                if os.path.isdir(rp):
+                    folders.append(rp)
+                elif rp.endswith(".tdict") and os.path.isfile(rp):
+                    want.add(rp)
+                _convert_picked.add(rp)
+            found = tdict_reader.scan(folders, recursive=True) + \
+                tdict_reader.scan(sorted({os.path.dirname(w) for w in want}), recursive=False)
+            seen = set()
+            for i in found:
+                rf = os.path.realpath(i["file"])
+                inside = rf in want or any(rf.startswith(f + os.sep) for f in folders)
+                if not inside or rf in seen:
+                    continue
+                seen.add(rf)
+                if i["kind"] in ("lora", "checkpoint", "embedding", "controlnet") and not i.get("error"):
+                    out.append({"file": i["file"], "name": i["name"], "kind": i["kind"], "family": i.get("family"),
+                                "size_mb": i.get("size_mb")})
+            return {"items": out, "picked": True, "default_out": str(paths.HOME / "converted"), "free_gb": round(
+                __import__("shutil").disk_usage(paths.HOME).free / 2**30, 1)}
         for i in diffusionbee.items(force=True):
             if i["kind"] in ("lora", "checkpoint", "embedding", "controlnet") and not i.get("error"):
                 out.append({"file": i["file"], "name": i["name"], "kind": i["kind"], "family": i.get("family"),
@@ -954,6 +979,20 @@ def handle_quick(cmd, a):
         model_hub.LOCAL_MODELS[:] = [x for x in model_hub.LOCAL_MODELS if x.get("id") != a.get("id")]
         library.set_setting("local_models", model_hub.LOCAL_MODELS)
         return model_hub.LOCAL_MODELS
+    if cmd == "folder_forget":  # Settings → Moved a folder? → Forget: the app stops using it (files untouched)
+        root = str(a.get("path") or "").rstrip("/")
+        if not root or not os.path.isabs(root):
+            raise ValueError("Pick a folder.")
+        under = lambda d: bool(d) and (d.rstrip("/") == root or d.startswith(root + "/"))
+        for lst, key in {id(v[0]): v for v in _LIB_TARGETS.values()}.values():
+            lst[:] = [d for d in lst if not under(d)]
+            library.set_setting(key, list(lst))
+        model_hub.LOCAL_MODELS[:] = [m for m in model_hub.LOCAL_MODELS if not under(os.path.dirname(m.get("path") or ""))]
+        library.set_setting("local_models", model_hub.LOCAL_MODELS)
+        if under(library.get_setting("main_folder", "") or ""):
+            library.set_setting("main_folder", "")
+        _lib_refresh_caches()
+        return {"folders": folder_roots()}
     if cmd == "folders_get":
         return folder_roots()
     if cmd == "folder_relink":
@@ -1681,12 +1720,17 @@ def run_quick(mid, cmd, a):
         emit({"type": "error", "id": mid, "msg": str(e)})
 
 
+_convert_picked = set()  # files and folders picked in Tools → Convert this session (their .tdict files may be converted)
+
+
 def convert_tdict_job(a, job_id):
     """Convert DiffusionBee .tdict files to .safetensors (numpy only; the originals are kept)."""
     import tdict_reader
     roots = diffusionbee.allowed_roots()
     files = [f for f in (a.get("files") or []) if isinstance(f, str) and f.endswith(".tdict")
-             and any(os.path.realpath(f).startswith(r + os.sep) for r in roots)]  # DiffusionBee's or your folders
+             and (any(os.path.realpath(f).startswith(r + os.sep) for r in roots)  # DiffusionBee's or your folders
+                  or os.path.realpath(f) in _convert_picked                      # or files / folders you picked
+                  or any(os.path.realpath(f).startswith(r + os.sep) for r in _convert_picked))]
     out_dir = a.get("out_dir") or str(paths.HOME / "converted")
     lora_dir = str(paths.LORAS_DIR) if a.get("loras_to_lora_folder", True) else out_dir
     done, errors = [], []

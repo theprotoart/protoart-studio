@@ -30,6 +30,17 @@
   `NSRemovableVolumesUsageDescription` in the app's Info.plist
 - LoRA tags can also be saved as trigger words; LoRA list open state remembered; FLUX.2 [klein] 4B shown as "Klein 4B";
   outpaint LoRA hidden from LoRA lists (`loras.INTERNAL_LORAS`); active LoRAs highlighted
+- Variation seed ("Small change"): `engine.variation_noise` (slerp of the seed's and the variation seed's noise,
+  made the way diffusers makes it, so strength 0 is the same picture) passed as `latents` for SD 1.5 / SDXL
+  text-to-image; `var_seed` / `var_strength` saved with the picture and restored by Use these settings
+- 📒 My prompts export / import (.json, or .txt one per line; duplicates skipped, name clashes renamed)
+- Save picture as… / Copy picture (`image:saveAs`, `image:copy` IPC) in the details window and right-click menus
+- SD 1.5: Med+ (704) size tier, 704 / 768 × 1024 shapes; size warning only when both sides exceed 768 or one exceeds 1024
+- Settings → Moved a folder? → Remove (`folder_forget`); Tools → Convert → Pick files or a folder… (`dialog:pickTdict`,
+  `convert_list` with `paths`; picked roots allowed for this session)
+- Library toolbar: Select / Deselect / Compare laid out in a grid (no absolute positioning), selection bar wraps
+- Model libraries: one entry per folder even when found by two spellings (macOS is case-insensitive; dedupe by inode)
+- Startup: a status note when reading folders waits on macOS's removable-volume permission
 - Splash VU meter redrawn on one circle; prompt list button "Add prompts above to queue them"; detail window buttons
   no longer overlap the text
 

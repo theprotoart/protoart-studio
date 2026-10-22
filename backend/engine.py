@@ -318,6 +318,31 @@ def _max_side(family):
     return 1024 if ram < 24 else 1536
 
 
+def _slerp(t, a, b):
+    """Spherical blend of two noise tensors (keeps the noise's strength, unlike a straight mix)."""
+    import torch
+    af, bf = a.flatten().double(), b.flatten().double()
+    dot = torch.clamp((af / af.norm()) @ (bf / bf.norm()), -1.0, 1.0)
+    if abs(float(dot)) > 0.9995:
+        return ((1 - t) * a.double() + t * b.double()).to(a.dtype)
+    omega = torch.acos(dot)
+    so = torch.sin(omega)
+    out = (torch.sin((1 - t) * omega) / so) * a.double() + (torch.sin(t * omega) / so) * b.double()
+    return out.to(a.dtype)
+
+
+def variation_noise(seed, var_seed, strength, shape, dtype):
+    """Starting noise for "Small change" (a variation seed): the seed's own noise, nudged towards another seed's.
+    Strength 0 is exactly the normal picture; 0.05–0.2 changes small details; 1 is the other seed's picture."""
+    import torch
+    # made exactly the way diffusers makes it (CPU generator, the model's dtype), so strength 0 is the same picture
+    base = torch.randn(shape, generator=torch.Generator("cpu").manual_seed(int(seed)), dtype=dtype)
+    if strength <= 0:
+        return base
+    other = torch.randn(shape, generator=torch.Generator("cpu").manual_seed(int(var_seed)), dtype=dtype)
+    return _slerp(float(strength), base, other).to(dtype)
+
+
 def _looks_blank(image):
     """True for a (nearly) single-colour image."""
     try:
@@ -1926,6 +1951,10 @@ class Engine:
 
         # per-image prompts: wildcards ({a|b}, __file__) pick from each image's seed
         seeds = [(seed + i) % 2**32 for i in range(n)]
+        # 🎲 Small change (variation seed, SD 1.5 / SDXL): -1 picks one; strength 0 leaves the picture as it was
+        var_strength = max(0.0, min(1.0, float(args.get("var_strength") or 0)))
+        var_seed = int(args.get("var_seed") if args.get("var_seed") not in (None, "", -1) else random.randrange(2**32)) % 2**32
+        var_on = bool(is_sd and var_strength > 0)
         prompts = [wildcards.for_image(prompt_t, s) for s in seeds]
         negatives = [wildcards.for_image(negative_t, s) for s in seeds]
         # Pony / Illustrious / NoobAI: their quality tags (Create → "add quality tags", on by default)
@@ -2059,6 +2088,11 @@ class Engine:
             call = dict(num_inference_steps=steps, guidance_scale=cfg, generator=gen, callback_on_step_end=on_step)
             if is_sd:
                 call.update(text_args(prompt, negative))
+            if var_on and init_image is None and mask is None:
+                # 🎲 Small change: start from this seed's noise nudged towards the variation seed's
+                ch = int(pipe.unet.config.in_channels)
+                call["latents"] = variation_noise(img_seed, (var_seed + i) % 2**32, var_strength,
+                                                  (1, ch, height // 8, width // 8), pipe.unet.dtype).to(self.device)
             if ip_image is not None:
                 call["ip_adapter_image"] = ip_image
             if control_map is not None:
@@ -2156,6 +2190,8 @@ class Engine:
                 "model": model_id, "prompt": prompt, "negative_prompt": negative,
                 "width": image.width, "height": image.height, "steps": steps, "cfg": cfg,
                 "sampler": sampler_id, "seed": img_seed, **({"fast": True} if fast else {}),
+                **({"var_seed": (var_seed + i) % 2**32, "var_strength": var_strength}
+                   if var_on and init_image is None and mask is None else {}),
                 **({"clip_skip": clip_skip} if is_sd else {}),
                 **({"vae": args.get("vae")} if is_sd and args.get("vae") else {}),
                 "loras": [{"name": l["name"], "weight": float(l.get("weight", 1.0))} for l in args.get("loras") or []],
