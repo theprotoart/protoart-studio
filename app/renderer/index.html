@@ -593,7 +593,7 @@
           <input type="range" min="8" max="24" step="4" v-model.number="anim.frames" title="More frames: a longer clip, slower to make">
           <label>Speed <span class="mod-val">{{ anim.fps }} fps</span></label>
           <input type="range" min="4" max="16" step="1" v-model.number="anim.fps" title="Frames per second when it plays">
-          <p class="hint">Uses the prompt, size (up to 512 on 8 GB), steps and seed above. Describe movement (“hair blowing in the wind”, “waves crashing”). {{ anim.frames }} frames take several minutes on an 8 GB Mac. Saved to the Library as an animated picture, with a GIF beside it.</p>
+          <p class="hint">Uses the prompt, size, steps and seed above (8 GB Macs: up to 384 px; 12–16 steps is plenty). Describe movement (“hair blowing in the wind”, “waves crashing”). {{ anim.frames }} frames take several minutes on an 8 GB Mac. Saved to the Library as an animated picture, with a GIF beside it.</p>
           <button class="primary" :disabled="!form.prompt.trim() || !!animJob" @click="makeAnimation">{{ animJob ? 'Animating…' : '🎞 Make an animation' }}</button>
         </div>
       </section>

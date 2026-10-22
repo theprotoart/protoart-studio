@@ -21,7 +21,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 
 ## What it does
 
-- **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), Anima (anime), ERNIE-Image, FLUX.1 Schnell, FLUX.2 Klein 4B
+- **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), Anima (anime; all-ages by default via its "safe" rating tag), ERNIE-Image, FLUX.1 Schnell, FLUX.2 Klein 4B
   (made for 8 GB Macs) and FLUX.1 Dev (32 GB+); LoRA stacking with per-LoRA weights (sort / filter the list, ★ favourites),
   embeddings, VAEs (each model remembers its own; one-click recommended VAE), 20+ samplers with the top picks per model,
   presets, 📒 saved prompts, wildcards, a random-prompt generator that writes tags or sentences to suit the model, negative

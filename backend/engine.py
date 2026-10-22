@@ -126,12 +126,12 @@ MODELS = {
     "anima_turbo": {
         "label": "Anima Turbo · anime (non-commercial licence)", "family": "anima", "anima_turbo": True,
         "download_gb": 5.9, "min_ram_gb": 8, "license": "CircleStone Labs Non-Commercial",
-        "defaults": {"width": 832, "height": 1216, "steps": 10, "cfg": 1.0},
+        "defaults": {"width": 768, "height": 1024, "steps": 10, "cfg": 1.0},
     },
     "anima_base": {
         "label": "Anima · anime, 30 steps (non-commercial licence)", "family": "anima",
         "download_gb": 5.6, "min_ram_gb": 12, "license": "CircleStone Labs Non-Commercial",
-        "defaults": {"width": 832, "height": 1216, "steps": 30, "cfg": 4.5},
+        "defaults": {"width": 768, "height": 1024, "steps": 30, "cfg": 4.5},
     },
     "ernie_int4": {
         "label": "ERNIE-Image · 4-bit (50 steps, best quality)", "family": "ernie", "quant": "int4",
@@ -1054,8 +1054,10 @@ class Engine:
                 else:
                     pipe = cls.from_single_file(spec["file"], torch_dtype=dtype, **fkw)
             elif spec.get("sdnq") and spec.get("local_dir"):  # a smaller copy made in Tools → Quantize
-                import sdnq  # noqa: F401  needed to read the saved 8/6/4-bit weights
-                pipe = cls.from_pretrained(spec["local_dir"], torch_dtype=dtype, local_files_only=True,
+                import sdnq
+                unet = sdnq.load_sdnq_model(str(Path(spec["local_dir"]) / "unet"), model_cls=diffusers.UNet2DConditionModel,
+                                            dtype=dtype)
+                pipe = cls.from_pretrained(spec["local_dir"], unet=unet, torch_dtype=dtype, local_files_only=True,
                                            **({"safety_checker": None, "requires_safety_checker": False} if family == "sd15" else {}))
             elif self.local_copy(spec):
                 import sdnq  # noqa: F401  needed to read the saved 8-bit weights
@@ -1300,6 +1302,10 @@ class Engine:
         self.load(model_id, force=force)
         pipe = self.pipe
         anima.set_guidance(pipe, cfg)
+        # Anima drifts into suggestive pictures easily. Unless the prompt already has one of its rating tags, it
+        # gets "safe" (and the rest go in the negative prompt), so pictures stay all-ages by default.
+        prompts = [anima.with_rating(p) for p in prompts]
+        negatives = [anima.safe_negative(p, n) for p, n in zip(prompts, negatives)]
         t = self.torch()
         results = []
         n = len(prompts)
@@ -2277,6 +2283,7 @@ class Engine:
                             pp = emb["pooled_prompt_embeds"].to(kw["add_text_embeds"])
                             kw["add_text_embeds"] = t.cat([emb["negative_pooled_prompt_embeds"].to(pp), pp]) if both else pp
                         phase["edit"] = phase.get("edit", 0) + 1
+                        print(f"[engine] prompt edit {phase['edit']} at step {step + 1}/{total}", flush=True)
                 return kw
 
             edits = []
@@ -2299,7 +2306,7 @@ class Engine:
                 # 🎲 Small change: start from this seed's noise nudged towards the variation seed's
                 ch = int(pipe.unet.config.in_channels)
                 call["latents"] = variation_noise(img_seed, (var_seed + i) % 2**32, var_strength,
-                                                  (1, ch, height // 8, width // 8), pipe.unet.dtype).to(self.device)
+                                                  (1, ch, height // 8, width // 8), pipe.unet.dtype).to(self.device())
             if ip_image is not None:
                 call["ip_adapter_image"] = ip_image
             if control_map is not None:
@@ -3274,8 +3281,8 @@ class Engine:
         frames = max(8, min(24, int(args.get("frames") or 16)))
         width = int(args.get("width") or 512) // 8 * 8
         height = int(args.get("height") or 512) // 8 * 8
-        if 0 < total_ram_gb() < 16:
-            side = 512 if frames <= 16 else 448
+        if 0 < total_ram_gb() < 16:  # every step works on all the frames at once: keep them small on 8 GB
+            side = 384 if frames <= 12 else 320
             f = min(1.0, side / max(width, height))
             width, height = int(width * f) // 8 * 8, int(height * f) // 8 * 8
         steps = max(8, min(40, int(args.get("steps") or 20)))
@@ -3358,6 +3365,10 @@ class Engine:
         dest.parent.mkdir(parents=True, exist_ok=True)
         try:
             pipe.save_pretrained(str(dest))
+            shutil.rmtree(dest / "unet", ignore_errors=True)  # the reduced UNet is written in SDNQ's own format
+            sdnq.save_sdnq_model(pipe.unet, str(dest / "unet"))
+            (dest / "protoart_quant.json").write_text(json.dumps({"bits": bits, "weights_dtype": self.QUANT_BITS[bits],
+                                                                  "family": spec["family"], "from": label}))
         except Exception as e:
             shutil.rmtree(dest, ignore_errors=True)
             raise UserError(f"Couldn't save the copy: {e}")
@@ -3547,7 +3558,7 @@ class Engine:
         # cut down to file names (the library keeps the full details).
         settings = _shareable(settings)
         meta = PngInfo()
-        lora_txt = "".join(f" <lora:{l['name']}:{l['weight']}>" for l in settings["loras"])
+        lora_txt = "".join(f" <lora:{l['name']}:{l['weight']}>" for l in settings.get("loras") or [])
         meta_text = (f"{settings.get('prompt', '')}{lora_txt}\nNegative prompt: {settings.get('negative_prompt', '')}\n"
                      f"Steps: {settings.get('steps')}, Sampler: {settings.get('sampler')}, CFG scale: {settings.get('cfg')}, "
                      f"Seed: {settings.get('seed')}, Size: {settings.get('width')}x{settings.get('height')}, "

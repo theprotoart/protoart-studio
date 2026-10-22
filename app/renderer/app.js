@@ -388,7 +388,7 @@ const protoartApp = createApp({
       ask: null,             // the "Are you sure?" box (confirmAsk)
       promptPresets: loadJSON("protoart.prompts", []),   // 📒 My prompts
       promptIoMsg: "",
-      anim: { frames: 16, fps: 8 },  // 🎞 AnimateDiff
+      anim: { frames: 8, fps: 8 },  // 🎞 AnimateDiff
       qnt: { model: "", bits: 8, msg: "" },  // Tools → Smaller copy
       tup: { scale: 2, strength: 0.35, steps: 20 },  // Tools → Tiled upscale
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
@@ -475,7 +475,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.3.0: new tools", items: [
-              "<b>New model: Anima</b> (CircleStone Labs, anime and illustration; Danbooru tags, sentences or both). <b>Anima Turbo</b> makes a picture in 10 steps; <b>Anima</b> uses 30 steps for the most detail. ~5.9 GB once, in the Models tab under Anima. Non-commercial licence for the model (pictures may be used commercially). It can also start from a picture in Image to image.",
+              "<b>New model: Anima</b> (CircleStone Labs, anime and illustration; Danbooru tags, sentences or both). <b>Anima Turbo</b> makes a picture in 10 steps; <b>Anima</b> uses 30 steps for the most detail. ~5.9 GB once, in the Models tab under Anima. Non-commercial licence for the model (pictures may be used commercially). It can also start from a picture in Image to image. Anima pictures are kept all-ages by default: the app adds Anima's <b>safe</b> rating tag unless your prompt already has a rating tag (safe, sensitive, nsfw or explicit).",
               "<b>🗺 Regions</b> (Create, SD 1.5 and SDXL): a different prompt for each part of the picture: columns, rows or a grid, with a small map of the areas. “Keep one scene” blends them so it stays one picture.",
               "<b>🔗 Model chain</b> (Image to image → 🔄 Change it): run a picture through several models in turn, e.g. SD 1.5 → SDXL → FLUX.1 or ERNIE, each with its own change strength. FLUX.1 Schnell and ERNIE (fast engine) can now start from a picture too.",
               "<b>🧩 Tiled upscale</b> (Tools): enlarges a picture 1.5–3× and lets your Create model add real detail tile by tile (MultiDiffusion), with no seams and little memory.",
@@ -493,10 +493,10 @@ const protoartApp = createApp({
               "<b>Patchbay</b>: a <b>SELECT</b> tab at the bottom of each module picks it; the rack unit below then shows <b>that module's settings</b>, with a ⚙ FACES 2 badge so you know which copy you're editing (no second settings panel). <b>✕</b> on a module takes it off the rack (bring it back from Add a module). New <b>🔎 DETAIL</b> module: a light redraw with an “add detail” LoRA. <b>🛡 Protect areas…</b>: paint parts of the picture the rack must not change. The picture forming shows in Tools while it runs.",
               "<b>CodeFormer presets</b> (Restore faces, in Create and Tools): Balanced, Keep likeness, Heavy repair, Subtle touch-up, Old photo, Gentle. Each sets fidelity and strength; you can still change both.",
               "<b>🗺 Regions</b> (SD 1.5 and SDXL): tick <i>Use regional prompts</i>, pick Columns, Rows or Grid and the sizes (1,1 = halves; 1,2 = a third and two thirds; Grid 1,1;1 = two on top, one below), and write a prompt for each numbered area. The main prompt above describes the whole scene and applies everywhere; <i>Keep one scene</i> sets how much (0.2 is a good start).",
-              "<b>Prompt editing</b>: <i>[cat:dog:0.5]</i> draws a cat for the first half of the steps and a dog after (a dog in a cat's pose); a number above 1 is a step (<i>[cat:dog:10]</i>). <i>[hat:0.3]</i> adds “hat” after 30 %, <i>[hat::0.3]</i> removes it. SD 1.5 and SDXL.",
+              "<b>Prompt editing</b>: <i>[cat:dog:0.5]</i> draws a cat for the first half of the steps and a dog after (a dog in a cat's pose); a number above 1 is a step (<i>[cat:dog:10]</i>). <i>[hat:0.3]</i> adds “hat” after 30 %, <i>[hat::0.3]</i> removes it. SD 1.5 and SDXL. The shape is mostly settled early, so for a bigger change switch sooner (<i>[cat:dog:0.2]</i>).",
               "<b>🧱 Seamless</b>: the picture's edges wrap around, so copies placed side by side join with no seam: textures, patterns, wallpapers.",
               "<b>📥 Settings</b>: load a picture's settings (prompt, negative prompt, steps, guidance, seed, size, sampler, model and LoRAs if you have them) from a PNG made by A1111, Forge, ComfyUI, InvokeAI or this app, or from a .json. Anything you don't have is listed. ↩ undo brings your prompt back.",
-              "<b>🎞 Animation</b> (SD 1.5): open the 🎞 Animation section, pick frames (8–24) and speed, and press 🎞 Make an animation. It uses the prompt, size (up to 512 px on 8 GB), steps and seed above; describe movement in the prompt. The clip appears in the Library (it plays there) with a GIF saved beside it.",
+              "<b>🎞 Animation</b> (SD 1.5): open the 🎞 Animation section, pick frames (8–24) and speed, and press 🎞 Make an animation. It uses the prompt, size, steps and seed above (on 8 GB Macs the clip is made at up to 384 px, or 320 px above 12 frames, and 8 frames take a few minutes; 12–16 steps is plenty); describe movement in the prompt. The clip appears in the Library (it plays there) with a GIF saved beside it.",
               "<b>🎲 Small change</b> (under Seed, SD 1.5 and SDXL): keep a picture you like and change only small details. Press <i>try a small change</i> (it keeps the last picture's seed and picks a variation seed), then Generate; press it again for another. The slider sets how much changes (0 = off, 0.05–0.2 small details, 0.6 a lot). The variation seed and strength are saved with the picture, so Use these settings brings them back.",
               "<b>📒 My prompts</b>: ⤓ Export saves them all to a file (to keep a copy or give to a friend); ⤒ Import adds prompts from such a file, or from a .txt with one prompt per line. Prompts with the same name and text aren't added twice.",
               "<b>🔄 Contrast prompt</b> (Create → ✨ Enhance, and Image to image): suggests the same scene turned into its opposite, like a waterfall frozen into blue-white ice or a summer street after light snowfall. ↩ undo puts yours back.",
@@ -1056,7 +1056,10 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "New in 1.3.0: if something doesn't work", items: [
-              "<b>Anima is slow</b>: it's a 2-billion-parameter model; on an 8 GB Mac use <b>Anima Turbo</b> (10 steps) at 768–1024 px, and quit other big apps. The first picture also loads the model (about 20 s).",
+              "<b>Anima is slow</b>: it's a 2-billion-parameter model; on an 8 GB Mac a 10-step <b>Anima Turbo</b> picture takes about 3–4 minutes at 768 × 768 and 6–7 minutes at 832 × 1216. Quit other big apps. The first picture also loads the model (about 20 s).",
+              "<b>🎞 Animation is very slow or seems stuck at 0 %</b>: every step works on all the frames at once, so the first step can take a minute or more on an 8 GB Mac. Use 8 frames, 12–16 steps and quit other big apps. 1.3.0 also no longer slices the motion model's attention, which made it about three times slower.",
+              "<b>Anima pictures came out flat grey</b> (1.3.0 test builds): fixed. The Mac graphics chip worked out the Anima picture decoder (VAE) wrongly; the app now runs it a different way that gives the right picture.",
+              "<b>Anima added “safe” to my prompt</b>: that's on purpose, so pictures stay all-ages unless you ask otherwise. Put your own rating tag in the prompt (safe, sensitive, nsfw or explicit) and the app leaves it alone.",
               "<b>Face swap says no face was found</b>: use a clear, front-facing, well-lit photo for the face, and a picture where the face is at least ~40 px across. <b>“The result looks explicit”</b>: face swap never saves explicit results.",
               "<b>Union ProMax is greyed out or slow</b>: it's for SDXL models (pick one at the top); on 8 GB keep the size at 768–1024 px.",
               "<b>Regional prompts look like one prompt</b>: lower <i>Keep one scene</i> (0.1) and make each area's prompt distinct; with very different areas, raise the steps a little. They can't be combined with an image prompt yet.",

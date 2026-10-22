@@ -33,7 +33,52 @@ def load_pipeline(turbo, dtype, device, emit=lambda m: None, local_only=False):
         pipe.text_conditioner.load_state_dict(adapter, strict=True)  # Turbo has its own text adapter weights too
         pipe.update_components(transformer=tr)
     pipe.to(device)
+    if str(device).startswith("mps"):
+        fix_vae_for_mps(pipe.vae)
     return pipe
+
+
+def _conv3d_as_2d(self, x, cache_x=None):
+    """QwenImageCausalConv3d.forward done as a sum of 2D convolutions (one per time tap). Same result; works around
+    the Mac GPU's 3D convolution giving wrong numbers for this VAE (every picture came out flat grey)."""
+    import torch
+    import torch.nn.functional as F
+    padding = list(self._padding)
+    if cache_x is not None and self._padding[4] > 0:
+        cache_x = cache_x.to(x.device)
+        x = torch.cat([cache_x, x], dim=2)
+        padding[4] -= cache_x.shape[2]
+    x = F.pad(x, padding[:4])                 # space only; the causal time padding is zeros, so it's skipped below
+    front, back = padding[4], padding[5]
+    w = self.weight
+    kt = w.shape[2]
+    st, sh, sw = self.stride
+    T = x.shape[2]
+    t_out = (T + front + back - kt) // st + 1
+    frames = []
+    for t in range(t_out):
+        acc = None
+        for k in range(kt):
+            src = t * st + k - front
+            if src < 0 or src >= T:
+                continue
+            y = F.conv2d(x[:, :, src], w[:, :, k], None, (sh, sw), 0, self.dilation[1:], self.groups)
+            acc = y if acc is None else acc + y
+        if self.bias is not None:
+            acc = acc + self.bias[None, :, None, None]
+        frames.append(acc)
+    return torch.stack(frames, 2)
+
+
+def fix_vae_for_mps(vae):
+    """Swap the VAE's 3D convolutions for the 2D-convolution version (see _conv3d_as_2d)."""
+    import types
+    n = 0
+    for mod in vae.modules():
+        if type(mod).__name__ == "QwenImageCausalConv3d":
+            mod.forward = types.MethodType(_conv3d_as_2d, mod)
+            n += 1
+    return n
 
 
 COMFY_PREFIX = "model.diffusion_model."
@@ -61,7 +106,12 @@ def load_turbo(path, dtype):
     tr.load_state_dict({k: v.to(dtype) for k, v in sd.items()}, strict=True, assign=True)
     del sd
     tr.eval()
-    return tr.to(dtype), adapter
+    tr = tr.to(dtype)
+    keep = getattr(tr, "_keep_in_fp32_modules", None) or []
+    for name, mod in tr.named_modules():  # e.g. learnable_pos_embed: wrong in half precision
+        if any(k in name.split(".") for k in keep):
+            mod.to(torch.float32)
+    return tr, adapter
 
 
 def lean_memory(pipe, device):
@@ -69,6 +119,10 @@ def lean_memory(pipe, device):
     prompt is read, and the transformer (~3.9 GB) moves aside while the picture is decoded; each moves back when
     it's needed again (a second or two, as Mac memory is shared). The decoder also works in tiles."""
     import torch
+    # The pipeline picks its working device from where its parts are; with parts moved aside it would pick the
+    # CPU. Pin it to the GPU.
+    dev = torch.device(device)
+    pipe.__class__ = type("LeanAnimaPipeline", (pipe.__class__,), {"_execution_device": property(lambda self: dev)})
     vae = getattr(pipe, "vae", None)
     for name in ("enable_tiling", "enable_vae_tiling"):
         if vae is not None and hasattr(vae, name):
@@ -104,6 +158,29 @@ def lean_memory(pipe, device):
     if dec is not None:
         hooks.append(dec.register_forward_pre_hook(before_decode))
     return hooks
+
+
+RATINGS = ("safe", "sensitive", "nsfw", "explicit")
+
+
+def _tags(prompt):
+    import re
+    return {t.strip().lower() for t in re.split(r"[,\n]", prompt or "")}
+
+
+def with_rating(prompt):
+    """Add Anima's "safe" rating tag unless the prompt already names a rating."""
+    if _tags(prompt) & set(RATINGS):
+        return prompt
+    return "safe, " + (prompt or "")
+
+
+def safe_negative(prompt, negative):
+    """With the "safe" rating, the other ratings go in the negative prompt (used when guidance is above 1)."""
+    if "safe" not in _tags(prompt):
+        return negative
+    add = [r for r in ("explicit", "nsfw", "sensitive") if r not in _tags(negative)]
+    return ", ".join([x for x in [negative.strip() if negative else ""] + add if x])
 
 
 def set_guidance(pipe, cfg):

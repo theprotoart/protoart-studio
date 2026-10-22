@@ -7,6 +7,10 @@
   `anima-turbo-v1.1` ComfyUI file converted on load (`model.diffusion_model.` → Cosmos `net.` names → diffusers,
   plus its own `llm_adapter` → `text_conditioner` weights). 8 GB Macs: text encoder / transformer rotate out of GPU
   memory around their steps, VAE tiling. Text to image and image to image; `anima_turbo`, `anima_base` catalogue entries
+  (bf16 only: fp16 overflows to black). The Qwen-Image VAE's `QwenImageCausalConv3d` gives wrong results on MPS
+  (every picture flat grey); on MPS each one now runs as a sum of 2D convolutions, one per time tap
+  (`anima.fix_vae_for_mps`, identical on CPU to 2e-6). Prompts get Anima's `safe` rating tag (and the other ratings
+  in the negative prompt) unless they already name a rating
 - Regional prompts (`backend/regions.py`): columns / rows / grid layouts, a cross-attention processor where the
   cond half attends per region (masks at each layer's resolution) blended with the whole prompt (`base`)
 - Model chain (Image to image): sequential `generate` jobs across models; fast engine img2img for FLUX.1 / ERNIE
@@ -18,7 +22,7 @@
   consent required, NSFW-checked (explicit results refused), non-commercial labelling. New dependency: `onnx`
 - ControlNet Union ProMax (SDXL): `union:<map>` types → `ControlNetUnionModel` + the Union (img2img) pipelines with
   `control_mode`; "Which one should I use?" guide (IP-Adapter Plus / Plus Face / Union)
-- AnimateDiff (`backend/animate.py`, motion adapter v1-5-3): animated WebP + GIF, Library kind `animation`
+- AnimateDiff (`backend/animate.py`, motion adapter v1-5-3): animated WebP + GIF, Library kind `animation`; no attention slicing (3× slower on MPS), 8 GB: ≤384 px (320 px above 12 frames), 8 frames by default
 - Smaller copies: SDNQ int8 / int6 / uint4 UNet copies saved as model folders (`quantize_model`)
 - Checkpoint merger (`backend/ckpt_merge.py`): weighted sum / add difference, streamed safetensors writer
 - Prompt editing (`backend/prompt_edit.py`): `[a:b:when]`, `[a:when]`, `[a::when]`, switched via

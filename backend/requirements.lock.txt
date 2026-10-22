@@ -42,6 +42,8 @@ networkx==3.7
 numba==0.68.0
 numpy==2.5.4
 onnxruntime==1.31.0
+onnx==1.23.2
+ml_dtypes==0.6.0
 opencv-python==5.0.0.93
 packaging==26.3
 peft==0.21.2

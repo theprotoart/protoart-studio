@@ -1,8 +1,8 @@
 """AnimateDiff: short animated clips from a prompt with an SD 1.5 model (guoyww's motion adapter v1.5-3,
 Apache-2.0, ~0.9 GB once). The clip is saved as an animated WebP (shown in the Library) and a GIF beside it.
 
-8 GB Macs: 384–512 px and 8–16 frames; each step works on every frame at once, so a 16-frame clip at 512 px
-takes several minutes.
+8 GB Macs: up to 384 px (320 px above 12 frames); each step works on every frame at once, so even an 8-frame clip
+takes a few minutes there.
 """
 from pathlib import Path
 
@@ -29,11 +29,16 @@ def build(sd_pipe, dtype, emit=lambda m: None):
     pipe = diffusers.AnimateDiffPipeline.from_pipe(sd_pipe, motion_adapter=adapter, torch_dtype=dtype)
     pipe.scheduler = diffusers.DDIMScheduler.from_config(
         pipe.scheduler.config, beta_schedule="linear", clip_sample=False, timestep_spacing="linspace", steps_offset=1)
-    for name in ("enable_vae_slicing", "enable_attention_slicing"):
-        try:
-            getattr(pipe, name)()
-        except Exception:
-            pass
+    # The VAE decodes the frames a few at a time. (Attention slicing is left off: on a Mac it made each step
+    # about three times slower.)
+    try:
+        pipe.vae.enable_slicing()
+    except Exception:
+        pass
+    try:
+        pipe.disable_attention_slicing()
+    except Exception:
+        pass
     return pipe
 
 
