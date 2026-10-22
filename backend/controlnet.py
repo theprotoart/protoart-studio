@@ -27,6 +27,20 @@ TYPES = {
     "openpose": ("OpenPose (copy a person's pose)", "lllyasviel/control_v11p_sd15_openpose", "openpose",
                  "the pose skeleton"),
 }
+# Xinsir ControlNet Union ProMax (SDXL, Apache-2.0): one ~2.5 GB model that does every map type for SDXL models
+# (including Pony / Illustrious / NoobAI). Each type is a "control mode" number inside the model.
+UNION_REPO = "xinsir/controlnet-union-sdxl-1.0"
+UNION_FILES = ("config_promax.json", "diffusion_pytorch_model_promax.safetensors")
+UNION_GB = 2.5
+UNION_MODES = {  # our map type -> (Union control mode, label)
+    "openpose": (0, "OpenPose (copy a person's pose)"),
+    "depth": (1, "Depth (keep the 3-D layout)"),
+    "softedge": (2, "Soft edges (looser outlines)"),
+    "scribble": (2, "Scribble (from a rough sketch)"),
+    "canny": (3, "Canny edges (keep outlines)"),
+    "lineart": (3, "Line art (keep the drawing)"),
+    "tile": (6, "Tile (add detail, keep the picture)"),
+}
 DEPTH_REPO = "depth-anything/Depth-Anything-V2-Small-hf"
 # Depth Anything V2 (https://github.com/DepthAnything/Depth-Anything-V2), Hugging Face ports.
 #   size: (repo, download GB, licence)
@@ -45,6 +59,9 @@ def list_types():
     out = []
     for k, (label, repo, hint, what) in TYPES.items():
         out.append({"id": k, "label": label, "map": what, "diffusionbee": bool(_dbee_file(hint, found)), "family": "sd15"})
+    for k, (_mode, label) in UNION_MODES.items():
+        out.append({"id": "union:" + k, "label": "Union ProMax · " + label, "map": TYPES[k][3], "family": "sdxl",
+                    "union": True, "makes_map": k, "size_mb": int(UNION_GB * 1024)})
     for u in user_files():
         if u.get("problem"):
             continue  # listed in the Models tab with the reason; it can't be picked
@@ -176,8 +193,23 @@ def user_files():
     return out
 
 
+def is_union(kind):
+    return str(kind).startswith("union:") and kind[len("union:"):] in UNION_MODES
+
+
+def map_kind(kind):
+    """The kind of map a ControlNet needs ("union:canny" -> "canny")."""
+    return kind[len("union:"):] if is_union(kind) else kind
+
+
+def union_mode(kind):
+    return UNION_MODES[map_kind(kind)][0]
+
+
 def family_of(kind):
     """The model type a ControlNet works with: "sd15" (the built-in ones), or what your file is made for."""
+    if is_union(kind):
+        return "sdxl"
     if str(kind).startswith("user:"):
         name = kind[len("user:"):]
         return next((u["family"] for u in user_files() if u["name"] == name), None)
@@ -185,7 +217,7 @@ def family_of(kind):
 
 
 def is_known(kind):
-    return kind in TYPES or (str(kind).startswith("user:") and any("user:" + u["name"] == kind and not u["problem"]
+    return kind in TYPES or is_union(kind) or (str(kind).startswith("user:") and any("user:" + u["name"] == kind and not u["problem"]
                                                                    for u in user_files()))
 
 
@@ -377,9 +409,34 @@ def unet_base_state(unet_state, want):
     return out
 
 
+def load_union(dtype, emit=lambda m: None):
+    """Xinsir Union ProMax as a diffusers ControlNetUnionModel. The repo keeps the ProMax weights beside the
+    original ones under other names, so they are arranged into a small folder of links the loader understands."""
+    import diffusers
+    from huggingface_hub import hf_hub_download, try_to_load_from_cache
+    if not all(isinstance(try_to_load_from_cache(UNION_REPO, f), str) for f in UNION_FILES):
+        emit({"type": "status", "msg": f"Downloading ControlNet Union ProMax (first time only, ~{UNION_GB} GB)…"})
+    cfg, weights = (hf_hub_download(UNION_REPO, f) for f in UNION_FILES)
+    import paths
+    folder = Path(paths.HOME) / "controlnets" / ".union-promax"
+    folder.mkdir(parents=True, exist_ok=True)
+    for name, target in (("config.json", cfg), ("diffusion_pytorch_model.safetensors", weights)):
+        link = folder / name
+        if link.is_symlink() or link.exists():
+            if os.path.realpath(link) == os.path.realpath(target):
+                continue
+            link.unlink()
+        os.symlink(target, link)
+    emit({"type": "status", "msg": "Loading ControlNet Union ProMax…"})
+    LAST_SOURCE["union"] = "official"
+    return diffusers.ControlNetUnionModel.from_pretrained(str(folder), torch_dtype=dtype)
+
+
 def load(kind, unet, dtype, emit=lambda m: None):
     """Return a diffusers ControlNetModel for this kind (SD 1.5)."""
     import diffusers
+    if is_union(kind):
+        return load_union(dtype, emit)
     if str(kind).startswith("user:"):
         return _load_user(kind, unet, dtype, emit)
     label, repo, hint, _ = TYPES[kind]
@@ -425,6 +482,7 @@ def make_map(kind, image, width, height, depth_estimator=None, already_map=False
     import cv2
     from PIL import Image, ImageFilter, ImageOps
     img = image.convert("RGB").resize((width, height), Image.LANCZOS)
+    kind = map_kind(kind)
     if str(kind).startswith("user:"):  # your own ControlNets get the map their name asks for (else the picture)
         kind = guess_map(kind[len("user:"):]) or "tile"
     if already_map or kind == "tile":

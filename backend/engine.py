@@ -121,6 +121,18 @@ MODELS = {
         "download_gb": 4.6, "engine_gb": 1.5, "min_ram_gb": 8, "license": "Apache-2.0",
         "defaults": {"width": 1024, "height": 1024, "steps": 4, "cfg": 1.0},
     },
+    # Anima (CircleStone Labs, 2B, anime / illustration; tags or sentences). Official diffusers files; the Turbo
+    # build uses the official distilled transformer. CircleStone Labs Non-Commercial License (pictures may be sold).
+    "anima_turbo": {
+        "label": "Anima Turbo · anime (non-commercial licence)", "family": "anima", "anima_turbo": True,
+        "download_gb": 5.9, "min_ram_gb": 8, "license": "CircleStone Labs Non-Commercial",
+        "defaults": {"width": 832, "height": 1216, "steps": 10, "cfg": 1.0},
+    },
+    "anima_base": {
+        "label": "Anima · anime, 30 steps (non-commercial licence)", "family": "anima",
+        "download_gb": 5.6, "min_ram_gb": 12, "license": "CircleStone Labs Non-Commercial",
+        "defaults": {"width": 832, "height": 1216, "steps": 30, "cfg": 4.5},
+    },
     "ernie_int4": {
         "label": "ERNIE-Image · 4-bit (50 steps, best quality)", "family": "ernie", "quant": "int4",
         "repo": "OzzyGT/ERNIE_Image_sdnq_dynamic_int4",
@@ -316,6 +328,19 @@ def _max_side(family):
     if family == "sd15":
         return 768 if ram < 16 else 1024
     return 1024 if ram < 24 else 1536
+
+
+def _set_seamless(pipe, on):
+    """Make every convolution in the UNet and VAE wrap around the edges (A1111's "Tiling"), or back to normal."""
+    import torch
+    mode = "circular" if on else "zeros"
+    for part in (getattr(pipe, "unet", None), getattr(pipe, "vae", None)):
+        if part is None:
+            continue
+        for m in part.modules():
+            if isinstance(m, torch.nn.Conv2d) and m.padding_mode != mode:
+                m.padding_mode = mode
+                m._reversed_padding_repeated_twice = torch.nn.modules.utils._reverse_repeat_tuple(m.padding, 2)
 
 
 def _slerp(t, a, b):
@@ -602,6 +627,7 @@ class Engine:
         self.inp_pipe = None        # inpainting pipeline sharing the loaded model's weights
         self.ip_key = None          # (model, kind) of the loaded image prompt adapter, or None
         self.face_finder = None     # RetinaFace for the face detailer
+        self.face_swapper = None    # 🔁 Face swap (inswapper_128 + ArcFace, ONNX Runtime on the CPU)
         self.pose_detector = None   # person + body keypoints for the OpenPose ControlNet
         self.previews = True        # live previews while generating (Settings)
         self.nsfw_checker = None    # content filter's picture checker (small, CPU), loaded on demand
@@ -678,7 +704,13 @@ class Engine:
             raise UserError(f"{spec['label']} is a ~{size:.0f} GB download but only {free} GB is free.")
         from huggingface_hub import hf_hub_download, snapshot_download
         jobs = []
-        if spec.get("engine") == "mlx":
+        if spec.get("family") == "anima":
+            import anima
+            turbo = bool(spec.get("anima_turbo"))
+            jobs.append(lambda: snapshot_download(anima.DIFFUSERS_REPO, ignore_patterns=["transformer/*"] if turbo else None))
+            if turbo:
+                jobs.append(lambda: hf_hub_download(anima.WEIGHTS_REPO, anima.TURBO_FILE))
+        elif spec.get("engine") == "mlx":
             jobs.append(lambda: snapshot_download(spec["mlx_repo"], revision=spec.get("mlx_revision"),
                                                       allow_patterns=spec.get("mlx_patterns")))
         elif spec.get("gguf_file"):
@@ -789,6 +821,9 @@ class Engine:
         return d if (d / "model_index.json").exists() else None
 
     def spec_cached(self, spec, with_pe=False):
+        if spec.get("family") == "anima":
+            import anima
+            return anima.is_cached(bool(spec.get("anima_turbo")))
         if self.local_copy(spec):
             return True
         if spec.get("file") or spec.get("tdict") or spec.get("local_dir"):
@@ -905,6 +940,8 @@ class Engine:
             self.emit({"type": "status", "msg": f"Loading {spec['label']}…"})
 
         load_started = time.time()
+        self.anim_pipe = None  # an AnimateDiff pipeline holds its own copy of a model: free it first
+        self.anim_key = None
         self.unload()
         self.enhancer = None  # free the Finegrain enhancer's memory too
         if 0 < ram < 16:
@@ -913,6 +950,23 @@ class Engine:
         import diffusers
         device = self.device()
 
+        if family == "anima":
+            import anima
+            turbo = bool(spec.get("anima_turbo"))
+            if not anima.is_cached(turbo):
+                free = free_disk_gb(_hub_dir())
+                if free < spec["download_gb"] + 5:
+                    raise UserError(f"{spec['label']} needs a ~{spec['download_gb']:.0f} GB download but only {free} GB is free.")
+                self.emit({"type": "status", "msg": f"Downloading {spec['label']} (first time only, ~{spec['download_gb']:.0f} GB)…"})
+            dtype = t.bfloat16 if device == "mps" else t.float32
+            self.pipe = anima.load_pipeline(turbo, dtype, device, emit=self.emit)
+            if 0 < ram < 16:
+                anima.lean_memory(self.pipe, device)  # only the working part in GPU memory
+            self.family = "anima"
+            self.loaded_key = key
+            print(f"[timing] loaded {model_id} in {time.time() - load_started:.1f}s", flush=True)
+            self.emit({"type": "status", "msg": f"{spec['label']} loaded"})
+            return
         if spec.get("hub_file"):  # single checkpoint file from Hugging Face: download, then load like a local file
             from huggingface_hub import hf_hub_download
             spec = dict(spec, file=hf_hub_download(spec["repo"], spec["hub_file"]))
@@ -999,6 +1053,10 @@ class Engine:
                     pipe = cls.from_single_file(spec["file"], torch_dtype=dtype, unet=unet, **fkw)
                 else:
                     pipe = cls.from_single_file(spec["file"], torch_dtype=dtype, **fkw)
+            elif spec.get("sdnq") and spec.get("local_dir"):  # a smaller copy made in Tools → Quantize
+                import sdnq  # noqa: F401  needed to read the saved 8/6/4-bit weights
+                pipe = cls.from_pretrained(spec["local_dir"], torch_dtype=dtype, local_files_only=True,
+                                           **({"safety_checker": None, "requires_safety_checker": False} if family == "sd15" else {}))
             elif self.local_copy(spec):
                 import sdnq  # noqa: F401  needed to read the saved 8-bit weights
                 pipe = cls.from_pretrained(str(self.local_copy(spec)), torch_dtype=dtype)
@@ -1042,7 +1100,7 @@ class Engine:
 
         _repair_meta_tensors(pipe)  # a weight missing from a checkpoint file would otherwise crash .to(device)
         pipe = pipe.to(device)
-        self.fuse_ok = family in ("sd15", "sdxl") and not low_memory and not spec.get("quantize_unet") \
+        self.fuse_ok = family in ("sd15", "sdxl") and not low_memory and not spec.get("quantize_unet") and not spec.get("sdnq") \
             and not self.local_copy(spec)
         self._tuning = None  # memory/speed switches are set per job (see _tune_for_size)
         try:
@@ -1146,7 +1204,7 @@ class Engine:
 
     def control_map(self, kind, image, width, height, already_map=False, depth_model="small"):
         import controlnet as cnet
-        mk = cnet.guess_map(kind[len("user:"):]) if str(kind).startswith("user:") else kind  # your own: map from its name
+        mk = cnet.guess_map(kind[len("user:"):]) if str(kind).startswith("user:") else cnet.map_kind(kind)  # your own: map from its name
         depth = self._get_depth_estimator(depth_model) if (mk == "depth" and not already_map) else None
         posed = self._get_pose_detector() if (mk == "openpose" and not already_map) else None
         try:
@@ -1167,21 +1225,26 @@ class Engine:
             self.depth_estimator = None
             self.pose_detector = None
             self.release_memory()
-        if kind not in self.controlnets:
+        union = cnet.is_union(kind)
+        ck = "union" if union else kind  # one Union model serves every Union map type
+        if ck not in self.controlnets:
             if 0 < total_ram_gb() < 16:
                 self.controlnets = {}  # 8 GB Macs: keep only one ControlNet loaded
                 self.cn_pipes = {}
                 self.release_memory()
             dtype = self.pipe.unet.dtype
-            self.controlnets[kind] = cnet.load(kind, self.pipe.unet, dtype, emit=self.emit).to(self.device())
+            self.controlnets[ck] = cnet.load(kind, self.pipe.unet, dtype, emit=self.emit).to(self.device())
             self.release_memory()  # hand back what loading it used, before the first step
-        key = (kind, img2img)
+        key = (ck, img2img)
         if key not in self.cn_pipes:
-            if self.family == "sdxl":
+            if union:
+                cls = (diffusers.StableDiffusionXLControlNetUnionImg2ImgPipeline if img2img
+                       else diffusers.StableDiffusionXLControlNetUnionPipeline)
+            elif self.family == "sdxl":
                 cls = diffusers.StableDiffusionXLControlNetImg2ImgPipeline if img2img else diffusers.StableDiffusionXLControlNetPipeline
             else:
                 cls = diffusers.StableDiffusionControlNetImg2ImgPipeline if img2img else diffusers.StableDiffusionControlNetPipeline
-            self.cn_pipes[key] = cls.from_pipe(self.pipe, controlnet=self.controlnets[kind], **_keep_dtype(self.pipe))
+            self.cn_pipes[key] = cls.from_pipe(self.pipe, controlnet=self.controlnets[ck], **_keep_dtype(self.pipe))
         return self.cn_pipes[key], cmap
 
     def control_preview(self, args):
@@ -1228,10 +1291,89 @@ class Engine:
         self.emit({"type": "status", "msg": f"Downloading the fast-mode LoRA (first time only, ~{int(gb * 1000)} MB)…"})
         return hf_hub_download(repo, fname)
 
+    def _generate_anima(self, args, model_id, spec, prompts, negatives, originals, width, height, steps, cfg, seeds,
+                        init_image, strength, force=False):
+        """Anima (diffusers modular pipeline): text to image, or image to image with a start picture."""
+        import anima
+        if args.get("loras"):
+            self.emit({"type": "status", "msg": "LoRAs aren't used with Anima yet: making the picture without them."})
+        self.load(model_id, force=force)
+        pipe = self.pipe
+        anima.set_guidance(pipe, cfg)
+        t = self.torch()
+        results = []
+        n = len(prompts)
+        for i in range(n):
+            self.wait_if_paused()
+            if self.cancel_event.is_set():
+                raise Cancelled()
+            started = time.time()
+            last_preview = [0.0]
+
+            def on_step(step, _i=i):
+                self.wait_if_paused()
+                if self.cancel_event.is_set():
+                    raise Cancelled()
+                if self.skip_event.is_set():
+                    raise Skipped()
+                self.emit({"type": "progress", "image": _i + 1, "images": n, "step": min(step + 1, steps), "steps": steps})
+                if step == 0 or (step + 1) % 5 == 0:
+                    print(f"[timing] anima step {step + 1}/{steps}: {time.time() - started:.1f}s elapsed", flush=True)
+
+            watch = anima.StepWatch(pipe.transformer, on_step)
+            kw = dict(prompt=prompts[i], negative_prompt=negatives[i] or "", height=height, width=width,
+                      num_inference_steps=steps, generator=t.Generator("cpu").manual_seed(seeds[i]), output_type="pil")
+            if init_image is not None:
+                kw.update(image=init_image.resize((width, height)), strength=strength)
+            self.emit({"type": "status", "msg": f"Generating image {i + 1} of {n} (Anima)…"})
+            self.skip_event.clear()
+            try:
+                out = pipe(**kw)
+            except Skipped:
+                continue
+            finally:
+                watch.remove()
+            image = out.images[0] if hasattr(out, "images") else out.get("images")[0]
+            secs = time.time() - started
+            print(f"[timing] anima image {i + 1}/{n}: {secs:.1f}s for {steps} steps at {width}x{height}", flush=True)
+            face_info = None
+            if args.get("restore_faces"):
+                image, face_info = self._restore_faces(image, args)
+            settings = {"model": model_id, "prompt": prompts[i], "negative_prompt": negatives[i], "width": image.width,
+                        "height": image.height, "steps": steps, "cfg": cfg, "sampler": "flow_euler", "seed": seeds[i],
+                        "seconds": round(secs, 1), "loras": [], "licence": anima.LICENCE}
+            if originals[i] != prompts[i]:
+                settings["original_prompt"] = originals[i]
+            if init_image is not None:
+                settings.update(init_image=str(args["init_image"]), strength=strength)
+            if face_info:
+                settings["face_restore"] = face_info
+            path = self._save(image, settings)
+            record = self.library.add_image(path, settings, kind="img2img" if init_image is not None else "generated")
+            record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
+            record = self._people_check(self._content_check(record, image), image)
+            results.append(record)
+            self.emit({"type": "image", "record": record})
+        self.release_memory()
+        return results
+
     def _generate_mlx(self, args, model_id, spec, prompt, negative, width, height, steps, cfg, n, seed,
                       original_prompt, force=False):
         """ERNIE and FLUX on the fast engine (MLX worker process)."""
         import mlx_engine
+        mlx_init, mlx_strength = None, None
+        if args.get("init_image"):
+            if spec["family"] not in ("flux", "ernie"):
+                raise UserError("FLUX.2 Klein changes a picture with ✨ Edit with words (Image to image): pick it there.")
+            import pictures
+            from PIL import Image as _Im
+            src = _Im.open(pictures.prepare(args["init_image"])).convert("RGB").resize((width, height), _Im.LANCZOS)
+            tmp = paths.HOME / "tmp"
+            tmp.mkdir(parents=True, exist_ok=True)
+            mlx_init = str(tmp / f"mlx_init_{int(time.time() * 1000)}.png")
+            src.save(mlx_init)
+            # mflux's image strength is how much of the picture to keep: the opposite of "change strength"
+            mlx_strength = max(0.05, min(0.95, 1.0 - float(args.get("strength", 0.6))))
         from PIL import Image
         fam = spec["family"]
         fam_name = {"ernie": "ERNIE", "flux": "FLUX", "flux2": "FLUX.2"}.get(fam, fam)
@@ -1272,9 +1414,12 @@ class Engine:
 
                 self.skip_event.clear()
                 try:
-                    self.mlx.request({"cmd": "generate", "prompt": p_i, "negative_prompt": n_i,
-                                      "width": width, "height": height, "steps": steps, "cfg": cfg, "seed": img_seed,
-                                      "out": str(out), "preview": self.previews}, on_event=on_event,
+                    req = {"cmd": "generate", "prompt": p_i, "negative_prompt": n_i,
+                           "width": width, "height": height, "steps": steps, "cfg": cfg, "seed": img_seed,
+                           "out": str(out), "preview": self.previews}
+                    if mlx_init:  # start from a picture (model chain, image to image): FLUX.1 and ERNIE
+                        req.update(init_image=mlx_init, image_strength=mlx_strength)
+                    self.mlx.request(req, on_event=on_event,
                                      skip_event=self.skip_event)
                 except mlx_engine.CancelledError:
                     if self.skip_event.is_set() and not self.cancel_event.is_set():
@@ -1661,6 +1806,7 @@ class Engine:
         self.enhancer = None
         self.depth_estimator = None
         self.face_finder = None
+        self.face_swapper = None
         self.pose_detector = None
         self.nsfw_checker = None
         self.release_memory()
@@ -1831,6 +1977,8 @@ class Engine:
         keep: optional list; the PIL images are appended to it (used by the comparison grid)."""
         from PIL import Image
         import wildcards
+        import prompt_edit
+        import prompt_weights
         model_id = args["model"]
         models = all_models()
         if model_id not in models:
@@ -1872,8 +2020,9 @@ class Engine:
         # image-to-image
         init_image, strength = None, None
         if args.get("init_image"):
-            if not is_sd:
-                raise UserError("Image-to-image works with SD 1.5 and SDXL for now (not ERNIE or FLUX).")
+            if not is_sd and family != "anima" and not (spec.get("engine") == "mlx" and family in ("flux", "ernie")):
+                raise UserError("Image-to-image works with SD 1.5, SDXL, Anima, FLUX.1 and ERNIE (fast engine). "
+                                "For FLUX.2 Klein use ✨ Edit with words.")
             init_image = open_image(args["init_image"], "start image for image-to-image")
             strength = max(0.05, min(1.0, float(args.get("strength", 0.6))))
 
@@ -1903,6 +2052,7 @@ class Engine:
         # ControlNet (Image to image tab): follow a control map made from an image
         control = args.get("control") if isinstance(args.get("control"), dict) and (args.get("control") or {}).get("type") else None
         control_src = None
+        cnet_union, cnet_mode = False, None
         if control:
             if mask is not None:
                 raise UserError("Inpainting/expanding and ControlNet can't be combined yet: switch one off.")
@@ -1919,6 +2069,8 @@ class Engine:
             if not src_path:
                 raise UserError("Add an image for the ControlNet to follow.")
             control_src = open_image(src_path, "ControlNet image")
+            cnet_union = cnet.is_union(control["type"])
+            cnet_mode = cnet.union_mode(control["type"]) if cnet_union else None
             if args.get("use_init_size") and init_image is None:
                 scale = min(1.0, _max_side(family) / max(control_src.size))
                 width, height = int(control_src.width * scale), int(control_src.height * scale)
@@ -1932,7 +2084,7 @@ class Engine:
         if family == "sdxl":
             clip_skip = max(2, clip_skip)  # SDXL always reads the second-to-last layer: that *is* "CLIP skip 2"
         extra_skip = clip_skip - (2 if family == "sdxl" else 1)  # diffusers' clip_skip
-        mult = 16 if family in ("ernie", "flux", "flux2") else 8
+        mult = 16 if family in ("ernie", "flux", "flux2", "anima") else 8
         width, height = max(mult * 8, width - width % mult), max(mult * 8, height - height % mult)
 
         # extras
@@ -1978,6 +2130,9 @@ class Engine:
         if spec.get("engine") == "mlx":
             return self._generate_mlx(args, model_id, spec, prompts, negatives, width, height, steps, cfg, n, seed,
                                       originals, force=force)
+        if family == "anima":
+            return self._generate_anima(args, model_id, spec, prompts, negatives, originals, width, height, steps, cfg,
+                                        seeds, init_image, strength, force=force)
 
         lean = self.is_lean(spec)
         lean_enc = {}
@@ -1987,6 +2142,8 @@ class Engine:
                 lean_enc[text] = emb
 
         self.load(model_id, force=force, low_memory=low_memory)
+        if is_sd:  # 🧱 Seamless: every edge wraps around, so the picture tiles (textures, patterns, wallpapers)
+            _set_seamless(self.pipe, bool(args.get("seamless")))
         if self.cancel_event.is_set():  # stopped while the model was loading
             raise Cancelled()
         self._apply_vae(args.get("vae"), family)
@@ -2041,6 +2198,31 @@ class Engine:
             return out
 
         t = self.torch()
+        # 🗺 Regional prompts: each area of the picture follows its own prompt (SD 1.5 / SDXL)
+        reg_proc = None
+        rg = args.get("regions") if isinstance(args.get("regions"), dict) else None
+        rg_prompts = [p_.strip() for p_ in (rg or {}).get("prompts") or [] if isinstance(p_, str) and p_.strip()]
+        if rg and len(rg_prompts) >= 2:
+            if not is_sd:
+                raise UserError("Regional prompts work with SD 1.5 and SDXL models.")
+            if ip_image is not None:
+                raise UserError("Regional prompts and an image prompt (IP-Adapter) can't be combined yet: switch one off.")
+            import regions
+            boxes = regions.parse_layout(rg.get("layout") or "cols", rg.get("ratios") or "", len(rg_prompts))
+            common = (prompts[0] if rg.get("use_main", True) else "").strip()
+            embeds = []
+            for rp in rg_prompts:
+                full = f"{common}, {rp}" if common else rp
+                with t.no_grad():
+                    if family == "sdxl":
+                        embeds.append(self.pipe.encode_prompt(full, device=self.device(), num_images_per_prompt=1,
+                                                              do_classifier_free_guidance=False)[0])
+                    else:
+                        embeds.append(self.pipe.encode_prompt(full, self.device(), 1, False)[0])
+            reg_masks = regions.masks(boxes, height // 8, width // 8, self.device(), self.pipe.unet.dtype)
+            reg_proc = regions.RegionalAttn(embeds, reg_masks, (height // 8, width // 8),
+                                            base_weight=float(rg.get("base", 0.2)), cfg=cfg > 1)
+            self.emit({"type": "status", "msg": f"Regional prompts: {len(rg_prompts)} areas"})
         results = []
         for i in range(n):
             self.wait_if_paused()
@@ -2083,11 +2265,36 @@ class Engine:
                                        f"Very slow ({per:.0f} s a step): this Mac is short of memory and is using the disk instead. "
                                        "Close other big apps, use a smaller size or fewer LoRAs/extras, or turn on Low-memory mode "
                                        "in Settings. Tools → Force stop restarts the engine and frees its memory."})
+                # [cat:dog:0.5] prompt editing: switch to the next prompt when its share of the steps is reached
+                if edits and "prompt_embeds" in kw:
+                    f = (step + 1) / max(1, total)
+                    while edits and f >= edits[0][0]:
+                        _f, emb = edits.pop(0)
+                        both = p.do_classifier_free_guidance if hasattr(p, "do_classifier_free_guidance") else cfg > 1
+                        pe_t = emb["prompt_embeds"].to(kw["prompt_embeds"].device, kw["prompt_embeds"].dtype)
+                        kw["prompt_embeds"] = t.cat([emb["negative_prompt_embeds"].to(pe_t), pe_t]) if both else pe_t
+                        if "add_text_embeds" in kw and "pooled_prompt_embeds" in emb:
+                            pp = emb["pooled_prompt_embeds"].to(kw["add_text_embeds"])
+                            kw["add_text_embeds"] = t.cat([emb["negative_pooled_prompt_embeds"].to(pp), pp]) if both else pp
+                        phase["edit"] = phase.get("edit", 0) + 1
                 return kw
 
+            edits = []
+            sched = prompt_edit.schedule(prompt, steps) if is_sd and prompt_edit.has_edits(prompt) else []
             call = dict(num_inference_steps=steps, guidance_scale=cfg, generator=gen, callback_on_step_end=on_step)
-            if is_sd:
-                call.update(text_args(prompt, negative))
+            if len(sched) > 1:
+                # each version of the prompt is encoded up front; the pipeline starts with the first
+                encs = [prompt_weights.encode(self.pipe, family, txt, negative, clip_skip, cfg) for _f, txt in sched]
+                call.update(encs[0])
+                edits = [(f, e) for (f, _txt), e in zip(sched[1:], encs[1:])]
+                names = list(getattr(pipe, "_callback_tensor_inputs", []))
+                want = [k for k in ("latents", "prompt_embeds", "add_text_embeds") if k in names]
+                call["callback_on_step_end_tensor_inputs"] = want
+                if "prompt_embeds" not in want:
+                    edits = []
+                    self.emit({"type": "status", "msg": "Prompt editing ([a:b:0.5]) isn't available in this mode: using the first prompt."})
+            elif is_sd:
+                call.update(text_args(sched[0][1] if sched else prompt, negative))
             if var_on and init_image is None and mask is None:
                 # 🎲 Small change: start from this seed's noise nudged towards the variation seed's
                 ch = int(pipe.unet.config.in_channels)
@@ -2099,7 +2306,13 @@ class Engine:
                 call.update(controlnet_conditioning_scale=float(control.get("scale", 1.0)),
                             control_guidance_start=float(control.get("start", 0.0)),
                             control_guidance_end=float(control.get("end", 1.0)))
-                if init_image is not None:
+                if cnet_union:  # Union ProMax: the map goes in as a list with its control mode
+                    call.update(control_image=[control_map], control_mode=[cnet_mode])
+                    if init_image is not None:
+                        call.update(image=init_image, strength=strength)
+                    else:
+                        call.update(width=width, height=height)
+                elif init_image is not None:
                     call.update(image=init_image, control_image=control_map, strength=strength)
                 else:
                     call.update(image=control_map, width=width, height=height)
@@ -2131,6 +2344,7 @@ class Engine:
             started = time.time()
             self.skip_event.clear()
             extras_info = {}
+            reg_orig = regions.install(pipe.unet, reg_proc) if reg_proc is not None else None
             try:
                 image = pipe(**call).images[0]
                 if _looks_blank(image) and control:
@@ -2168,6 +2382,9 @@ class Engine:
                     image, extras_info["hires"] = self._hires_fix(image, hires, text_args(prompt, negative), ip_image,
                                                                   img_seed, scheduler, steps, cfg, on_step)
                     phase["name"] = ""
+                if reg_orig is not None:  # the face detailer redraws crops: no regions there
+                    regions.remove(pipe.unet, reg_orig)
+                    reg_orig = None
                 if det:
                     phase["name"] = "Face detailer"
                     image, extras_info["face_detailer"] = self._face_detail(
@@ -2178,6 +2395,9 @@ class Engine:
                 self.emit({"type": "status", "msg": f"Skipped image {i + 1} of {n}"})
                 self.emit({"type": "skipped", "image": i + 1, "images": n})
                 continue
+            finally:
+                if reg_orig is not None:
+                    regions.remove(pipe.unet, reg_orig)
             print(f"[timing] image {i + 1}/{n}: {time.time() - started:.1f}s for {steps} steps "
                   f"at {width}x{height} ({(time.time() - started) / max(1, steps):.2f}s/step)", flush=True)
             face_info = None
@@ -2190,6 +2410,9 @@ class Engine:
                 "model": model_id, "prompt": prompt, "negative_prompt": negative,
                 "width": image.width, "height": image.height, "steps": steps, "cfg": cfg,
                 "sampler": sampler_id, "seed": img_seed, **({"fast": True} if fast else {}),
+                **({"seamless": True} if args.get("seamless") and is_sd else {}),
+                **({"regions": {k: rg.get(k) for k in ("layout", "ratios", "base")} | {"prompts": rg_prompts}}
+                   if reg_proc is not None else {}),
                 **({"var_seed": (var_seed + i) % 2**32, "var_strength": var_strength}
                    if var_on and init_image is None and mask is None else {}),
                 **({"clip_skip": clip_skip} if is_sd else {}),
@@ -3035,6 +3258,219 @@ class Engine:
         record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="word_edit")
         record["thumb"] = str(thumbs.make(record["id"], path, result) or "") or None
         record = self._content_check(record, result)
+        self.emit({"type": "image", "record": record})
+        return record
+
+    def animate(self, args):
+        """🎞 AnimateDiff: a short clip (8–24 frames) from the prompt, with the SD 1.5 model picked in Create."""
+        import animate as anim
+        model_id = args.get("model")
+        spec = all_models().get(model_id) or {}
+        if spec.get("family") != "sd15" or spec.get("engine") == "mlx" or spec.get("inpaint"):
+            raise UserError("Animations use an SD 1.5 model (AnimateDiff is made for SD 1.5): pick one in Create.")
+        prompt = (args.get("prompt") or "").strip()
+        if not prompt:
+            raise UserError("Type a prompt first.")
+        frames = max(8, min(24, int(args.get("frames") or 16)))
+        width = int(args.get("width") or 512) // 8 * 8
+        height = int(args.get("height") or 512) // 8 * 8
+        if 0 < total_ram_gb() < 16:
+            side = 512 if frames <= 16 else 448
+            f = min(1.0, side / max(width, height))
+            width, height = int(width * f) // 8 * 8, int(height * f) // 8 * 8
+        steps = max(8, min(40, int(args.get("steps") or 20)))
+        cfg = float(args.get("cfg") or 7.5)
+        seed = int(args.get("seed") if args.get("seed") not in (None, "", -1) else random.randint(0, 2**31 - 1))
+        fps = max(4, min(16, int(args.get("fps") or 8)))
+        key = ("anim", model_id)
+        if getattr(self, "anim_key", None) != key or getattr(self, "anim_pipe", None) is None:
+            self.anim_pipe = None
+            self.load(model_id)
+            dtype = self.pipe.unet.dtype
+            self.emit({"type": "status", "msg": "Preparing AnimateDiff…"})
+            self.anim_pipe = anim.build(self.pipe, dtype, emit=self.emit).to(self.device())
+            self.anim_key = key
+            self.unload()  # the still-picture model isn't needed while animating (frees its memory)
+            self.anim_pipe.to(self.device())
+        pipe = self.anim_pipe
+        started = time.time()
+
+        def on_step(p, step, timestep, kw):
+            self.wait_if_paused()
+            if self.cancel_event.is_set():
+                raise Cancelled()
+            self.emit({"type": "progress", "image": 1, "images": 1, "step": step + 1, "steps": steps})
+            return kw
+
+        self.emit({"type": "status", "msg": f"Animating {frames} frames at {width} × {height}…"})
+        t = self.torch()
+        out = pipe(prompt=prompt, negative_prompt=args.get("negative_prompt") or "", num_frames=frames,
+                   width=width, height=height, num_inference_steps=steps, guidance_scale=cfg,
+                   generator=t.Generator("cpu").manual_seed(seed), callback_on_step_end=on_step)
+        clip = out.frames[0]
+        day = paths.IMAGES_DIR / datetime.now().strftime("%Y-%m-%d")
+        webp, gif = anim.save(clip, day, f"{datetime.now().strftime('%H%M%S')}_{_slug(prompt)}_{seed}_anim", fps=fps)
+        settings = {"model": model_id, "prompt": prompt, "negative_prompt": args.get("negative_prompt") or "",
+                    "width": width, "height": height, "steps": steps, "cfg": cfg, "seed": seed, "sampler": "ddim",
+                    "animation": {"frames": frames, "fps": fps, "gif": str(gif)}, "licence": anim.LICENCE,
+                    "seconds": round(time.time() - started, 1), "loras": []}
+        record = self.library.add_image(str(webp), settings, kind="animation")
+        record["thumb"] = str(thumbs.make(record["id"], str(webp), clip[0]) or "") or None
+        record = self._content_check(record, clip[len(clip) // 2])
+        self.emit({"type": "image", "record": record})
+        self.release_memory()
+        return record
+
+    QUANT_BITS = {8: "int8", 6: "int6", 4: "uint4"}
+
+    def quantize_model(self, args):
+        """🗜 Make a smaller copy of an SD 1.5 / SDXL model: the UNet (most of its size) stored at 8, 6 or 4 bits
+        with SDNQ, saved as a new model folder. Uses less memory and disk; pictures look nearly the same
+        (8-bit: no visible change, 6-bit: very close, 4-bit: a little softer). It isn't faster per step."""
+        import sdnq
+        model_id = args.get("model")
+        bits = int(args.get("bits") or 8)
+        if bits not in self.QUANT_BITS:
+            raise UserError("Pick 8, 6 or 4 bits.")
+        spec = all_models().get(model_id) or {}
+        if spec.get("family") not in ("sd15", "sdxl") or spec.get("engine") == "mlx" or spec.get("sdnq") or spec.get("quantize_unet"):
+            raise UserError("Smaller copies can be made of SD 1.5 and SDXL models that aren't already reduced.")
+        label = spec["label"].replace(" (your file)", "")
+        dest = paths.QUANT_DIR / f"{_slug(label)}_{bits}bit"
+        need = 2.6 if spec["family"] == "sdxl" else 1.4
+        if free_disk_gb(paths.QUANT_DIR.parent) < need * 1.5 + 2:
+            raise UserError(f"Not enough free disk space for the copy (~{need:.1f} GB).")
+        phases = 4
+        def phase(i, msg):
+            if self.cancel_event.is_set():
+                raise Cancelled()
+            self.emit({"type": "status", "msg": msg})
+            self.emit({"type": "progress", "image": 1, "images": 1, "step": i, "steps": phases})
+        started = time.time()
+        phase(0, f"Loading {label}…")
+        self.load(model_id)
+        pipe = self.pipe
+        phase(1, f"Converting the UNet to {bits}-bit…")
+        pipe.unet = sdnq.sdnq_post_load_quant(pipe.unet, weights_dtype=self.QUANT_BITS[bits], torch_dtype=pipe.unet.dtype)
+        gc.collect()
+        phase(2, f"Saving the {bits}-bit copy…")
+        shutil.rmtree(dest, ignore_errors=True)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            pipe.save_pretrained(str(dest))
+        except Exception as e:
+            shutil.rmtree(dest, ignore_errors=True)
+            raise UserError(f"Couldn't save the copy: {e}")
+        finally:
+            self.unload()  # the loaded model was changed in place: load it fresh next time
+        size = sum(f.stat().st_size for f in dest.rglob("*") if f.is_file()) / 1e9
+        phase(4, f"Saved {label} · {bits}-bit ({size:.1f} GB) in {time.time() - started:.0f} s")
+        return {"path": str(dest), "label": f"{label} · {bits}-bit", "bits": bits, "gb": round(size, 2),
+                "family": spec["family"]}
+
+    def tiled_upscale(self, args):
+        """🧩 Tiled upscale (MultiDiffusion): enlarge a picture and let the Create model (SD 1.5 / SDXL) redraw it
+        lightly, tile by tile, adding real detail. Saved as a new picture."""
+        import tiled
+        src, image = self._source_picture(args)
+        model_id = args.get("model")
+        spec = all_models().get(model_id) or {}
+        family = spec.get("family")
+        if family not in ("sd15", "sdxl") or spec.get("engine") == "mlx" or spec.get("inpaint"):
+            raise UserError("Tiled upscale uses an SD 1.5 or SDXL model: pick one in Create first.")
+        scale = max(1.25, min(4.0, float(args.get("scale") or 2)))
+        limit = 4096 if total_ram_gb() >= 16 else 3072
+        if max(image.size) * scale > limit:
+            scale = limit / max(image.size)
+            if scale < 1.05:
+                raise UserError(f"That picture is already about as big as this Mac can upscale ({limit} px).")
+        self.load(model_id)
+        pipe = self.pipe
+        _set_seamless(pipe, False)
+        sampler = args.get("sampler")
+        if sampler:
+            try:
+                import samplers
+                pipe.scheduler = samplers.build_scheduler(family, sampler, pipe.scheduler.config)
+            except Exception:
+                pass
+        steps = int(args.get("steps") or 20)
+        strength = max(0.1, min(0.7, float(args.get("strength") or 0.35)))
+        cfg = float(args.get("cfg") or (6.0 if family == "sdxl" else 7.0))
+        seed = int(args.get("seed") if args.get("seed") not in (None, "", -1) else random.randint(0, 2**31 - 1))
+        prompt = (args.get("prompt") or "").strip() or (src.get("prompt") if isinstance(src, dict) else "") or "highly detailed, sharp focus"
+        negative = args.get("negative_prompt") or "blurry, lowres, artifacts"
+        started = time.time()
+
+        def on_step(i, total):
+            self.wait_if_paused()
+            if self.cancel_event.is_set():
+                raise Cancelled()
+            self.emit({"type": "progress", "image": 1, "images": 1, "step": i + 1, "steps": total})
+
+        out = tiled.upscale(pipe, family, image, prompt, negative, scale=scale, strength=strength, steps=steps, cfg=cfg,
+                            seed=seed, on_step=on_step, emit=self.emit)
+        settings = {"model": model_id, "prompt": prompt, "negative_prompt": negative, "width": out.width,
+                    "height": out.height, "steps": steps, "cfg": cfg, "seed": seed, "strength": strength,
+                    "tiled_upscale": {"scale": round(scale, 2)}, "seconds": round(time.time() - started, 1)}
+        path = self._save(out, settings, suffix="tiled")
+        record = self.library.add_image(path, settings, parent_id=src.get("id") if isinstance(src, dict) else None, kind="tiled")
+        record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
+        record = self._content_check(record, out)
+        self.emit({"type": "image", "record": record})
+        self.release_memory()
+        return record
+
+    def faceswap(self, args):
+        """🔁 Face swap: the face from args["face"] onto the person (or people) in the picture (init_image / image_id).
+        Only for faces you have permission to use; results that the picture checker finds explicit aren't saved."""
+        import detailer
+        import faceswap as fsw
+        if not args.get("consent"):
+            raise UserError("Tick “I have permission to use this face” first.")
+        _, target = self._source_picture({"image_id": args.get("image_id"), "path": args.get("init_image") or args.get("path")})
+        _, face_pic = self._source_picture({"path": args.get("face")}, "face picture")
+        target, face_pic = target.convert("RGB"), face_pic.convert("RGB")
+        if max(target.size) > 3072:  # very big photos: work on a copy that fits memory
+            s = 3072 / max(target.size)
+            target = target.resize((int(target.width * s), int(target.height * s)))
+        if self.face_swapper is None:
+            if self.face_finder is None:
+                self.emit({"type": "status", "msg": "Preparing the face finder…"})
+                self.face_finder = detailer.FaceFinder(paths.WEIGHTS_DIR / "facexlib")
+            self.face_swapper = fsw.FaceSwapper(self.face_finder.net, emit=self.emit)
+        started = time.time()
+        try:
+            image, n = self.face_swapper.swap(face_pic, target, which=args.get("which") or "all",
+                                              source_index=args.get("face_index") or 0, boost=args.get("boost") or 1)
+        except ValueError as e:
+            msg = str(e)
+            raise UserError(msg[:1].upper() + msg[1:] + ".")
+        info = {"faces": n, "boost": int(args.get("boost") or 1), "licence": fsw.LICENCE}
+        if args.get("restore", True):  # tidy the new face (CodeFormer, blended so skin texture survives)
+            image, finfo = self._restore_faces(image, {"face_model": args.get("face_model") or "codeformer",
+                                                       "face_strength": args.get("face_strength", 0.6),
+                                                       "face_fidelity": args.get("face_fidelity", 0.7)})
+            info["restore"] = finfo
+        # safeguard: a face swap is never saved when the picture checker finds the result explicit
+        try:
+            score = self._get_nsfw_checker().score(image)
+        except Exception as e:
+            print("[engine] face swap check failed:", e, flush=True)
+            raise UserError("Face swap needs the picture checker (it checks every result). Connect to the internet "
+                            "once so it can download (~90 MB), then try again.")
+        import nsfw
+        if score >= nsfw.THRESHOLD:
+            raise UserError("This face swap wasn't saved: the result looks explicit. Face swap only makes "
+                            "non-explicit pictures.")
+        settings = {"prompt": "face swap", "model": "inswapper_128", "width": image.width, "height": image.height,
+                    "seed": 0, "faceswap": info, "seconds": round(time.time() - started, 1),
+                    "licence": fsw.LICENCE}
+        src_id = args.get("image_id")
+        path = self._save(image, settings, suffix="faceswap")
+        record = self.library.add_image(path, settings, parent_id=int(src_id) if src_id is not None else None, kind="faceswap")
+        self.library.set_nsfw_score(record["id"], score)
+        record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
         self.emit({"type": "image", "record": record})
         return record
 

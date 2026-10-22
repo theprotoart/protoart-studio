@@ -21,23 +21,26 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 
 ## What it does
 
-- **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), ERNIE-Image, FLUX.1 Schnell, FLUX.2 Klein 4B
+- **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), Anima (anime), ERNIE-Image, FLUX.1 Schnell, FLUX.2 Klein 4B
   (made for 8 GB Macs) and FLUX.1 Dev (32 GB+); LoRA stacking with per-LoRA weights (sort / filter the list, ★ favourites),
   embeddings, VAEs (each model remembers its own; one-click recommended VAE), 20+ samplers with the top picks per model,
   presets, 📒 saved prompts, wildcards, a random-prompt generator that writes tags or sentences to suit the model, negative
   prompt ✨ suggest / 🎲 random matched to the model, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop, and
   🔬 compare grids picked with keys, 🎲 small change (variation seed), 📒 saved prompts with export / import, ✨ enhance and 🔄 contrast prompts, and your own default sampler / steps / guidance per
-  model and default weight per LoRA
+  model and default weight per LoRA, 🗺 regional prompts, A1111-style prompt editing, 🧱 seamless tiling, 🎞 AnimateDiff
+  clips, and 📥 settings from A1111 / ComfyUI / InvokeAI pictures or .json
 - **Image to image:** ✨ Edit with words (FLUX.2 Klein: describe a change; paint to limit it; add reference pictures),
   change / inpaint / expand (any picture, with FLUX.2 Klein + an outpaint LoRA) / 🩹 remove, selection tools (brush, lasso, polygon lasso, magic wand, object selection),
   ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile, and your own SD 1.5 and SDXL ControlNets), image prompt
-  (IP-Adapter), face detailer, CodeFormer presets
+  (IP-Adapter), face detailer, CodeFormer presets, ControlNet Union ProMax for SDXL, 🔁 face swap (non-commercial,
+  consent required), and a 🔗 model chain (SD 1.5 → SDXL → FLUX / ERNIE)
 - **Tools** (rack modules): Finegrain enhance & upscale, face restoration (CodeFormer or RestoreFormer), 🩹 remove objects
   (paint right in Tools; smart or quick fill), ✒️ vectorize to SVG, image → prompt (Qwen3.5 vision model, Florence-2 or
   WD tagger), depth maps, 🎚 Adjust (Lightroom / Color Efex-style), DiffusionBee file conversion, Original / Result /
   Split / Side-by-side views, and a 🔌 patchbay to run Remove, Faces, Enhance, Depth, Vectorize and 🔎 Detail (with a LoRA)
   in any order with cables (modules can be moved, added twice or taken off; each copy has its own settings; 🛡 paint areas
-  it must not change; live preview), plus `.ckpt` → `.safetensors` conversion
+  it must not change; live preview), 🧩 tiled upscale (MultiDiffusion), 🗜 smaller 8 / 6 / 4-bit model copies, 🧪 model
+  merger, plus `.ckpt` → `.safetensors` conversion
 - **Library:** right-click menu; search by prompt, seed, model or LoRA; drag to select many; ⇆ compare side by side with linked zoom; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
   first); batch edit & export; 🗜 compress to the smallest file that still looks the same
 - **Train:** LoRA training (SD 1.5 / SDXL; ERNIE on 32 GB+ Macs), embedding training (SD 1.5), square crop / keep-whole
@@ -134,8 +137,10 @@ allow commercial use, for example:
 
 - SD 1.5, Juggernaut Reborn, ControlNet 1.1: CreativeML OpenRAIL-M · SDXL: CreativeML OpenRAIL++-M
 - ERNIE-Image, FLUX.1 [schnell], IP-Adapter, Qwen2.5, WD tagger, Depth Anything V2 Small, Qwen3.5 4B: Apache-2.0 · Florence-2: MIT · mlx-vlm: MIT
+- Xinsir ControlNet Union ProMax, AnimateDiff motion adapter: Apache-2.0
 - **Non-commercial:** the enhancer's 4x-UltraSharp upscaler (CC BY-NC-SA 4.0), Depth Anything V2 Base / Large
-  (CC BY-NC 4.0)
+  (CC BY-NC 4.0), Anima / Anima Turbo (CircleStone Labs Non-Commercial; pictures may be used commercially), the face
+  swap models inswapper_128 and ArcFace (InsightFace, non-commercial research only)
 - Models and LoRAs from Civitai: whatever their author chose (shown on the model's page)
 
 The full list is in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Check a model's own page for its current terms

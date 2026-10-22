@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.3.0
+
+- Anima (CircleStone Labs, Cosmos-Predict2 2B + Qwen3 0.6B + Qwen-Image VAE) through diffusers' modular
+  `AnimaModularPipeline` (`backend/anima.py`): official diffusers files; Anima Turbo = the official
+  `anima-turbo-v1.1` ComfyUI file converted on load (`model.diffusion_model.` → Cosmos `net.` names → diffusers,
+  plus its own `llm_adapter` → `text_conditioner` weights). 8 GB Macs: text encoder / transformer rotate out of GPU
+  memory around their steps, VAE tiling. Text to image and image to image; `anima_turbo`, `anima_base` catalogue entries
+- Regional prompts (`backend/regions.py`): columns / rows / grid layouts, a cross-attention processor where the
+  cond half attends per region (masks at each layer's resolution) blended with the whole prompt (`base`)
+- Model chain (Image to image): sequential `generate` jobs across models; fast engine img2img for FLUX.1 / ERNIE
+  (mflux `image_path` / `image_strength`)
+- Tiled upscale (`backend/tiled.py`, MultiDiffusion): per-step averaged tile noise predictions with Gaussian
+  weights, VAE tiling, SDXL per-tile time ids
+- Face swap (`backend/faceswap.py`): RetinaFace landmarks (facexlib), ArcFace w600k_r50 identity → inswapper_128
+  (fp16, ONNX Runtime, CPU), optional 256 px "pixel boost" (2 × 2 tiles), soft inverse-warp paste, CodeFormer tidy;
+  consent required, NSFW-checked (explicit results refused), non-commercial labelling. New dependency: `onnx`
+- ControlNet Union ProMax (SDXL): `union:<map>` types → `ControlNetUnionModel` + the Union (img2img) pipelines with
+  `control_mode`; "Which one should I use?" guide (IP-Adapter Plus / Plus Face / Union)
+- AnimateDiff (`backend/animate.py`, motion adapter v1-5-3): animated WebP + GIF, Library kind `animation`
+- Smaller copies: SDNQ int8 / int6 / uint4 UNet copies saved as model folders (`quantize_model`)
+- Checkpoint merger (`backend/ckpt_merge.py`): weighted sum / add difference, streamed safetensors writer
+- Prompt editing (`backend/prompt_edit.py`): `[a:b:when]`, `[a:when]`, `[a::when]`, switched via
+  `callback_on_step_end` (`prompt_embeds`, SDXL `add_text_embeds`)
+- Seamless tiling (`_set_seamless`: circular padding in UNet and VAE convolutions)
+- Settings import (`backend/settings_import.py`): A1111 / Forge `parameters`, ComfyUI API graphs and workflows,
+  InvokeAI, this app's own; PNG text chunks, EXIF user comments, .json; ⤓ Settings .json export
+- Fixed: patchbay DETAIL step took the `generate` result list as one picture
+
 ## 1.2.2 (test version for friends)
 
 - Speed / ControlNet: diffusers' `from_pipe` casts to float32 unless given a dtype, so every ControlNet, img2img and

@@ -166,7 +166,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("animate", "quantize", "tiled_upscale", "ckpt_merge", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -260,6 +260,16 @@ def job_label(cmd, a):
             f" · image #{a.get('image_id')}"
     if cmd == "enhance_prompt":
         return "Enhance prompt"
+    if cmd == "faceswap":
+        return "Face swap"
+    if cmd == "animate":
+        return "Animation (AnimateDiff)"
+    if cmd == "quantize":
+        return f"Make a {a.get('bits', 8)}-bit copy"
+    if cmd == "tiled_upscale":
+        return "Tiled upscale" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
+    if cmd == "ckpt_merge":
+        return "Merge two models"
     if cmd == "ckpt_convert":
         return "Convert " + os.path.basename(str(a.get("path") or "")) + " to .safetensors"
     if cmd == "heal":
@@ -967,7 +977,7 @@ def handle_quick(cmd, a):
             errors = [e for e in errors if "LoRA" not in e and "DiffusionBee" not in e]
         return {"found": out, "errors": errors, "lora_folders": lora_folders}
     if cmd == "model_local_add":
-        keep_keys = ("id", "path", "kind", "family", "class_name", "label", "download_gb")
+        keep_keys = ("id", "path", "kind", "family", "class_name", "label", "download_gb", "bits")
         for m in a.get("models") or []:
             entry = {k: m.get(k) for k in keep_keys}
             if not entry["id"] or not entry["path"] or entry["family"] not in model_hub.DEFAULTS:
@@ -1018,6 +1028,17 @@ def handle_quick(cmd, a):
         dirs = [str(paths.MODELS_DIR)] + list(model_hub.MODEL_DIRS) + [os.path.dirname(m.get("path") or m.get("file") or "")
                                                                       for m in (model_hub.USER_MODELS or []) if isinstance(m, dict)]
         return {"items": ckpt_convert.find_ckpts([d for d in dict.fromkeys(dirs) if d]), "out_dir": str(paths.MODELS_DIR)}
+    if cmd == "read_settings":  # Create → 📥 load settings from a picture or a .json (read only)
+        import settings_import
+        path = a.get("path") or ""
+        if not os.path.isabs(path) or not os.path.isfile(path):
+            raise ValueError("That file wasn't found.")
+        try:
+            return settings_import.read(path)
+        except ValueError:
+            raise
+        except Exception as e:
+            raise ValueError(f"Couldn't read settings from that file ({type(e).__name__}).")
     if cmd == "main_folder_get":
         return main_folder_state()
     if cmd == "main_folder_set":
@@ -1860,6 +1881,33 @@ def run_job(kind, a):
         return eng.vectorize(a)
     if kind == "edit_words":
         return eng.edit_words(a)
+    if kind == "faceswap":
+        return eng.faceswap(a)
+    if kind == "tiled_upscale":
+        return eng.tiled_upscale(a)
+    if kind == "animate":
+        return eng.animate(a)
+    if kind == "quantize":
+        r = eng.quantize_model(a)
+        entry = {"id": "local:" + r["path"], "path": r["path"], "kind": "folder", "family": r["family"],
+                 "class_name": None, "label": r["label"], "download_gb": r["gb"], "bits": r["bits"]}
+        model_hub.LOCAL_MODELS[:] = [x for x in model_hub.LOCAL_MODELS if x.get("id") != entry["id"]] + [entry]
+        library.set_setting("local_models", model_hub.LOCAL_MODELS)
+        model_hub.invalidate()
+        return dict(r, id=entry["id"])
+    if kind == "ckpt_merge":
+        import ckpt_merge
+        from engine import UserError, Cancelled
+        eng.unload()
+        try:
+            r = ckpt_merge.merge(a.get("a"), a.get("b"), float(a.get("multiplier", 0.5)), mode=a.get("mode") or "sum",
+                                 c=a.get("c"), name=a.get("name"), emit=eng.emit, cancel_event=eng.cancel_event)
+        except ValueError as e:
+            raise UserError(str(e))
+        except InterruptedError:
+            raise Cancelled()
+        model_hub.invalidate()
+        return r
     if kind == "ckpt_convert":
         import ckpt_convert
         from engine import UserError

@@ -319,6 +319,11 @@ def local_to_spec(m):
         "min_ram_gb": max(8, round(float(m.get("download_gb") or 0) * 1.3)), "quant": None, "source": "local",
         "defaults": dict(DEFAULTS[family]), "class_name": m.get("class_name"),
     }
+    if m.get("bits"):  # a smaller copy made in Tools → Quantize: its own label, and it fits in less memory
+        spec["label"] = m.get("label") or spec["label"]
+        spec["quant"] = f"{m['bits']}-bit"
+        spec["min_ram_gb"] = 8
+        spec["sdnq"] = True
     if m.get("kind") == "folder":
         spec["local_dir"] = m["path"]
     else:

@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["ckpt_merge", "faceswap", "tiled_upscale", "animate", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
@@ -78,6 +78,9 @@ function defaultForm() {
   return { model: "sdxl", prompt: "", negative_prompt: "", width: 1024, height: 1024, steps: 30, cfg: 6,
     sampler: "", seed: -1, num_images: 1, loras: [],
     var_seed: -1, var_strength: 0,  // 🎲 Small change (variation seed): 0 = off
+    seamless: false,  // 🧱 Seamless: the picture tiles
+    regions: { on: false, layout: "cols", ratios: "1,1", prompts: ["", ""], base: 0.2, use_main: true },  // 🗺 Regional prompts
+    swap: { face: "", which: "all", boost: 1, restore: true, consent: false },  // 🔁 Face swap (Image to image)
     vae: "",
     restore_faces: false, face_strength: 0.8, face_model: "codeformer", face_fidelity: 0.5, enhance_prompt: false, clip_skip: 1, quality_tags: true,
     init_image: "", strength: 0.6, use_init_size: false, size_link: false, size_ratio: 1,
@@ -114,10 +117,10 @@ const SAMPLER_PICKS = {
   flux: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
   flux2: { fast: ["flow_euler"], quality: [] },
 };
-const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}];
+const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "AnimateDiff motion adapter", "licence": "Apache-2.0", "note": ""}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}];
 const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677" };
-const I2I_KINDS = ["img2img", "healed", "word_edit", "inpaint", "outpaint", "controlnet"];  // pictures made in Image to image
-const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "Klein 4B", sd2: "SD 2" };  // FLUX.2 [klein] 4B: named by the model, so its LoRAs and models match
+const I2I_KINDS = ["img2img", "healed", "word_edit", "inpaint", "outpaint", "controlnet", "faceswap"];  // pictures made in Image to image
+const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "Klein 4B", anima: "Anima", sd2: "SD 2" };  // FLUX.2 [klein] 4B: named by the model, so its LoRAs and models match
 const OPTS_KEY = "beestudio.opts";
 const PERF_KEY = "protoart.perf";
 // Tools → Patchbay: the back of the rack. Each module has an IN and an OUT jack; a cable from one module's OUT to the
@@ -348,6 +351,8 @@ const protoartApp = createApp({
                  lora_weight: "LoRA weight", lora: "Which LoRA", strength: "Change strength (Image to image)" },
       form: (() => {
         const f = Object.assign(defaultForm(), loadJSON(FORM_KEY, {}));
+        f.regions = { ...defaultForm().regions, ...(f.regions || {}) };
+        f.swap = { ...defaultForm().swap, ...(f.swap || {}), consent: false };  // permission is asked again each time the app opens
         if (!loadJSON("protoart.cfDefault", false)) {  // 1.2: CodeFormer became the default face model (once)
           f.face_model = "codeformer";
           saveJSON("protoart.cfDefault", true);
@@ -383,6 +388,12 @@ const protoartApp = createApp({
       ask: null,             // the "Are you sure?" box (confirmAsk)
       promptPresets: loadJSON("protoart.prompts", []),   // 📒 My prompts
       promptIoMsg: "",
+      anim: { frames: 16, fps: 8 },  // 🎞 AnimateDiff
+      qnt: { model: "", bits: 8, msg: "" },  // Tools → Smaller copy
+      tup: { scale: 2, strength: 0.35, steps: 20 },  // Tools → Tiled upscale
+      mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
+      chain: { steps: loadJSON("protoart.chain", []), running: false, stopped: false, at: -1 },  // 🔗 Model chain
+      swapOver: false,
       promptBox: null,       // the 📒 My prompts window: {name} = saving, {name: null} = managing
       undoNegative: null,
       lastAutoNegative: "",
@@ -463,12 +474,29 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.3.0: new tools", items: [
+              "<b>New model: Anima</b> (CircleStone Labs, anime and illustration; Danbooru tags, sentences or both). <b>Anima Turbo</b> makes a picture in 10 steps; <b>Anima</b> uses 30 steps for the most detail. ~5.9 GB once, in the Models tab under Anima. Non-commercial licence for the model (pictures may be used commercially). It can also start from a picture in Image to image.",
+              "<b>🗺 Regions</b> (Create, SD 1.5 and SDXL): a different prompt for each part of the picture: columns, rows or a grid, with a small map of the areas. “Keep one scene” blends them so it stays one picture.",
+              "<b>🔗 Model chain</b> (Image to image → 🔄 Change it): run a picture through several models in turn, e.g. SD 1.5 → SDXL → FLUX.1 or ERNIE, each with its own change strength. FLUX.1 Schnell and ERNIE (fast engine) can now start from a picture too.",
+              "<b>🧩 Tiled upscale</b> (Tools): enlarges a picture 1.5–3× and lets your Create model add real detail tile by tile (MultiDiffusion), with no seams and little memory.",
+              "<b>🔁 Face swap</b> (Image to image): put the face from one photo onto the person in another, tidied with CodeFormer (fidelity 0.7, 60%). Only for faces you have permission to use; non-commercial licence (inswapper_128); explicit results aren't saved.",
+              "<b>ControlNet Union ProMax for SDXL</b>: one ~2.5 GB model for Canny, Depth, OpenPose, Line art, Scribble, Soft edges and Tile with any SDXL, Pony, Illustrious or NoobAI model. <b>Which one should I use?</b> (Image prompt and ControlNet) sets up the right tool for “the same person”, “copy a style or outfit” or “follow a pose or drawing”.",
+              "<b>🎞 Animation</b> (Create, SD 1.5): short clips with AnimateDiff (8–24 frames), saved to the Library as an animated picture with a GIF beside it.",
+              "<b>🗜 Smaller copy</b> (Tools): make an 8, 6 or 4-bit copy of an SD 1.5 or SDXL model that needs less memory. <b>🧪 Model merger</b> (Tools): blend two models into a new one, or add a difference.",
+              "<b>Prompt editing</b> like A1111: <i>[cat:dog:0.5]</i> switches halfway through the steps, <i>[hat:0.3]</i> adds a word later, <i>[hat::0.3]</i> removes it. <b>🧱 Seamless</b> (Create): pictures that tile with no seam.",
+              "<b>📥 Settings</b> (Create, next to List): load the settings a picture was made with (A1111, ComfyUI, InvokeAI or this app write them into PNGs) or a .json (a ComfyUI workflow, or ⤓ Settings .json from a picture's details). Dropping a .json on the prompt box works too.",
+              "Fixed: the patchbay's DETAIL module lost track of its picture after the redraw." ] },
             { h: "1.2.2 (test version for friends): fixes from your notes", items: [
               "<b>ControlNet works again, and Image to image is much faster</b>. Switching to ControlNet, Image to image or Inpaint quietly turned the model into full precision: twice the memory, so 8 GB Macs crawled (20 minutes and more), and the ControlNet guidance pushed the picture off course, which gave flat grey (Canny), noise (Scribble) or nothing at all. The model now keeps its precision. Depth and OpenPose also free their helper model once the map is made.",
               "<b>Tile, OpenPose and Scribble no longer say “couldn't reach huggingface.co”</b> when you are online: Tile's file is in an older format (now read too), and a file that's genuinely missing on Hugging Face says so instead of blaming your internet.",
               "<b>Inpainting models</b> (files with “inpainting” in the name) load for Inpaint and Expand instead of failing with a conv_in size error.",
               "<b>Patchbay</b>: a <b>SELECT</b> tab at the bottom of each module picks it; the rack unit below then shows <b>that module's settings</b>, with a ⚙ FACES 2 badge so you know which copy you're editing (no second settings panel). <b>✕</b> on a module takes it off the rack (bring it back from Add a module). New <b>🔎 DETAIL</b> module: a light redraw with an “add detail” LoRA. <b>🛡 Protect areas…</b>: paint parts of the picture the rack must not change. The picture forming shows in Tools while it runs.",
               "<b>CodeFormer presets</b> (Restore faces, in Create and Tools): Balanced, Keep likeness, Heavy repair, Subtle touch-up, Old photo, Gentle. Each sets fidelity and strength; you can still change both.",
+              "<b>🗺 Regions</b> (SD 1.5 and SDXL): tick <i>Use regional prompts</i>, pick Columns, Rows or Grid and the sizes (1,1 = halves; 1,2 = a third and two thirds; Grid 1,1;1 = two on top, one below), and write a prompt for each numbered area. The main prompt above describes the whole scene and applies everywhere; <i>Keep one scene</i> sets how much (0.2 is a good start).",
+              "<b>Prompt editing</b>: <i>[cat:dog:0.5]</i> draws a cat for the first half of the steps and a dog after (a dog in a cat's pose); a number above 1 is a step (<i>[cat:dog:10]</i>). <i>[hat:0.3]</i> adds “hat” after 30 %, <i>[hat::0.3]</i> removes it. SD 1.5 and SDXL.",
+              "<b>🧱 Seamless</b>: the picture's edges wrap around, so copies placed side by side join with no seam: textures, patterns, wallpapers.",
+              "<b>📥 Settings</b>: load a picture's settings (prompt, negative prompt, steps, guidance, seed, size, sampler, model and LoRAs if you have them) from a PNG made by A1111, Forge, ComfyUI, InvokeAI or this app, or from a .json. Anything you don't have is listed. ↩ undo brings your prompt back.",
+              "<b>🎞 Animation</b> (SD 1.5): open the 🎞 Animation section, pick frames (8–24) and speed, and press 🎞 Make an animation. It uses the prompt, size (up to 512 px on 8 GB), steps and seed above; describe movement in the prompt. The clip appears in the Library (it plays there) with a GIF saved beside it.",
               "<b>🎲 Small change</b> (under Seed, SD 1.5 and SDXL): keep a picture you like and change only small details. Press <i>try a small change</i> (it keeps the last picture's seed and picks a variation seed), then Generate; press it again for another. The slider sets how much changes (0 = off, 0.05–0.2 small details, 0.6 a lot). The variation seed and strength are saved with the picture, so Use these settings brings them back.",
               "<b>📒 My prompts</b>: ⤓ Export saves them all to a file (to keep a copy or give to a friend); ⤒ Import adds prompts from such a file, or from a .txt with one prompt per line. Prompts with the same name and text aren't added twice.",
               "<b>🔄 Contrast prompt</b> (Create → ✨ Enhance, and Image to image): suggests the same scene turned into its opposite, like a waterfall frozen into blue-white ice or a summer street after light snowfall. ↩ undo puts yours back.",
@@ -734,6 +762,12 @@ const protoartApp = createApp({
           ] },
         { id: "i2i", go: "i2i", icon: "🖼", title: "Image to image", summary: "Change a picture, or follow its structure with ControlNet",
           sections: [
+            { h: "🔁 Face swap, 🔗 model chain, Union ProMax", items: [
+              "<b>🔁 Face swap</b>: put the picture to change in 1 · Picture, pick 🔁 Face swap, drop a clear front-facing photo of the face to use, choose <i>All faces</i> or <i>The main face</i>, and tick that you have permission. <i>Sharper (256 px)</i> is for big, close-up faces. <i>Tidy the new face</i> runs CodeFormer (fidelity 0.7, blended 60%). ~460 MB the first time. The swap model (inswapper_128) is for non-commercial use only; every result is checked and explicit results aren't saved.",
+              "<b>🔗 Model chain</b> (🔄 Change it): ＋ Add a model for each step, set how much each may change (0.3–0.5 keeps the picture), write the prompt, and press ▶ Run chain. Each model redraws the last one's result: e.g. an SD 1.5 picture → SDXL for detail → FLUX.1 Schnell or ERNIE for the finish. LoRAs are used only by models of their own type. Each step's picture is kept in the Library.",
+              "<b>ControlNet Union ProMax</b> (SDXL models): in 2 · ControlNet pick a <i>Union ProMax</i> type (Canny, Depth, OpenPose, Line art, Scribble, Soft edges, Tile). One ~2.5 GB download covers them all. On 8 GB use 768–1024 px.",
+              "<b>Which one should I use?</b> The same person in different pictures → Image prompt · <b>Face</b> (a close-up photo). A picture's style, outfit or colours → Image prompt · <b>Stronger</b>. A pose, drawing, silhouette or layout → <b>ControlNet</b> (OpenPose for poses, Line art or Scribble for drawings, Canny or Depth for shapes). They combine: Face + an OpenPose ControlNet keeps the person and copies the pose.",
+              "<b>Any model can start from a picture</b> now except FLUX.2 Klein (which uses ✨ Edit with words): SD 1.5, SDXL, Anima, FLUX.1 Schnell and ERNIE (fast engine)." ] },
             { h: "Starting from a picture", items: [
               "<b>✨ Edit with words</b> uses FLUX.2 Klein (it's at the top of the model list while that mode is on). Its <i>✨ enhance now</i> turns a quick note into a clear instruction. The other modes have <b>✨ Enhance prompt</b> and the negative prompt's ✨ suggest / 🎲 random too.",
               "Pictures made in Image to image stay in Image to image and the Library; they don't fill Create's screen. <b>✕ Clear results</b> takes them off the screen. Drop another picture on 1 · Picture to replace it.",
@@ -844,6 +878,9 @@ const protoartApp = createApp({
             { h: "Image → prompt & converter", items: [
               "<b>Describe</b> uses <b>Qwen3.5 4B</b>, a 2026 vision model on the Mac's GPU: a detailed prompt in sentences (subject, clothes, pose, setting, light, colours, framing, style). The first time it sets itself up and downloads ~3 GB, then it works offline. <b>Quick</b> is Florence-2 (shorter, lighter); <b>Tags</b> is the Danbooru tagger for anime models. FLUX.2 Klein can't do this: it draws pictures, it doesn't read them.",
               "Turn any image into a prompt (sentences or Danbooru tags) for the Create tab.",
+              "<b>🧩 Tiled upscale</b>: pick the picture above, a size (1.5×, 2×, 3×) and how much <i>new detail</i> (0.25–0.4 keeps the picture); it uses the model, prompt, sampler and seed from Create (SD 1.5 or SDXL). The enlarged picture is redrawn in overlapping tiles that are averaged at every step, so there are no seams.",
+              "<b>🗜 Smaller copy</b>: pick an SD 1.5 or SDXL model and 8, 6 or 4 bits; a new model “… · 8-bit” appears in the list. 8-bit looks the same and needs about half the memory for the UNet; 4-bit is smallest and a little softer. Not faster per step.",
+              "<b>🧪 Model merger</b>: <i>Blend</i> mixes two models (amount = how much of B); <i>Add difference</i> adds what model B learned on top of its base model C to model A (for example to make an inpainting version of your favourite model). The new model is saved in your checkpoints folder; the VAE comes from model A.",
               "When the prompt is ready: <b>⧉ Copy</b>, <b>🖼 Use in Image to image</b> (opens the picture there with the prompt in the box) or <b>✍ Use in Create</b>.",
               "<b>Convert DiffusionBee files</b> makes standard .safetensors copies of your old models, LoRAs and embeddings.",
               "<b>Old .ckpt files…</b> lists the .ckpt checkpoints in your folders (or pick one) and makes a .safetensors copy in your checkpoints folder. It reads only the weights, so nothing hidden in the file can run; <i>half size</i> makes a smaller copy that gives the same pictures. The .ckpt isn't changed." ] },
@@ -1018,6 +1055,14 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "New in 1.3.0: if something doesn't work", items: [
+              "<b>Anima is slow</b>: it's a 2-billion-parameter model; on an 8 GB Mac use <b>Anima Turbo</b> (10 steps) at 768–1024 px, and quit other big apps. The first picture also loads the model (about 20 s).",
+              "<b>Face swap says no face was found</b>: use a clear, front-facing, well-lit photo for the face, and a picture where the face is at least ~40 px across. <b>“The result looks explicit”</b>: face swap never saves explicit results.",
+              "<b>Union ProMax is greyed out or slow</b>: it's for SDXL models (pick one at the top); on 8 GB keep the size at 768–1024 px.",
+              "<b>Regional prompts look like one prompt</b>: lower <i>Keep one scene</i> (0.1) and make each area's prompt distinct; with very different areas, raise the steps a little. They can't be combined with an image prompt yet.",
+              "<b>Model chain stopped at FLUX.2 Klein</b>: Klein changes pictures with ✨ Edit with words, so it isn't offered in the chain; FLUX.1 Schnell and ERNIE are.",
+              "<b>Tiled upscale is slow</b>: each tile is one small picture's worth of work: 2× of a 768 px picture is about 12 tiles × 7 steps. Use 1.5× or lower <i>New detail</i> for quicker results.",
+              "<b>📥 Settings found nothing</b>: the picture was saved without its settings (many websites remove them), or by an app that doesn't write them." ] },
             { h: "Things fixed in 1.2.2 (and what to do if you still see them)", items: [
               "<b>ControlNet gave a flat grey picture, noise or nothing</b>: fixed (the model kept its precision only in Create before). If a map still looks wrong, press <b>Preview the map</b> first: an empty map means the picture had no clear edges or no person for OpenPose.",
               "<b>Image to image, ControlNet or Inpaint took 20+ minutes on an 8 GB Mac</b>: fixed for the same reason. Still slow? Quit big apps (browsers with many tabs, Photoshop, the Claude app) while generating: on 8 GB everything else squeezes the model into the disk. SDXL on 8 GB is slow by nature (1–3 minutes a picture); a model on an external drive loads more slowly the first time.",
@@ -1405,6 +1450,7 @@ const protoartApp = createApp({
         { id: "flux2", label: "Klein 4B", count: count((m) => m.family === "flux2") },
         { id: "flux", label: "FLUX", count: count((m) => m.family === "flux") },
         { id: "ernie", label: "ERNIE", count: count((m) => m.family === "ernie") },
+        { id: "anima", label: "Anima", count: count((m) => m.family === "anima") },
         { id: "sdxl", label: "SDXL", count: count((m) => m.family === "sdxl") },
         { id: "sd15", label: "SD 1.5", count: count((m) => m.family === "sd15") },
         ...Object.entries(FLAVOR_LABEL).map(([k, label]) => ({ id: "fl:" + k, label, count: count((m) => m.flavor === k) })),
@@ -1475,7 +1521,8 @@ const protoartApp = createApp({
         { name: "FLUX.2 Klein 4B", models: this.models.filter((m) => m.family === "flux2") },
         { name: "FLUX.1", models: this.models.filter((m) => m.family === "flux") },
         { name: "ERNIE-Image", models: this.models.filter((m) => m.family === "ernie") },
-        { name: "Stable Diffusion", models: this.models.filter((m) => !["ernie", "flux", "flux2"].includes(m.family) && !m.id.includes(":")) },
+        { name: "Anima (anime)", models: this.models.filter((m) => m.family === "anima") },
+        { name: "Stable Diffusion", models: this.models.filter((m) => !["ernie", "flux", "flux2", "anima"].includes(m.family) && !m.id.includes(":")) },
         { name: "Your checkpoints", models: this.models.filter((m) => m.id.startsWith("file:")) },
         { name: "From DiffusionBee", models: this.models.filter((m) => m.id.startsWith("tdict:")) },
         { name: "Your model files", models: this.models.filter((m) => m.id.startsWith("local:")) },
@@ -1727,6 +1774,39 @@ const protoartApp = createApp({
       // LoRAs that can't be merged here (DiffusionBee .tdict files, unknown type): shown as a note
       return this.loras.filter((l) => l.family === this.mergeFamily && !/\.safetensors$/i.test(l.file || "")).length;
     },
+    tiledJob() {
+      return this.queue.find((j) => j.cmd === "tiled_upscale");
+    },
+    tiledEstimate() {  // the result's size and a rough count of the work
+      const src = this.tool.source || {}, sc = this.tup.scale;
+      if (!src.width) return "";
+      const W = Math.round(src.width * sc / 8) * 8, H = Math.round(src.height * sc / 8) * 8;
+      const t = this.family === "sdxl" ? 1024 : 512, st = t * 0.75;
+      const n = Math.max(1, Math.ceil((W - t) / st) + 1) * Math.max(1, Math.ceil((H - t) / st) + 1);
+      return `${W} × ${H} px · ${n} tile${n === 1 ? "" : "s"} × ${Math.max(1, Math.round(this.tup.steps * this.tup.strength))} steps`;
+    },
+    regionBoxes() {  // the areas as boxes (x0, y0, x1, y1 in 0..1), the same way the engine splits them
+      const r = this.form.regions || {}, n = (r.prompts || []).length || 2;
+      const split = (parts) => { const p = parts.map((x) => Math.max(0.01, Number(x) || 1)), t = p.reduce((a, b) => a + b, 0); let acc = 0; return p.map((x) => { const s = [acc / t, (acc + x) / t]; acc += x; return s; }); };
+      if (r.layout === "grid" && String(r.ratios).includes(";")) {
+        const rows = String(r.ratios).split(";").filter((x) => x.trim()), hs = split(rows.map(() => 1)), out = [];
+        rows.forEach((row, i) => split(row.split(",").filter((x) => x.trim())).forEach(([a, b]) => out.push([a, hs[i][0], b, hs[i][1]])));
+        return out.slice(0, n);
+      }
+      let parts = String(r.ratios || "").split(/[;,]/).filter((x) => x.trim());
+      parts = [...parts, ...Array(n).fill(1)].slice(0, n);
+      return split(parts).map(([a, b]) => (r.layout === "rows" ? [0, a, 1, b] : [a, 0, b, 1]));
+    },
+    animJob() {
+      return this.queue.find((j) => j.cmd === "animate");
+    },
+    quantJob() {
+      return this.queue.find((j) => j.cmd === "quantize");
+    },
+    quantModels() {
+      return this.models.filter((m) => ["sd15", "sdxl"].includes(m.family) && m.engine !== "mlx" && !m.inpaint
+        && !/(8|6|4)-bit/.test(m.label) && this.isInstalled(m));
+    },
     mergeJob() {
       return this.queue.find((j) => j.cmd === "lora_merge");
     },
@@ -1839,6 +1919,15 @@ const protoartApp = createApp({
       const mb = (this.conv.items || []).filter((i) => set.has(i.file)).reduce((a, i) => a + (i.size_mb || 0), 0);
       return mb > 1000 ? `${(mb / 1000).toFixed(1)} GB` : `${Math.round(mb)} MB`;
     },
+    mergeJob() {
+      return this.queue.find((j) => j.cmd === "ckpt_merge");
+    },
+    mergeModels() {  // your single-file .safetensors SD 1.5 / SDXL models
+      return this.models.filter((m) => m.path && /\.safetensors$/i.test(m.path) && ["sd15", "sdxl"].includes(m.family) && !m.inpaint);
+    },
+    mergeFamily() {
+      return (this.mergeModels.find((m) => m.path === this.mrg.a) || {}).family || "";
+    },
     ckJob() {
       return this.queue.find((j) => j.cmd === "ckpt_convert");
     },
@@ -1857,6 +1946,10 @@ const protoartApp = createApp({
                   sdxl: { name: "sdxl-vae-fp16-fix", label: "SDXL fp16-fix", mb: 335 } }[this.family];
       return r && !this.vaes.some((v) => v.name === r.name) ? r : null;
     },
+    controlMapKind() {  // the map the picked ControlNet needs ("union:depth" → "depth")
+      const t = this.form.control.type || "";
+      return t.startsWith("union:") ? t.slice(6) : t;
+    },
     controlTypesShown() {  // the ControlNets for the current model's type (SD 1.5's built-in ones, your own SD 1.5 or SDXL)
       const fam = this.family === "sdxl" ? "sdxl" : "sd15";
       return this.controlTypes.filter((t) => (t.family || "sd15") === fam || t.id === this.form.control.type);
@@ -1865,6 +1958,12 @@ const protoartApp = createApp({
       const t = this.controlTypeInfo;
       if (!t) return null;
       if (CN_GUIDES[t.id]) return CN_GUIDES[t.id];
+      if (t.union && CN_GUIDES[t.makes_map]) {  // Union ProMax (SDXL): the same advice, at SDXL sizes
+        const g = CN_GUIDES[t.makes_map];
+        return { ...g, title: "Union ProMax · " + g.title, models: null,
+                 modelsText: "Any SDXL model (also Pony, Illustrious, NoobAI). One ~2.5 GB download covers every Union map type.",
+                 set: g.set ? { ...g.set, size: 1024 } : g.set };
+      }
       const name = t.id.replace(/^user:/, "");
       const hit = CN_NAME_GUIDES.find(([re]) => re.test(name));
       if (hit) return CN_GUIDES[hit[1]];
@@ -1876,7 +1975,8 @@ const protoartApp = createApp({
     cnRecSize() {  // the guide's picture size on this Mac (512 under 16 GB: a ControlNet doubles each step's work)
       const c = this.cnGuide && this.cnGuide.set;
       if (!c || !c.size) return 0;
-      return (this.sys.ram_gb || 8) < 16 ? Math.min(c.size, 512) : c.size;
+      const xl = (this.controlTypeInfo || {}).family === "sdxl";
+      return (this.sys.ram_gb || 8) < 16 ? Math.min(c.size, xl ? 768 : 512) : c.size;
     },
     cnRecText() {  // the guide's settings in a few words, shown under the ControlNet picker
       const c = this.cnGuide && this.cnGuide.set;
@@ -1963,7 +2063,7 @@ const protoartApp = createApp({
     },
     sizeTiers() {
       // Small / Medium / Large for each model type (side of an equivalent square).
-      const t = { sd15: [512, 640, 768], sdxl: [768, 1024, 1280], ernie: [640, 768, 1024], flux: [512, 768, 1024], flux2: [512, 768, 1024], other: [512, 768, 1024] };
+      const t = { sd15: [512, 640, 768], sdxl: [768, 1024, 1280], anima: [768, 1024, 1280], ernie: [640, 768, 1024], flux: [512, 768, 1024], flux2: [512, 768, 1024], other: [512, 768, 1024] };
       const [s, m, l] = t[this.family] || t.other;
       if (this.family === "sd15")  // SD 1.5 also gets 704: a little more detail than 640, still quick on 8 GB
         return [{ id: "s", label: "Small", side: 512 }, { id: "m", label: "Medium", side: 640 }, { id: "m2", label: "Med+", side: 704 }, { id: "l", label: "Large", side: 768 }];
@@ -1991,6 +2091,7 @@ const protoartApp = createApp({
       // FLUX: the SDXL shapes (all multiples of 16 too)
       sets.flux = sets.sdxl.map(([l, w, h]) => [l === "Small square" ? "Medium square" : l, w, h]);
       sets.flux2 = sets.flux;
+      sets.anima = sets.sdxl;  // Anima: the SDXL shapes (multiples of 16)
       return (sets[this.family] || sets.sdxl).map(([label, w, h]) => ({ label, w, h }));
     },
     livePreviewShown() {
@@ -4010,6 +4111,7 @@ const protoartApp = createApp({
           } else if (id === "detail") {
             const d = (this.patch.copySettings[node] && this.patch.copySettings[node].det) || this.post.det;
             rec = await this.runJob("generate", this.detailArgs(d, curPath));
+            if (Array.isArray(rec)) rec = rec[rec.length - 1] || null;  // generate answers with a list of pictures
           } else if (id === "vector") {
             const v = this.post.vec;
             rec = await this.runJob("vectorize", { ...cur, colors: v.colors, detail: v.detail, smooth: v.smooth });
@@ -4109,6 +4211,79 @@ const protoartApp = createApp({
     },
 
     // -------------------------------------------------------------- generate
+    chainModels() {  // models a chain step can use: anything that can start from a picture
+      return this.models.filter((m) => this.isInstalled(m) && !m.inpaint &&
+        (["sd15", "sdxl", "anima"].includes(m.family) && m.engine !== "mlx" || (m.engine === "mlx" && ["flux", "ernie"].includes(m.family))));
+    },
+    chainAdd() {
+      if (this.chain.steps.length >= 4) return;
+      const used = new Set(this.chain.steps.map((x) => x.model));
+      const next = this.chainModels().find((m) => !used.has(m.id)) || this.chainModels()[0];
+      this.chain.steps.push({ model: next ? next.id : "", strength: 0.4 });
+      this.chainSave();
+    },
+    chainSave() {
+      saveJSON("protoart.chain", this.chain.steps);
+    },
+    async runChain() {  // 🔗 the picture goes through each model in turn (e.g. SD 1.5 → SDXL → FLUX)
+      const f = this.form;
+      if (!f.init_image) return (this.error = "Add a starting picture first (1 · Picture), or send one from Create.");
+      const steps = this.chain.steps.filter((x) => x.model);
+      if (!steps.length) return (this.error = "Add at least one model to the chain.");
+      if (!(f.prompt || "").trim()) return (this.error = "Describe the picture in the prompt: each model in the chain uses it.");
+      this.error = "";
+      Object.assign(this.chain, { running: true, stopped: false, at: 0 });
+      let path = f.init_image, last = null;
+      try {
+        for (let k = 0; k < steps.length; k++) {
+          if (this.chain.stopped) break;
+          this.chain.at = k;
+          const st = steps[k], m = this.models.find((x) => x.id === st.model);
+          if (!m) throw new Error("A model in the chain isn't installed any more.");
+          const d = m.defaults || {};
+          const args = JSON.parse(JSON.stringify(f));
+          this.cleanExtras(args);
+          delete args.hires; delete args.control; delete args.outpaint; delete args.inpaint; delete args.face_detailer; delete args.ip_adapter;
+          Object.assign(args, { model: m.id, init_image: path, i2i_mode: "change", i2i_use_init: true, use_init_size: true,
+                                strength: Number(st.strength) || 0.4, steps: d.steps || args.steps, cfg: d.cfg ?? args.cfg, sampler: "",
+                                num_images: 1, fast: false, enhance_prompt: false, var_strength: 0,
+                                loras: m.family === this.family ? args.loras : [],  // LoRAs only for the model type they're made for
+                                chain_step: k + 1, chain_len: steps.length });
+          this.status = `🔗 Chain step ${k + 1} of ${steps.length}: ${m.label}`;
+          let rec = await this.runJob("generate", args);
+          if (Array.isArray(rec)) rec = rec[rec.length - 1] || null;
+          if (!rec) break;
+          last = rec;
+          path = rec.path;
+        }
+        if (last) this.status = this.chain.stopped ? "Chain stopped: the last finished step is in the Library" : `🔗 Chain done: ${steps.length} model${steps.length === 1 ? "" : "s"}`;
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        Object.assign(this.chain, { running: false, at: -1 });
+      }
+    },
+    chainStop() {
+      this.chain.stopped = true;
+      const j = this.runningJob;
+      if (j) this.cancelJob(j.id);
+    },
+    whichOne(goal, inI2i = false) {  // "Which one should I use?": set up the right tool for the goal
+      if (goal === "face" || goal === "plus") {
+        this.form.ip_adapter.kind = goal;
+        if (!this.form.ip_adapter.scale || this.form.ip_adapter.scale < 0.5) this.form.ip_adapter.scale = goal === "face" ? 0.7 : 0.6;
+        if (this.tab !== "create") this.tab = "create";
+        this.status = goal === "face" ? "Image prompt → Face: drop a close-up photo of the person, then describe the new picture"
+          : "Image prompt → Stronger: drop the picture whose style, outfit or colours you want";
+        this.$nextTick(() => document.querySelector(".ipa")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+        return;
+      }
+      if (!inI2i) this.openI2I();
+      this.setI2iMode && this.form.i2i_mode !== "change" && this.setI2iMode("change");
+      const pose = this.family === "sdxl" ? "union:openpose" : "openpose";
+      if (!this.form.control.type) this.form.control.type = this.controlTypes.some((t) => t.id === pose) ? pose : "";
+      this.status = "ControlNet picked: OpenPose copies a pose; for a drawing pick Line art or Scribble, for a silhouette or layout Canny or Depth";
+    },
     smallChange() {  // 🎲 Small change: the same picture (seed kept) with small details changed
       const last = this.session[0];
       if (this.form.seed === -1 && last && last.seed != null) this.form.seed = last.seed;
@@ -4134,6 +4309,8 @@ const protoartApp = createApp({
       if (!sd || !args.hires?.on) delete args.hires;
       if (!sd || !args.face_detailer?.on) delete args.face_detailer;
       if (!sd || !args.ip_adapter?.image) delete args.ip_adapter;
+      if (!sd || !args.regions?.on) delete args.regions;
+      if (!sd) delete args.seamless;
       return args;
     },
     // -------------------------------------------------------------- "this will be slow on this Mac"
@@ -5447,6 +5624,40 @@ const protoartApp = createApp({
           + (here ? "" : ` (in ${owner === "i2i" ? "Image to image" : "Create"})`);
       }
     },
+    async toolTiled() {
+      const f = this.form;
+      const r = await this.runJob("tiled_upscale", { ...this.toolArgs(), model: f.model, prompt: f.prompt, negative_prompt: f.negative_prompt,
+                                                     scale: this.tup.scale, strength: this.tup.strength, steps: this.tup.steps,
+                                                     cfg: f.cfg, sampler: f.sampler, seed: f.seed });
+      if (r) this.afterPost(r);
+    },
+    setRegionLayout(l) {
+      const r = this.form.regions;
+      r.layout = l;
+      const n = r.prompts.length;
+      if (l === "grid") r.ratios = n === 3 ? "1,1;1" : n === 4 ? "1,1;1,1" : "1;1";
+      else if (/;/.test(r.ratios)) r.ratios = Array(n).fill(1).join(",");
+    },
+    async makeAnimation() {
+      const f = this.form;
+      await this.runJob("animate", { model: f.model, prompt: f.prompt, negative_prompt: f.negative_prompt, width: f.width, height: f.height,
+                                     steps: f.steps, cfg: f.cfg, seed: f.seed, frames: this.anim.frames, fps: this.anim.fps });
+    },
+    async runQuantize() {
+      this.qnt.msg = "";
+      const r = await this.runJob("quantize", { model: this.qnt.model, bits: this.qnt.bits });
+      if (!r) return;
+      this.qnt.msg = `✓ “${r.label}” (${r.gb} GB) is in the model list.`;
+      this.models = await call("list_models").catch(() => this.models);
+    },
+    async runMerge() {
+      const g = this.mrg;
+      g.msg = "";
+      const r = await this.runJob("ckpt_merge", { a: g.a, b: g.b, c: g.mode === "add" ? g.c : null, mode: g.mode, multiplier: g.m, name: g.name.trim() || null });
+      if (!r) return;
+      g.msg = `✓ Saved “${r.name}” (${r.gb} GB): pick it in Create's model list.`;
+      this.models = await call("list_models").catch(() => this.models);
+    },
     async loadCkptList() {
       try {
         const r = await call("ckpt_list");
@@ -5722,6 +5933,15 @@ const protoartApp = createApp({
       if (!["edit", "remove"].includes(this.form.i2i_mode)) this.dropMismatchedLoras();
       const f = this.form;
       if (!f.init_image) return (this.error = "Add a picture first.");
+      if (f.i2i_mode === "faceswap") {  // 🔁 inswapper_128: no model or prompt involved
+        const sw = f.swap || {};
+        if (!sw.face) return (this.error = "Add the photo of the face to use.");
+        if (!sw.consent) return (this.error = "Tick “I have permission from the person whose face this is” first.");
+        this.error = "";
+        await this.runJob("faceswap", { init_image: f.init_image, face: sw.face, which: sw.which || "all", boost: sw.boost || 1,
+                                        restore: sw.restore !== false, consent: true });
+        return;
+      }
       if (f.i2i_mode === "remove") {  // 🩹 spot healing: no model or prompt involved
         if (!this.mask.data || this.mask.for !== f.init_image) return (this.error = "Paint over what you want to remove first.");
         this.error = "";
@@ -5840,6 +6060,16 @@ const protoartApp = createApp({
       const file = [...(e.dataTransfer?.files || [])].find(isPicture);
       if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) { this.form.init_image = p; this.controlMap = null; } });
     },
+    async onSwapDrop(e) {
+      this.swapOver = false;
+      const file = [...(e.dataTransfer?.files || [])].find(isPicture);
+      if (file) { const p = await this.preparePicture(window.bee.pathForFile(file)); if (p) this.form.swap.face = p; }
+    },
+    async onSwapPicked(e) {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (file) { const p = await this.preparePicture(window.bee.pathForFile(file)); if (p) this.form.swap.face = p; }
+    },
     onStartPicked(e) {
       const file = e.target.files?.[0];
       e.target.value = "";
@@ -5876,8 +6106,51 @@ const protoartApp = createApp({
     },
 
     // -------------------------------------------------------------- image -> prompt
+    onSettingsPicked(e) {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (file) this.loadSettingsFile(window.bee.pathForFile(file));
+    },
+    async loadSettingsFile(path) {  // 📥 a picture's settings (A1111 / ComfyUI / InvokeAI / this app) or a .json
+      try {
+        const r = await call("read_settings", { path });
+        this.applyImported(r);
+      } catch (e) { this.error = e.message; }
+    },
+    applyImported(r) {
+      const f = this.form, notes = [];
+      this.undoPrompt = f.prompt;
+      if (r.prompt) f.prompt = r.prompt;
+      if (r.negative_prompt != null) f.negative_prompt = r.negative_prompt;
+      for (const k of ["steps", "cfg", "seed", "clip_skip"]) if (r[k] != null) f[k] = r[k];
+      if (r.width && r.height) { f.width = Math.round(r.width / 8) * 8; f.height = Math.round(r.height / 8) * 8; }
+      if (r.model_name) {  // the model, if one of yours has the same name
+        const want = String(r.model_name).toLowerCase().replace(/\.(safetensors|ckpt)$/, "").split(/[\\/]/).pop();
+        const m = this.models.find((x) => this.isInstalled(x) && (x.label || "").toLowerCase().includes(want))
+          || this.models.find((x) => this.isInstalled(x) && String(x.path || x.id).toLowerCase().includes(want));
+        if (m) { if (m.id !== f.model) this.selectModel(m.id); } else notes.push(`model “${r.model_name}” isn't here`);
+      }
+      if (r.sampler) {  // A1111 / ComfyUI sampler names → this app's
+        const norm = (x) => String(x).toLowerCase().replace(/[^a-z0-9+]/g, "");
+        const want = norm(r.sampler) + (r.scheduler && /karras/i.test(r.scheduler) ? "karras" : "");
+        const s = this.samplers.find((x) => norm(x.label) === want || norm(x.id) === want)
+          || this.samplers.find((x) => norm(x.label).startsWith(norm(r.sampler)) || norm(x.id) === norm(r.sampler));
+        if (s) f.sampler = s.id; else notes.push(`sampler “${r.sampler}”`);
+      }
+      if (Array.isArray(r.loras) && r.loras.length) {
+        const got = [];
+        for (const l of r.loras) {
+          const have = (this.loras || []).find((x) => x.name.toLowerCase() === String(l.name).toLowerCase());
+          if (have && !f.loras.some((x) => x.name === have.name)) { f.loras.push({ name: have.name, weight: Number(l.weight) || 1 }); got.push(have.name); }
+          else if (!have) notes.push(`LoRA “${l.name}”`);
+        }
+      }
+      this.status = `📥 Settings loaded from ${r.source || "the file"}` + (notes.length ? ` · not found here: ${notes.slice(0, 3).join(", ")}${notes.length > 3 ? "…" : ""}` : "") + " · ↩ undo puts your prompt back";
+    },
     onDrop(e) {
       this.dragOver = false;
+      const json = [...(e.dataTransfer?.files || [])].find((x) => /\.json$/i.test(x.name || ""));
+      if (json) return this.loadSettingsFile(window.bee.pathForFile(json));  // a .json of settings / a ComfyUI workflow
       const file = [...(e.dataTransfer?.files || [])].find(isPicture);
       if (!file) {
         this.error = "Drop a picture (PNG, JPEG, WebP, HEIC, TIFF, AVIF, PSD, GIF, BMP or camera RAW).";
@@ -6069,7 +6342,8 @@ const protoartApp = createApp({
     kindLabel(kind) {
       return { generated: "Original", img2img: "Image-to-image", faces: "Face-restored", enhanced: "Enhanced",
                depth: "Depth map", inpaint: "Inpainted", outpaint: "Expanded", grid: "Comparison grid",
-               edited: "Edited", healed: "Objects removed", word_edit: "Edited with words" }[kind] || kind;
+               edited: "Edited", healed: "Objects removed", word_edit: "Edited with words", faceswap: "Face swap",
+               chain: "Model chain", tiled: "Tiled upscale", animation: "Animation", layer: "Layer" }[kind] || kind;
     },
     depthModelInfo(id) {
       return this.depthModels.find((d) => d.id === id) || this.depthModels[0];
@@ -6411,6 +6685,8 @@ const protoartApp = createApp({
       if (k === "prompt") return f.prompt ? cut(f.prompt.replace(/\s+/g, " "), 52) : "empty";
       if (k === "loras") return f.loras.length ? cut(f.loras.map((l) => l.name).join(", "), 46) : "none";
       if (k === "ipa") return f.ip_adapter && f.ip_adapter.image ? "on" : "none";
+      if (k === "regions") return f.regions && f.regions.on ? `${f.regions.prompts.filter((x) => x.trim()).length} areas · ${f.regions.layout}` : "off";
+      if (k === "anim") return `${this.anim.frames} frames · ${this.anim.fps} fps`;
       if (k === "size") return `${f.width}×${f.height} · ${f.fast && this.currentModel?.fast_mode ? "⚡ fast" : f.steps + " steps"} · CFG ${f.cfg} · ${f.num_images} image${f.num_images === 1 ? "" : "s"}`;
       if (k === "extras") {
         const on = [];
@@ -6884,6 +7160,18 @@ const protoartApp = createApp({
     openCtx(e, r, inDetail = false) {  // right-click a picture: a small menu (the selected pictures, if it's one of them)
       const ids = !inDetail && this.selectMode && this.selected.includes(r.id) && this.selected.length > 1 ? [...this.selected] : [r.id];
       this.ctx = { x: Math.min(e.clientX, innerWidth - 240), y: Math.min(e.clientY, innerHeight - 340), r, ids, inDetail };
+    },
+    exportSettings(r) {  // a picture's settings as .json (📥 Settings loads it back)
+      const st = { ...(r.settings || {}), prompt: r.prompt, negative_prompt: r.negative_prompt, width: r.width, height: r.height,
+                   steps: r.steps, cfg: r.cfg, sampler: r.sampler, seed: r.seed, model: r.model, loras: r.loras || [] };
+      delete st.init_image;  // file paths on this Mac stay private
+      const url = URL.createObjectURL(new Blob([JSON.stringify({ app: "Protoart Studio", kind: "settings", version: 1, settings: st }, null, 2)], { type: "application/json" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Protoart settings ${r.seed ?? r.id}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      this.status = "Settings saved as .json: load them again with 📥 Settings in Create";
     },
     async savePictureAs(r) {
       try {

@@ -73,6 +73,10 @@ when you first use them, and each comes with its own licence that you accept by 
 | Enhancer extras (philz1337x/loras, philz1337x/embeddings, Civitai-originated detail LoRAs / negative embeddings) | as published by their authors; see each file's source page |
 | ERNIE-Image community builds (OzzyGT SDNQ 4/8-bit, unsloth GGUF, mflux-community MLX) | Apache-2.0 (derived from baidu/ERNIE-Image); see each repository |
 | Qwen2.5 0.5B / 1.5B Instruct (prompt enhancer) | Apache-2.0 |
+| Anima / Anima Turbo ([circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima), [circlestone-labs/Anima-Base-v1.0-Diffusers](https://huggingface.co/circlestone-labs/Anima-Base-v1.0-Diffusers); built on NVIDIA Cosmos-Predict2 2B, Qwen3 0.6B, Qwen-Image VAE; downloaded on first use, not bundled) | CircleStone Labs Non-Commercial License + NVIDIA Open Model License (**model: non-commercial**; generated pictures may be used commercially) |
+| Xinsir ControlNet Union ProMax SDXL ([xinsir/controlnet-union-sdxl-1.0](https://huggingface.co/xinsir/controlnet-union-sdxl-1.0), downloaded on first use) | Apache-2.0 |
+| inswapper_128 (fp16) and ArcFace w600k_r50 (InsightFace; files from [facefusion/models-3.0.0](https://huggingface.co/facefusion/models-3.0.0), downloaded on first use of 🔁 Face swap) | InsightFace models: **non-commercial research use only** |
+| AnimateDiff motion adapter v1-5-3 ([guoyww/animatediff-motion-adapter-v1-5-3](https://huggingface.co/guoyww/animatediff-motion-adapter-v1-5-3), downloaded on first use) | Apache-2.0 |
 | Models and LoRAs you download from Civitai or add yourself | whatever their authors chose: check the model's page |
 
 Always check the model's own page for the current terms before using results commercially.

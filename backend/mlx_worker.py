@@ -201,6 +201,12 @@ class Worker:
                   width=int(a["width"]), height=int(a["height"]), guidance=cfg)
         if self.family == "ernie":
             kw["negative_prompt"] = neg
+        if a.get("init_image"):  # start from a picture: how much of it to keep (mflux image strength)
+            import inspect
+            if "image_path" not in inspect.signature(m.generate_image).parameters:
+                raise RuntimeError("this model can't start from a picture on the fast engine")
+            kw["image_path"] = a["init_image"]
+            kw["image_strength"] = float(a.get("image_strength") or 0.4)
         if a.get("image_paths"):
             if self.family != "flux2" or (self.key and self.key[3] != "edit"):
                 raise RuntimeError("reference pictures need FLUX.2 loaded for editing")

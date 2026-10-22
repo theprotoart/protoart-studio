@@ -22,3 +22,5 @@ opencv-python
 refiners @ git+https://github.com/finegrain-ai/refiners@a5d3c2971b84f6faa4762b1cf5a07f4f812bb1f5
 # Image -> prompt (WD Danbooru tagger runs on ONNX Runtime; Florence-2 uses transformers)
 onnxruntime
+# Face swap reads the swapper's identity mapping from its .onnx file
+onnx

@@ -2122,3 +2122,34 @@ td.nowrap > button + button { margin-top: 4px; }
 .var-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .var-row input[type="range"] { flex: 1 1 120px; min-width: 100px; }
 .var-row .var-seed { width: 110px; flex: none; }
+/* "Which one should I use?" (Image prompt / ControlNet) */
+.which-one { margin: 4px 0 10px; }
+.which-one > summary { cursor: pointer; font-size: 12.5px; color: var(--amber, #ffae2b); }
+.which-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.which-row > div { display: flex; flex-direction: column; min-width: 0; }
+.which-row button { flex: none; }
+/* 🔁 Face swap */
+.swap-drop { min-height: 90px; display: grid; place-items: center; text-align: center; }
+.swap-face { display: flex; align-items: center; gap: 10px; }
+.swap-face img { width: 96px; height: 96px; object-fit: cover; border-radius: 4px; border: 1px solid #000; }
+label.check.consent { margin-top: 8px; font-weight: 600; }
+/* 🔗 Model chain */
+.chain-card > summary { list-style: none; cursor: pointer; }
+.chain-card > summary::-webkit-details-marker { display: none; }
+.chain-card > summary h3 { display: inline; }
+.chain-step { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, .06); flex-wrap: wrap; }
+.chain-step select { flex: 1 1 200px; min-width: 0; }
+.chain-step input[type="range"] { flex: 0 1 140px; }
+.chain-step.on { box-shadow: inset 3px 0 0 var(--amber, #ffae2b); }
+.chain-n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: #222; border: 1px solid #000; flex: none; }
+
+.merge-module select, .merge-module input:not([type]) { width: 100%; margin-bottom: 6px; }
+.quant-module select { width: 100%; margin-bottom: 6px; }
+/* 🗺 Regional prompts */
+.reg-ratios { max-width: 120px; }
+.reg-map { position: relative; width: 140px; max-height: 180px; border: 1px solid #000; background: #1a1a1a; margin: 6px 0; }
+.reg-box { position: absolute; display: grid; place-items: center; font: 700 11px var(--f-eng, sans-serif); color: #ffe0a0;
+  border: 1px dashed rgba(255, 196, 77, .7); background: rgba(255, 196, 77, .08); box-sizing: border-box; }
+.reg-prompt { display: flex; align-items: flex-start; gap: 6px; margin: 4px 0; }
+.reg-prompt textarea { flex: 1; min-width: 0; }
+.reg-n { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: #222; border: 1px solid #000; flex: none; margin-top: 4px; }

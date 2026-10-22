@@ -157,7 +157,7 @@
         <span class="eng slot-label">Models <span class="hint">on this Mac appear in Create; the others download the first time you use them</span></span>
         <div class="slot-line">
           <div class="seg">
-            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein 4B'}, {id: 'ernie', label: 'ERNIE'}, {id: 'sdxl', label: 'SDXL'}, {id: 'fl:pony', label: 'Pony'}, {id: 'fl:illustrious', label: 'Illustrious'}, {id: 'fl:noobai', label: 'NoobAI'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
+            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein 4B'}, {id: 'ernie', label: 'ERNIE'}, {id: 'anima', label: 'Anima'}, {id: 'sdxl', label: 'SDXL'}, {id: 'fl:pony', label: 'Pony'}, {id: 'fl:illustrious', label: 'Illustrious'}, {id: 'fl:noobai', label: 'NoobAI'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
                     :class="{on: shop.family === f.id}" @click="shop.family = f.id" :title="f.id.startsWith('fl:') ? f.label + ' models (SDXL-based, with their own prompt style and quality tags)' : ''">{{ f.label }}</button>
           </div>
           <button class="chip" :class="{on: shop.fav}" @click="shop.fav = !shop.fav" title="Show only your ★ favourite models">★ Favorites <small>{{ favModels.length }}</small></button>
@@ -319,6 +319,8 @@
             <i class="ptool-lamp" :class="{on: rnd.every}"></i>🎲<b>Random</b></button>
           <button class="ptool" :class="{open: wild.open}" @click="togglePtool('wild')" title="Wildcards: {red|blue} picks one per image; __name__ picks a line from a wildcard file">{ }<b>Wildcards</b></button>
           <button class="ptool" :class="{open: batch.open}" @click="batch.open = true" title="Prompt list: queue one job per line of a list of prompts">📋<b>List</b></button>
+          <button class="ptool" @click="$refs.settingsPick.click()" title="Load the settings a picture was made with (A1111, ComfyUI, InvokeAI or this app write them into PNGs), or a .json of settings / a ComfyUI workflow">📥<b>Settings</b></button>
+          <input ref="settingsPick" type="file" accept=".png,.jpg,.jpeg,.webp,.json,application/json,image/png,image/jpeg,image/webp" hidden @change="onSettingsPicked">
           <button v-if="undoPrompt" class="link ptool-undo" @click="form.prompt = undoPrompt; undoPrompt = null" title="Put the prompt back as it was">↩ undo</button>
         </div>
         <div v-if="ptool === 'enhance'" class="wild-panel ptool-panel">
@@ -554,9 +556,60 @@
         </div>
       </section>
 
+      <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="regions cfold" :class="{shut: cfShut('regions')}">
+        <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">a different prompt for each part of the picture</span><span v-if="cfShut('regions')" class="cfold-sum">{{ cfSummary('regions') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <label class="check"><input type="checkbox" v-model="form.regions.on"> Use regional prompts
+          <span class="hint">· the main prompt above sets the scene; each area adds its own</span></label>
+        <template v-if="form.regions.on">
+          <div class="row small">
+            <div class="seg">
+              <button :class="{on: form.regions.layout === 'cols'}" @click="setRegionLayout('cols')" title="Areas side by side, left to right">Columns</button>
+              <button :class="{on: form.regions.layout === 'rows'}" @click="setRegionLayout('rows')" title="Areas stacked, top to bottom">Rows</button>
+              <button :class="{on: form.regions.layout === 'grid'}" @click="setRegionLayout('grid')" title="Rows of areas: e.g. 1,1;1 = two on top, one below">Grid</button>
+            </div>
+            <input v-model="form.regions.ratios" class="reg-ratios" :placeholder="form.regions.layout === 'grid' ? '1,1;1' : '1,1'"
+                   :title="form.regions.layout === 'grid' ? 'Each row\'s area widths, rows separated by ; (1,1;1 = two on top, one below)' : 'How big each area is: 1,1 = halves, 1,2 = a third and two thirds'">
+          </div>
+          <div class="reg-map" :style="{aspectRatio: form.width + ' / ' + form.height}">
+            <div v-for="(b, i) in regionBoxes" :key="'rb' + i" class="reg-box" :style="{left: b[0] * 100 + '%', top: b[1] * 100 + '%', width: (b[2] - b[0]) * 100 + '%', height: (b[3] - b[1]) * 100 + '%'}">{{ i + 1 }}</div>
+          </div>
+          <div v-for="(rp, i) in form.regions.prompts" :key="'rp' + i" class="reg-prompt">
+            <span class="reg-n">{{ i + 1 }}</span>
+            <textarea class="tape" rows="2" v-model="form.regions.prompts[i]" :placeholder="['e.g. a red-haired knight', 'e.g. a blue dragon', 'e.g. a castle', 'e.g. a stormy sky'][i]"></textarea>
+            <button v-if="form.regions.prompts.length > 2" class="ghost small" @click="form.regions.prompts.splice(i, 1)" title="Remove this area">✕</button>
+          </div>
+          <div class="row small">
+            <button class="ghost small" :disabled="form.regions.prompts.length >= 4" @click="form.regions.prompts.push('')">＋ Add an area</button>
+            <span class="hint">Keep one scene</span>
+            <input type="range" min="0" max="0.6" step="0.05" v-model.number="form.regions.base" title="How much of the main prompt every area also follows: higher blends the areas into one scene, lower keeps them more separate">
+            <span class="mod-val">{{ Number(form.regions.base).toFixed(2) }}</span>
+          </div>
+        </template>
+      </section>
+      <section v-if="family === 'sd15' && currentModel?.engine !== 'mlx'" class="anim cfold" :class="{shut: cfShut('anim')}">
+        <label @click="cfToggle('anim', $event)">🎞 Animation <span class="hint">AnimateDiff · a short moving clip from your prompt · ~0.9 GB first time</span><span v-if="cfShut('anim')" class="cfold-sum">{{ cfSummary('anim') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <div class="anim-opts">
+          <label>Frames <span class="mod-val">{{ anim.frames }}</span></label>
+          <input type="range" min="8" max="24" step="4" v-model.number="anim.frames" title="More frames: a longer clip, slower to make">
+          <label>Speed <span class="mod-val">{{ anim.fps }} fps</span></label>
+          <input type="range" min="4" max="16" step="1" v-model.number="anim.fps" title="Frames per second when it plays">
+          <p class="hint">Uses the prompt, size (up to 512 on 8 GB), steps and seed above. Describe movement (“hair blowing in the wind”, “waves crashing”). {{ anim.frames }} frames take several minutes on an 8 GB Mac. Saved to the Library as an animated picture, with a GIF beside it.</p>
+          <button class="primary" :disabled="!form.prompt.trim() || !!animJob" @click="makeAnimation">{{ animJob ? 'Animating…' : '🎞 Make an animation' }}</button>
+        </div>
+      </section>
       <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="ipa cfold" :class="{shut: cfShut('ipa')}">
         <label @click="cfToggle('ipa', $event)">Image prompt <span class="hint">IP-Adapter · borrow the look, style or face of a picture · ~2.6 GB first time</span><span v-if="cfShut('ipa')" class="cfold-sum">{{ cfSummary('ipa') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
-        <div v-if="!form.ip_adapter.image" class="ipa-drop" :class="{over: ipDragOver}" @dragover.prevent="ipDragOver=true"
+        <details class="which-one">
+          <summary>Which one should I use?</summary>
+          <div class="which-row"><div><b>The same person in different pictures</b><span class="hint">a close-up photo of the face as the reference</span></div>
+            <button class="ghost small" @click="whichOne('face')" title="Image prompt → Face (IP-Adapter Plus Face)">Use Image prompt · Face</button></div>
+          <div class="which-row"><div><b>Copy a picture's style, outfit, colours or details</b><span class="hint">the picture whose look you want</span></div>
+            <button class="ghost small" @click="whichOne('plus')" title="Image prompt → Stronger (IP-Adapter Plus)">Use Image prompt · Stronger</button></div>
+          <div class="which-row"><div><b>Follow a pose, drawing, silhouette or composition</b><span class="hint">{{ family === 'sdxl' ? 'ControlNet Union ProMax with the right map type' : 'a ControlNet (OpenPose, Line art, Scribble, Canny, Depth)' }}</span></div>
+            <button class="ghost small" @click="whichOne('pose')" title="Opens Image to image with a ControlNet picked for you">Use ControlNet…</button></div>
+          <div class="hint">They combine: a Face image prompt plus a pose ControlNet keeps the person and copies the pose.</div>
+        </details>
+                <div v-if="!form.ip_adapter.image" class="ipa-drop" :class="{over: ipDragOver}" @dragover.prevent="ipDragOver=true"
              @dragleave="ipDragOver=false" @drop.prevent="onIpDrop" @click="$refs.ipPick.click()">
           Drop a reference picture <span class="hint">(or click to choose)</span></div>
         <div v-else class="ipa-on">
@@ -608,6 +661,10 @@
         <div v-if="currentModel?.fast_mode" class="span2 fast-row" :class="{on: form.fast}">
           <label class="check"><input type="checkbox" :checked="form.fast" @change="toggleFast($event.target.checked)">
             ⚡ Fast mode <span class="hint">LCM speed LoRA · 6 steps instead of 25–30 (≈3–5× faster, slightly softer detail)</span></label>
+        </div>
+        <div v-if="['sd15', 'sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="span2 fast-row seamless-row" :class="{on: form.seamless}">
+          <label class="check" title="Every edge wraps around, so copies of the picture fit together with no seam: textures, patterns, wallpapers, game tiles">
+            <input type="checkbox" v-model="form.seamless"> 🧱 Seamless <span class="hint">the picture tiles with no seam (textures, patterns)</span></label>
         </div>
         <div class="span2"><label>Sampler <span v-if="form.fast && currentModel?.fast_mode" class="hint">· LCM is used in fast mode</span></label>
           <select title="The sampler: how the picture is worked out step by step. ⚡ ones need fewer steps, ★ ones give the most detail" v-model="form.sampler" @change="onSamplerChange" :disabled="form.fast && currentModel?.fast_mode"
@@ -1899,6 +1956,71 @@
             <span class="mod-plate">Prompt reader · PR-5</span>
           </div>
         </div>
+        <div class="card rack-module tiled-module" :class="{active: !!tiledJob}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🧩</span>
+            <h3>Tiled upscale</h3><span class="mod-sub">MultiDiffusion · {{ currentModel && ['sd15', 'sdxl'].includes(family) ? currentModel.label : 'needs an SD 1.5 / SDXL model in Create' }}</span></div>
+          <p class="mod-desc" title="The picture is enlarged, then the Create model redraws it lightly in overlapping tiles, averaged at every step so there are no seams. Uses Create's prompt (or the picture's own).">Enlarges the picture and lets your Create model add real detail, tile by tile, with no seams.</p>
+          <label>Size</label>
+          <div class="seg mod-seg">
+            <button v-for="x in [1.5, 2, 3]" :key="'tu' + x" :class="{on: tup.scale === x}" @click="tup.scale = x">{{ x }}×</button>
+          </div>
+          <label title="How much the model may redraw: 0.25–0.4 adds detail and keeps the picture">New detail <span class="mod-val">{{ Number(tup.strength).toFixed(2) }}</span></label>
+          <input type="range" min="0.15" max="0.6" step="0.05" v-model.number="tup.strength" title="0.25–0.4 adds detail and keeps the picture; higher redraws more">
+          <label>Steps <span class="mod-val">{{ tup.steps }}</span></label>
+          <input type="range" min="10" max="40" step="1" v-model.number="tup.steps" title="Only the last part of the steps is used (as in image to image)">
+          <p class="mod-note">{{ tool.source ? tiledEstimate : 'Pick a picture above.' }}</p>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!tool.source || !!tiledJob || !['sd15', 'sdxl'].includes(family)" @click="toolTiled">{{ tiledJob ? 'Upscaling…' : 'Upscale' }}</button>
+            <span class="mod-plate">Tiler · TD-8</span>
+          </div>
+        </div>
+        <div class="card rack-module quant-module" :class="{active: !!quantJob}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!quantJob}"></i><span class="mod-icon">🗜</span>
+            <h3>Smaller copy</h3><span class="mod-sub">quantize a model · 8 / 6 / 4-bit</span></div>
+          <p class="mod-desc" title="The model's UNet (most of its size) is stored with fewer bits (SDNQ). It needs less memory, so big models fit an 8 GB Mac better and other apps stay quicker. It isn't faster per step. The original model isn't changed.">Makes a new, smaller copy of an SD 1.5 or SDXL model that needs less memory. The original stays as it is.</p>
+          <label>Model</label>
+          <select v-model="qnt.model" title="The model to make a smaller copy of"><option value="">pick a model…</option>
+            <option v-for="m in quantModels" :key="'q' + m.id" :value="m.id">{{ m.label }} · {{ familyName(m.family) }}</option></select>
+          <label>Bits</label>
+          <div class="seg mod-seg">
+            <button v-for="b in [8, 6, 4]" :key="'b' + b" :class="{on: qnt.bits === b}" @click="qnt.bits = b"
+                    :title="{8: 'No visible change; about half the memory of the UNet', 6: 'Very close to the original; a bit smaller still', 4: 'Smallest; pictures a little softer'}[b]">{{ b }}-bit</button>
+          </div>
+          <p class="mod-note">{{ {8: 'Same pictures, about half the UNet memory.', 6: 'Very close to the original.', 4: 'Smallest; a little softer detail.'}[qnt.bits] }} Takes a few minutes; the progress shows in the queue.</p>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!qnt.model || !!quantJob" @click="runQuantize">{{ quantJob ? 'Making the copy…' : 'Make the copy' }}</button>
+            <span class="mod-plate">Quantizer · QZ-9</span>
+          </div>
+          <p v-if="qnt.msg" class="mod-note">{{ qnt.msg }}</p>
+        </div>
+        <div class="card rack-module merge-module" :class="{active: mergeJob}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!mergeJob}"></i><span class="mod-icon">🧪</span>
+            <h3>Model merger</h3><span class="mod-sub">blend two models into a new one</span></div>
+          <p class="mod-desc">Mixes two of your .safetensors models of the same type (SD 1.5 + SD 1.5, SDXL + SDXL) into a new model file. The models you pick aren't changed.</p>
+          <label>Model A</label>
+          <select v-model="mrg.a" title="The first model (its VAE is kept)"><option value="">pick a model…</option>
+            <option v-for="m in mergeModels" :key="'a' + m.id" :value="m.path">{{ m.label }} · {{ familyName(m.family) }}</option></select>
+          <label>Model B</label>
+          <select v-model="mrg.b" title="The second model"><option value="">pick a model…</option>
+            <option v-for="m in mergeModels.filter(x => !mergeFamily || x.family === mergeFamily)" :key="'b' + m.id" :value="m.path">{{ m.label }}</option></select>
+          <div class="seg mod-seg">
+            <button :class="{on: mrg.mode === 'sum'}" @click="mrg.mode = 'sum'" title="A × (1 − amount) + B × amount">Blend</button>
+            <button :class="{on: mrg.mode === 'add'}" @click="mrg.mode = 'add'" title="A + (B − C) × amount: adds what B learned on top of its base model C">Add difference</button>
+          </div>
+          <template v-if="mrg.mode === 'add'">
+            <label>Model C <span class="hint">the base model B was made from</span></label>
+            <select v-model="mrg.c"><option value="">pick a model…</option>
+              <option v-for="m in mergeModels.filter(x => !mergeFamily || x.family === mergeFamily)" :key="'c' + m.id" :value="m.path">{{ m.label }}</option></select>
+          </template>
+          <label>{{ mrg.mode === 'add' ? 'How much of the difference' : 'How much of B' }} <span class="mod-val">{{ Number(mrg.m).toFixed(2) }}</span></label>
+          <input type="range" min="0" max="1" step="0.05" v-model.number="mrg.m" title="0 = only A, 1 = all of B (or of the difference)">
+          <input v-model="mrg.name" placeholder="name for the new model (optional)" title="The new model's file name">
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!mrg.a || !mrg.b || (mrg.mode === 'add' && !mrg.c) || !!mergeJob" @click="runMerge">{{ mergeJob ? 'Merging…' : 'Merge' }}</button>
+            <span class="mod-plate">Merger · MM-7</span>
+          </div>
+          <p v-if="mrg.msg" class="mod-note">{{ mrg.msg }}</p>
+        </div>
         <div class="card rack-module convert-module" :class="{active: !!conv.items}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!conv.items}"></i><span class="mod-icon">🔁</span>
             <h3>Convert</h3><span class="mod-sub">DiffusionBee → .safetensors</span></div>
@@ -2038,6 +2160,7 @@
           <button :class="{on: form.i2i_mode === 'inpaint'}" @click="setI2iMode('inpaint')" title="Paint over a part and redraw only that part">🖌 Inpaint</button>
           <button :class="{on: form.i2i_mode === 'outpaint'}" @click="setI2iMode('outpaint')" title="Make the picture bigger and fill in the new area">↔ Expand</button>
           <button :class="{on: form.i2i_mode === 'remove'}" @click="setI2iMode('remove')" title="Paint over something and it disappears, filled in from what's around it (no prompt or model needed)">🩹 Remove</button>
+          <button :class="{on: form.i2i_mode === 'faceswap'}" @click="setI2iMode('faceswap')" title="Put the face from another photo onto the person in this picture (only faces you have permission to use)">🔁 Face swap</button>
         </div>
         <div v-if="(form.i2i_mode === 'inpaint' || (form.i2i_mode === 'outpaint' && form.outpaint_engine === 'model')) && inpaintModels.some((m) => m.family === family)" class="hint inpaint-model-note">
           <label class="check" title="Inpainting models are made for filling in painted areas: edges blend in better. Off: your model at the top does it.">
@@ -2085,6 +2208,29 @@
             <input ref="editRefPick" type="file" multiple accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="onEditRefPicked">
           </div>
           <div v-if="(form.edit_refs || []).length" class="hint">Refer to them in the prompt as “the second picture”, “the third picture”.</div>
+        </template>
+        <template v-else-if="form.i2i_mode === 'faceswap'">
+          <div class="hint">Puts the face from another photo onto the person (or people) in this picture, then tidies it with
+            Restore faces. No prompt or model needed.</div>
+          <label>Face to use <span class="hint">a clear, front-facing photo of one person</span></label>
+          <div v-if="!form.swap.face" class="start-drop swap-drop" :class="{over: swapOver}" @dragover.prevent="swapOver = true" @dragleave="swapOver = false"
+               @drop.prevent="onSwapDrop" @click="$refs.swapPick.click()">Drop the face photo here <span class="hint">(or click to choose)</span></div>
+          <div v-else class="swap-face"><img :src="fileUrl(form.swap.face)" alt="Face to use">
+            <button class="link" @click="form.swap.face = ''">remove</button></div>
+          <input ref="swapPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff" hidden @change="onSwapPicked">
+          <label>Which faces in the picture</label>
+          <div class="seg">
+            <button :class="{on: form.swap.which === 'all'}" @click="form.swap.which = 'all'" title="Every face in the picture gets the new face">All faces</button>
+            <button :class="{on: form.swap.which === 'biggest'}" @click="form.swap.which = 'biggest'" title="Only the biggest (nearest) face">The main face</button>
+          </div>
+          <label>Detail</label>
+          <div class="seg">
+            <button :class="{on: form.swap.boost === 1}" @click="form.swap.boost = 1" title="128 px swap: quick; fine for small faces">Normal</button>
+            <button :class="{on: form.swap.boost === 2}" @click="form.swap.boost = 2" title="“Pixel boost” 256 px: sharper for big, close-up faces (4× the work, still a few seconds)">Sharper (256 px)</button>
+          </div>
+          <label class="check" title="Restore faces (CodeFormer, fidelity 0.7, blended 60% so skin texture survives) after the swap"><input type="checkbox" v-model="form.swap.restore"> Tidy the new face (CodeFormer · 0.7 · 60%)</label>
+          <label class="check consent"><input type="checkbox" v-model="form.swap.consent"> I have permission from the person whose face this is</label>
+          <p class="hint">inswapper_128 is licensed for <b>non-commercial use only</b>, and every result is checked: explicit results aren't saved. First use downloads ~460 MB.</p>
         </template>
         <template v-else-if="form.i2i_mode === 'remove'">
           <div class="hint">Paint over what you want gone (cover it fully, a little past its edges), then press <b>🩹 Remove</b>.
@@ -2180,7 +2326,7 @@
           “add sunglasses”, “replace the sky with a sunset”, “turn it into a watercolour painting”, “remove the people in the background”.</p>
         <p v-if="editModel() && !editModel().cached" class="hint warn">The first edit downloads FLUX.2 Klein (~{{ editModel().download_gb }} GB), then it works offline.</p>
       </div>
-      <div v-if="!i2iUsesKlein" class="card i2ifold" :class="{shut: i2iShut('steps')}">
+      <div v-if="!i2iUsesKlein && form.i2i_mode !== 'faceswap'" class="card i2ifold" :class="{shut: i2iShut('steps')}">
         <h3 @click="i2iFoldToggle('steps')">Sampler, steps &amp; guidance <span class="hint">{{ currentModel ? currentModel.label : '' }} · model is chosen at the top</span>
           <span v-if="i2iShut('steps')" class="cfold-sum">{{ (samplers.find((x) => x.id === form.sampler) || {}).label || '' }} · {{ form.steps }} steps · CFG {{ form.cfg }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <label class="i2i-sampler-label">Sampler <span class="hint">· the same as Create's</span></label>
@@ -2232,7 +2378,7 @@
         <div class="hint">{{ familyLabel }} · the sampler, steps and guidance are shared with Create.</div>
       </div>
 
-      <div v-if="!i2iUsesKlein" class="card i2i-loras i2ifold" :class="{shut: i2iShut('loras')}">
+      <div v-if="!i2iUsesKlein && form.i2i_mode !== 'faceswap'" class="card i2i-loras i2ifold" :class="{shut: i2iShut('loras')}">
         <h3 @click="i2iFoldToggle('loras', $event)">LoRAs <span class="hint">· {{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · shared with Create</span>
           <button v-if="form.loras.length" class="link small-link" @click="form.loras = []">clear all</button><span class="cfold-chev" aria-hidden="true"></span></h3>
         <div v-for="(l, i) in form.loras" :key="l.name" class="lora-row">
@@ -2254,22 +2400,53 @@
         <p v-if="form.loras.length" class="hint">Trigger words and 🎲 Random LoRAs are in Create.</p>
       </div>
 
-      <div v-if="form.i2i_mode !== 'change'" class="card hint cn-off">
-        <div>2 · ControlNet is off while {{ form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
+      <details v-if="form.i2i_mode === 'change'" class="card chain-card" :open="chain.steps.length > 0 || chain.running">
+        <summary><h3>🔗 Model chain <span class="hint">run the picture through several models in turn · e.g. SD 1.5 → SDXL → FLUX</span></h3></summary>
+        <p class="hint">Each model redraws the last one's result with the prompt above: an SD 1.5 sketch can become an SDXL picture,
+          then a FLUX.1 or ERNIE finish. Low change strength keeps the picture; higher lets each model add its own look.
+          Each switch loads a model (20–60 s on an 8 GB Mac).</p>
+        <div v-for="(st, k) in chain.steps" :key="k" class="chain-step" :class="{on: chain.at === k}">
+          <span class="chain-n">{{ k + 1 }}</span>
+          <select v-model="st.model" @change="chainSave" title="The model for this step">
+            <option v-for="m in chainModels()" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+          <span class="hint">change</span>
+          <input type="range" min="0.1" max="0.9" step="0.05" v-model.number="st.strength" @change="chainSave" title="How much this model may change the picture">
+          <span class="mod-val">{{ Number(st.strength).toFixed(2) }}</span>
+          <button class="ghost small" @click="chain.steps.splice(k, 1); chainSave()" title="Take this step out">✕</button>
+        </div>
+        <div class="row">
+          <button class="ghost small" :disabled="chain.steps.length >= 4 || !chainModels().length" @click="chainAdd">＋ Add a model</button>
+          <button class="primary" :disabled="!chain.steps.length || chain.running || !form.init_image" @click="runChain">{{ chain.running ? 'Running step ' + (chain.at + 1) + '…' : '▶ Run chain' }}</button>
+          <button v-if="chain.running" class="danger small" @click="chainStop">■ Stop</button>
+        </div>
+        <p v-if="!chainModels().length" class="hint">Download SD 1.5, SDXL, Anima, FLUX.1 Schnell or ERNIE in the Models tab first.</p>
+      </details>
+      <div v-if="form.i2i_mode !== 'change' && form.i2i_mode !== 'faceswap'" class="card hint cn-off">
+        <div>2 · ControlNet is off while {{ form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'faceswap' ? 'swapping faces' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
         <div v-if="form.i2i_mode === 'edit'" class="cn-off-tips">Edit with words already keeps the layout, and <b>More pictures</b> above lend it a style, an outfit or a face.
           To make a new picture that follows this one's <b>structure</b> instead, use ControlNet with an SD 1.5 model:
           <b>Canny</b> (outlines), <b>Depth</b> (3-D layout), <b>Line art</b> (colour a drawing), <b>OpenPose</b> (copy a pose), <b>Tile</b> (add detail)<template v-if="userControlnets.length">, or one of yours ({{ userControlnets.slice(0, 3).map((u) => u.name).join(', ') }}{{ userControlnets.length > 3 ? '…' : '' }})</template>.
           SD 1.5 and SDXL models can also take an <b>image prompt</b> (IP-Adapter, in Create → Image prompt) that copies a picture's style or subject.</div>
         <button v-if="form.i2i_mode === 'edit' || form.i2i_mode === 'inpaint'" class="ghost small" @click="switchToControlNet">Use ControlNet instead</button>
       </div>
-      <div v-else class="card">
+      <div v-else-if="form.i2i_mode === 'change'" class="card">
         <h3>2 · ControlNet <span class="hint">{{ family === 'sdxl' ? 'SDXL' : 'SD 1.5' }} · makes the result follow the picture's structure</span></h3>
-        <select title="The ControlNet: what the result follows from your picture (outlines, depth, pose, line art…). None = off" v-model="form.control.type" @change="controlMap = null">
+        <details class="which-one">
+          <summary>Which one should I use?</summary>
+          <div class="which-row"><div><b>The same person in different pictures</b><span class="hint">a close-up photo of the face as the reference</span></div>
+            <button class="ghost small" @click="whichOne('face')" title="Image prompt → Face (IP-Adapter Plus Face)">Use Image prompt · Face</button></div>
+          <div class="which-row"><div><b>Copy a picture's style, outfit, colours or details</b><span class="hint">the picture whose look you want</span></div>
+            <button class="ghost small" @click="whichOne('plus')" title="Image prompt → Stronger (IP-Adapter Plus)">Use Image prompt · Stronger</button></div>
+          <div class="which-row"><div><b>Follow a pose, drawing, silhouette or composition</b><span class="hint">{{ family === 'sdxl' ? 'ControlNet Union ProMax with the right map type' : 'a ControlNet (OpenPose, Line art, Scribble, Canny, Depth)' }}</span></div>
+            <button class="ghost small" @click="whichOne('pose', true)" title="Opens Image to image with a ControlNet picked for you">Use ControlNet…</button></div>
+          <div class="hint">They combine: a Face image prompt plus a pose ControlNet keeps the person and copies the pose.</div>
+        </details>
+                <select title="The ControlNet: what the result follows from your picture (outlines, depth, pose, line art…). None = off" v-model="form.control.type" @change="controlMap = null">
           <option value="">None</option>
           <option v-for="t in controlTypesShown" :key="t.id" :value="t.id">{{ t.label }}{{ t.diffusionbee ? ' · from DiffusionBee' : '' }}</option>
         </select>
-        <div v-if="family === 'sdxl' && controlTypesShown.length === 0" class="hint">No SDXL ControlNets yet. Add one from Civitai (Models → Add from Civitai): SDXL, Pony, Illustrious and NoobAI models use them. The built-in ones are for SD 1.5.</div>
-        <div v-else-if="family === 'sdxl'" class="hint">SDXL ControlNets are big: on an 8 GB Mac expect it to be slow, and use 1024 px or less.</div>
+        <div v-if="family === 'sdxl'" class="hint">SDXL: the <b>Union ProMax</b> ControlNets (one ~2.5 GB download for every type) or your own. They're big: on an 8 GB Mac expect it to be slow, and use 768–1024 px.</div>
         <template v-if="form.control.type">
           <div v-if="cnGuide && cnGuide.set" class="cn-rec" :class="{warn: cnGuideOff.length}">
             <div class="cn-rec-head"><b>Recommended settings</b>
@@ -2300,7 +2477,7 @@
             <input type="range" min="0" max="1" step="0.05" v-model.number="form.control.end">
           </details>
           <label class="check"><input type="checkbox" v-model="form.control.already_map" @change="controlMap = null"> My picture is already a control map (edges, depth, sketch…)</label>
-          <div v-if="form.control.type === 'depth' && !form.control.already_map" class="depth-pick">
+          <div v-if="controlMapKind === 'depth' && !form.control.already_map" class="depth-pick">
             <label>Depth model <span class="hint">Depth Anything V2</span></label>
             <div class="seg">
               <button v-for="d in depthModels" :key="d.id" :class="{on: (form.control.depth_model || 'small') === d.id}"
@@ -2317,7 +2494,7 @@
         </template>
       </div>
 
-      <div class="card">
+      <div v-if="form.i2i_mode !== 'faceswap'" class="card">
         <h3>3 · Prompt</h3>
         <textarea class="tape" v-model="form.prompt" rows="3"
                   :placeholder="form.i2i_mode === 'edit' ? 'The change, in a sentence: make the jacket red · add a hat · turn it into a watercolour…' : i2iUsesKlein ? 'Optional: what goes around the picture · more of the street · a sunny beach · the rest of the room…' : 'What the result should look like…'"></textarea>
@@ -2376,7 +2553,7 @@
       </div>
 
       <div class="actions" :class="{busy}">
-        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model' ? '↔ Expand' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
+        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'faceswap' ? '🔁 Swap face' + (busy ? ' (queue)' : '') : form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model' ? '↔ Expand' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
         <div v-if="busy" class="stop-group">
           <button v-if="runningJob || queue.length" class="ghost pause-btn" :class="{on: paused}" @click="togglePause"
                   :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
@@ -2799,7 +2976,7 @@
       <img src="assets/logo-round-512.png" alt="">
       <div>
         <h1>Protoart Studio</h1>
-        <p class="hint">Version 1.2.2 · AI image making that runs entirely on your Mac</p>
+        <p class="hint">Version 1.3.0 · AI image making that runs entirely on your Mac</p>
       </div>
     </div>
 
@@ -3504,6 +3681,7 @@
           <button @click="editIn(detail)" :title="'Open in ' + editorName() + '; saved edits come back to the Library'">✏️ Edit in {{ editorName() }}</button>
           <button @click="compressOne(detail)" title="Export a smaller copy that looks the same, or resize / convert it (Library → Batch edit &amp; export)">🗜 Compress / export…</button>
           <button @click="savePictureAs(detail)" title="Save a copy of the picture where you choose (it also stays in the Library)">💾 Save as…</button>
+          <button @click="exportSettings(detail)" title="Save this picture's settings as a .json file (load it again with 📥 Settings in Create, or share it)">⤓ Settings .json</button>
           <button @click="showInFolder(detail.path)">Show in Finder</button>
         </div>
       </div>
