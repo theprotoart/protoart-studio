@@ -52,7 +52,7 @@ class LibraryDetectTests(unittest.TestCase):
         touch(os.path.join(self.h, "stable-diffusion-webui", "models", "Stable-diffusion", "y.ckpt"))
         touch(os.path.join(self.h, "stable-diffusion-webui", "embeddings", "e.pt"))
         # only the ones in the test folder: a Mac with ComfyUI installed (e.g. in /Applications) also finds that one
-        layouts = sorted(f["layout"] for f in libraries.detect(self.h) if os.path.realpath(f["root"]).startswith(os.path.realpath(self.h)))
+        layouts = sorted(f["layout"] for f in libraries.detect(self.h) if os.path.samefile(os.path.dirname(f["root"]), self.h))
         self.assertEqual(layouts, ["a1111", "comfyui"])
 
     def test_same_folder_listed_once(self):
