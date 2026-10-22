@@ -55,6 +55,15 @@ class LibraryDetectTests(unittest.TestCase):
         layouts = sorted(f["layout"] for f in libraries.detect(self.h) if os.path.samefile(os.path.dirname(f["root"]), self.h))
         self.assertEqual(layouts, ["a1111", "comfyui"])
 
+    def test_same_folder_different_case_listed_once(self):
+        touch(os.path.join(self.h, "ComfyUI", "models", "checkpoints", "x.safetensors"))
+        touch(os.path.join(self.h, "ComfyUI", "main.py"))
+        alias = os.path.join(self.h, "comfyui")
+        if not os.path.exists(alias):  # case-sensitive file system (Linux): make the same folder another way
+            os.symlink(os.path.join(self.h, "ComfyUI"), alias)
+        found = [f for f in libraries.detect(self.h) if os.path.samefile(os.path.dirname(f["root"]), self.h)]
+        self.assertEqual(len(found), 1)
+
     def test_same_folder_listed_once(self):
         touch(os.path.join(self.h, "StabilityMatrix", "Data", "Models", "Lora", "a.safetensors"))
         os.symlink(os.path.join(self.h, "StabilityMatrix"), os.path.join(self.h, "Documents_SM"))

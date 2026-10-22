@@ -231,13 +231,17 @@ def detect(h=None, count=True):
     for layout, folder in candidates(h):
         try:
             real = os.path.realpath(folder)
+            if not _isdir(real):
+                continue
+            st = os.stat(real)
+            key = (st.st_dev, st.st_ino)  # macOS ignores case: ~/ComfyUI and ~/comfyui are one folder
         except OSError:
             continue
-        if real in seen or not _isdir(real):
+        if key in seen:
             continue
         info = inspect(layout, real, count=count)
         if info:
-            seen.add(real)
+            seen.add(key)
             out.append(info)
     out.sort(key=lambda x: -x["files"])
     return out
