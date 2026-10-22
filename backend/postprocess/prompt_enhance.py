@@ -38,6 +38,17 @@ SYSTEM = {
         "picture so it continues naturally: the surroundings, the rest of the scene, the background, matching the "
         "picture's lighting and style. Under 45 words. Don't describe the subject that's already there. Always write "
         "in English. Output only the description."),
+    "contrast": (
+        "You suggest a contrasting version of an image idea: keep the same subject and place, but change the season, "
+        "weather, time of day, material, era or mood to its striking opposite (summer to winter after light snowfall, "
+        "a flowing waterfall frozen into blue-white ice, a sunny day into a stormy night, a busy street empty at dawn). "
+        "Write it as one vivid description for a text-to-image model in 2 to 3 sentences. Always write in English. "
+        "Output only the description."),
+    "contrast_tags": (
+        "You suggest a contrasting version of an image idea for Stable Diffusion: keep the same subject and place, but "
+        "change the season, weather, time of day, material, era or mood to its striking opposite. Write it as 15 to 25 "
+        "short comma-separated tags (Danbooru-style tags when they fit). No sentences. Always write in English. "
+        "Output only the tags on one line."),
 }
 EXAMPLES = {
     "natural": ("a fox in snow",
@@ -53,6 +64,14 @@ EXAMPLES = {
                  "The rest of the cosy cafe continues around her: wooden tables and chairs, a counter with a coffee "
                  "machine on one side, framed posters on the walls and warm window light, in the same soft, film-like "
                  "photographic style."),
+    "contrast": ("a photo of a waterfall",
+                 "The same waterfall frozen solid in deep winter: cascades of blue-white ice and long glassy icicles "
+                 "hang from the cliff, fresh snow covers the rocks and a pale low sun glints through the cold mist, "
+                 "a still, silent mood captured as a crisp landscape photograph."),
+    "contrast_tags": ("summer street, sunny, people walking",
+                      "street, winter, light snowfall, snow on rooftops, frosted windows, bare trees, people in coats, "
+                      "scarves, breath vapour, grey sky, soft diffuse light, quiet mood, wet cobblestones, "
+                      "warm shop lights, cinematic, wide shot"),
     "edit": ("make her jacket red",
              "Change the woman's jacket to a deep red leather jacket with the same cut and fit, keeping her face, "
              "pose, hair, the background and the lighting exactly as they are."),
@@ -60,12 +79,15 @@ EXAMPLES = {
 QUALITY_TAGS = ["masterpiece", "best quality", "highly detailed"]
 
 
-def style_for(family):
+def style_for(family, contrast=False):
     """Tags for the Stable Diffusion models (SD 1.5, SDXL incl. Pony / Illustrious / NoobAI), sentences for the
     models that read language (ERNIE, FLUX, FLUX.2); "edit" rewrites an editing instruction (Edit with words)."""
     if family in ("edit", "outpaint"):
         return family
-    return "tags" if family in ("sd15", "sdxl") else "natural"
+    tags = family in ("sd15", "sdxl")
+    if contrast:  # 🔄 contrast: the same scene turned into its striking opposite
+        return "contrast_tags" if tags else "contrast"
+    return "tags" if tags else "natural"
 
 
 class PromptEnhancer:
@@ -86,11 +108,11 @@ class PromptEnhancer:
             self._model = AutoModelForCausalLM.from_pretrained(self.repo, torch_dtype=dtype).to(self.device).eval()
         return self._tok, self._model
 
-    def enhance(self, prompt, width=1024, height=1024, cancel_event=None, family="sdxl"):
+    def enhance(self, prompt, width=1024, height=1024, cancel_event=None, family="sdxl", contrast=False):
         import torch
         from transformers import LogitsProcessor, LogitsProcessorList, StoppingCriteria, StoppingCriteriaList
 
-        style = style_for(family)
+        style = style_for(family, contrast)
         tok, model = self._load()
         shape = "portrait" if height > width * 1.1 else "landscape" if width > height * 1.1 else "square"
         ex_in, ex_out = EXAMPLES[style]
@@ -104,7 +126,7 @@ class PromptEnhancer:
         inputs = tok(text, return_tensors="pt").to(self.device)
         start = inputs["input_ids"].shape[1]
         emit = self.emit
-        limit = {"tags": 110, "edit": 80, "outpaint": 80}.get(style, 170)
+        limit = {"tags": 110, "contrast_tags": 110, "edit": 80, "outpaint": 80}.get(style, 170)
 
         class Watch(StoppingCriteria):
             def __call__(self, input_ids, scores, **kw):
@@ -183,7 +205,9 @@ def clean(text, original, style):
     t = re.sub(r"^(prompt|description|tags|output)\s*:\s*", "", t, flags=re.IGNORECASE).strip().strip('"').strip()
     if len(t) < 8:
         return original
-    if style == "tags":
+    if style in ("tags", "contrast_tags"):
+        if style == "contrast_tags":
+            original = ""  # a contrast is a new scene: the user's own tags aren't put back in front
         seen, tags = set(), []
         for raw in re.split(r",|\.|;", t):
             tag = raw.strip().strip("*-").strip()

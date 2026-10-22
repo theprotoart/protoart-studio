@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
@@ -70,6 +70,7 @@ function defaultPost() {  // Tools settings on a fresh install
     enh: { upscale_factor: 2, num_inference_steps: 18, denoise_strength: 0.35, controlnet_scale: 0.6,
            solver: "DDIM", seed: -1, prompt: "", turbo: false, instant: false, work_size: "auto" },
     vec: { colors: 8, detail: "medium", smooth: true },   // ✒️ Vectorize
+    det: { lora: "", weight: 0.8, strength: 0.35, steps: 20 },  // 🔎 Detail with a LoRA (patchbay module)
   };
 }
 
@@ -115,7 +116,7 @@ const SAMPLER_PICKS = {
 const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}];
 const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677" };
 const I2I_KINDS = ["img2img", "healed", "word_edit", "inpaint", "outpaint", "controlnet"];  // pictures made in Image to image
-const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "FLUX.2", sd2: "SD 2" };
+const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "Klein 4B", sd2: "SD 2" };  // FLUX.2 [klein] 4B: named by the model, so its LoRAs and models match
 const OPTS_KEY = "beestudio.opts";
 const PERF_KEY = "protoart.perf";
 // Tools → Patchbay: the back of the rack. Each module has an IN and an OUT jack; a cable from one module's OUT to the
@@ -153,6 +154,17 @@ const CN_GUIDES = {
     set: { scale: 1, start: 0, end: 1, use_init: true, strength: 0.4 } },
 };
 const CN_NAME_GUIDES = [];  // your own ControlNets matched to a guide by name
+// CodeFormer starting points (fidelity = how much of the person's own face is kept, strength = how much of the
+// repaired face is blended over the original). Upscaling is the ENHANCE module's job, so it isn't part of these.
+const FACE_PRESETS = [
+  { id: "balanced", label: "Balanced", fidelity: 0.5, strength: 1.0, tip: "Good default for most generated portraits" },
+  { id: "identity", label: "Keep likeness", fidelity: 0.8, strength: 1.0, tip: "Keeps the likeness of a real person, or a face from a person LoRA" },
+  { id: "heavy", label: "Heavy repair", fidelity: 0.3, strength: 1.0, tip: "Fixes badly distorted or tiny faces (small faces in wide shots)" },
+  { id: "subtle", label: "Subtle touch-up", fidelity: 0.7, strength: 0.6, tip: "Light clean-up blended with the original, so skin texture survives" },
+  { id: "old", label: "Old photo", fidelity: 0.4, strength: 1.0, tip: "Scanned or worn photographs" },
+  { id: "gentle", label: "Gentle", fidelity: 0.85, strength: 1.0, tip: "Faces that are already clear and just need a polish" },
+];
+
 const PATCH_NODES = [
   { id: "src", label: "PICTURE", sub: "your picture", out: true },
   { id: "heal", label: "REMOVE", sub: "objects", icon: "🩹", in: true, out: true },
@@ -160,6 +172,7 @@ const PATCH_NODES = [
   { id: "enhance", label: "ENHANCE", sub: "& upscale", icon: "✨", in: true, out: true },
   { id: "depth", label: "DEPTH", sub: "map", icon: "🌊", in: true, out: true },
   { id: "vector", label: "VECTOR", sub: "SVG", icon: "✒️", in: true, out: true },
+  { id: "detail", label: "DETAIL", sub: "with a LoRA", icon: "🔎", in: true, out: true },
   { id: "result", label: "RESULT", sub: "to Library", in: true },
 ];
 const PATCH_X = (i) => 78 + i * 140;           // jack columns in the panel's own 1000-wide drawing
@@ -259,6 +272,7 @@ const protoartApp = createApp({
   ...(window.__PROTOART_RENDER__ ? { render: window.__PROTOART_RENDER__ } : {}),
   data() {
     return {
+      facePresets: FACE_PRESETS,
       tab: "create",
       theme: window.RackTheme ? window.RackTheme.get() : "dark", // faceplate: light / dark / system (rack.js)
       skin: window.RackTheme && window.RackTheme.getSkin ? window.RackTheme.getSkin() : "studio", // theme colours (rack.js)
@@ -289,7 +303,7 @@ const protoartApp = createApp({
       presetIncludesPrompt: false,
       loraToAdd: "",
       loraSearch: "",
-      loraOpen: false,
+      loraOpen: loadJSON("protoart.loraOpen", true),  // Create's LoRA list shows until you close it (remembered)
       logCopied: false,
       resetAsk: "",
       edits: { pending: [], timer: null, notInstalled: false, folder: "" },
@@ -447,6 +461,20 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.2.2 (test version for friends): fixes from your notes", items: [
+              "<b>ControlNet works again, and Image to image is much faster</b>. Switching to ControlNet, Image to image or Inpaint quietly turned the model into full precision: twice the memory, so 8 GB Macs crawled (20 minutes and more), and the ControlNet guidance pushed the picture off course, which gave flat grey (Canny), noise (Scribble) or nothing at all. The model now keeps its precision. Depth and OpenPose also free their helper model once the map is made.",
+              "<b>Tile, OpenPose and Scribble no longer say “couldn't reach huggingface.co”</b> when you are online: Tile's file is in an older format (now read too), and a file that's genuinely missing on Hugging Face says so instead of blaming your internet.",
+              "<b>Inpainting models</b> (files with “inpainting” in the name) load for Inpaint and Expand instead of failing with a conv_in size error.",
+              "<b>Patchbay</b>: a <b>SELECT</b> tab at the bottom of each module picks it; the rack unit below then shows <b>that module's settings</b>, with a ⚙ FACES 2 badge so you know which copy you're editing (no second settings panel). <b>✕</b> on a module takes it off the rack (bring it back from Add a module). New <b>🔎 DETAIL</b> module: a light redraw with an “add detail” LoRA. <b>🛡 Protect areas…</b>: paint parts of the picture the rack must not change. The picture forming shows in Tools while it runs.",
+              "<b>CodeFormer presets</b> (Restore faces, in Create and Tools): Balanced, Keep likeness, Heavy repair, Subtle touch-up, Old photo, Gentle. Each sets fidelity and strength; you can still change both.",
+              "<b>🔄 Contrast prompt</b> (Create → ✨ Enhance, and Image to image): suggests the same scene turned into its opposite, like a waterfall frozen into blue-white ice or a summer street after light snowfall. ↩ undo puts yours back.",
+              "<b>Your own defaults</b>: 💾 Save as this model's defaults (sampler, steps, guidance) next to Reset in Create and in Image to image's Steps card; they load whenever you pick that model. A LoRA's ☆ sets the weight it starts at.",
+              "<b>Library: right-click a picture</b> for Open, Star, Send to Image to image or Tools, Show in Finder and Delete.",
+              "<b>Image → prompt</b> (Tools): ⧉ Copy, 🖼 Use in Image to image (picture and prompt together) and ✍ Use in Create.",
+              "<b>Old .ckpt models</b>: Tools → Convert → <b>Old .ckpt files…</b> makes a .safetensors copy that loads (read safely: nothing inside the file is run; the .ckpt is left as it is).",
+              "<b>Settings → Main folder</b>: pick one folder (an external drive is fine) and its Models, LoRAs, Embeddings, VAE and ControlNet sub-folders are all used. <b>↻ Refresh</b> re-reads everything; a drive macOS hasn't allowed yet, or one that isn't plugged in, now says so.",
+              "<b>LoRA tags can also be trigger words</b> (tick “also as trigger words”), the LoRA list remembers it's open, Klein 4B is the name for FLUX.2 [klein] 4B everywhere, the outpaint LoRA no longer shows in Create, and the active LoRAs in Create stand out.",
+              "Smaller things: the splash meter's red zone sits on the scale, the prompt list says “Add prompts above” instead of “Queue 0 jobs”, and Close / Delete in a picture's details no longer overlap its text." ] },
             { h: "1.2.1 (test version): fixes from your notes", items: [
               "<b>Expand with FLUX.2: fewer seams and doubled objects</b>. Your picture goes to FLUX.2 at exactly the size it draws, its result is lined up with your picture before the two are blended (over a wider band), and if FLUX.2 redrew the picture its whole version is kept instead of a patchwork. The result also no longer sits between black bars.",
               "<b>Expand advice</b>: ★ make it wider / ★ make it taller are the recommended choices, and a note warns when you expand both ways at once or by a lot. <b>💡 suggest from the picture</b> writes a starting prompt from your picture.",
@@ -616,6 +644,9 @@ const protoartApp = createApp({
               "<b>📒 My prompts</b> (under the prompt): <b>＋ save</b> keeps the prompt and negative prompt under a name; pick one from the list to put it back; <b>manage…</b> to use or delete them (asks first). Kept on this Mac.",
               "<b>🎲 Random · { } Wildcards · 📋 List</b> are the three keys under the prompt: a random prompt, wildcards ({red|blue}, __name__) and a list of prompts (one job per line).",
               "<b>✨ Enhance prompt</b> turns a short idea into a full prompt in the model's style: tags for SD 1.5, a detailed description for SDXL and ERNIE (small built-in language model, ~1 GB the first time).",
+              "<b>🔄 Contrast prompt</b> (next to ✨ Enhance now, and in Image to image) suggests the same scene turned into its striking opposite: another season, weather, time of day or material (a waterfall → frozen blue-white ice with icicles; a summer street → winter after light snowfall). ↩ undo brings your prompt back.",
+              "<b>Your own defaults</b>: set the sampler, steps and guidance you like, then <b>💾 Save as this model's defaults</b> (next to Reset). Picking that model again loads them; ↺ my defaults puts them back after changes, <i>forget</i> clears them. For a LoRA, set its weight and press ☆ under the active LoRAs: it starts at that weight from then on.",
+              "<b>Restore faces presets</b> (CodeFormer): Balanced (fidelity 0.5), Keep likeness (0.8, for real people or person LoRAs), Heavy repair (0.3, tiny or badly distorted faces), Subtle touch-up (0.7, blended 60% so skin texture stays), Old photo (0.4) and Gentle (0.85, already clear faces).",
               "<b>enhance now</b> (button) rewrites the prompt once, right away, and puts it in the prompt box so you can read it, edit it or <b>↩ undo</b> before generating. Best for polishing one prompt by hand.",
               "<b>Enhance prompt when generating</b> (checkbox) leaves your prompt box alone and enhances your short idea behind the scenes every time you press Generate, so each image gets a fresh variation. The prompt that was used shows under the box afterwards and is saved with the image. Best for exploring many variations; it adds a few seconds per image.",
               "<b>🎲 Random prompt</b> fits the model: for <b>FLUX, FLUX.2 and ERNIE</b> (which read sentences) it writes a short scene description (who, what they wear and do, where, when, the light and the look); for <b>SD 1.5 and SDXL</b> it writes Danbooru-style tags with a quality preset. Pick the subject and how detailed it should be next to it.",
@@ -744,7 +775,9 @@ const protoartApp = createApp({
           sections: [
             { h: "🔌 Patchbay: run the tools in your own order", items: [
               "<b>＋ Add a module</b> (above the panel) puts in another copy of Faces, Enhance, Remove or Depth, like a second rack unit: cable it in to run that tool twice in one chain (for example Restore faces, then Restore faces again). <b>✕ last added</b> takes the newest copy out.",
-              "<b>Each module's settings</b>: click a module's name on the patchbay. The first FACES, ENHANCE, DEPTH, REMOVE or VECTOR lights up its rack unit below (its settings are there); a copy you added, such as FACES 2, shows <b>its own settings</b> under the panel (model, strength, fidelity for faces; upscale, detail, steps for enhance; model and look for depth), so each copy can do something different. Click the name again to close them.",
+              "<b>Each module's settings</b>: press <b>SELECT</b> at the bottom of a module. Its rack unit below lights up and shows that module's settings, with a ⚙ badge naming it; a copy you added, such as FACES 2, keeps <b>its own settings</b> in the same rack unit (model, strength, fidelity for faces; upscale, detail, steps for enhance…), so each copy can do something different. Press SELECTED again to finish.",
+              "<b>✕</b> (top right of a module) takes it off the rack; <b>Add a module → ↩ put … back</b> returns it. <b>🔎 DETAIL</b> redraws lightly with the Create model and one LoRA (an “add detail” LoRA works well; change strength 0.2–0.4 keeps the picture). It needs an SD 1.5 or SDXL model in Create.",
+              "<b>🛡 Protect areas…</b>: paint over parts the rack must not change (a face you like, a logo), press ✓ Done protecting, then ▶ Run patch: those parts are put back from your original at the end. The picture forming shows in the preview while it runs.",
               "<b>Saving a signal flow</b>: type a name next to <b>💾 Save flow</b> and press it: the cables, the copies you added, the module order and the copies' own settings are kept. Load it again from <i>load a saved flow…</i>; 🗑 deletes the saved one (the patchbay stays as it is).",
               "<b>Moving modules</b>: drag a module's name plate left or right, or point at it and press <b>‹</b> / <b>›</b>. PICTURE stays first and RESULT last. Moving a module doesn't change what runs: the <b>cables</b> set the order the picture goes through (shown in the amber readout). <b>↺ reset</b> puts the modules back in their places and pulls out every cable.",
               "Switch on <b>PATCHBAY</b> (the toggle at the top of the right-hand column). The back of the rack appears: every tool has an <b>IN</b> and an <b>OUT</b> jack. <b>PICTURE</b> (your picture) has only an OUT, <b>RESULT</b> (the Library) only an IN.",
@@ -801,7 +834,9 @@ const protoartApp = createApp({
             { h: "Image → prompt & converter", items: [
               "<b>Describe</b> uses <b>Qwen3.5 4B</b>, a 2026 vision model on the Mac's GPU: a detailed prompt in sentences (subject, clothes, pose, setting, light, colours, framing, style). The first time it sets itself up and downloads ~3 GB, then it works offline. <b>Quick</b> is Florence-2 (shorter, lighter); <b>Tags</b> is the Danbooru tagger for anime models. FLUX.2 Klein can't do this: it draws pictures, it doesn't read them.",
               "Turn any image into a prompt (sentences or Danbooru tags) for the Create tab.",
-              "<b>Convert DiffusionBee files</b> makes standard .safetensors copies of your old models, LoRAs and embeddings." ] },
+              "When the prompt is ready: <b>⧉ Copy</b>, <b>🖼 Use in Image to image</b> (opens the picture there with the prompt in the box) or <b>✍ Use in Create</b>.",
+              "<b>Convert DiffusionBee files</b> makes standard .safetensors copies of your old models, LoRAs and embeddings.",
+              "<b>Old .ckpt files…</b> lists the .ckpt checkpoints in your folders (or pick one) and makes a .safetensors copy in your checkpoints folder. It reads only the weights, so nothing hidden in the file can run; <i>half size</i> makes a smaller copy that gives the same pictures. The .ckpt isn't changed." ] },
           ] },
         { id: "train", go: "train", icon: "🎓", title: "Train", summary: "Teach the app your own character, object or style; merge LoRAs",
           sections: [
@@ -843,6 +878,7 @@ const protoartApp = createApp({
         { id: "library", go: "library", icon: "🗂", title: "Library", summary: "Everything you've made, searchable",
           sections: [
             { h: "Finding images", items: [
+              "<b>Right-click a picture</b> for a quick menu: Open details, ★ Star, Send to Image to image, Send to Tools, Show in Finder and Delete (moves it to the Trash after asking; Esc closes the menu).",
               "<b>☑ Select</b> (middle of the toolbar), tick 2–6 pictures and press <b>⇆ Compare</b> in the toolbar (next to ✕ Deselect all; it stays in view while you scroll down). In a picture's details, <b>‹ ›</b> or the ← → keys go to the previous / next picture, and <b>✕ Close</b> / <b>Delete</b> sit beside the details (Esc closes).",
               "<b>Selecting many at once</b>: in ☑ Select, drag across the pictures (or draw a box starting between them); the list scrolls when you rest the pointer at the edge. Start the drag on a picture that's already selected to unselect instead. <b>✕ Deselect all</b> (centred under ☑ Selecting · Done, and in the selection bar) unselects everything.",
               "<b>Zoom in Compare</b>: scroll the mouse wheel or pinch over any picture (or use － ＋, Fit and 1:1); drag to look around, double-click to zoom in or back out. Every picture zooms and moves together, so you can compare the same spot. <i>details</i> under a picture opens it.",
@@ -961,7 +997,8 @@ const protoartApp = createApp({
             { h: "Finding your way around Settings", items: [
               "Click a section's heading to fold it away (▾); the app remembers which ones you folded. Long lists (your marks, People tags) start folded.",
               "In a narrow window the sections stack in one column, so nothing is cut off.",
-              "<b>Model folders</b>: <b>＋ Add watched folders…</b> as many times as you like (⌘-click to pick several at once); each is listed as Folder 1, 2… with Remove. <b>↻ Refresh</b> reads them again. Below, <b>Model libraries from other apps</b> uses a Stability Matrix / ComfyUI / A1111 / InvokeAI / Fooocus library in place." ] },
+              "<b>Main folder</b> (top of Model folders): one folder of yours that holds everything. Its <i>Models</i>, <i>LoRAs</i>, <i>Embeddings</i>, <i>VAE</i> and <i>ControlNet</i> sub-folders are used (missing ones are made, empty; existing ones named the usual ways, like <i>Stable-diffusion</i> or <i>Lora</i>, are reused). Nothing is copied or moved. <b>↻ Refresh</b> reads every folder again; Stop using takes them off the lists.",
+              "<b>More model folders</b>: <b>＋ Add folders…</b> as many times as you like (⌘-click to pick several at once); each is listed as Folder 1, 2… with Remove. <b>↻ Refresh</b> reads them again. Below, <b>Model libraries from other apps</b> uses a Stability Matrix / ComfyUI / A1111 / InvokeAI / Fooocus library in place." ] },
             { h: "Look", items: [
               "The Look switch is at the top of the window when Settings is open.",
               "<b>Dark</b> (black faceplate, the default), <b>Light</b> (brushed aluminium with orange trim) or <b>Match macOS</b> (follows your Mac's light / dark appearance)." ] },
@@ -971,6 +1008,13 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "Things fixed in 1.2.2 (and what to do if you still see them)", items: [
+              "<b>ControlNet gave a flat grey picture, noise or nothing</b>: fixed (the model kept its precision only in Create before). If a map still looks wrong, press <b>Preview the map</b> first: an empty map means the picture had no clear edges or no person for OpenPose.",
+              "<b>Image to image, ControlNet or Inpaint took 20+ minutes on an 8 GB Mac</b>: fixed for the same reason. Still slow? Quit big apps (browsers with many tabs, Photoshop, the Claude app) while generating: on 8 GB everything else squeezes the model into the disk. SDXL on 8 GB is slow by nature (1–3 minutes a picture); a model on an external drive loads more slowly the first time.",
+              "<b>“Couldn't reach huggingface.co” for Tile / OpenPose / Scribble while online</b>: fixed. If it says a file wasn't found on Hugging Face, the model's page moved: tell us which one.",
+              "<b>A folder on an external drive showed nothing until a restart</b>: macOS asks once before an app may read a removable drive. Click <b>Allow</b>, then <b>↻ Refresh</b> in Settings → Model folders. Missed it? System Settings → Privacy &amp; Security → Files and Folders → Protoart Studio → Removable Volumes. Settings now shows ⚠ next to a folder it can't read.",
+              "<b>An old .ckpt model won't load</b> (“Weights only load failed”): Tools → Convert → <b>Old .ckpt files…</b> → Convert, then pick the .safetensors copy in Create.",
+              "<b>conv_in.weight … [320, 9, 3, 3]</b> with an inpainting model: fixed; it's used by Inpaint and Expand (not Create, which needs a normal model)." ] },
             { h: "Things fixed in 1.2.1 (and what to do if you still see them)", items: [
               "<b>Expand with FLUX.2 gave seams, doubled objects or smeared areas</b>: much improved (the result is lined up with your picture before blending, and kept whole if FLUX.2 redrew it). The rest usually comes from asking for a lot at once: expand one direction at a time (★ make it wider, then ★ make it taller) and up to about a third per side, try another seed, and describe what should be around the picture (💡 suggest from the picture).",
               "<b>“FLUX.2 redrew the picture a little, so its whole version was kept”</b>: its copy of your picture differed too much to paste your original back without seams. Try another seed or a smaller expansion to keep your original pixel-for-pixel.",
@@ -1122,8 +1166,11 @@ const protoartApp = createApp({
       ],
       libLoraOpen: false,
       modelDirs: { dirs: [], local: [] },
+      ck: { items: null, half: true, out_dir: "", msg: "" },  // Tools → Convert → old .ckpt files
+      mainFolder: { path: "", access: "", subs: {} },  // Settings → Main folder: one folder that holds everything
       libs: { found: [], used: [], asked: false, offer: [] },
-      libOffer: null,   // the "Existing model library detected" window
+      libOffer: null,
+      ctx: null,        // Library right-click menu: {x, y, r, ids}   // the "Existing model library detected" window
       libBusy: false,
       libMsg: "",
       localErr: "",
@@ -1152,13 +1199,15 @@ const protoartApp = createApp({
       modelFilter: "all",
       shop: { family: "all", search: "", fav: false }, // Models tab
       mpanels: { own: false, civitai: false, hub: false, fix: false, trig: false, tags: false },
-      loraTags: loadJSON("protoart.loraTags", {}),  // your own tags on LoRAs: { "LoRA name": ["pencil", "ink"] }
-      tagBatch: { q: "", sel: [], tag: "" },         // Models → LoRA tags
+      loraTags: loadJSON("protoart.loraTags", {}),
+      loraWeights: loadJSON("protoart.loraWeights", {}),  // ★ default weight per LoRA: { "name": 0.6 }
+      modelDefaults: loadJSON("protoart.modelDefaults", {}),  // your own starting sampler / steps / guidance per model  // your own tags on LoRAs: { "LoRA name": ["pencil", "ink"] }
+      tagBatch: { q: "", sel: [], tag: "", asTrig: loadJSON("protoart.tagAsTrig", true), busy: false },  // Models → LoRA tags
       trigBatch: { q: "", sel: [], word: "", busy: false },  // Models → Trigger words // Models tab panels (closed until you open one)
       shopFolds: loadJSON("protoart.shopFolds", { get: true, big: true }),  // Models tab model groups folded (On this Mac open)
       dl: { path: "", default: "", custom: false, missing: null, free_gb: null, sizeGb: null, move: true, busy: false }, // downloaded-models folder
       modelSearch: "",
-      tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false, promptText: "", view: "split", split: 0.5 },
+      tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false, protecting: false, promptText: "", promptCopied: false, view: "split", split: 0.5 },
       PATCH_NODES,
       patchInY: PATCH_IN_Y,
       patchOutY: PATCH_OUT_Y,
@@ -1170,6 +1219,9 @@ const protoartApp = createApp({
                copySettings: loadJSON("protoart.patchCopySettings", {}),  // settings of the copies you added, by id
                presets: loadJSON("protoart.patchPresets", []),  // saved signal flows: cables, copies, order, copy settings
                preset: "", presetName: "",
+               hidden: loadJSON("protoart.patchHidden", []),  // modules you took off the rack (＋ Add a module puts them back)
+               protect: null,       // 🛡 areas painted to keep as they were: {data, for}
+               stash: null,         // the first copy's settings, while a copy's are shown in its rack unit
                drag: null, running: "", step: 0, steps: 0, stopped: false, msg: "" },
       freeConfirm: null,
       logs: "",
@@ -1338,7 +1390,7 @@ const protoartApp = createApp({
       const list = [
         { id: "all", label: "All", count: this.installedModels.length },
         { id: "fav", label: "★ Favorites", count: count((m) => this.isFav(m)) },
-        { id: "flux2", label: "FLUX.2", count: count((m) => m.family === "flux2") },
+        { id: "flux2", label: "Klein 4B", count: count((m) => m.family === "flux2") },
         { id: "flux", label: "FLUX", count: count((m) => m.family === "flux") },
         { id: "ernie", label: "ERNIE", count: count((m) => m.family === "ernie") },
         { id: "sdxl", label: "SDXL", count: count((m) => m.family === "sdxl") },
@@ -1408,7 +1460,7 @@ const protoartApp = createApp({
     },
     modelGroups() {
       const groups = [
-        { name: "FLUX.2", models: this.models.filter((m) => m.family === "flux2") },
+        { name: "FLUX.2 Klein 4B", models: this.models.filter((m) => m.family === "flux2") },
         { name: "FLUX.1", models: this.models.filter((m) => m.family === "flux") },
         { name: "ERNIE-Image", models: this.models.filter((m) => m.family === "ernie") },
         { name: "Stable Diffusion", models: this.models.filter((m) => !["ernie", "flux", "flux2"].includes(m.family) && !m.id.includes(":")) },
@@ -1648,7 +1700,7 @@ const protoartApp = createApp({
     },
     mergeFamilies() {
       const c = (f) => this.loras.filter((l) => l.family === f && /\.safetensors$/i.test(l.file || "")).length;
-      return [["sd15", "SD 1.5"], ["sdxl", "SDXL"], ["flux", "FLUX"], ["flux2", "FLUX.2"], ["ernie", "ERNIE"]].map(([id, label]) => ({ id, label, count: c(id) }))
+      return [["sd15", "SD 1.5"], ["sdxl", "SDXL"], ["flux", "FLUX"], ["flux2", "Klein 4B"], ["ernie", "ERNIE"]].map(([id, label]) => ({ id, label, count: c(id) }))
         .filter((f) => f.count);
     },
     mergeFamily() {
@@ -1722,7 +1774,8 @@ const protoartApp = createApp({
         const k = x.id.split("#")[1] || "2";
         return { ...t, id: x.id, label: `${t.label} ${k}`, sub: (t.sub || "") + " · copy" };
       });
-      const mid = [...base.filter((n) => n.id !== "src"), ...extra];
+      const hidden = this.patch.hidden || [];
+      const mid = [...base.filter((n) => n.id !== "src" && !hidden.includes(n.id)), ...extra];
       const ord = this.patch.order || [];
       const at = (n) => { const k = ord.indexOf(n.id); return k < 0 ? 1000 + mid.indexOf(n) : k; };
       mid.sort((a, b) => at(a) - at(b));
@@ -1773,6 +1826,9 @@ const protoartApp = createApp({
       const set = new Set(this.conv.selected);
       const mb = (this.conv.items || []).filter((i) => set.has(i.file)).reduce((a, i) => a + (i.size_mb || 0), 0);
       return mb > 1000 ? `${(mb / 1000).toFixed(1)} GB` : `${Math.round(mb)} MB`;
+    },
+    ckJob() {
+      return this.queue.find((j) => j.cmd === "ckpt_convert");
     },
     convJob() {
       return this.queue.find((j) => j.cmd === "convert_tdict");
@@ -2095,6 +2151,7 @@ const protoartApp = createApp({
   },
 
   watch: {
+    loraOpen(v) { saveJSON("protoart.loraOpen", !!v); },
     loraKind(v) {  // "🏷 Manage tags…" in the LoRA list's filter opens the tags panel
       if (v === "__tags") { this.loraKind = ""; this.openModelsPanel("tags"); }
     },
@@ -2150,6 +2207,7 @@ const protoartApp = createApp({
     window.ProtoTips?.setEnabled(this.opts.tooltips !== false);
     window.addEventListener("keydown", (e) => this.adjKey(e));  // Adjust: \ flips Edited / Original
     window.addEventListener("keydown", (e) => this.selKey(e));
+    window.addEventListener("keydown", (e) => { if (e.key === "Escape" && this.ctx) this.ctx = null; });  // right-click menu
     window.addEventListener("keydown", (e) => {  // a picture's details: ← → step through the pictures, Esc closes
       if (!this.detail || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || "")) return;
       if (e.key === "ArrowLeft") { this.detailStep(-1); e.preventDefault(); }
@@ -2273,6 +2331,7 @@ const protoartApp = createApp({
         call("adjust_presets_get").then((d) => { this.adjPresets = Array.isArray(d) ? d : []; }).catch(() => {});
         call("lora_dirs_get").then((d) => { this.loraDirs = d; }).catch(() => {});
         call("model_dirs_get").then((d) => { this.modelDirs = d; }).catch(() => {});
+        call("main_folder_get").then((d) => { this.mainFolder = d; }).catch(() => {});
         // Model libraries other apps keep (Stability Matrix, ComfyUI…): offer them once, read in place.
         call("libraries_get").then((r) => { this.libs = r; if (r.offer?.length) this.libOffer = r.offer.map((f) => ({ ...f, pick: true })); }).catch(() => {});
         call("civitai_key_get").then((d) => { this.civ.keySet = !!(d && d.set); }).catch(() => {});
@@ -2511,6 +2570,10 @@ const protoartApp = createApp({
     async afterLibChange(msg) {
       this.libMsg = "";
       this.modelDirs = await call("model_dirs_get");
+      this.mainFolder = await call("main_folder_get").catch(() => this.mainFolder);
+      this.imagesDir = await call("images_dir_get").catch(() => this.imagesDir);
+      call("embedding_dirs_get").then((d) => { this.embDirs = d; }).catch(() => {});
+      this.embeddings = await call("list_embeddings").catch(() => this.embeddings);
       this.loraDirs = await call("lora_dirs_get");
       this.models = await call("list_models");
       await this.refreshLoras();
@@ -2521,11 +2584,42 @@ const protoartApp = createApp({
       const dirs = Object.values(u.dirs || {}).flat();
       return (this.localModels || []).filter((m) => dirs.some((d) => (m.file || "").startsWith(d + "/"))).length;
     },
+    async pickMainFolder() {
+      const picked = await window.bee.pickFolder({ title: "Choose your main folder (models, LoRAs, embeddings…)", defaultPath: this.mainFolder.path || undefined, button: "Use as main folder" });
+      if (!picked) return;
+      this.libBusy = true;
+      try {
+        this.mainFolder = await call("main_folder_set", { path: picked });
+        await this.afterLibChange(`Main folder: ${picked} · ${this.localModels.length} of your models found`);
+      } catch (e) { this.error = e.message; } finally { this.libBusy = false; }
+    },
+    async stopMainFolder() {
+      if (!(await this.confirmAsk("Stop using this main folder?", this.mainFolder.path + "\n\nIts models, LoRAs and embeddings leave the lists; the files stay where they are (nothing is deleted).", "Stop using"))) return;
+      try {
+        this.mainFolder = await call("main_folder_set", { path: "" });
+        await this.afterLibChange("Stopped using the main folder · its files weren't touched");
+      } catch (e) { this.error = e.message; }
+    },
+    mainSubName(kind) {
+      const p = (this.mainFolder.subs || {})[kind] || "";
+      return p.split("/").pop();
+    },
+    mainKindLabel(k) {
+      return { checkpoints: "Models", loras: "LoRAs", embeddings: "Embeddings", vaes: "VAE", controlnets: "ControlNet" }[k] || k;
+    },
+    folderProblem(info, d) {
+      return this.accessProblem(((info && info.access) || {})[d]);
+    },
+    accessProblem(a) {  // a folder the app can't read: the drive isn't plugged in, or macOS hasn't allowed it yet
+      if (a === "missing") return "⚠ Not found: is the drive connected? Plug it in, then press ↻ Refresh.";
+      if (a === "denied") return "⚠ macOS hasn't let Protoart Studio read this drive yet. Click Allow when macOS asks about a removable volume (or System Settings → Privacy & Security → Files and Folders → Protoart Studio → Removable Volumes), then press ↻ Refresh.";
+      return "";
+    },
     async refreshWatched() {
       this.libBusy = true;
       try {
         this.libs = await call("libraries_refresh");
-        await this.afterLibChange(`Re-read ${this.modelDirs.dirs.length} watched folder${this.modelDirs.dirs.length === 1 ? "" : "s"} · ${this.localModels.length} of your models found`);
+        await this.afterLibChange(`Read all your folders again · ${this.localModels.length} of your models, ${this.loras.length} LoRAs found`);
       } catch (e) { this.status = e.message; } finally { this.libBusy = false; }
     },
     loraTagsOf(name) {
@@ -2537,9 +2631,10 @@ const protoartApp = createApp({
     saveLoraTags() {
       saveJSON("protoart.loraTags", this.loraTags);
     },
-    tagLoras(action) {  // ＋ / − a tag on every selected LoRA
+    async tagLoras(action) {  // ＋ / − a tag on every selected LoRA (and, if ticked, as its trigger words too)
       const tags = this.cleanTags(this.tagBatch.tag);
       if (!tags.length || !this.tagBatch.sel.length) return;
+      saveJSON("protoart.tagAsTrig", !!this.tagBatch.asTrig);
       const next = { ...this.loraTags };
       for (const name of this.tagBatch.sel) {
         const cur = new Set(next[name] || []);
@@ -2549,6 +2644,19 @@ const protoartApp = createApp({
       this.loraTags = next;
       this.saveLoraTags();
       this.status = `${action === "add" ? "Tagged" : "Untagged"} ${this.tagBatch.sel.length} LoRA${this.tagBatch.sel.length === 1 ? "" : "s"}: ${tags.map((t) => "🏷 " + t).join(", ")}`;
+      if (this.tagBatch.asTrig) {  // the same words as trigger words: they show as chips under the LoRA in Create
+        this.tagBatch.busy = true;
+        try {
+          for (const name of this.tagBatch.sel) {
+            await this.fetchTriggers(name);
+            let words = [...this.activeTriggers(name)];
+            if (action === "add") { for (const w of tags) if (!words.some((x) => x.toLowerCase() === w)) words.push(w); }
+            else words = words.filter((x) => !tags.includes(x.toLowerCase()));
+            await this.saveTriggerWords(name, words.join(", "));
+          }
+          this.status += action === "add" ? " · also added as trigger words" : " · also removed from the trigger words";
+        } catch (e) { this.error = e.message; } finally { this.tagBatch.busy = false; }
+      }
     },
     removeLoraTag(name, tag) {
       const left = this.loraTagsOf(name).filter((t) => t !== tag);
@@ -2940,10 +3048,43 @@ const protoartApp = createApp({
         saveJSON("protoart.lorasAside", this.lorasAside);
       }
       await this.loadSamplers(true);
+      this.applyModelDefaults(m, true);  // your own starting settings for this model, if you saved some
+    },
+    applyModelDefaults(m = this.currentModel, quiet = false) {
+      const d = m && (this.modelDefaults || {})[m.id];
+      if (!d) return false;
+      if (d.sampler && (this.samplers || []).some((x) => x.id === d.sampler)) this.form.sampler = d.sampler;
+      for (const k of ["steps", "cfg", "clip_skip", "width", "height"]) if (typeof d[k] === "number") this.form[k] = d[k];
+      if (!quiet) this.status = `Your defaults for ${m.label}: ${this.modelDefaultsText(m)}`;
+      return true;
+    },
+    modelDefaultsText(m = this.currentModel) {
+      const d = m && (this.modelDefaults || {})[m.id];
+      if (!d) return "";
+      const sl = (this.samplers || []).find((x) => x.id === d.sampler);
+      return [sl ? sl.label : d.sampler, d.steps + " steps", "guidance " + d.cfg].filter(Boolean).join(" · ");
+    },
+    saveModelDefaults() {  // 💾 this model starts with the sampler, steps and guidance you have now
+      const m = this.currentModel;
+      if (!m) return;
+      const f = this.form;
+      this.modelDefaults = { ...this.modelDefaults, [m.id]: { sampler: f.sampler, steps: f.steps, cfg: f.cfg, clip_skip: f.clip_skip,
+                                                              width: f.width, height: f.height } };
+      saveJSON("protoart.modelDefaults", this.modelDefaults);
+      this.status = `Saved as ${m.label}'s defaults: ${this.modelDefaultsText(m)} (used each time you pick it; you can still change them)`;
+    },
+    forgetModelDefaults() {
+      const m = this.currentModel;
+      if (!m) return;
+      const next = { ...this.modelDefaults };
+      delete next[m.id];
+      this.modelDefaults = next;
+      saveJSON("protoart.modelDefaults", next);
+      this.status = `${m.label} uses the app's starting settings again`;
     },
     addLoraByName(name) {
       if (!this.form.loras.some((l) => l.name === name)) {
-        this.form.loras.push({ name, weight: 1.0 });
+        this.form.loras.push({ name, weight: this.loraDefaultWeight(name) ?? 1.0 });  // your saved weight, if any
         this.fetchTriggers(name).then(() => {
           if (!this.opts.auto_triggers) return;
           const words = this.activeTriggers(name).filter((w) => !this.inPrompt(w));
@@ -2954,6 +3095,15 @@ const protoartApp = createApp({
         });
       }
       this.loraSearch = "";
+    },
+    loraDefaultWeight(name) {  // the weight you saved for this LoRA (★), or null
+      const w = (this.loraWeights || {})[name];
+      return typeof w === "number" ? w : null;
+    },
+    setLoraDefaultWeight(name, w) {
+      this.loraWeights = { ...this.loraWeights, [name]: Number(w) };
+      saveJSON("protoart.loraWeights", this.loraWeights);
+      this.status = `${name} will start at ${w} each time you add it`;
     },
     // -------------------------------------------------------------- trigger words
     async fetchTriggers(name, force) {
@@ -3526,43 +3676,118 @@ const protoartApp = createApp({
       this.patchSave();
       window.ProtoSound?.play("plug");
     },
+    patchFields(type) {  // the rack-unit settings a module's copies have of their own
+      return { faces: ["face_strength", "face_model", "face_fidelity"], enhance: ["enh"], depth: ["depth"], detail: ["det"] }[type] || [];
+    },
     patchCopyInit(id) {  // a copy starts with the settings its module has now; after that they're its own
       const type = String(id).split("#")[0], P = this.post;
       if (this.patch.copySettings[id]) return;
-      const start = { faces: { face_strength: P.face_strength, face_model: P.face_model, face_fidelity: P.face_fidelity },
-                      enhance: { enh: JSON.parse(JSON.stringify(P.enh)) },
-                      depth: { depth: { ...P.depth } } }[type];
-      if (!start) return;
+      const fields = this.patchFields(type);
+      if (!fields.length) return;
+      const start = Object.fromEntries(fields.map((k) => [k, JSON.parse(JSON.stringify(P[k]))]));
       this.patch.copySettings = { ...this.patch.copySettings, [id]: start };
       this.patchCopySave();
     },
     patchCopySave() {
       saveJSON("protoart.patchCopySettings", this.patch.copySettings);
     },
-    patchSelect(id) {  // click a module: its settings come into view
+    patchUnswap() {  // a copy's settings shown in the rack unit go back to the copy; the first module's come back
+      const sel = this.patch.sel, st = this.patch.stash;
+      if (!sel || !String(sel).includes("#") || !st) return;
+      const fields = this.patchFields(String(sel).split("#")[0]);
+      const mine = Object.fromEntries(fields.map((k) => [k, JSON.parse(JSON.stringify(this.post[k]))]));
+      this.patch.copySettings = { ...this.patch.copySettings, [sel]: mine };
+      this.patchCopySave();
+      for (const k of fields) this.post[k] = st[k];
+      this.patch.stash = null;
+    },
+    patchSelect(id) {  // pick a module: its rack unit below shows (and edits) that module's settings
       if (id === "src" || id === "result") return;
-      this.patch.sel = this.patch.sel === id ? "" : id;
-      if (!this.patch.sel) return;
-      if (String(id).includes("#")) { this.patchCopyInit(id); return; }  // a copy: its own settings show under the panel
-      this.$nextTick(() => {  // the module itself: scroll to its rack unit and light it up
-        const el = document.getElementById("rack-" + id);
+      const next = this.patch.sel === id ? "" : id;
+      this.patchUnswap();
+      this.patch.sel = next;
+      if (!next) return;
+      const type = String(next).split("#")[0];
+      if (String(next).includes("#")) {  // a copy: its own settings go into the rack unit while it's picked
+        this.patchCopyInit(next);
+        const fields = this.patchFields(type);
+        this.patch.stash = Object.fromEntries(fields.map((k) => [k, JSON.parse(JSON.stringify(this.post[k]))]));
+        const mine = this.patch.copySettings[next] || {};
+        for (const k of fields) if (mine[k] !== undefined) this.post[k] = JSON.parse(JSON.stringify(mine[k]));
+      }
+      this.$nextTick(() => {  // its rack unit: scroll to it and light it up
+        const el = document.getElementById("rack-" + type);
         if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
       });
+    },
+    facePreset(target, p) {  // target: form (Create) or post (Tools)
+      target.face_model = "codeformer";
+      target.face_fidelity = p.fidelity;
+      target.face_strength = p.strength;
+    },
+    facePresetOn(target, p) {
+      return target.face_model !== "restoreformer" && Math.abs(target.face_fidelity - p.fidelity) < 0.001 && Math.abs(target.face_strength - p.strength) < 0.001;
+    },
+    patchPicked(type) {  // this rack unit belongs to the module picked on the patchbay
+      return !!(this.patch.on && this.patch.sel && String(this.patch.sel).split("#")[0] === type);
+    },
+    patchPickLabel() {
+      return (this.patchNodes.find((n) => n.id === this.patch.sel) || {}).label || "";
+    },
+    patchHide(id) {  // ✕ on a module: a copy is removed; a first module is taken off the rack (＋ Add a module brings it back)
+      if (this.patch.running) return;
+      if (this.patch.sel === id) this.patchSelect(id);
+      if (String(id).includes("#")) return this.patchRemoveModule(id);
+      this.patch.hidden = [...new Set([...(this.patch.hidden || []), id])];
+      this.patch.cables = this.patch.cables.filter((c) => c.from !== id && c.to !== id);
+      saveJSON("protoart.patchHidden", this.patch.hidden);
+      this.patchSave();
+      this.patch.msg = `Took ${(PATCH_NODES.find((n) => n.id === id) || {}).label || id} off the rack · ＋ Add a module puts it back`;
+    },
+    patchUnhide(id) {
+      this.patch.hidden = (this.patch.hidden || []).filter((x) => x !== id);
+      saveJSON("protoart.patchHidden", this.patch.hidden);
+    },
+    patchProtect(on) {  // 🛡 paint areas the chain mustn't change (they're put back from your picture at the end)
+      if (!this.tool.source) return;
+      if (on) {
+        if (this.adj.open) this.closeAdjust();
+        this.mask.data = this.patch.protect && this.patch.protect.for === this.tool.source.path ? this.patch.protect.data : null;
+        this.mask.for = this.tool.source.path;
+        this.tool.protecting = true;
+        this.tool.healing = true;  // the paint area on the left
+        this.status = "Paint over what the patch mustn't change, then press ✓ Done";
+      } else {
+        if (this.mask.data) this.patch.protect = { data: this.mask.data, for: this.tool.source.path };
+        this.tool.protecting = false;
+        this.tool.healing = false;
+        this.mask.data = null;
+        this.status = this.patch.protect ? "Protected areas set: they stay as they are when the patch runs" : "";
+      }
     },
     patchSavePreset() {
       const name = (this.patch.presetName || "").trim().slice(0, 40);
       if (!name) return;
+      this.patchUnswap();
+      const keepSel = this.patch.sel;
+      this.patch.sel = "";
       const p = { name, cables: JSON.parse(JSON.stringify(this.patch.cables)), extra: JSON.parse(JSON.stringify(this.patch.extra)),
+                  hidden: [...(this.patch.hidden || [])],
                   order: [...(this.patch.order || [])], copySettings: JSON.parse(JSON.stringify(this.patch.copySettings)) };
       this.patch.presets = [...this.patch.presets.filter((x) => x.name !== name), p].sort((a, b) => a.name.localeCompare(b.name));
       saveJSON("protoart.patchPresets", this.patch.presets);
       this.patch.preset = name;
       this.patch.presetName = "";
       this.patch.msg = `Signal flow saved as “${name}”`;
+      if (keepSel) this.patchSelect(keepSel);
     },
     patchLoadPreset(name) {
       const p = this.patch.presets.find((x) => x.name === name);
       if (!p || this.patch.running) return;
+      this.patchUnswap();
+      this.patch.sel = "";
+      this.patch.hidden = [...(p.hidden || [])];
+      saveJSON("protoart.patchHidden", this.patch.hidden);
       this.patch.extra = JSON.parse(JSON.stringify(p.extra || []));
       this.patch.order = [...(p.order || [])];
       this.patch.copySettings = { ...this.patch.copySettings, ...JSON.parse(JSON.stringify(p.copySettings || {})) };
@@ -3667,12 +3892,20 @@ const protoartApp = createApp({
     patchReset(kind) {
       if (this.patch.running) return;
       this.patch.cables = kind === "example" ? JSON.parse(JSON.stringify(PATCH_EXAMPLE)) : [];
-      if (kind === "reset") { this.patch.order = []; saveJSON("protoart.patchOrder", []); }  // modules back in their places
+      if (kind === "reset") {
+        this.patchUnswap(); this.patch.sel = "";
+        this.patch.hidden = []; saveJSON("protoart.patchHidden", []); this.patch.order = []; saveJSON("protoart.patchOrder", []); }  // modules back in their places
       this.patch.msg = "";
       this.patchSave();
     },
     patchAddModule(type) {
       if (!type) return;
+      if (type.startsWith("back:")) {  // a first module you took off the rack
+        this.patchUnhide(type.slice(5));
+        this.patch.msg = `Put ${(PATCH_NODES.find((n) => n.id === type.slice(5)) || {}).label} back on the rack`;
+        return;
+      }
+      if ((this.patch.hidden || []).includes(type)) { this.patchUnhide(type); this.patch.msg = `Put ${(PATCH_NODES.find((n) => n.id === type) || {}).label} back on the rack`; return; }
       const n = 1 + (this.patch.extra || []).filter((x) => x.type === type).length + 1;
       let id = `${type}#${n}`;
       for (let k = n; this.patch.extra.some((x) => x.id === id); k++) id = `${type}#${k + 1}`;
@@ -3684,7 +3917,8 @@ const protoartApp = createApp({
       window.ProtoSound?.play("plug");
     },
     patchRemoveModule(id) {
-      if (this.patch.sel && (!id || this.patch.sel === id)) this.patch.sel = "";
+      const ex0 = this.patch.extra, target = id || (ex0.length ? ex0[ex0.length - 1].id : "");
+      if (this.patch.sel && this.patch.sel === target) this.patchSelect(target);  // its settings back where they belong
       const ex = this.patch.extra;
       if (!ex.length) return;
       id = id || ex[ex.length - 1].id;
@@ -3696,7 +3930,7 @@ const protoartApp = createApp({
     patchStepLabel(id) {
       id = String(id).split("#")[0];
       return { heal: "Removing what you painted", faces: "Restoring faces", enhance: "Enhancing & upscaling",
-               depth: "Making a depth map", vector: "Vectorizing" }[id] || id;
+               depth: "Making a depth map", vector: "Vectorizing", detail: "Adding detail with a LoRA" }[id] || id;
     },
     async patchRun() {
       const steps = this.patchChain.steps;
@@ -3706,9 +3940,16 @@ const protoartApp = createApp({
         this.toolPaintRemove(true);
         return (this.error = "REMOVE is patched in: paint over what to remove on the picture (Remove objects → 🖌 Paint is now on), then press ▶ Run patch again.");
       }
+      if (steps.some((x) => String(x).split("#")[0] === "detail") && !["sd15", "sdxl"].includes(this.family))
+        return (this.error = "DETAIL redraws the picture lightly with an SD 1.5 or SDXL model and a LoRA: pick an SD 1.5 or SDXL model in Create first.");
+      if (this.tool.protecting) this.patchProtect(false);  // finish painting the protected areas
       this.error = "";
-      const mask = this.mask.data;
-      let cur = this.toolArgs();
+      const mask = this.mask.for === this.tool.source.path ? this.mask.data : null;
+      const reselect = this.patch.sel;
+      this.patchUnswap();  // copies' settings shown in a rack unit are saved before running
+      this.patch.sel = "";
+      let cur = this.toolArgs(), curPath = this.tool.source.path;
+      const origin = { path: this.tool.source.path, id: this.tool.source.image_id };
       let last = null;
       this.patch.steps = steps.length;
       this.patch.stopped = false;
@@ -3732,6 +3973,9 @@ const protoartApp = createApp({
           } else if (id === "depth") {
             const dset = (this.patch.copySettings[node] && this.patch.copySettings[node].depth) || this.post.depth;
             rec = await this.runJob("postprocess", { ...cur, action: "depth", depth_model: dset.model, style: dset.style });
+          } else if (id === "detail") {
+            const d = (this.patch.copySettings[node] && this.patch.copySettings[node].det) || this.post.det;
+            rec = await this.runJob("generate", this.detailArgs(d, curPath));
           } else if (id === "vector") {
             const v = this.post.vec;
             rec = await this.runJob("vectorize", { ...cur, colors: v.colors, detail: v.detail, smooth: v.smooth });
@@ -3745,10 +3989,20 @@ const protoartApp = createApp({
             last = rec;
             this.afterPost(rec);
             cur = rec.id != null ? { image_id: rec.id } : { path: rec.path };
+            curPath = rec.path || curPath;
           }
           if (k === steps.length - 1) this.status = `Patch done: ${steps.length} step${steps.length === 1 ? "" : "s"}` + (id === "vector" ? " (the SVG is in Vectorize)" : "");
         }
+        const pr = this.patch.protect;
+        if (last && last.id != null && pr && pr.for === origin.path && !this.patch.stopped) {
+          // 🛡 the areas you protected come back from your picture
+          const merged = await call("protect_merge", { image_id: last.id, original: origin.path, original_id: origin.id, mask: pr.data });
+          if (merged) { last = merged; this.afterPost(merged); this.status += " · protected areas kept"; }
+        }
+      } catch (e) {
+        this.error = e.message;
       } finally {
+        if (reselect && !this.patch.sel) this.patchSelect(reselect);
         this.tool.working = null;
         this.patch.running = "";
         if (last) {
@@ -3757,6 +4011,15 @@ const protoartApp = createApp({
         }
       }
     },
+    detailArgs(d, path) {  // 🔎 DETAIL: a light image-to-image pass with the Create model and one LoRA
+      const f = JSON.parse(JSON.stringify(this.form));
+      this.cleanExtras(f);
+      delete f.hires; delete f.control; delete f.outpaint; delete f.inpaint; delete f.face_detailer;
+      const lora = d.lora && this.compatibleLoras.some((l) => l.name === d.lora) ? [{ name: d.lora, weight: Number(d.weight) || 0.8 }] : [];
+      return { ...f, init_image: path, i2i_mode: "change", i2i_use_init: true, use_init_size: true, strength: Number(d.strength) || 0.35,
+               steps: Number(d.steps) || 20, num_images: 1, loras: lora, fast: false, enhance_prompt: false, from_tools: true,
+               prompt: (this.form.prompt || "").trim() || "highly detailed, sharp focus, intricate details" };
+    },
     patchStop() {
       this.patch.stopped = true;
       if (this.toolJob) this.cancelJob(this.toolJob.id);
@@ -3764,6 +4027,17 @@ const protoartApp = createApp({
     faceArgs() {
       // Tools / picture detail: strength + which face model (RestoreFormer or CodeFormer) + CodeFormer fidelity
       return { strength: this.post.face_strength, face_model: this.post.face_model, face_fidelity: this.post.face_fidelity };
+    },
+    async copyPromptText() {
+      try { await navigator.clipboard.writeText(this.tool.promptText || ""); } catch { /* clipboard blocked: nothing to do */ }
+      this.tool.promptCopied = true;
+      setTimeout(() => (this.tool.promptCopied = false), 1600);
+    },
+    promptToI2i() {  // Tools → Image → prompt → picture + prompt in Image to image
+      const text = this.tool.promptText;
+      this.useAsStart(this.tool.source);
+      this.form.prompt = text;
+      this.status = "Picture and prompt are in Image to image: change the prompt and press Generate";
     },
     async toolToPrompt(mode) {
       this.tool.promptText = "";
@@ -5112,9 +5386,10 @@ const protoartApp = createApp({
     // -------------------------------------------------------------- enhance prompt / start image
     async enhanceNow(style) {
       const edit = style === "edit" || style === "outpaint";  // instructions for FLUX.2 Klein, not a whole prompt
+      const contrast = style === "contrast";  // 🔄 the same scene turned into its striking opposite
       const f = this.form, owner = f.prompt_owner === "i2i" ? "i2i" : "create";  // the tab that asked
       const res = await this.runJob("enhance_prompt", { prompt: f.prompt, width: f.width, height: f.height,
-                                                        model: f.model, family: edit ? style : this.family });
+                                                        model: f.model, family: edit ? style : this.family, contrast });
       if (res) {
         const here = (f.prompt_owner === "i2i" ? "i2i" : "create") === owner;
         if (here) {
@@ -5126,9 +5401,30 @@ const protoartApp = createApp({
         } else {
           f.create_prompt = res.prompt;
         }
-        this.status = (style === "outpaint" ? "Described what goes around the picture" : edit ? "Instruction made clearer" : "Prompt enhanced (and a matching negative prompt written if yours was empty)")
+        this.status = (contrast ? "Contrast prompt written (↩ undo puts yours back)" : style === "outpaint" ? "Described what goes around the picture" : edit ? "Instruction made clearer" : "Prompt enhanced (and a matching negative prompt written if yours was empty)")
           + (here ? "" : ` (in ${owner === "i2i" ? "Image to image" : "Create"})`);
       }
+    },
+    async loadCkptList() {
+      try {
+        const r = await call("ckpt_list");
+        this.ck.items = r.items;
+        this.ck.out_dir = r.out_dir;
+      } catch (e) { this.error = e.message; }
+    },
+    async pickCkpt() {
+      const picked = await window.bee.pickModels();
+      const f = (Array.isArray(picked) ? picked : [picked]).find((x) => /\.(ckpt|pt|pth)$/i.test(x || ""));
+      if (f) this.convertCkpt(f);
+      else if (picked && (!Array.isArray(picked) || picked.length)) this.error = "Pick a .ckpt file.";
+    },
+    async convertCkpt(path) {
+      this.ck.msg = "";
+      const r = await this.runJob("ckpt_convert", { path, half: this.ck.half });
+      if (!r) return;
+      this.ck.msg = `✓ Saved ${r.path.split("/").pop()} (${r.gb} GB): pick it in Create's model list.`;
+      this.models = await call("list_models").catch(() => this.models);
+      this.loadCkptList();
     },
     async loadConvertList() {
       try {
@@ -6482,6 +6778,10 @@ const protoartApp = createApp({
     exitSelect() {
       this.selectMode = false;
       this.selected = [];
+    },
+    openCtx(e, r) {  // right-click a picture: a small menu (the selected pictures, if it's one of them)
+      const ids = this.selectMode && this.selected.includes(r.id) && this.selected.length > 1 ? [...this.selected] : [r.id];
+      this.ctx = { x: Math.min(e.clientX, innerWidth - 240), y: Math.min(e.clientY, innerHeight - 280), r, ids };
     },
     galDown(e) {  // Select mode: drag across pictures (or draw a box) to select several; start on a picked one to unpick
       if (!this.selectMode || e.button !== 0 || e.target.closest("button")) return;

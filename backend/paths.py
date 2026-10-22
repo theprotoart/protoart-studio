@@ -73,3 +73,17 @@ def apply_hub_cache():
 def hub_cache():
     """Where downloaded models are right now."""
     return Path(os.environ.get("HF_HUB_CACHE") or DEFAULT_HUB_CACHE)
+
+
+def folder_access(path):
+    """"ok", "missing" (not there: renamed, or the drive isn't connected) or "denied" (macOS hasn't let this app read
+    it yet: folders on external drives need the "removable volumes" permission the first time)."""
+    try:
+        if not os.path.isdir(path):
+            return "missing"
+        os.listdir(path)
+        return "ok"
+    except PermissionError:
+        return "denied"
+    except OSError:
+        return "missing"

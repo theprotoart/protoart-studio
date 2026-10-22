@@ -166,7 +166,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -260,6 +260,8 @@ def job_label(cmd, a):
             f" · image #{a.get('image_id')}"
     if cmd == "enhance_prompt":
         return "Enhance prompt"
+    if cmd == "ckpt_convert":
+        return "Convert " + os.path.basename(str(a.get("path") or "")) + " to .safetensors"
     if cmd == "heal":
         return "Remove (spot heal)" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
     if cmd == "vae_get":
@@ -696,7 +698,8 @@ def handle_quick(cmd, a):
         files = [f for f in (a.get("files") or []) if isinstance(f, str) and os.path.isabs(f)]
         return embeddings.add_files(files[:200])
     if cmd == "lora_dirs_get":
-        return {"dirs": loras.EXTRA_DIRS, "default": str(paths.LORAS_DIR), "families": dict(loras.FOLDER_FAMILY)}
+        return {"dirs": loras.EXTRA_DIRS, "default": str(paths.LORAS_DIR), "families": dict(loras.FOLDER_FAMILY),
+                "access": {d: paths.folder_access(d) for d in loras.EXTRA_DIRS}}
     if cmd == "lora_dirs_set":
         dirs = []
         for d in a.get("dirs") or []:
@@ -960,7 +963,8 @@ def handle_quick(cmd, a):
         res["folders"] = folder_roots()
         return res
     if cmd == "model_dirs_get":
-        return {"dirs": model_hub.MODEL_DIRS, "local": model_hub.LOCAL_MODELS}
+        return {"dirs": model_hub.MODEL_DIRS, "local": model_hub.LOCAL_MODELS,
+                "access": {d: paths.folder_access(d) for d in model_hub.MODEL_DIRS}}
     if cmd == "model_dirs_set":
         dirs = []
         for d in a.get("dirs") or []:
@@ -969,7 +973,18 @@ def handle_quick(cmd, a):
         model_hub.MODEL_DIRS[:] = dirs
         model_hub.invalidate()
         library.set_setting("model_dirs", dirs)
-        return {"dirs": dirs, "local": model_hub.LOCAL_MODELS}
+        return {"dirs": dirs, "local": model_hub.LOCAL_MODELS, "access": {d: paths.folder_access(d) for d in dirs}}
+    if cmd == "ckpt_list":  # Tools → Convert → old .ckpt checkpoints in your folders
+        import ckpt_convert
+        dirs = [str(paths.MODELS_DIR)] + list(model_hub.MODEL_DIRS) + [os.path.dirname(m.get("path") or m.get("file") or "")
+                                                                      for m in (model_hub.USER_MODELS or []) if isinstance(m, dict)]
+        return {"items": ckpt_convert.find_ckpts([d for d in dict.fromkeys(dirs) if d]), "out_dir": str(paths.MODELS_DIR)}
+    if cmd == "main_folder_get":
+        return main_folder_state()
+    if cmd == "main_folder_set":
+        return main_folder_set(a.get("path") or "")
+    if cmd == "protect_merge":
+        return engine().protect_merge(a)
     if cmd in ("libraries_detect", "libraries_refresh"):
         return libraries_state(rescan=True)
     if cmd == "libraries_get":
@@ -1012,7 +1027,8 @@ def handle_quick(cmd, a):
             raise ValueError("Wait for the queue to finish first.")
         return engine().free_original(a.get("model"))
     if cmd == "images_dir_get":
-        return {"path": str(paths.IMAGES_DIR), "default": str(paths.HOME / "images")}
+        return {"path": str(paths.IMAGES_DIR), "default": str(paths.HOME / "images"),
+                "access": paths.folder_access(str(paths.IMAGES_DIR))}
     if cmd == "downloads_dir_get":
         import shutil as _sh
         cur = paths.hub_cache()
@@ -1064,6 +1080,65 @@ _LIB_TARGETS = {  # kind -> (list in memory, saved setting)
     "controlnets": (_cn.EXTRA_DIRS, "controlnet_dirs"),
 }
 _lib_found = {"at": 0, "list": []}
+
+# ---- Main folder: one folder of yours that holds everything, in plain sub-folders ----
+# Models/, LoRAs/, Embeddings/, VAE/ and ControlNet/ (existing folders with the usual other names are reused, e.g.
+# "Stable-diffusion" or "Lora"). Missing sub-folders are created empty; nothing already there is moved or changed.
+MAIN_SUBS = {  # kind -> (folder name to create, other names that count)
+    "checkpoints": ("Models", ("models", "checkpoints", "stable-diffusion", "stablediffusion", "stable_diffusion")),
+    "loras": ("LoRAs", ("loras", "lora")),
+    "embeddings": ("Embeddings", ("embeddings", "embedding", "textual_inversion", "textualinversion")),
+    "vaes": ("VAE", ("vae", "vaes")),
+    "controlnets": ("ControlNet", ("controlnet", "controlnets")),
+}
+
+
+def _main_sub(root, kind, create):
+    name, others = MAIN_SUBS[kind]
+    try:
+        for e in os.listdir(root):
+            if e.lower().replace(" ", "") in others and os.path.isdir(os.path.join(root, e)):
+                return os.path.join(root, e)
+    except OSError:
+        pass
+    p = os.path.join(root, name)
+    if create:
+        os.makedirs(p, exist_ok=True)
+    return p
+
+
+def main_folder_state():
+    root = library.get_setting("main_folder", "") or ""
+    out = {"path": root, "access": paths.folder_access(root) if root else "", "subs": {}}
+    if root and out["access"] == "ok":
+        out["subs"] = {k: _main_sub(root, k, False) for k in MAIN_SUBS}
+    return out
+
+
+def main_folder_set(path):
+    old = library.get_setting("main_folder", "") or ""
+    if old:  # stop using the old main folder's sub-folders (the files stay where they are)
+        for kind in MAIN_SUBS:
+            lst, key = _LIB_TARGETS[kind]
+            pre = old.rstrip("/") + "/"
+            lst[:] = [d for d in lst if not (d + "/").startswith(pre)]
+            library.set_setting(key, list(lst))
+    if path:
+        if not os.path.isabs(path):
+            raise ValueError("Pick a folder.")
+        acc = paths.folder_access(path)
+        if acc != "ok":
+            raise ValueError("That folder can't be read" + (" yet: click Allow when macOS asks about a removable volume, then try again."
+                                                            if acc == "denied" else " (is the drive connected?)."))
+        for kind in MAIN_SUBS:
+            sub = _main_sub(path, kind, True)
+            lst, key = _LIB_TARGETS[kind]
+            if sub not in lst:
+                lst.append(sub)
+            library.set_setting(key, list(lst))
+    library.set_setting("main_folder", path or "")
+    _lib_refresh_caches()
+    return main_folder_state()
 
 
 def _lib_refresh_caches():
@@ -1656,6 +1731,15 @@ def sfw_check(kind, a):
             raise UserError("This model is marked NSFW, so it can't be used." + off)
 
 
+def ckpt_problem(e):
+    """An old .ckpt that newer PyTorch won't open: point to the converter instead of "Weights only load failed…"."""
+    t = f"{type(e).__name__}: {e}"
+    if "Weights only load failed" in t or ("weights_only" in t and "Unsupported global" in t):
+        return ("This model is an older .ckpt file that newer PyTorch won't open directly. Make a .safetensors copy in "
+                "Tools → Convert → Old .ckpt files… (it reads the file safely and leaves the .ckpt as it is), then pick the copy.")
+    return None
+
+
 def download_problem(e):
     """A one-time download that couldn't happen (no internet, huggingface.co unreachable): a plain message instead of
     "OSError: … does not appear to have a file named config.json" / "Can't load image processor…"."""
@@ -1669,6 +1753,12 @@ def download_problem(e):
                                    "LocalEntryNotFoundError", "OfflineModeIsEnabled", "Network is unreachable"))
     missing = any(w in t for w in ("does not appear to have a file named", "Can't load image processor",
                                    "Can't load the configuration", "Can't load tokenizer"))
+    gone = any(w in t for w in ("404", "Entry Not Found", "EntryNotFoundError", "RepositoryNotFoundError"))
+    if gone and not any(w in t for w in ("Could not resolve host", "nodename nor servname", "Network is unreachable")):
+        # the Mac reached Hugging Face, but the file isn't there (renamed or removed by its publisher)
+        return ("A file this needs wasn't found on Hugging Face (the publisher may have renamed or removed it), so it "
+                "couldn't be downloaded. Your internet connection is fine. Try another option for now, and tell us on "
+                "Discord or GitHub so the app can be updated; details are in Settings → Backend log.")
     if offline or missing:
         return ("This needs a one-time download from Hugging Face, and your Mac couldn't reach huggingface.co. "
                 "Check the internet connection (and that Strict offline is off in Settings → Privacy), then try again. "
@@ -1726,6 +1816,19 @@ def run_job(kind, a):
         return eng.vectorize(a)
     if kind == "edit_words":
         return eng.edit_words(a)
+    if kind == "ckpt_convert":
+        import ckpt_convert
+        from engine import UserError
+        eng.unload()  # an 8 GB Mac needs the memory to read a 2–7 GB checkpoint
+        try:
+            r = ckpt_convert.convert(a.get("path"), half=a.get("half", True), emit=eng.emit, cancel_event=eng.cancel_event)
+        except ValueError as e:
+            raise UserError(str(e))
+        except InterruptedError:
+            from engine import Cancelled
+            raise Cancelled()
+        model_hub.invalidate()
+        return r
     if kind == "vae_get":
         import vaes
         from engine import UserError
@@ -1782,7 +1885,7 @@ def main():
             emit({"type": "error", "id": mid, "msg": str(e)})
         except Exception as e:
             log(traceback.format_exc())
-            problem = net.hf_auth_problem(e) or download_problem(e)  # a gated model / no internet: say what to do
+            problem = net.hf_auth_problem(e) or download_problem(e) or ckpt_problem(e)  # say what to do
             emit({"type": "error", "id": mid, "msg": problem or f"{type(e).__name__}: {e}"})
         finally:
             if eng is not None:

@@ -26,16 +26,19 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   embeddings, VAEs (each model remembers its own; one-click recommended VAE), 20+ samplers with the top picks per model,
   presets, 📒 saved prompts, wildcards, a random-prompt generator that writes tags or sentences to suit the model, negative
   prompt ✨ suggest / 🎲 random matched to the model, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop, and
-  🔬 compare grids picked with keys
+  🔬 compare grids picked with keys, ✨ enhance and 🔄 contrast prompts, and your own default sampler / steps / guidance per
+  model and default weight per LoRA
 - **Image to image:** ✨ Edit with words (FLUX.2 Klein: describe a change; paint to limit it; add reference pictures),
   change / inpaint / expand (any picture, with FLUX.2 Klein + an outpaint LoRA) / 🩹 remove, selection tools (brush, lasso, polygon lasso, magic wand, object selection),
   ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile, and your own SD 1.5 and SDXL ControlNets), image prompt
-  (IP-Adapter), face detailer
+  (IP-Adapter), face detailer, CodeFormer presets
 - **Tools** (rack modules): Finegrain enhance & upscale, face restoration (CodeFormer or RestoreFormer), 🩹 remove objects
   (paint right in Tools; smart or quick fill), ✒️ vectorize to SVG, image → prompt (Qwen3.5 vision model, Florence-2 or
   WD tagger), depth maps, 🎚 Adjust (Lightroom / Color Efex-style), DiffusionBee file conversion, Original / Result /
-  Split / Side-by-side views, and a 🔌 patchbay to run Remove, Faces, Enhance, Depth and Vectorize in any order with cables (modules can be moved and added twice)
-- **Library:** search by prompt, seed, model or LoRA; drag to select many; ⇆ compare side by side with linked zoom; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
+  Split / Side-by-side views, and a 🔌 patchbay to run Remove, Faces, Enhance, Depth, Vectorize and 🔎 Detail (with a LoRA)
+  in any order with cables (modules can be moved, added twice or taken off; each copy has its own settings; 🛡 paint areas
+  it must not change; live preview), plus `.ckpt` → `.safetensors` conversion
+- **Library:** right-click menu; search by prompt, seed, model or LoRA; drag to select many; ⇆ compare side by side with linked zoom; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
   first); batch edit & export; 🗜 compress to the smallest file that still looks the same
 - **Train:** LoRA training (SD 1.5 / SDXL; ERNIE on 32 GB+ Macs), embedding training (SD 1.5), square crop / keep-whole
   framing, and merging LoRAs of the same type into one
@@ -101,7 +104,9 @@ Nothing is copied: files are used where they are (an external drive is fine, as 
 
 | What | How |
 |---|---|
-| Base model files (`.safetensors`, `.ckpt`, diffusers folders) | Models tab → **Your model files** → *Add model files or folders…*, or Settings → **Model folders** → *Watch a models folder…* (every model in it, including ones added later) |
+| Everything in one place | Settings → **Model folders → Main folder**: pick one folder (an external drive is fine); its *Models*, *LoRAs*, *Embeddings*, *VAE* and *ControlNet* sub-folders are used. **↻ Refresh** re-reads everything |
+| Base model files (`.safetensors`, `.ckpt`, diffusers folders) | Models tab → **Your model files** → *Add model files or folders…*, or Settings → **Model folders** → *More model folders → Add folders…* (every model in it, including ones added later) |
+| Old `.ckpt` models that won't load | Tools → **Convert → Old .ckpt files…**: a `.safetensors` copy, read safely (nothing in the file is run; the `.ckpt` isn't changed) |
 | LoRAs | Settings → **LoRA folders** → *Add LoRA folders…*; set a folder's type (SD 1.5 / SDXL / FLUX / ERNIE) or leave it on *Auto* |
 | Embeddings | Settings → **Embeddings** → *Add embedding files…* / *Add folders…* |
 | Downloads from Civitai / Hugging Face | Models tab → **Add from Civitai** / **Add from Hugging Face** (paste a link). Some need a free account: the app shows the steps |

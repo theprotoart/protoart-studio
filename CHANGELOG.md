@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.2.2 (test version for friends)
+
+- Speed / ControlNet: diffusers' `from_pipe` casts to float32 unless given a dtype, so every ControlNet, img2img and
+  inpaint pipeline doubled its memory (8 GB Macs swapped: 20–75 s per step) and, in float32 on MPS, the ControlNet
+  residuals made the latents diverge (std 1 → 9: grey Canny, Scribble noise). `_keep_dtype(pipe)` passes the shared
+  model's dtype to all three `from_pipe` calls; Depth / OpenPose detectors are freed after making the map on Macs under 16 GB
+- ControlNet: official models load with `use_safetensors=None` (Tile ships only a .bin); `download_problem` tells a
+  file missing on Hugging Face (404 / EntryNotFound) from being offline
+- Inpainting checkpoints (9-channel UNet): loaded as `StableDiffusion(XL)InpaintPipeline` with a local recipe
+  (`local_configs.ensure_inpaint`), reused by `_inpaint_pipe`
+- Patchbay: SELECT tab under each module (`patchSelect`, `patchPicked`, `patchPickLabel`) swaps a copy's settings into
+  the rack unit (`patchCopyInit/Save`, `patchUnswap`) with a ⚙ badge, replacing the separate panel; ✕ `patchHide` /
+  `patchUnhide` (`patch.hidden`, saved, part of flow presets); 🔎 DETAIL module (`post.det`, `detailArgs` → a `generate`
+  img2img pass with one LoRA); 🛡 protect mask (`patchProtect`, backend `protect_merge` composites the original back);
+  live preview in Tools (Finegrain `on_preview`)
+- CodeFormer presets (`FACE_PRESETS`, `facePreset`) in Create and Tools
+- 🔄 Contrast prompt: `prompt_enhance` styles `contrast` / `contrast_tags`, `enhance_prompt` arg `contrast`
+- Per-model defaults (`modelDefaults`, `applyModelDefaults` after `onModelChange`) and per-LoRA default weight
+  (`loraWeights`, `loraDefaultWeight`)
+- Library right-click menu (`ctx`, `openCtx`); Tools image → prompt ⧉ Copy / 🖼 Use in Image to image (`promptToI2i`) /
+  ✍ Use in Create
+- `.ckpt` → `.safetensors` (`backend/ckpt_convert.py`): restricted unpickler (tensors and plain containers only, other
+  globals become inert placeholders, every pickle read goes through it), optional fp16, written to
+  `~/.protoartstudio/models`; `ckpt_list` / `ckpt_convert` (queued job); "Weights only load failed" now points to it
+- Settings → Main folder (`main_folder_get/set`, Models / LoRAs / Embeddings / VAE / ControlNet sub-folders, existing
+  A1111-style names reused, only missing ones created); "More model folders"; `paths.folder_access` → ⚠ for folders
+  that are missing or not yet allowed by macOS; Refresh reloads models, LoRAs, embeddings and the image folder;
+  `NSRemovableVolumesUsageDescription` in the app's Info.plist
+- LoRA tags can also be saved as trigger words; LoRA list open state remembered; FLUX.2 [klein] 4B shown as "Klein 4B";
+  outpaint LoRA hidden from LoRA lists (`loras.INTERNAL_LORAS`); active LoRAs highlighted
+- Splash VU meter redrawn on one circle; prompt list button "Add prompts above to queue them"; detail window buttons
+  no longer overlap the text
+
 ## 1.2.1 (test version)
 
 - Expand with FLUX.2: reference saved at the exact output size (mflux centre-crops references to /16 at their own

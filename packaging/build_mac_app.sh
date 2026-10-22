@@ -149,6 +149,8 @@ plset CFBundleVersion string "$VERSION"
 plset CFBundleIconFile string "icon.icns"
 plset NSHumanReadableCopyright string "\"Protoart Studio · runs entirely on this Mac\""
 plset LSApplicationCategoryType string "public.app-category.graphics-design"
+# Watched folders, LoRAs and the image folder can live on an external drive: macOS asks once, with this text.
+plset NSRemovableVolumesUsageDescription string "\"Protoart Studio reads your models, LoRAs and pictures from folders you pick on external drives.\""
 if [ -f "$ROOT/app/build/icon.png" ]; then
   ICONSET="$(mktemp -d)/icon.iconset"
   mkdir -p "$ICONSET"

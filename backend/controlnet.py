@@ -415,7 +415,8 @@ def load(kind, unet, dtype, emit=lambda m: None):
             print(f"[controlnet] DiffusionBee {kind} model didn't load ({e}); using the official one", flush=True)
     emit({"type": "status", "msg": f"Loading ControlNet {kind}…"})
     LAST_SOURCE[kind] = "official"
-    return diffusers.ControlNetModel.from_pretrained(repo, torch_dtype=dtype, use_safetensors=True)
+    # .safetensors where the publisher has one; some official ControlNets (Tile) only come as .bin
+    return diffusers.ControlNetModel.from_pretrained(repo, torch_dtype=dtype, use_safetensors=None)
 
 
 # ------------------------------------------------------------------ control maps

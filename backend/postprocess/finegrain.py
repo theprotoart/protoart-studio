@@ -147,7 +147,7 @@ class FinegrainEnhancer:
         self.turbo = None        # SwitchableLora, loaded the first time Turbo is used
         self.turbo_error = ""
 
-    def enhance(self, pil_image, seed, cancel_event=None, on_progress=None, **opts):
+    def enhance(self, pil_image, seed, cancel_event=None, on_progress=None, on_preview=None, **opts):
         from refiners.foundationals.latent_diffusion import solvers
 
         o = dict(DEFAULTS)
@@ -192,6 +192,7 @@ class FinegrainEnhancer:
             if on_progress:
                 on_progress(min(state["calls"], total), max(total, state["calls"]))
 
+        self.upscaler.on_preview = on_preview  # live preview: the latest denoised tile (the whole picture if one tile)
         handle = None
         unet = _find_unet(self.upscaler)
         if unet is not None:
@@ -400,6 +401,7 @@ def _make_upscaler_class(base):
         esrgan_overlap = 64
         low_memory = False
         crop_box = None
+        on_preview = None
 
         def pre_upscale(self, image, upscale_factor, **_):
             image = self.esrgan.upscale_with_tiling(image, tile=self.esrgan_tile, overlap=self.esrgan_overlap)
@@ -410,6 +412,11 @@ def _make_upscaler_class(base):
 
         def diffuse_target(self, x, step, target):
             out = super().diffuse_target(x=x, step=step, target=target)
+            if self.on_preview is not None:
+                try:
+                    self.on_preview(out)
+                except Exception:
+                    self.on_preview = None
             if self.low_memory and getattr(self.device, "type", "") == "mps":
                 import torch
                 torch.mps.empty_cache()

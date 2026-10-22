@@ -177,9 +177,19 @@ def folder_family(path):
     return fam
 
 
+INTERNAL_LORAS = ("flux-outpaint-lora", "lynia z53tudg0j6st8xbx")  # fal's outpaint LoRA (↔ Expand uses it)
+
+
+def _internal(row):
+    name = str(row.get("name", "")).lower()
+    path = str(row.get("file", "")).lower()
+    return name in INTERNAL_LORAS or "flux-2-klein-4b-outpaint-lora" in path or "lynia" in name.replace(" ", "") and "comfy_converted" in name
+
+
 def all_loras(lora_dir):
     """Your LoRA folders and DiffusionBee's, with each folder's assigned type applied (Settings → LoRA folders)."""
-    out = _all_loras(lora_dir)
+    # LoRAs the app uses by itself (Expand's outpaint LoRA) aren't for picking in Create
+    out = [r for r in _all_loras(lora_dir) if not _internal(r)]
     if FOLDER_FAMILY or NAME_FAMILY:
         for row in out:
             fam = NAME_FAMILY.get(row["name"]) if NAME_FAMILY.get(row["name"]) in FAMILIES else None

@@ -33,13 +33,12 @@
         </div>
         <div class="sp-vu">
           <svg viewBox="0 0 140 84">
-            <path d="M18 66 A54 54 0 0 1 122 66" fill="none" stroke="#3a3326" stroke-width="1.2"/>
-            <path d="M98 30 A54 54 0 0 1 122 66" fill="none" stroke="#b8402c" stroke-width="3.5"/>
+            <path d="M17.4 53.5 A58 58 0 0 1 122.6 53.5" fill="none" stroke="#3a3326" stroke-width="1.2"/>
+            <path d="M103.3 30.5 A58 58 0 0 1 122.6 53.5" fill="none" stroke="#b8402c" stroke-width="3.5"/>
             <g stroke="#3a3326" stroke-width="1.2">
-              <line x1="18" y1="66" x2="24" y2="64"/><line x1="29" y1="41" x2="34" y2="44"/><line x1="49" y1="22" x2="52" y2="27"/>
-              <line x1="70" y1="12" x2="70" y2="18"/><line x1="91" y1="22" x2="88" y2="27"/><line x1="111" y1="41" x2="106" y2="44"/><line x1="122" y1="66" x2="116" y2="64"/>
+              <line x1="17.4" y1="53.5" x2="12.0" y2="51.0"/><line x1="30.2" y1="35.8" x2="27.5" y2="32.9"/><line x1="48.6" y1="24.1" x2="47.1" y2="20.4"/><line x1="70.0" y1="20.0" x2="70.0" y2="14.0"/><line x1="91.4" y1="24.1" x2="92.9" y2="20.4"/><line x1="109.8" y1="35.8" x2="112.5" y2="32.9"/><line x1="122.6" y1="53.5" x2="128.0" y2="51.0"/>
             </g>
-            <text x="70" y="52" text-anchor="middle" class="sp-vu-label">VU</text>
+            <text x="70" y="60" text-anchor="middle" class="sp-vu-label">VU</text>
             <line class="sp-needle" x1="70" y1="78" x2="70" y2="16"/>
             <circle cx="70" cy="78" r="5" fill="#1d1d1e"/>
           </svg>
@@ -158,7 +157,7 @@
         <span class="eng slot-label">Models <span class="hint">on this Mac appear in Create; the others download the first time you use them</span></span>
         <div class="slot-line">
           <div class="seg">
-            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'FLUX.2'}, {id: 'ernie', label: 'ERNIE'}, {id: 'sdxl', label: 'SDXL'}, {id: 'fl:pony', label: 'Pony'}, {id: 'fl:illustrious', label: 'Illustrious'}, {id: 'fl:noobai', label: 'NoobAI'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
+            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein 4B'}, {id: 'ernie', label: 'ERNIE'}, {id: 'sdxl', label: 'SDXL'}, {id: 'fl:pony', label: 'Pony'}, {id: 'fl:illustrious', label: 'Illustrious'}, {id: 'fl:noobai', label: 'NoobAI'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
                     :class="{on: shop.family === f.id}" @click="shop.family = f.id" :title="f.id.startsWith('fl:') ? f.label + ' models (SDXL-based, with their own prompt style and quality tags)' : ''">{{ f.label }}</button>
           </div>
           <button class="chip" :class="{on: shop.fav}" @click="shop.fav = !shop.fav" title="Show only your ★ favourite models">★ Favorites <small>{{ favModels.length }}</small></button>
@@ -326,6 +325,7 @@
           <div class="row small">
             <label class="check"><input type="checkbox" v-model="form.enhance_prompt"> Enhance every time I press Generate</label>
             <button class="ghost small" @click="enhanceNow" :disabled="!form.prompt.trim()">✨ Enhance now</button>
+            <button class="ghost small" @click="enhanceNow('contrast')" :disabled="!form.prompt.trim()" title="Suggests the same scene turned into its striking opposite: a waterfall frozen into blue-white ice, a summer street after light snowfall, a sunny day into a stormy night. ↩ undo puts your prompt back">🔄 Contrast prompt</button>
           </div>
           <div class="hint">{{ naturalPrompts() ? 'Writes a detailed description' : 'Writes tags (best for ' + familyLabel + ')' }} from what you typed; <i>enhance now</i> lets you read and edit it first.</div>
         </div>
@@ -468,12 +468,19 @@
           <label class="check lora-rand-every" title="Each time you press Generate, every LoRA in the list is swapped for a new random mix">
             <input type="checkbox" v-model="loraRand.every"> New random mix every time I press Generate</label>
         </div>
-        <template v-for="(l, i) in form.loras" :key="l.name">
+        <div v-for="(l, i) in form.loras" :key="l.name" class="lora-active">
         <div class="lora-row">
           <span class="lora-name" :title="l.name">{{ l.name }}</span>
-          <input type="range" min="-2" max="2" step="0.05" v-model.number="l.weight">
-          <input type="number" min="-5" max="5" step="0.05" v-model.number="l.weight" class="num">
+          <input type="range" min="-2" max="2" step="0.05" v-model.number="l.weight" title="How strongly this LoRA is used (1 = full, 0.5 = half)">
+          <input type="number" min="-5" max="5" step="0.05" v-model.number="l.weight" class="num" title="How strongly this LoRA is used (1 = full, 0.5 = half)">
           <button class="ghost" @click="form.loras.splice(i,1)" title="Remove">✕</button>
+        </div>
+        <div class="lora-default-row">
+          <button class="link small-link" :class="{on: loraDefaultWeight(l.name) === l.weight}" @click="setLoraDefaultWeight(l.name, l.weight)"
+                  :title="'Use ' + l.weight + ' every time you add this LoRA (you can still change it each time)'">
+            {{ loraDefaultWeight(l.name) === l.weight ? '★ its default weight' : '☆ make ' + l.weight + ' its default weight' }}</button>
+          <button v-if="loraDefaultWeight(l.name) != null && loraDefaultWeight(l.name) !== l.weight" class="link small-link" @click="l.weight = loraDefaultWeight(l.name)"
+                  title="Back to the weight you saved for this LoRA">↺ {{ loraDefaultWeight(l.name) }}</button>
         </div>
         <div class="trig-row">
           <template v-if="trigEdit.name !== l.name">
@@ -494,7 +501,7 @@
             <button class="ghost small" @click="trigEdit.name = ''">Cancel</button>
           </template>
         </div>
-        </template>
+        </div>
         <div class="lora-search-row">
           <input class="lora-search" v-model="loraSearch" @focus="loraOpen = true"
                  :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ', or #tag)'">
@@ -628,6 +635,13 @@
                     :title="'Steps and guidance that suit ' + recSettings.label + (recSettings.kind === 'fast' ? ' (a ⚡ fast sampler: fewer steps)' : recSettings.kind === 'best' ? ' (a ★ best-quality sampler: more steps for detail)' : '') + ' with ' + (currentModel ? currentModel.label : 'this model')">
               ★ Recommended: {{ recSettings.steps }} steps · guidance {{ recSettings.cfg }}</button>
             <button v-if="resetUndo" class="link" @click="undoResetCreate">undo</button>
+            <span class="my-defaults">
+              <button class="ghost small" :disabled="!currentModel" @click="saveModelDefaults"
+                      :title="'Start ' + (currentModel ? currentModel.label : 'this model') + ' with the sampler, steps, guidance, CLIP skip and size you have now, every time you pick it (you can still change them)'">💾 Save as this model's defaults</button>
+              <button v-if="currentModel && modelDefaults[currentModel.id]" class="link small" @click="applyModelDefaults()"
+                      :title="'Your defaults: ' + modelDefaultsText()">↺ my defaults</button>
+              <button v-if="currentModel && modelDefaults[currentModel.id]" class="link small" @click="forgetModelDefaults" title="Forget the defaults you saved for this model">forget</button>
+            </span>
           </div>
         </div>
         <div>
@@ -689,6 +703,9 @@
         </template>
         <label class="check"><input type="checkbox" v-model="form.restore_faces"> Restore faces
           <span class="hint" v-if="form.face_detailer.on">· usually not needed with the face detailer</span></label>
+        <div v-if="form.restore_faces" class="face-presets-row"><div class="face-presets" title="CodeFormer starting points: each sets fidelity and strength. You can still change both afterwards.">
+            <button v-for="fp in facePresets" :key="'fp' + fp.id" class="chip" :class="{on: facePresetOn(form, fp)}" :title="fp.tip + ' — fidelity ' + fp.fidelity + ', strength ' + fp.strength" @click.stop="facePreset(form, fp)">{{ fp.label }}</button>
+          </div></div>
         <div v-if="form.restore_faces" class="row">
           <select v-model="form.face_model" title="CodeFormer: strong repair, the default (non-commercial licence). RestoreFormer: natural and faithful, free to use.">
             <option value="codeformer">CodeFormer (non-commercial)</option>
@@ -939,7 +956,7 @@
     </div>
     <div v-if="!libShown.length" class="empty">No images match.</div>
     <div class="gallery" :class="{selecting: selectMode}" @pointerdown="galDown">
-      <figure v-for="r in libShown" :key="r.id" :data-id="r.id" @click="onThumbClick(r)" :class="{picked: selected.includes(r.id), covered: covered(r)}">
+      <figure v-for="r in libShown" :key="r.id" :data-id="r.id" @click="onThumbClick(r)" @contextmenu.prevent="openCtx($event, r)" :class="{picked: selected.includes(r.id), covered: covered(r)}">
         <span v-if="selectMode" class="pick">{{ selected.includes(r.id) ? '✓' : '' }}</span>
         <img :src="thumbUrl(r)" loading="lazy" decoding="async"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
         <span v-else-if="r.nsfw && !hideNsfw" class="badge nsfw-badge" :title="nsfwReason(r)">18+</span>
@@ -1103,7 +1120,7 @@
         <td class="lf-type"><button class="ghost small lock-btn" :class="{on: typeLocked(l)}" @click="toggleTypeLock(l)"
                   :title="typeLocked(l) ? 'Locked: this type can\'t be changed by accident. Click to unlock.' : 'Unlocked. Click to lock this type (picking a type locks it too).'">{{ typeLocked(l) ? '🔒' : '🔓' }}</button>
           <div class="seg" :class="{locked: typeLocked(l)}">
-          <button v-for="f in (l.kind === 'model' ? [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}] : [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'FLUX.2'}, {id: 'ernie', label: 'ERNIE'}])" :key="f.id"
+          <button v-for="f in (l.kind === 'model' ? [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}] : [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein 4B'}, {id: 'ernie', label: 'ERNIE'}])" :key="f.id"
                   :class="{on: f.id ? (l.family_set && l.family === f.id) : !l.family_set}" :disabled="typeLocked(l)" @click="setLoraFamily(l, f.id)">{{ f.label }}</button>
         </div></td></tr>
     </table>
@@ -1131,8 +1148,9 @@
           <div class="row trig-batch">
             <input v-model="tagBatch.tag" placeholder="a tag, e.g. pencil (several: pencil, sketch)" style="max-width:280px" @keydown.enter="tagLoras('add')"
                    title="One tag or several separated by commas">
-            <button class="ghost" :disabled="!tagBatch.sel.length || !tagBatch.tag.trim()" @click="tagLoras('add')" title="Give every ticked LoRA this tag">＋ Tag {{ tagBatch.sel.length }} selected</button>
-            <button class="ghost" :disabled="!tagBatch.sel.length || !tagBatch.tag.trim()" @click="tagLoras('remove')" title="Take this tag off every ticked LoRA">− Untag {{ tagBatch.sel.length }} selected</button>
+            <label class="check" title="Also write the tag into each LoRA's trigger words, so it shows as a chip under the LoRA in Create and can be added to the prompt with one click"><input type="checkbox" v-model="tagBatch.asTrig"> also as trigger words</label>
+            <button class="ghost" :disabled="!tagBatch.sel.length || !tagBatch.tag.trim() || tagBatch.busy" @click="tagLoras('add')" title="Give every ticked LoRA this tag">＋ Tag {{ tagBatch.sel.length }} selected</button>
+            <button class="ghost" :disabled="!tagBatch.sel.length || !tagBatch.tag.trim() || tagBatch.busy" @click="tagLoras('remove')" title="Take this tag off every ticked LoRA">− Untag {{ tagBatch.sel.length }} selected</button>
             <button v-if="tagBatch.q.startsWith('#') && allLoraTags.some((t) => t.tag === tagBatch.q.slice(1))" class="ghost" :disabled="!tagBatch.tag.trim()"
                     @click="renameLoraTag(tagBatch.q.slice(1)); tagBatch.q = '#' + cleanTags(tagBatch.tag)[0]" title="Rename this tag on every LoRA that has it (to an existing tag: merges them)">Rename 🏷 {{ tagBatch.q.slice(1) }}</button>
           </div>
@@ -1306,6 +1324,9 @@
           <span v-if="objFinding" class="stage-busy">Finding the object…</span>
           <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
              :style="{left: brush.x + 'px', top: brush.y + 'px', width: mask.size + 'px', height: mask.size + 'px'}"></i>
+        </div>
+        <div v-else-if="tool.source && tool.working && opts.previews !== false && livePreview" class="tool-live" @click.stop>
+          <img :src="livePreview.src" alt=""><span class="cmp-tag left">● live preview</span>
         </div>
         <div v-else-if="tool.source && tool.latest && !tool.working && tool.view !== 'original'" class="cmp-stage" :class="'cmp-' + tool.view" @click.stop
              @mousedown="tool.view === 'split' && cmpDrag($event)">
@@ -1528,9 +1549,17 @@
           <select class="patch-add" :value="''" :disabled="!!patch.running" @change="patchAddModule($event.target.value); $event.target.value = ''"
                   title="Add another copy of a module (like a second rack unit), to run it twice in one chain">
             <option value="">＋ Add a module…</option>
-            <option v-for="n in PATCH_NODES.filter((x) => x.in && x.out && x.id !== 'vector')" :key="'add' + n.id" :value="n.id">{{ n.icon }} another {{ n.label }}</option>
+            <option v-for="id in (patch.hidden || [])" :key="'back' + id" :value="'back:' + id">↩ put {{ (PATCH_NODES.find((x) => x.id === id) || {}).label }} back</option>
+            <option v-for="n in PATCH_NODES.filter((x) => x.in && x.out && x.id !== 'vector' && !(patch.hidden || []).includes(x.id))" :key="'add' + n.id" :value="n.id">{{ n.icon }} another {{ n.label }}{{ n.id === 'detail' ? ' (a LoRA)' : '' }}</option>
           </select>
           <button v-if="patch.extra.length" class="ghost small" :disabled="!!patch.running" @click="patchRemoveModule()" title="Take out the last module you added (and its cables)">✕ last added</button>
+        </div>
+        <div class="patch-presets row patch-protect-row">
+          <button v-if="!tool.protecting" class="ghost small" :disabled="!tool.source || !!patch.running" @click="patchProtect(true)"
+                  title="Paint over parts of the picture the patch mustn't change (a face, a logo, the background): they're put back from your picture after the chain runs">🛡 Protect areas…</button>
+          <button v-else class="primary small" @click="patchProtect(false)" title="Keep what you painted as the protected areas">✓ Done protecting</button>
+          <span v-if="patch.protect && tool.source && patch.protect.for === tool.source.path && !tool.protecting" class="hint">🛡 protected areas set ·
+            <button class="link small" @click="patch.protect = null" title="Let the patch change the whole picture again">clear</button></span>
         </div>
         <div class="patch-presets row">
           <span class="hint">Signal flows</span>
@@ -1605,6 +1634,18 @@
               <text :x="patchX(i)" y="240" text-anchor="middle" class="pb-silk pb-io" pointer-events="none">OUT</text>
             </template>
             <text v-if="n.id === 'result'" :x="patchX(i)" y="206" text-anchor="middle" class="pb-silk pb-sub" pointer-events="none">▸ LIBRARY</text>
+            <template v-if="i > 0 && i < patchNodes.length - 1">
+              <g class="pb-pick" :class="{on: patch.sel === n.id}" @pointerdown.stop="patchSelect(n.id)">
+                <title>{{ patch.sel === n.id ? 'Picked: its settings are in the lit-up rack unit below (click again to finish)' : 'Pick this module: its rack unit below shows its settings' }}</title>
+                <rect :x="patchX(i) - 44" y="250" width="88" height="20" rx="3"/>
+                <circle :cx="patchX(i) - 32" cy="260" r="3.5" class="pb-pick-led"/>
+                <text :x="patchX(i) + 6" y="264" text-anchor="middle">{{ patch.sel === n.id ? 'SELECTED' : 'SELECT' }}</text>
+              </g>
+              <g class="pb-x" @pointerdown.stop="patchHide(n.id)">
+                <title>{{ n.id.includes('#') ? 'Remove this copy (and its cables)' : 'Take this module off the rack (＋ Add a module puts it back)' }}</title>
+                <circle :cx="patchX(i) + 58" cy="54" r="7"/><text :x="patchX(i) + 58" y="57.5" text-anchor="middle">✕</text>
+              </g>
+            </template>
           </g>
           <g v-for="(c, i) in patch.cables" :key="'cb' + c.from + c.to" class="pb-cable" :class="{live: patch.running === c.to}"
              @dblclick="patchUnplug(i)">
@@ -1626,43 +1667,8 @@
             <circle :cx="patch.drag.x" :cy="patch.drag.y" r="9" :fill="cableColour(patch.drag.c)" stroke="#1a1b1d" stroke-width="2"/>
           </g>
         </svg>
-        <div v-if="patch.sel" class="patch-sel-panel">
-          <template v-if="patch.sel.includes('#')">
-            <h4>⚙ {{ (patchNodes.find((n) => n.id === patch.sel) || {}).label }} <span class="hint">· this copy's own settings (the first {{ (PATCH_NODES.find((n) => n.id === patch.sel.split('#')[0]) || {}).label }} uses its rack unit below)</span>
-              <button class="link small" @click="patch.sel = ''">close</button></h4>
-            <div v-if="patch.sel.startsWith('faces') && patch.copySettings[patch.sel]" class="psel-grid">
-              <label>Model</label>
-              <div class="seg"><button v-for="m in [['codeformer', 'CodeFormer'], ['restoreformer', 'RestoreFormer']]" :key="m[0]"
-                   :class="{on: patch.copySettings[patch.sel].face_model === m[0]}" @click="patch.copySettings[patch.sel].face_model = m[0]; patchCopySave()">{{ m[1] }}</button></div>
-              <label title="How much of the restored face is used">Strength <b>{{ patch.copySettings[patch.sel].face_strength.toFixed(2) }}</b></label>
-              <input type="range" min="0.1" max="1" step="0.05" v-model.number="patch.copySettings[patch.sel].face_strength" @change="patchCopySave" title="How much of the restored face is used">
-              <template v-if="patch.copySettings[patch.sel].face_model === 'codeformer'">
-                <label title="Low: cleanest face. High: keeps more of the person's own features.">Fidelity <b>{{ patch.copySettings[patch.sel].face_fidelity.toFixed(2) }}</b></label>
-                <input type="range" min="0" max="1" step="0.05" v-model.number="patch.copySettings[patch.sel].face_fidelity" @change="patchCopySave" title="Low: cleanest face. High: keeps more of the person's own features.">
-              </template>
-            </div>
-            <div v-else-if="patch.sel.startsWith('enhance') && patch.copySettings[patch.sel]" class="psel-grid">
-              <label>Upscale</label>
-              <div class="seg"><button v-for="u in [1, 2, 3, 4]" :key="u" :class="{on: patch.copySettings[patch.sel].enh.upscale_factor === u}"
-                   @click="patch.copySettings[patch.sel].enh.upscale_factor = u; patchCopySave()">{{ u }}×</button></div>
-              <label title="How much the enhancer may change: low keeps it close to the picture, high invents more detail">Detail <b>{{ Number(patch.copySettings[patch.sel].enh.denoise_strength).toFixed(2) }}</b></label>
-              <input type="range" min="0.1" max="0.8" step="0.05" v-model.number="patch.copySettings[patch.sel].enh.denoise_strength" @change="patchCopySave" title="How much the enhancer may change">
-              <label title="More steps add detail but take longer">Steps</label>
-              <input type="number" min="4" max="50" v-model.number="patch.copySettings[patch.sel].enh.num_inference_steps" @change="patchCopySave" title="More steps add detail but take longer">
-            </div>
-            <div v-else-if="patch.sel.startsWith('depth') && patch.copySettings[patch.sel]" class="psel-grid">
-              <label>Model</label>
-              <div class="seg"><button v-for="m in [['small', 'Small'], ['base', 'Base'], ['large', 'Large']]" :key="m[0]"
-                   :class="{on: patch.copySettings[patch.sel].depth.model === m[0]}" @click="patch.copySettings[patch.sel].depth.model = m[0]; patchCopySave()">{{ m[1] }}</button></div>
-              <label>Look</label>
-              <div class="seg"><button v-for="m in [['gray', 'Grey'], ['color', 'Colour']]" :key="m[0]"
-                   :class="{on: patch.copySettings[patch.sel].depth.style === m[0]}" @click="patch.copySettings[patch.sel].depth.style = m[0]; patchCopySave()">{{ m[1] }}</button></div>
-            </div>
-            <p v-else class="hint">This copy uses what you paint on the picture, like the first one.</p>
-          </template>
-          <p v-else class="hint">⚙ {{ (patchNodes.find((n) => n.id === patch.sel) || {}).label }} uses its rack unit below (lit up now).
-            <button class="link small" @click="patch.sel = ''">close</button></p>
-        </div>
+        <div v-if="patch.sel" class="patch-sel-note hint">⚙ <b>{{ (patchNodes.find((n) => n.id === patch.sel) || {}).label }}</b> is picked: its settings are in the lit-up rack unit below{{ patch.sel.includes('#') ? ' (this copy has its own)' : '' }}.
+          <button class="link small" @click="patchSelect(patch.sel)">done</button></div>
         <p class="hint patch-hint">{{ patch.msg || 'Drag from an OUT jack to an IN jack to plug a cable in (or click one, then the other). Drag a module\'s name (or press ‹ ›) to move it left or right. Drag a plugged-in end away, or double-click a cable, to unplug it. Each module uses its own settings below; REMOVE uses what you paint on the picture.' }}
           <template v-if="patchLoose.length"> · <span class="warn-text">{{ patchLoose.length === 1 ? 'one module is' : patchLoose.length + ' modules are' }} patched but not reached from PICTURE, so {{ patchLoose.length === 1 ? 'it is' : 'they are' }} skipped.</span></template></p>
       </div>
@@ -1685,9 +1691,9 @@
           </div>
         </div>
 
-        <div id="rack-enhance" class="card rack-module enh-module" :class="{active: post.do_enhance, 'patch-pick': patch.on && patch.sel === 'enhance'}">
+        <div id="rack-enhance" class="card rack-module enh-module" :class="{active: post.do_enhance, 'patch-pick': patchPicked('enhance')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">✨</span>
-            <h3>Enhance</h3><span class="mod-sub">sharper &amp; bigger · Finegrain</span></div>
+            <h3>Enhance</h3><span v-if="patchPicked('enhance')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">sharper &amp; bigger · Finegrain</span></div>
           <label>Upscale</label>
           <div class="seg mod-seg">
             <button v-for="u in [1, 2, 3, 4]" :key="u" :class="{on: post.enh.upscale_factor === u}" @click="post.enh.upscale_factor = u"
@@ -1728,9 +1734,9 @@
           </div>
         </div>
 
-        <div id="rack-faces" class="card rack-module" :class="{active: post.do_faces, 'patch-pick': patch.on && patch.sel === 'faces'}">
+        <div id="rack-faces" class="card rack-module" :class="{active: post.do_faces, 'patch-pick': patchPicked('faces')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🙂</span>
-            <h3>Restore faces</h3><span class="mod-sub">{{ post.face_model === 'restoreformer' ? 'RestoreFormer' : 'CodeFormer' }}</span></div>
+            <h3>Restore faces</h3><span v-if="patchPicked('faces')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">{{ post.face_model === 'restoreformer' ? 'RestoreFormer' : 'CodeFormer' }}</span></div>
           <p class="mod-desc">Repairs blurry or distorted faces and eyes.</p>
           <label>Model</label>
           <div class="seg mod-seg" @click.stop>
@@ -1738,6 +1744,10 @@
                     title="Strong repair, even for very blurry or damaged faces (the default). Non-commercial licence.">CodeFormer</button>
             <button :class="{on: post.face_model === 'restoreformer'}" @click="post.face_model = 'restoreformer'"
                     title="Natural and faithful to the person. Free to use, including commercially.">RestoreFormer</button>
+          </div>
+          <label>Presets</label>
+          <div class="face-presets" title="CodeFormer starting points: each sets fidelity and strength. You can still change both afterwards.">
+            <button v-for="fp in facePresets" :key="'fp' + fp.id" class="chip" :class="{on: facePresetOn(post, fp)}" :title="fp.tip + ' — fidelity ' + fp.fidelity + ', strength ' + fp.strength" @click.stop="facePreset(post, fp)">{{ fp.label }}</button>
           </div>
           <label>Strength <span class="mod-val">{{ post.face_strength.toFixed(2) }}</span></label>
           <input type="range" min="0.1" max="1" step="0.05" v-model.number="post.face_strength" title="How much of the repaired face is used">
@@ -1752,9 +1762,9 @@
           </div>
         </div>
 
-        <div id="rack-depth" class="card rack-module depth-card" :class="{'patch-pick': patch.on && patch.sel === 'depth'}">
+        <div id="rack-depth" class="card rack-module depth-card" :class="{'patch-pick': patchPicked('depth')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🌊</span>
-            <h3>Depth map</h3><span class="mod-sub">Depth Anything V2</span></div>
+            <h3>Depth map</h3><span v-if="patchPicked('depth')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">Depth Anything V2</span></div>
           <p class="mod-desc" title="Use it as a ControlNet depth map in Image to image (keeps the 3-D layout while changing everything else), or for editing and 3-D work.">Near things bright, far things dark. For ControlNet and 3-D work.</p>
           <label>Model</label>
           <div class="seg mod-seg">
@@ -1773,9 +1783,9 @@
           </div>
         </div>
 
-        <div id="rack-heal" class="card rack-module heal-card" :class="{'patch-pick': patch.on && patch.sel === 'heal'}">
+        <div id="rack-heal" class="card rack-module heal-card" :class="{'patch-pick': patchPicked('heal')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🩹</span>
-            <h3>Remove objects</h3><span class="mod-sub">spot healing</span></div>
+            <h3>Remove objects</h3><span v-if="patchPicked('heal')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">spot healing</span></div>
           <template v-if="!tool.healing">
             <p class="mod-desc">Paint over anything you don't want (a stray object, an extra finger, text, a blemish) and it's filled in from what's around it.</p>
             <ol class="mod-steps">
@@ -1816,9 +1826,28 @@
           </div>
         </div>
 
-        <div id="rack-vector" class="card rack-module vec-card" :class="{'patch-pick': patch.on && patch.sel === 'vector'}">
+        <div id="rack-detail" class="card rack-module detail-card" :class="{'patch-pick': patchPicked('detail')}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🔎</span>
+            <h3>Detail with a LoRA</h3><span v-if="patchPicked('detail')" class="mod-editing">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">patchbay · {{ currentModel ? currentModel.label : 'pick a model in Create' }}</span></div>
+          <p class="mod-desc">A light redraw with the model picked in Create and one LoRA (an “add detail” LoRA, a style…): sharper skin, fabric and texture, same picture. Runs as the patchbay's DETAIL module.</p>
+          <label>LoRA</label>
+          <select v-model="post.det.lora" title="The LoRA used for the detail pass (only ones that fit the Create model are listed)">
+            <option value="">none (just a light redraw)</option>
+            <option v-for="l in compatibleLoras" :key="'det' + l.name" :value="l.name">{{ l.name }}</option>
+          </select>
+          <label>LoRA weight <span class="mod-val">{{ Number(post.det.weight).toFixed(2) }}</span></label>
+          <input type="range" min="0" max="1.5" step="0.05" v-model.number="post.det.weight" title="How strongly the LoRA is used">
+          <label title="How much may change: 0.2–0.4 adds detail and keeps the picture; higher redraws more">Change strength <span class="mod-val">{{ Number(post.det.strength).toFixed(2) }}</span></label>
+          <input type="range" min="0.1" max="0.7" step="0.05" v-model.number="post.det.strength" title="How much may change: 0.2–0.4 adds detail and keeps the picture">
+          <label>Steps <span class="mod-val">{{ post.det.steps }}</span></label>
+          <input type="range" min="8" max="40" step="1" v-model.number="post.det.steps" title="More steps: finer detail, slower">
+          <p v-if="!['sd15', 'sdxl'].includes(family)" class="mod-note warn-text">Pick an SD 1.5 or SDXL model in Create to use DETAIL.</p>
+          <div class="mod-foot"><span class="mod-plate">Detailer · DT-1</span></div>
+        </div>
+
+        <div id="rack-vector" class="card rack-module vec-card" :class="{'patch-pick': patchPicked('vector')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">✒️</span>
-            <h3>Vectorize</h3><span class="mod-sub">picture → SVG</span></div>
+            <h3>Vectorize</h3><span v-if="patchPicked('vector')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">picture → SVG</span></div>
           <p class="mod-desc" title="The SVG scales to any size without blur and opens in Illustrator, Affinity, Inkscape, Figma or Cricut. Photos become a poster-like look.">Flat colour shapes for logos, icons, stickers and cut files.</p>
           <label>Colours <span class="mod-val">{{ post.vec.colors }}</span></label>
           <input type="range" min="2" max="24" step="1" v-model.number="post.vec.colors" title="Fewer = simpler, bolder shapes">
@@ -1848,6 +1877,11 @@
             <h3>Image → prompt</h3><span class="mod-sub">reads the picture</span></div>
           <p class="mod-desc">Writes a prompt from the picture (Qwen3.5 vision model) and puts it in Create's prompt box.</p>
           <div v-if="tool.promptText" class="mod-readout" :title="tool.promptText">{{ tool.promptText }}</div>
+          <div v-if="tool.promptText" class="prompt-out-row">
+            <button class="chip" @click.stop="copyPromptText" title="Copy the prompt to the clipboard">{{ tool.promptCopied ? '✓ copied' : '⧉ Copy' }}</button>
+            <button class="chip" @click.stop="promptToI2i" title="Open this picture in Image to image with this prompt in the prompt box">🖼 Use in Image to image</button>
+            <button class="chip" @click.stop="form.prompt = tool.promptText; tab = 'create'" title="Put the prompt in Create's prompt box and go there">✍ Use in Create</button>
+          </div>
           <div class="mod-foot mod-foot-2">
             <button class="primary mod-go" :disabled="!tool.source" @click="toolToPrompt('describe')" title="Qwen3.5 4B writes a detailed prompt in sentences: best for FLUX, FLUX.2, ERNIE and SDXL (~3 GB the first time)">Describe</button>
             <div class="mod-pair">
@@ -1863,9 +1897,34 @@
           <p class="mod-desc" title="Makes standard .safetensors copies of your DiffusionBee models, LoRAs and embeddings, so they work in other apps too (A1111, ComfyUI, Draw Things…). Your DiffusionBee files are left as they are. Works offline.">Copies your DiffusionBee models, LoRAs and embeddings as .safetensors for other apps. Originals untouched.</p>
           <div class="mod-foot">
             <button class="primary mod-go" @click="conv.items ? (conv.items = null) : loadConvertList()">{{ conv.items ? 'Hide the list' : 'Show my files' }}</button>
+            <button class="mod-go" @click="ck.items ? (ck.items = null) : loadCkptList()" title="Older .ckpt checkpoints that won't load (or that you'd rather keep as the safer format): makes a .safetensors copy, read safely. The .ckpt is left as it is.">{{ ck.items ? 'Hide .ckpt list' : 'Old .ckpt files…' }}</button>
             <span class="mod-plate">Converter · CV-6</span>
           </div>
         </div>
+      </div>
+      <div v-if="ck.items" class="card convert-card convert-panel">
+        <h3>🔁 Old .ckpt checkpoints <span class="hint">→ .safetensors copies</span>
+          <button class="ghost small conv-close" @click="ck.items = null" title="Close the list">✕</button></h3>
+        <p class="hint">.ckpt is an older format: newer PyTorch refuses many of them, and opening one the ordinary way could run code
+          hidden inside. This reads only the weights (nothing in the file is ever run) and saves a .safetensors copy in
+          <button class="link" @click="openFolder(ck.out_dir)">your checkpoints folder</button>, where it's listed like any other
+          model. The .ckpt itself is left exactly as it is.</p>
+        <div class="row small">
+          <button class="ghost small" @click="pickCkpt">Pick a .ckpt file…</button>
+          <label class="check" title="Half precision: half the size, same pictures. Untick to keep full precision."><input type="checkbox" v-model="ck.half"> half size (fp16)</label>
+        </div>
+        <div class="conv-list">
+          <div v-for="it in ck.items" :key="it.path" class="conv-item ck-item">
+            <span :title="it.path">{{ it.name }}</span>
+            <span class="hint">{{ it.gb }} GB</span>
+            <span v-if="it.converted" class="hint">✓ converted</span>
+            <button class="small" :disabled="!!ckJob" @click="convertCkpt(it.path)">{{ it.converted ? 'Convert again' : 'Convert' }}</button>
+          </div>
+          <div v-if="!ck.items.length" class="hint">No .ckpt checkpoints in your folders. Use “Pick a .ckpt file…” for one somewhere else.</div>
+        </div>
+        <div v-if="ckJob" class="row"><span class="hint">{{ ckJob.state === 'running' ? status : 'waiting in the queue' }}</span>
+          <button class="danger small" @click="cancelJob(ckJob.id)">■ Stop</button></div>
+        <div v-if="ck.msg" class="hint">{{ ck.msg }}</div>
       </div>
       <div v-if="conv.items" class="card convert-card convert-panel">
         <h3>🔁 Your DiffusionBee files <span class="hint">pick what to convert · .tdict → .safetensors</span>
@@ -2151,6 +2210,13 @@
           <button v-if="recSettings" class="ghost rec-btn" :class="{on: form.steps === recSettings.steps && form.cfg === recSettings.cfg}"
                   @click="form.steps = recSettings.steps; form.cfg = recSettings.cfg"
                   :title="'Steps and guidance that suit ' + recSettings.label + ' with ' + (currentModel ? currentModel.label : 'this model')">★ Recommended: {{ recSettings.steps }} steps · guidance {{ recSettings.cfg }}</button>
+            <span class="my-defaults">
+              <button class="ghost small" :disabled="!currentModel" @click="saveModelDefaults"
+                      :title="'Start ' + (currentModel ? currentModel.label : 'this model') + ' with the sampler, steps, guidance, CLIP skip and size you have now, every time you pick it (you can still change them)'">💾 Save as this model's defaults</button>
+              <button v-if="currentModel && modelDefaults[currentModel.id]" class="link small" @click="applyModelDefaults()"
+                      :title="'Your defaults: ' + modelDefaultsText()">↺ my defaults</button>
+              <button v-if="currentModel && modelDefaults[currentModel.id]" class="link small" @click="forgetModelDefaults" title="Forget the defaults you saved for this model">forget</button>
+            </span>
         </div>
         <div class="hint">{{ familyLabel }} · the sampler, steps and guidance are shared with Create.</div>
       </div>
@@ -2256,6 +2322,7 @@
           <label class="check" title="Before each picture, a small language model turns your prompt into a detailed one (the same switch as in Create)">
             <input type="checkbox" v-model="form.enhance_prompt"> ✨ Enhance prompt when generating</label>
           <button class="link" @click="enhanceNow" :disabled="!form.prompt.trim()" title="Rewrite the prompt now, so you can read and edit it first">enhance now</button>
+          <button class="link" @click="enhanceNow('contrast')" :disabled="!form.prompt.trim()" title="Suggests the same scene turned into its striking opposite (summer → winter after light snowfall, a waterfall → frozen ice). ↩ undo puts your prompt back">🔄 contrast</button>
         </div>
         <div v-if="lastEnhanced && form.i2i_mode !== 'edit'" class="enhanced-note">
           <span class="hint">Enhanced:</span> {{ lastEnhanced.prompt }}
@@ -2721,7 +2788,7 @@
       <img src="assets/logo-round-512.png" alt="">
       <div>
         <h1>Protoart Studio</h1>
-        <p class="hint">Version 1.2.1 · AI image making that runs entirely on your Mac</p>
+        <p class="hint">Version 1.2.2 · AI image making that runs entirely on your Mac</p>
       </div>
     </div>
 
@@ -2847,16 +2914,32 @@
     </section>
     <section class="set-sec">
     <h2 id="models-section">Model folders</h2>
-    <h3 class="sub">Watched model folders <span class="hint">· every model in these folders is listed (new ones too)</span></h3>
-    <p class="hint">Pick a folder (an external drive is fine) and every model in it is used, including ones you put there later.
-      Nothing is copied: the files stay where they are. Single model files you added, Civitai and Hugging Face are in the
+    <div class="main-folder">
+      <h3 class="sub">📁 Main folder <span class="hint">· one folder of yours that holds everything</span></h3>
+      <p class="hint">Pick one folder (an external drive is fine). Your models, LoRAs, embeddings, VAEs and ControlNets go in its
+        sub-folders, and everything in them is listed, including files you add later. Nothing is copied or moved.</p>
+      <template v-if="mainFolder.path">
+        <div class="mf-path"><button class="link" @click="openFolder(mainFolder.path)">{{ mainFolder.path }}</button></div>
+        <div v-if="mainFolder.access && mainFolder.access !== 'ok'" class="warn-text">{{ accessProblem(mainFolder.access) }}</div>
+        <div v-else class="mf-subs">
+          <span v-for="k in ['checkpoints', 'loras', 'embeddings', 'vaes', 'controlnets']" :key="k" class="chip static"
+                :title="(mainFolder.subs || {})[k]">{{ mainKindLabel(k) }} → {{ mainSubName(k) }}/</span>
+        </div>
+      </template>
+      <div class="row">
+        <button :class="mainFolder.path ? 'ghost' : 'primary'" :disabled="libBusy" @click="pickMainFolder">{{ mainFolder.path ? 'Change main folder…' : 'Choose a main folder…' }}</button>
+        <button :disabled="libBusy" @click="refreshWatched" title="Read every folder again (main folder, more folders, libraries, LoRAs and embeddings): new files, a drive you just plugged in">↻ Refresh</button>
+        <button v-if="mainFolder.path" class="ghost small" @click="stopMainFolder">Stop using it</button>
+      </div>
+    </div>
+    <h3 class="sub">More model folders <span class="hint">· optional: other folders whose models are all listed</span></h3>
+    <p class="hint">Models somewhere else too? Add those folders here. Single model files you added, Civitai and Hugging Face are in the
       <button class="link" @click="openModelsPanel('own')">Models tab</button>.</p>
-    <div class="row"><button @click="addModelDir">＋ Add watched folders…</button>
-      <button v-if="modelDirs.dirs.length" :disabled="libBusy" @click="refreshWatched" title="Read every watched folder again, in case new files were missed">↻ Refresh</button>
-      <span class="hint">Watch as many folders as you like: ⌘-click to pick several at once, or press again to add more.</span></div>
+    <div class="row"><button @click="addModelDir">＋ Add folders…</button>
+      <span class="hint">⌘-click to pick several at once.</span></div>
     <table v-if="modelDirs.dirs.length" class="watched">
       <tr v-for="(d, i) in modelDirs.dirs" :key="d"><td>📁 Folder {{ i + 1 }}</td>
-        <td class="hint">{{ d }}</td><td><button class="ghost small" @click="removeModelDir(d)">Remove</button></td></tr>
+        <td class="hint">{{ d }}<div v-if="folderProblem(modelDirs, d)" class="warn-text">{{ folderProblem(modelDirs, d) }}</div></td><td><button class="ghost small" @click="removeModelDir(d)">Remove</button></td></tr>
     </table>
 
     <h3 class="sub">Model libraries from other apps <span class="hint">· Stability Matrix, ComfyUI, Automatic1111 / Forge, InvokeAI, Fooocus</span></h3>
@@ -2914,10 +2997,11 @@
       <tr v-for="d in [loraDirs.default, ...loraDirs.dirs]" :key="d"><td>{{ d === loraDirs.default ? 'Protoart folder' : 'Also' }}</td>
         <td><button class="link" @click="openFolder(d)">{{ d }}</button>
         <span class="hint"> · {{ lorasIn(d) }} LoRAs</span>
+        <div v-if="folderProblem(loraDirs, d)" class="warn-text">{{ folderProblem(loraDirs, d) }}</div>
         <div class="row small lora-dir-type">
           <span class="hint">for</span>
           <div class="seg">
-            <button v-for="f in [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'FLUX.2'}, {id: 'ernie', label: 'ERNIE'}]" :key="f.id"
+            <button v-for="f in [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein 4B'}, {id: 'ernie', label: 'ERNIE'}]" :key="f.id"
                     :class="{on: ((loraDirs.families || {})[d] || '') === f.id}" @click="setLoraDirFamily(d, f.id)"
                     :title="f.id ? 'Every LoRA in this folder is used with ' + f.label + ' models, whatever the file says' : 'Work out each LoRA\'s model type from the file itself'">{{ f.label }}</button>
           </div>
@@ -2994,7 +3078,8 @@
     <section class="set-sec">
     <h2>Image storage</h2>
     <table>
-      <tr><td>Save images to</td><td><button class="link" @click="openFolder(imagesDir.path)">{{ imagesDir.path }}</button></td></tr>
+      <tr><td>Save images to</td><td><button class="link" @click="openFolder(imagesDir.path)">{{ imagesDir.path }}</button>
+        <div v-if="imagesDir.access && imagesDir.access !== 'ok'" class="warn-text">{{ accessProblem(imagesDir.access) }}</div></td></tr>
     </table>
     <div class="row">
       <button @click="changeImagesDir">Change folder…</button>
@@ -3199,8 +3284,11 @@
         <label class="check"><input type="checkbox" v-model="batch.keepPrompt"> add my current prompt to each line</label>
       </div>
       <div class="row">
-        <button class="primary" :disabled="!batchLines.length" @click="queueBatch">Queue {{ batchLines.length }} job{{ batchLines.length === 1 ? '' : 's' }}
-          <template v-if="form.num_images > 1"> ({{ form.num_images }} images each)</template></button>
+        <button class="primary" :disabled="!batchLines.length" @click="queueBatch"
+                :title="batchLines.length ? 'Adds one job per prompt line to the queue' : 'Type or load at least one prompt line first'">
+          <template v-if="!batchLines.length">Add prompts above to queue them</template>
+          <template v-else>Queue {{ batchLines.length }} prompt{{ batchLines.length === 1 ? '' : 's' }}
+          <template v-if="form.num_images > 1"> ({{ form.num_images }} images each)</template></template></button>
         <button class="ghost" @click="batch.open = false">Cancel</button>
       </div>
     </div>
@@ -3261,6 +3349,18 @@
         <button @click="answerSlow(null)">Cancel</button>
         <button class="ghost" @click="answerSlow('go')">Go ahead anyway</button>
       </div>
+    </div>
+  </div>
+  <div v-if="ctx" class="ctx-backdrop" @click="ctx = null" @contextmenu.prevent="ctx = null">
+    <div class="ctx-menu" :style="{left: ctx.x + 'px', top: ctx.y + 'px'}" @click.stop>
+      <div class="ctx-title">{{ ctx.ids.length > 1 ? ctx.ids.length + ' pictures' : 'Picture #' + ctx.r.id }}</div>
+      <button v-if="ctx.ids.length === 1" @click="openDetail(ctx.r); ctx = null">Open details</button>
+      <button v-if="ctx.ids.length === 1" @click="toggleStar(ctx.r); ctx = null">{{ ctx.r.starred ? '★ Unstar' : '☆ Star' }}</button>
+      <button v-if="ctx.ids.length === 1" @click="useAsStart(ctx.r); ctx = null">🖼 Send to Image to image</button>
+      <button v-if="ctx.ids.length === 1" @click="openInTools(ctx.r); ctx = null">🧰 Send to Tools</button>
+      <button v-if="ctx.ids.length === 1" @click="showInFolder(ctx.r.path); ctx = null">Show in Finder</button>
+      <hr>
+      <button class="ctx-danger" @click="askDelete(ctx.ids); ctx = null">🗑 Delete{{ ctx.ids.length > 1 ? ' ' + ctx.ids.length + ' pictures' : '' }}…</button>
     </div>
   </div>
   <div v-if="libOffer" class="modal top">

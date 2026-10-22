@@ -329,6 +329,18 @@ class DownloadProblemTests(unittest.TestCase):
         self.assertIn("couldn't reach huggingface.co", msg)
         self.assertIsNone(bee_backend.download_problem(ValueError("something else")))
 
+    def test_missing_upstream_file_is_not_called_offline(self):
+        import bee_backend
+        try:
+            try:
+                raise RuntimeError("Client error '404 Not Found' for url 'https://huggingface.co/x/resolve/abc/model.safetensors'")
+            except RuntimeError as inner:
+                raise OSError("x does not appear to have a file named diffusion_pytorch_model.safetensors.") from inner
+        except OSError as e:
+            msg = bee_backend.download_problem(e)
+        self.assertIn("wasn't found on Hugging Face", msg)
+        self.assertNotIn("couldn't reach", msg)
+
 
 if __name__ == "__main__":
     unittest.main()

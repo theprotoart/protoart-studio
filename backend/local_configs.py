@@ -59,6 +59,34 @@ def _copy_recipe(src, dest):
     return n > 0
 
 
+INPAINT_PIPES = {"sd15": "StableDiffusionInpaintPipeline", "sdxl": "StableDiffusionXLInpaintPipeline"}
+
+
+def ensure_inpaint(family):
+    """The same recipe for an inpainting checkpoint: its UNet takes 9 input channels (picture latents + mask +
+    masked picture) instead of 4. Made from the normal recipe, on this Mac, once."""
+    base = ensure(family)
+    if base is None:
+        return None
+    dest = config_dir(family + "_inpaint")
+    if (dest / "model_index.json").exists():
+        return str(dest)
+    tmp = dest.with_name(dest.name + ".tmp")
+    shutil.rmtree(tmp, ignore_errors=True)
+    shutil.copytree(base, tmp)
+    unet_cfg = tmp / "unet" / "config.json"
+    data = json.loads(unet_cfg.read_text())
+    data["in_channels"] = 9
+    unet_cfg.write_text(json.dumps(data, indent=2))
+    idx = tmp / "model_index.json"
+    data = json.loads(idx.read_text())
+    data["_class_name"] = INPAINT_PIPES[family]
+    idx.write_text(json.dumps(data, indent=2))
+    shutil.rmtree(dest, ignore_errors=True)
+    tmp.rename(dest)
+    return str(dest)
+
+
 def ensure(family):
     """Path of a local recipe folder for sd15/sdxl, creating it from local files if needed.
     Returns None for other families. Raises an 'offline' error if it must be downloaded first."""

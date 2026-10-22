@@ -440,6 +440,26 @@ def _swap_used_gb():
         return -1.0
 
 
+def _pipe_dtype(pipe):
+    for name in ("unet", "transformer"):
+        m = getattr(pipe, name, None)
+        if m is not None:
+            try:
+                return next(p.dtype for p in m.parameters() if p.is_floating_point())
+            except StopIteration:
+                pass
+    return None
+
+
+def _keep_dtype(pipe):
+    """from_pipe() in recent diffusers converts the whole pipeline to float32 unless told otherwise, and the parts are
+    shared with the loaded model: one ControlNet / inpaint / image-to-image job silently doubled the model's memory
+    (fp16 -> fp32), which on 8 GB Macs meant swapping and 20-60 s a step. Keep the precision the model has."""
+    dt = _pipe_dtype(pipe)
+    # torch_dtype works in older and newer diffusers alike (newer ones also accept dtype)
+    return {"torch_dtype": dt} if dt is not None else {}
+
+
 def _from_tdict(cls, path, **kw):
     """Build a pipeline (or model) from a DiffusionBee .tdict via diffusers' single-file loader.
     The loader normally reads .safetensors/.ckpt; we hand it the tdict's weights instead."""
@@ -914,6 +934,9 @@ class Engine:
         else:
             dtype = t.float16 if device == "mps" else t.float32
             cls = diffusers.StableDiffusionXLPipeline if family == "sdxl" else diffusers.StableDiffusionPipeline
+            if spec.get("inpaint"):
+                # an inpainting checkpoint: 9-channel UNet, loaded as an inpainting pipeline with a matching recipe
+                cls = diffusers.StableDiffusionXLInpaintPipeline if family == "sdxl" else diffusers.StableDiffusionInpaintPipeline
             kw = {"torch_dtype": dtype}
             if low_memory:
                 # Quantize the UNet to 8-bit while loading: roughly halves its memory use.
@@ -924,7 +947,7 @@ class Engine:
             if spec.get("tdict"):
                 self.emit({"type": "status", "msg": f"Loading {spec['label']} from DiffusionBee…"})
                 import local_configs
-                rcp = local_configs.ensure(family)  # offline model recipe (configs + tokenizer)
+                rcp = (local_configs.ensure_inpaint if spec.get("inpaint") else local_configs.ensure)(family)  # offline recipe
                 tkw = {"torch_dtype": dtype, "safety_checker": None, "requires_safety_checker": False,
                        "config": rcp, "local_files_only": True}
                 if low_memory:
@@ -941,7 +964,8 @@ class Engine:
                                     "or deleted (or it's on a drive that isn't connected). Models tab → ↻ Refresh updates "
                                     "the list.")
                 import local_configs
-                rcp = local_configs.ensure(family)  # your own checkpoint: load fully offline
+                # your own checkpoint: load fully offline (an inpainting one with its own 9-channel recipe)
+                rcp = (local_configs.ensure_inpaint if spec.get("inpaint") else local_configs.ensure)(family)
                 fkw = {"config": rcp, "local_files_only": True}
                 if family == "sd15":
                     fkw.update(safety_checker=None, requires_safety_checker=False)
@@ -1113,6 +1137,11 @@ class Engine:
         kind = control["type"]
         cmap = self.control_map(kind, control_src, width, height, bool(control.get("already_map")),
                                 control.get("depth_model") or "small")
+        if 0 < total_ram_gb() < 16 and (self.depth_estimator is not None or self.pose_detector is not None):
+            # 8 GB Macs: the map is made; the depth / pose model would only crowd the image model while it draws
+            self.depth_estimator = None
+            self.pose_detector = None
+            self.release_memory()
         if kind not in self.controlnets:
             if 0 < total_ram_gb() < 16:
                 self.controlnets = {}  # 8 GB Macs: keep only one ControlNet loaded
@@ -1127,7 +1156,7 @@ class Engine:
                 cls = diffusers.StableDiffusionXLControlNetImg2ImgPipeline if img2img else diffusers.StableDiffusionXLControlNetPipeline
             else:
                 cls = diffusers.StableDiffusionControlNetImg2ImgPipeline if img2img else diffusers.StableDiffusionControlNetPipeline
-            self.cn_pipes[key] = cls.from_pipe(self.pipe, controlnet=self.controlnets[kind])
+            self.cn_pipes[key] = cls.from_pipe(self.pipe, controlnet=self.controlnets[kind], **_keep_dtype(self.pipe))
         return self.cn_pipes[key], cmap
 
     def control_preview(self, args):
@@ -1740,11 +1769,12 @@ class Engine:
             self.unload()  # 8 GB Macs: a big image model and the enhancer don't fit together
         text = self.get_prompt_enhancer().enhance(prompt, int(args.get("width") or 1024),
                                                   int(args.get("height") or 1024),
-                                                  cancel_event=self.cancel_event, family=family)
+                                                  cancel_event=self.cancel_event, family=family,
+                                                  contrast=bool(args.get("contrast")))
         if self.cancel_event.is_set():
             raise Cancelled()
         from postprocess.prompt_enhance import style_for
-        return {"prompt": text, "original": prompt, "style": style_for(family)}
+        return {"prompt": text, "original": prompt, "style": style_for(family, bool(args.get("contrast")))}
 
     def _ernie_embeddings(self, spec, texts):
         """Lean mode: encode prompts with a temporarily loaded text encoder, then free it."""
@@ -2210,7 +2240,7 @@ class Engine:
     def _i2i_pipe(self):
         if self.i2i_pipe is None:
             from diffusers import AutoPipelineForImage2Image
-            self.i2i_pipe = AutoPipelineForImage2Image.from_pipe(self.pipe)  # shares weights: no extra memory
+            self.i2i_pipe = AutoPipelineForImage2Image.from_pipe(self.pipe, **_keep_dtype(self.pipe))  # shares weights
             self._quiet(self.i2i_pipe)
         return self.i2i_pipe
 
@@ -2218,7 +2248,9 @@ class Engine:
         """Inpainting with the loaded model (works with normal checkpoints, not just inpainting ones)."""
         if self.inp_pipe is None:
             from diffusers import AutoPipelineForInpainting
-            self.inp_pipe = AutoPipelineForInpainting.from_pipe(self.pipe)
+            if "Inpaint" in type(self.pipe).__name__:
+                return self.pipe  # an inpainting model is already an inpainting pipeline
+            self.inp_pipe = AutoPipelineForInpainting.from_pipe(self.pipe, **_keep_dtype(self.pipe))
             self._quiet(self.inp_pipe)
         return self.inp_pipe
 
@@ -2541,8 +2573,18 @@ class Engine:
                 def prog(done, total):
                     self.wait_if_paused()  # Pause: hold between tiles
                     self.emit({"type": "progress", "image": 1, "images": 1, "step": done, "steps": total})
+                last_pv = [0.0]
+
+                def pv(lat):  # live preview while enhancing (every ~1.5 s), as in Create
+                    if not self.previews or time.time() - last_pv[0] < 1.5:
+                        return
+                    last_pv[0] = time.time()
+                    import preview
+                    arr = lat[0].detach().float().cpu().numpy() if lat.dim() == 4 else lat.detach().float().cpu().numpy()
+                    self.emit({"type": "preview", "image": 1, "src": preview.latent_to_data_url(arr, "sd15")})
                 try:
-                    out, used = enh.enhance(out, seed=seed, cancel_event=self.cancel_event, on_progress=prog, **opts)
+                    out, used = enh.enhance(out, seed=seed, cancel_event=self.cancel_event, on_progress=prog,
+                                            on_preview=pv, **opts)
                 except EnhanceCancelled:
                     raise Cancelled()
                 settings["enhance"] = dict(used, seed=seed)
@@ -2957,6 +2999,33 @@ class Engine:
         record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="word_edit")
         record["thumb"] = str(thumbs.make(record["id"], path, result) or "") or None
         record = self._content_check(record, result)
+        self.emit({"type": "image", "record": record})
+        return record
+
+    def protect_merge(self, args):
+        """Patchbay 🛡 Protect: put back the original picture wherever you painted, over the chain's result, with a
+        soft edge. Saved as a new picture in the Library (the chain's result stays too)."""
+        import detailer
+        from PIL import Image, ImageFilter
+        res = self.library.get_image(int(args["image_id"]))
+        if res is None or not Path(res["path"]).exists():
+            raise UserError("The result isn't in the Library any more.")
+        result = Image.open(res["path"]).convert("RGB")
+        _, original = self._source_picture({"path": args.get("original"), "image_id": args.get("original_id")})
+        original = original.convert("RGB").resize(result.size, Image.LANCZOS)
+        try:
+            mask = detailer.decode_mask(args.get("mask"), result.size)
+        except Exception:
+            raise UserError("Couldn't read the protected area.")
+        if not mask.getbbox():
+            raise UserError("Paint over the areas to protect first.")
+        soft = mask.convert("L").filter(ImageFilter.GaussianBlur(max(2, min(result.size) // 160)))
+        merged = Image.composite(original, result, soft)
+        settings = dict(res.get("settings") or {})
+        settings["protected_areas"] = True
+        path = self._save(merged, settings, suffix="protected")
+        record = self.library.add_image(path, settings, parent_id=res.get("parent_id") or res.get("id"), kind=res.get("kind") or "edited")
+        record["thumb"] = str(thumbs.make(record["id"], path, merged) or "") or None
         self.emit({"type": "image", "record": record})
         return record
 
