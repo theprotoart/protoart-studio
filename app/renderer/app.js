@@ -1079,7 +1079,7 @@ const protoartApp = createApp({
               "<b>“This needs a one-time download from Hugging Face … couldn't reach huggingface.co” although you're online</b> (OpenPose / Union ProMax OpenPose, Depth and some other ControlNets): fixed. The pose and depth finders' first download wasn't recognised as a download, so it was never tried. The message now also has a <b>⬇ Download it now</b> button that runs the same job again with the connection open.",
               "<b>🧩 Tiled upscale turned the picture into something else</b> (new faces, extra people, another style): fixed. It used Create's prompt, so every tile tried to draw that whole scene. It now uses a short detail prompt (add your own texture or style words in <i>Detail prompt</i>) and gentler defaults; pick a preset.",
               "<b>🗺 Regional prompts barely changed the picture</b>: each area now follows only its own prompt (before, the whole main prompt was added to every area and drowned the subjects). Describe each area fully and keep the main prompt to the setting.",
-              "<b>Image to image</b>: every card (Picture, Sampler, LoRAs, Model chain, ControlNet, Prompt) folds down to its title with a click on it, and <i>collapse all · expand all</i> sits at the top. Each <b>Model chain</b> step has a search box for its LoRAs.",
+              "<b>Image to image</b>: every card (Picture, Sampler, LoRAs, Model chain, ControlNet, Prompt) folds down to its title with a click on it, and <i>collapse all · expand all</i> sits at the top. Each <b>Model chain</b> step has a search box for its LoRAs, and <b>FLUX.2 Klein 4B</b> can be a chain step: it edits the picture with the words you write for that step (“make it a watercolour”), with its own LoRA if you like.",
               "<b>🗺 Regions with FLUX.2 Klein 4B</b> too, and a <b>✨</b> button on each area to describe its subject in detail.",
               "<b>🗺 Regions with FLUX.1 and ERNIE</b>: now possible. These models run on the fast engine, which can't split one picture's prompt by area, so the app draws the whole picture with each area's place in words, then redraws each area from its own prompt and blends it back in.",
               "<b>💡 suggest from the picture</b> is now in every Image to image mode (Change it, Inpaint, Expand, Edit with words), not only FLUX.2 Expand: it looks at your picture and writes a prompt describing it (Danbooru tags for Anima, Pony, Illustrious and NoobAI models), ready to edit. ↩ undo puts your prompt back.",
@@ -4246,9 +4246,9 @@ const protoartApp = createApp({
     },
 
     // -------------------------------------------------------------- generate
-    chainModels() {  // models a chain step can use: anything that can start from a picture
+    chainModels() {  // models a chain step can use: anything that can start from a picture (FLUX.2 Klein edits it with words)
       return this.models.filter((m) => this.isInstalled(m) && !m.inpaint &&
-        (["sd15", "sdxl", "anima"].includes(m.family) && m.engine !== "mlx" || (m.engine === "mlx" && ["flux", "ernie"].includes(m.family))));
+        (["sd15", "sdxl", "anima"].includes(m.family) && m.engine !== "mlx" || (m.engine === "mlx" && ["flux", "ernie", "flux2"].includes(m.family))));
     },
     chainAdd() {
       if (this.chain.steps.length >= 4) return;
@@ -4278,6 +4278,7 @@ const protoartApp = createApp({
     async chainLoraPicked(st) {
       if (st.lora) {
         const w = this.loraDefaultWeight(st.lora);
+        if ((this.chainModelOf(st) || {}).family === "flux2") { st.lora_weight = w ?? 1; this.chainSave(); return; }  // Klein: extra words are the instruction
         st.lora_weight = w ?? 1;
         try {  // its trigger words go in the step's extra words (when it has any and they aren't there yet)
           await this.fetchTriggers(st.lora);
@@ -4323,7 +4324,15 @@ const protoartApp = createApp({
                                 loras: st.lora ? [{ name: st.lora, weight: Number(st.lora_weight ?? 1) }] : [],
                                 chain_step: k + 1, chain_len: steps.length });
           this.status = `🔗 Chain step ${k + 1} of ${steps.length}: ${m.label}`;
-          let rec = await this.runJob("generate", args);
+          let rec;
+          if (m.family === "flux2") {
+            // FLUX.2 Klein redraws the picture by following an instruction (Edit with words): the step's extra words
+            // are the change; without any, it redraws the picture in the prompt's description
+            const words = extra || `Redraw this picture as: ${f.prompt.trim()}. Keep the composition, pose and layout.`;
+            rec = await this.runJob("edit_words", { path, prompt: words, seed: f.seed, loras: args.loras });
+          } else {
+            rec = await this.runJob("generate", args);
+          }
           if (Array.isArray(rec)) rec = rec[rec.length - 1] || null;
           if (!rec) break;
           last = rec;

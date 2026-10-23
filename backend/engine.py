@@ -3363,7 +3363,8 @@ class Engine:
         if self.cancel_event.is_set():
             raise Cancelled()
         try:
-            self._mlx_load(spec, [], variant="edit")
+            # LoRAs for FLUX.2 (e.g. a model chain step with its own LoRA); Edit with words itself sends none
+            self._mlx_load(spec, [l for l in (args.get("loras") or []) if isinstance(l, dict) and l.get("name")], variant="edit")
             self.loaded_key = None
             self.family = spec["family"]
             tmp = paths.HOME / "tmp"
@@ -3419,6 +3420,8 @@ class Engine:
                     "height": result.height, "steps": steps, "cfg": 1.0, "sampler": "flow_euler", "seed": seed,
                     "engine": "mlx", "loras": [], "seconds": round(secs, 1),
                     "edit": {"painted": mask is not None, "extra_pictures": len(refs)}}
+        if args.get("loras"):
+            settings["loras"] = [{"name": l["name"], "weight": float(l.get("weight", 1.0))} for l in args["loras"] if isinstance(l, dict) and l.get("name")]
         path = self._save(result, settings, suffix="wordedit")
         record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="word_edit")
         record["thumb"] = str(thumbs.make(record["id"], path, result) or "") or None

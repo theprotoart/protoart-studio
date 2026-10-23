@@ -2438,6 +2438,7 @@
         <p class="hint">Each model redraws the last one's result with the prompt above: an SD 1.5 sketch can become an SDXL picture,
           then a FLUX.1 or ERNIE finish. Low change strength keeps the picture; higher lets each model add its own look.
           Each step can have its own LoRA and extra words: e.g. SD 1.5 with your character LoRA, then FLUX.1 for the finish.
+          A FLUX.2 Klein step edits the picture with words instead (“make it a watercolour”).
           Each switch loads a model (20–60 s on an 8 GB Mac).</p>
         <div class="chain-rack">
           <template v-for="(st, k) in chain.steps" :key="'cs' + k">
@@ -2454,8 +2455,11 @@
               </div>
               <div class="chain-body">
                 <div class="chain-main">
-                  <label>Change <span class="mod-val">{{ Number(st.strength).toFixed(2) }}</span></label>
-                  <input type="range" min="0.1" max="0.9" step="0.05" v-model.number="st.strength" @change="chainSave" title="How much this model may change the picture: low keeps it, high lets the model add its own look">
+                  <template v-if="(chainModelOf(st) || {}).family !== 'flux2'">
+                    <label>Change <span class="mod-val">{{ Number(st.strength).toFixed(2) }}</span></label>
+                    <input type="range" min="0.1" max="0.9" step="0.05" v-model.number="st.strength" @change="chainSave" title="How much this model may change the picture: low keeps it, high lets the model add its own look">
+                  </template>
+                  <p v-else class="hint">FLUX.2 Klein edits the picture with words: write the change in <i>extra words</i> (“make it a Pixar-style 3D render”, “turn it into a watercolour”). Left empty, it redraws the picture as the prompt describes and keeps the layout.</p>
                   <label>LoRA <span class="hint">{{ chainFamilyLabel(st) }} · {{ chainLoras(st).length }} of {{ chainLoras(st, true).length }}</span></label>
                   <input v-model="st.q" class="mod-input" type="search" placeholder="🔍 Search this model's LoRAs…" title="Type part of a LoRA's name or trigger word to narrow the list">
                   <div class="chain-lora">
@@ -2467,7 +2471,7 @@
                     <input v-if="st.lora" type="range" min="0" max="1.5" step="0.05" v-model.number="st.lora_weight" @change="chainSave" title="How strongly the LoRA is used">
                     <span v-if="st.lora" class="mod-val">{{ Number(st.lora_weight ?? 1).toFixed(2) }}</span>
                   </div>
-                  <input v-model="st.extra" @change="chainSave" class="mod-input" placeholder="Extra words for this step (e.g. the LoRA's trigger word)" title="Added to the prompt for this step only">
+                  <input v-model="st.extra" @change="chainSave" class="mod-input" :placeholder="(chainModelOf(st) || {}).family === 'flux2' ? 'The change, in words (e.g. make it a watercolour painting)' : 'Extra words for this step (e.g. the LoRA\'s trigger word)'" title="Added to the prompt for this step only (for FLUX.2 Klein: the instruction)">
                 </div>
                 <img v-if="st.result" :src="fileUrl(st.result)" class="chain-thumb" @click="form.init_image = st.result" title="This step's result · click to start from it">
               </div>
