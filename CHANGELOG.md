@@ -12,7 +12,8 @@
 - Regional prompts: areas use only their own prompt by default (`add_main`, off); the main prompt reaches them through
   the base blend. FLUX.1 / ERNIE (fast engine): regions by parts (`regions_by_parts`: positional prompt for the
   whole picture, then each area redrawn by image to image from its own prompt and feather-blended back; `refine`).
-  FLUX.2 Klein / Anima show a note
+  FLUX.2 Klein too (each area refined with Klein's edit mode, `_klein_edit`; the slider sets the blend). Anima shows a
+  note. ✨ per area: the enhancer's new `region` / `region_tags` styles describe one subject only
 - Model chain: one module per step with its own LoRA + weight, extra words (a picked LoRA's trigger words added),
   reorder, and the step's result thumbnail
 - Image to image: the prompt box's owner (Create / Image to image) is matched to the opening tab at start-up, and

@@ -1323,6 +1323,7 @@ class Engine:
         import tempfile
         from PIL import Image, ImageDraw, ImageFilter
         rg = args["regions"]
+        family = all_models()[args["model"]]["family"]
         rps = [x.strip() for x in rg.get("prompts") or [] if isinstance(x, str) and x.strip()]
         boxes = regions.parse_layout(rg.get("layout") or "cols", rg.get("ratios") or "", len(rps))
         main = (args.get("prompt") or "").strip().rstrip(".")
@@ -1357,17 +1358,27 @@ class Engine:
                 tw, th = max(256, int(cw * f) // 16 * 16), max(256, int(ch * f) // 16 * 16)
                 src = tmpdir / f"area{k}.png"
                 crop.resize((tw, th), Image.LANCZOS).save(src)
-                part = self.generate(dict(args, prompt=f"{rp.rstrip('.')}, {main}" if main else rp, regions=None, num_images=1,
-                                          init_image=str(src), strength=refine, width=tw, height=th, seed=seed + k + 1,
-                                          enhance_prompt=False, _raw=True), force=force)
-                if not part:
-                    raise Cancelled()
-                back = part[0]["image"].convert("RGB").resize((cw, ch), Image.LANCZOS)
+                if family == "flux2":
+                    # FLUX.2 Klein can't start from a picture the usual way: it edits it with words instead
+                    back = self._klein_edit(crop.resize((tw, th), Image.LANCZOS),
+                                            f"Make this show {rp.rstrip('.')}, filling the frame the same way, with the same "
+                                            f"lighting, colours and style as the picture, and natural edges.",
+                                            seed + k + 1, steps=args.get("steps"))
+                else:
+                    part = self.generate(dict(args, prompt=f"{rp.rstrip('.')}, {main}" if main else rp, regions=None, num_images=1,
+                                              init_image=str(src), strength=refine, width=tw, height=th, seed=seed + k + 1,
+                                              enhance_prompt=False, _raw=True), force=force)
+                    if not part:
+                        raise Cancelled()
+                    back = part[0]["image"]
+                back = back.convert("RGB").resize((cw, ch), Image.LANCZOS)
                 # soft-edged mask: full inside the area, fading out across the margin
                 mask = Image.new("L", (cw, ch), 0)
                 ImageDraw.Draw(mask).rectangle((x0 - cx0 if cx0 else 0, y0 - cy0 if cy0 else 0,
                                                 cw - (cx1 - x1 if cx1 < W else 0), ch - (cy1 - y1 if cy1 < H else 0)), fill=255)
                 mask = mask.filter(ImageFilter.GaussianBlur(max(4, min(mx, my) / 2)))
+                if family == "flux2" and refine < 0.8:  # Klein's edit is all-or-nothing: the slider sets how much shows
+                    mask = mask.point(lambda v: int(v * min(1.0, refine / 0.6)))
                 img.paste(back, (cx0, cy0), mask)
         for f_ in tmpdir.glob("*"):
             try:
@@ -2097,7 +2108,7 @@ class Engine:
         family = spec["family"]
         is_sd = family in ("sd15", "sdxl") and spec.get("engine") != "mlx"
         rg0 = args.get("regions") if isinstance(args.get("regions"), dict) else None
-        if (rg0 and rg0.get("on", True) and spec.get("engine") == "mlx" and family in ("flux", "ernie") and not args.get("_raw")
+        if (rg0 and rg0.get("on", True) and spec.get("engine") == "mlx" and family in ("flux", "ernie", "flux2") and not args.get("_raw")
                 and not args.get("init_image") and len([x for x in rg0.get("prompts") or [] if isinstance(x, str) and x.strip()]) >= 2):
             return self.regions_by_parts(args, force=force)
         if spec.get("inpaint") and not (args.get("mask") or isinstance(args.get("outpaint"), dict)):
@@ -3276,6 +3287,44 @@ class Engine:
         record = self._content_check(record, result)
         self.emit({"type": "image", "record": record})
         return record
+
+    def _klein_edit(self, image, prompt, seed, steps=None):
+        """FLUX.2 Klein edits one picture as described (fast engine) -> PIL image the same size. Used by regions."""
+        import mlx_engine
+        from PIL import Image
+        spec = all_models().get(self.EDIT_MODEL)
+        if spec is None:
+            raise UserError("This needs the FLUX.2 Klein model, which isn't in this version.")
+        steps = max(1, min(12, int(steps or spec["defaults"]["steps"])))
+        width, height = max(256, image.width // 16 * 16), max(256, image.height // 16 * 16)
+        tmp = paths.HOME / "tmp"
+        tmp.mkdir(parents=True, exist_ok=True)
+        src = tmp / f"kedit_src_{os.getpid()}.png"
+        out = tmp / f"kedit_out_{os.getpid()}.png"
+        image.convert("RGB").save(src)
+        try:
+            self._mlx_load(spec, [], variant="edit")
+            self.loaded_key = None
+            self.family = spec["family"]
+
+            def on_event(ev):
+                if ev.get("type") == "progress":
+                    self.emit({"type": "progress", "image": 1, "images": 1, "step": ev["step"], "steps": ev["steps"]})
+
+            self.mlx.request({"cmd": "generate", "prompt": prompt, "negative_prompt": None, "width": width, "height": height,
+                              "steps": steps, "cfg": 1.0, "seed": int(seed) % 2**32, "out": str(out), "preview": False,
+                              "image_paths": [str(src)]}, on_event=on_event)
+            return Image.open(out).convert("RGB").resize(image.size, Image.LANCZOS)
+        except mlx_engine.CancelledError:
+            raise Cancelled()
+        except mlx_engine.EngineError as e:
+            raise UserError(str(e))
+        finally:
+            for f in (src, out):
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
 
     def edit_words(self, args):
         """✨ Edit with words (Image to image): FLUX.2 [klein] changes the picture as described. Optional: a painted

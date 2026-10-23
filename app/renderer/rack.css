@@ -2175,3 +2175,4 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .model-item.missing .m-name, .shop-card.missing .shop-top { opacity: .7; }
 .warn-chip { color: #ffb36b; border-color: rgba(255, 140, 60, .5); }
 .ctx-menu button:disabled { opacity: .4; cursor: default; }
+.reg-btns { display: flex; flex-direction: column; gap: 4px; }

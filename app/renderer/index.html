@@ -558,9 +558,9 @@
         </div>
       </section>
 
-      <section v-if="['flux2', 'anima'].includes(family) || (['sd15', 'sdxl'].includes(family) && currentModel?.engine === 'mlx')" class="regions cfold" :class="{shut: cfShut('regions')}">
+      <section v-if="['anima'].includes(family) || (['sd15', 'sdxl'].includes(family) && currentModel?.engine === 'mlx')" class="regions cfold" :class="{shut: cfShut('regions')}">
         <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">not with this model</span><span class="cfold-chev" aria-hidden="true"></span></label>
-        <p class="hint">Regional prompts work with SD 1.5, SDXL, FLUX.1 and ERNIE. {{ familyLabel }} understands positions in plain words, though:
+        <p class="hint">Regional prompts work with SD 1.5, SDXL, FLUX.1, FLUX.2 Klein and ERNIE. {{ familyLabel }} understands positions in plain words, though:
           “on the left a woman in a red coat, in the middle a man with an umbrella, on the right a small dog”.</p>
       </section>
       <section v-if="(['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx') || regionsByParts()" class="regions cfold" :class="{shut: cfShut('regions')}">
@@ -583,7 +583,11 @@
           <div v-for="(rp, i) in form.regions.prompts" :key="'rp' + i" class="reg-prompt">
             <span class="reg-n">{{ i + 1 }}</span>
             <textarea class="tape" rows="2" v-model="form.regions.prompts[i]" :placeholder="['e.g. a red-haired knight', 'e.g. a blue dragon', 'e.g. a castle', 'e.g. a stormy sky'][i]"></textarea>
-            <button v-if="form.regions.prompts.length > 2" class="ghost small" @click="form.regions.prompts.splice(i, 1)" title="Remove this area">✕</button>
+            <div class="reg-btns">
+              <button class="ghost small" :disabled="regionBusy >= 0 || !(rp || '').trim()" @click="enhanceRegion(i)" title="✨ Enhance: describe this area's subject in detail (look, colours, materials), ready to edit">{{ regionBusy === i ? '…' : '✨' }}</button>
+              <button v-if="regionUndo[i] != null" class="ghost small" @click="form.regions.prompts[i] = regionUndo[i]; regionUndo = { ...regionUndo, [i]: null }" title="Put your words back">↩</button>
+              <button v-if="form.regions.prompts.length > 2" class="ghost small" @click="form.regions.prompts.splice(i, 1)" title="Remove this area">✕</button>
+            </div>
           </div>
           <div class="row small">
             <button class="ghost small" :disabled="form.regions.prompts.length >= 4" @click="form.regions.prompts.push('')">＋ Add an area</button>
@@ -598,7 +602,7 @@
               <span class="mod-val">{{ Number(form.regions.refine ?? 0.5).toFixed(2) }}</span>
             </template>
           </div>
-          <p v-if="regionsByParts()" class="hint">{{ familyLabel }} draws regions in two passes: the whole picture with each area's place in words (“on the left, …”), then each area redrawn from its own prompt and blended back in. It takes about {{ 1 + (Number(form.regions.refine ?? 0.5) > 0 ? form.regions.prompts.filter((x) => x.trim()).length : 0) }}× as long as one picture.</p>
+          <p v-if="regionsByParts()" class="hint">{{ familyLabel }} draws regions in two passes: the whole picture with each area's place in words (“on the left, …”), then each area {{ family === 'flux2' ? 'edited with words to show its own prompt' : 'redrawn from its own prompt' }} and blended back in. It takes about {{ 1 + (Number(form.regions.refine ?? 0.5) > 0 ? form.regions.prompts.filter((x) => x.trim()).length : 0) }}× as long as one picture.</p>
           <label v-if="!regionsByParts()" class="check" title="Off (best for different subjects per area): each area follows only its own prompt. On: the main prompt is added to every area too, which blends them but can drown the subjects">
             <input type="checkbox" v-model="form.regions.add_main"> Add the main prompt to every area</label>
           <p class="hint">Tips: describe each area fully (“a woman in a red coat, full body”), keep the main prompt to the setting (“a city street, photo”), and use a size wide enough for the areas (768 × 512 for three columns).</p>

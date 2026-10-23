@@ -38,6 +38,15 @@ SYSTEM = {
         "picture so it continues naturally: the surroundings, the rest of the scene, the background, matching the "
         "picture's lighting and style. Under 45 words. Don't describe the subject that's already there. Always write "
         "in English. Output only the description."),
+    "region": (
+        "You expand a short description of ONE subject that fills one part of a bigger picture (the rest of the picture "
+        "is described separately). Describe only that subject: its look, colours, materials, details, pose or angle, "
+        "in one or two sentences, under 45 words. No background, no setting, no other subjects, no explanations. "
+        "Always write in English. Output only the description."),
+    "region_tags": (
+        "You expand a short description of ONE subject that fills one part of a bigger picture into 8 to 15 short "
+        "comma-separated Stable Diffusion tags about that subject only (look, colours, materials, details, pose). "
+        "No background or setting tags, no sentences. Always write in English. Output only the tags on one line."),
     "contrast": (
         "You suggest a contrasting version of an image idea: keep the same subject and place, but change the season, "
         "weather, time of day, material, era or mood to its striking opposite (summer to winter after light snowfall, "
@@ -72,6 +81,12 @@ EXAMPLES = {
                       "street, winter, light snowfall, snow on rooftops, frosted windows, bare trees, people in coats, "
                       "scarves, breath vapour, grey sky, soft diffuse light, quiet mood, wet cobblestones, "
                       "warm shop lights, cinematic, wide shot"),
+    "region": ("a vintage 60s car",
+               "A polished cherry-red 1960s convertible with rounded fenders, gleaming chrome bumpers and whitewall "
+               "tyres, seen from a three-quarter front angle."),
+    "region_tags": ("a vintage 60s car",
+                    "vintage car, 1960s, red convertible, rounded fenders, chrome bumper, whitewall tires, "
+                    "three-quarter view, glossy paint"),
     "edit": ("make her jacket red",
              "Change the woman's jacket to a deep red leather jacket with the same cut and fit, keeping her face, "
              "pose, hair, the background and the lighting exactly as they are."),
@@ -82,7 +97,7 @@ QUALITY_TAGS = ["masterpiece", "best quality", "highly detailed"]
 def style_for(family, contrast=False):
     """Tags for the Stable Diffusion models (SD 1.5, SDXL incl. Pony / Illustrious / NoobAI), sentences for the
     models that read language (ERNIE, FLUX, FLUX.2); "edit" rewrites an editing instruction (Edit with words)."""
-    if family in ("edit", "outpaint"):
+    if family in ("edit", "outpaint", "region", "region_tags"):
         return family
     tags = family in ("sd15", "sdxl")
     if contrast:  # 🔄 contrast: the same scene turned into its striking opposite
@@ -126,7 +141,7 @@ class PromptEnhancer:
         inputs = tok(text, return_tensors="pt").to(self.device)
         start = inputs["input_ids"].shape[1]
         emit = self.emit
-        limit = {"tags": 110, "contrast_tags": 110, "edit": 80, "outpaint": 80}.get(style, 170)
+        limit = {"tags": 110, "contrast_tags": 110, "edit": 80, "outpaint": 80, "region": 80, "region_tags": 60}.get(style, 170)
 
         class Watch(StoppingCriteria):
             def __call__(self, input_ids, scores, **kw):
@@ -205,6 +220,14 @@ def clean(text, original, style):
     t = re.sub(r"^(prompt|description|tags|output)\s*:\s*", "", t, flags=re.IGNORECASE).strip().strip('"').strip()
     if len(t) < 8:
         return original
+    if style == "region_tags":  # one area's tags: no quality tags (the main prompt carries those)
+        tags, seen = [], set()
+        for raw in [o for o in original.split(",")] + re.split(r",|\.|;", t):
+            tag = raw.strip().strip("*-").strip()
+            if tag and len(tag) <= 40 and tag.lower() not in seen:
+                seen.add(tag.lower())
+                tags.append(tag)
+        return ", ".join(tags[:16])
     if style in ("tags", "contrast_tags"):
         if style == "contrast_tags":
             original = ""  # a contrast is a new scene: the user's own tags aren't put back in front

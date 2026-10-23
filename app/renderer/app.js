@@ -376,7 +376,8 @@ const protoartApp = createApp({
       error: "",
       dlJob: null,
       detLoraQ: "",
-      gmenu: null,      // right-click menus for models, LoRAs, the queue and folders (pictures have their own)
+      gmenu: null,
+      regionBusy: -1, regionUndo: {},  // 🗺 ✨ enhance an area's prompt      // right-click menus for models, LoRAs, the queue and folders (pictures have their own)
       i2iSuggesting: false,  // Image to image → 💡 suggest from the picture     // Tools → Detail with a LoRA: search box      // the job that stopped for a missing first-time download (⬇ Download it now)
       dlBusy: false,
       session: [],
@@ -510,7 +511,7 @@ const protoartApp = createApp({
               "<b>Inpainting models</b> (files with “inpainting” in the name) load for Inpaint and Expand instead of failing with a conv_in size error.",
               "<b>Patchbay</b>: a <b>SELECT</b> tab at the bottom of each module picks it; the rack unit below then shows <b>that module's settings</b>, with a ⚙ FACES 2 badge so you know which copy you're editing (no second settings panel). <b>✕</b> on a module takes it off the rack (bring it back from Add a module). New <b>🔎 DETAIL</b> module: a light redraw with an “add detail” LoRA. <b>🛡 Protect areas…</b>: paint parts of the picture the rack must not change. The picture forming shows in Tools while it runs.",
               "<b>CodeFormer presets</b> (Restore faces, in Create and Tools): Balanced, Keep likeness, Heavy repair, Subtle touch-up, Old photo, Gentle. Each sets fidelity and strength; you can still change both.",
-              "<b>🗺 Regions</b> (SD 1.5 and SDXL): tick <i>Use regional prompts</i>, pick Columns, Rows or Grid and the sizes (1,1 = halves; 1,2 = a third and two thirds; Grid 1,1;1 = two on top, one below), and write a prompt for each numbered area. Each area follows its own prompt; the main prompt above sets the scene around them, and <i>Keep one scene</i> sets how much (0.2 is a good start). Describe each area fully (“a woman in a red coat, full body”) and use a wide size for columns (768 × 512 for three). <i>Add the main prompt to every area</i> blends them more but can drown the subjects. <b>FLUX.1 and ERNIE</b> do regions in two passes: the whole picture with each area's place in words, then each area redrawn from its own prompt and blended in (<i>Redraw each area</i>: 0 = skip, 0.5 = a good start); it takes about as long as one picture per area plus one. FLUX.2 Klein and Anima can't use areas: describe positions in words instead (“on the left…, on the right…”).",
+              "<b>🗺 Regions</b> (SD 1.5 and SDXL): tick <i>Use regional prompts</i>, pick Columns, Rows or Grid and the sizes (1,1 = halves; 1,2 = a third and two thirds; Grid 1,1;1 = two on top, one below), and write a prompt for each numbered area. Each area follows its own prompt; the main prompt above sets the scene around them, and <i>Keep one scene</i> sets how much (0.2 is a good start). Describe each area fully (“a woman in a red coat, full body”) and use a wide size for columns (768 × 512 for three). <i>Add the main prompt to every area</i> blends them more but can drown the subjects. <b>FLUX.1 and ERNIE</b> do regions in two passes: the whole picture with each area's place in words, then each area redrawn from its own prompt and blended in (<i>Redraw each area</i>: 0 = skip, 0.5 = a good start); it takes about as long as one picture per area plus one. <b>FLUX.2 Klein</b> works the same way, but each area is <i>edited with words</i> to show its prompt (the slider sets how strongly the edit shows). Each area's <b>✨</b> button turns a few words (“a vintage 60s car”) into a detailed description of that subject (tags for SD models); ↩ puts yours back. Anima can't use areas: describe positions in words instead (“on the left…, on the right…”).",
               "<b>Prompt editing</b>: <i>[cat:dog:0.5]</i> draws a cat for the first half of the steps and a dog after (a dog in a cat's pose); a number above 1 is a step (<i>[cat:dog:10]</i>). <i>[hat:0.3]</i> adds “hat” after 30 %, <i>[hat::0.3]</i> removes it. SD 1.5 and SDXL. The shape is mostly settled early, so for a bigger change switch sooner (<i>[cat:dog:0.2]</i>).",
               "<b>🧱 Seamless</b>: the picture's edges wrap around, so copies placed side by side join with no seam: textures, patterns, wallpapers.",
               "<b>📥 Settings</b>: load a picture's settings (prompt, negative prompt, steps, guidance, seed, size, sampler, model and LoRAs if you have them) from a PNG made by A1111, Forge, ComfyUI, InvokeAI or this app, or from a .json. Anything you don't have is listed. ↩ undo brings your prompt back.",
@@ -1078,6 +1079,7 @@ const protoartApp = createApp({
               "<b>“This needs a one-time download from Hugging Face … couldn't reach huggingface.co” although you're online</b> (OpenPose / Union ProMax OpenPose, Depth and some other ControlNets): fixed. The pose and depth finders' first download wasn't recognised as a download, so it was never tried. The message now also has a <b>⬇ Download it now</b> button that runs the same job again with the connection open.",
               "<b>🧩 Tiled upscale turned the picture into something else</b> (new faces, extra people, another style): fixed. It used Create's prompt, so every tile tried to draw that whole scene. It now uses a short detail prompt (add your own texture or style words in <i>Detail prompt</i>) and gentler defaults; pick a preset.",
               "<b>🗺 Regional prompts barely changed the picture</b>: each area now follows only its own prompt (before, the whole main prompt was added to every area and drowned the subjects). Describe each area fully and keep the main prompt to the setting.",
+              "<b>🗺 Regions with FLUX.2 Klein 4B</b> too, and a <b>✨</b> button on each area to describe its subject in detail.",
               "<b>🗺 Regions with FLUX.1 and ERNIE</b>: now possible. These models run on the fast engine, which can't split one picture's prompt by area, so the app draws the whole picture with each area's place in words, then redraws each area from its own prompt and blends it back in.",
               "<b>💡 suggest from the picture</b> is now in every Image to image mode (Change it, Inpaint, Expand, Edit with words), not only FLUX.2 Expand: it looks at your picture and writes a prompt describing it (Danbooru tags for Anima, Pony, Illustrious and NoobAI models), ready to edit. ↩ undo puts your prompt back.",
               "<b>💡 suggest from the picture (Image to image) showed its prompt in Create</b>: fixed. Create and Image to image keep separate prompts; after a restart the app could mix up which one was in the box.",
@@ -4378,7 +4380,7 @@ const protoartApp = createApp({
       if (!sd || !args.face_detailer?.on) delete args.face_detailer;
       if (!sd || !args.ip_adapter?.image) delete args.ip_adapter;
       // regions: SD 1.5 / SDXL inside the model; FLUX.1 and ERNIE (fast engine) by parts (see regions_by_parts)
-      const byParts = this.currentModel?.engine === "mlx" && ["flux", "ernie"].includes(this.family);
+      const byParts = this.currentModel?.engine === "mlx" && ["flux", "ernie", "flux2"].includes(this.family);
       if (!(sd || byParts) || !args.regions?.on) delete args.regions;
       if (!sd) delete args.seamless;
       return args;
@@ -5814,7 +5816,23 @@ const protoartApp = createApp({
       ]);
     },
     regionsByParts() {  // FLUX.1 / ERNIE on the fast engine: regions are drawn by parts
-      return this.currentModel?.engine === "mlx" && ["flux", "ernie"].includes(this.family);
+      return this.currentModel?.engine === "mlx" && ["flux", "ernie", "flux2"].includes(this.family);
+    },
+    // ✨ on an area: a short prompt becomes a detailed description of that one subject (tags for SD models)
+    async enhanceRegion(i) {
+      const r = this.form.regions, text = (r.prompts[i] || "").trim();
+      if (!text) return (this.error = "Write something in this area first (e.g. “a vintage 60s car”).");
+      const tags = ["sd15", "sdxl"].includes(this.family) && this.currentModel?.engine !== "mlx" && !this.naturalPrompts();
+      this.regionBusy = i;
+      try {
+        const res = await this.runJob("enhance_prompt", { prompt: text, width: this.form.width, height: this.form.height,
+                                                          model: this.form.model, family: tags ? "region_tags" : "region" });
+        if (res && res.prompt) {
+          this.regionUndo = { ...this.regionUndo, [i]: text };
+          r.prompts[i] = res.prompt;
+          this.status = `Area ${i + 1} described in detail (↩ puts yours back)`;
+        }
+      } finally { this.regionBusy = -1; }
     },
     tupPreset() {
       const t = this.tup;
