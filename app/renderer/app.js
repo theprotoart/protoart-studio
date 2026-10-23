@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["ckpt_merge", "lora_extract", "faceswap", "tiled_upscale", "animate", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["ckpt_merge", "lora_extract", "faceswap", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
@@ -119,7 +119,7 @@ const SAMPLER_PICKS = {
   flux: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
   flux2: { fast: ["flow_euler"], quality: [] },
 };
-const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "AnimateDiff motion adapter", "licence": "Apache-2.0", "note": ""}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}];
+const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}];
 const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677" };
 const I2I_KINDS = ["img2img", "healed", "word_edit", "inpaint", "outpaint", "controlnet", "faceswap"];  // pictures made in Image to image
 // Tools → Tiled upscale presets (size, how much new detail, steps)
@@ -404,7 +404,6 @@ const protoartApp = createApp({
       ask: null,             // the "Are you sure?" box (confirmAsk)
       promptPresets: loadJSON("protoart.prompts", []),   // 📒 My prompts
       promptIoMsg: "",
-      anim: { frames: 8, fps: 8 },  // 🎞 AnimateDiff
       qnt: { model: "", bits: 8, msg: "" },  // Tools → Smaller copy
       tup: { scale: 2, strength: 0.25, steps: 24, prompt: "" },  // Tools → Tiled upscale
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
@@ -501,7 +500,6 @@ const protoartApp = createApp({
               "<b>🧩 Tiled upscale</b> (Tools): enlarges a picture 1.5–3× and lets your Create model add real detail tile by tile (MultiDiffusion), with no seams and little memory.",
               "<b>🔁 Face swap</b> (Image to image): put the face from one photo onto the person in another, tidied with CodeFormer (fidelity 0.7, 60%). Only for faces you have permission to use; non-commercial licence (inswapper_128); explicit results aren't saved.",
               "<b>ControlNet Union ProMax for SDXL</b>: one ~2.5 GB model for Canny, Depth, OpenPose, Line art, Scribble, Soft edges and Tile with any SDXL, Pony, Illustrious or NoobAI model. <b>Which one should I use?</b> (Image prompt and ControlNet) sets up the right tool for “the same person”, “copy a style or outfit” or “follow a pose or drawing”.",
-              "<b>🎞 Animation</b> (Create, SD 1.5): short clips with AnimateDiff (8–24 frames), saved to the Library as an animated picture with a GIF beside it.",
               "<b>🗜 Smaller copy</b> (Tools): make an 8, 6 or 4-bit copy of an SD 1.5 or SDXL model that needs less memory. <b>🧪 Model merger</b> (Tools): blend two models into a new one, or add a difference.",
               "<b>Prompt editing</b> like A1111: <i>[cat:dog:0.5]</i> switches halfway through the steps, <i>[hat:0.3]</i> adds a word later, <i>[hat::0.3]</i> removes it. <b>🧱 Seamless</b> (Create): pictures that tile with no seam.",
               "<b>📥 Settings</b> (Create, next to List): load the settings a picture was made with (A1111, ComfyUI, InvokeAI or this app write them into PNGs) or a .json (a ComfyUI workflow, or ⤓ Settings .json from a picture's details). Dropping a .json on the prompt box works too.",
@@ -516,7 +514,6 @@ const protoartApp = createApp({
               "<b>Prompt editing</b>: <i>[cat:dog:0.5]</i> draws a cat for the first half of the steps and a dog after (a dog in a cat's pose); a number above 1 is a step (<i>[cat:dog:10]</i>). <i>[hat:0.3]</i> adds “hat” after 30 %, <i>[hat::0.3]</i> removes it. SD 1.5 and SDXL. The shape is mostly settled early, so for a bigger change switch sooner (<i>[cat:dog:0.2]</i>).",
               "<b>🧱 Seamless</b>: the picture's edges wrap around, so copies placed side by side join with no seam: textures, patterns, wallpapers.",
               "<b>📥 Settings</b>: load a picture's settings (prompt, negative prompt, steps, guidance, seed, size, sampler, model and LoRAs if you have them) from a PNG made by A1111, Forge, ComfyUI, InvokeAI or this app, or from a .json. Anything you don't have is listed. ↩ undo brings your prompt back.",
-              "<b>🎞 Animation</b> (SD 1.5): open the 🎞 Animation section, pick frames (8–24) and speed, and press 🎞 Make an animation. It uses the prompt, size, steps and seed above (on 8 GB Macs the clip is made at up to 384 px, or 320 px above 12 frames, and 8 frames take a few minutes; 12–16 steps is plenty); describe movement in the prompt. The clip appears in the Library (it plays there) with a GIF saved beside it.",
               "<b>🎲 Small change</b> (under Seed, SD 1.5 and SDXL): keep a picture you like and change only small details. Press <i>try a small change</i> (it keeps the last picture's seed and picks a variation seed), then Generate; press it again for another. The slider sets how much changes (0 = off, 0.05–0.2 small details, 0.6 a lot). The variation seed and strength are saved with the picture, so Use these settings brings them back.",
               "<b>📒 My prompts</b>: ⤓ Export saves them all to a file (to keep a copy or give to a friend); ⤒ Import adds prompts from such a file, or from a .txt with one prompt per line. Prompts with the same name and text aren't added twice.",
               "<b>🔄 Contrast prompt</b> (Create → ✨ Enhance, and Image to image): suggests the same scene turned into its opposite, like a waterfall frozen into blue-white ice or a summer street after light snowfall. ↩ undo puts yours back.",
@@ -1076,6 +1073,7 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "New in 1.3.0: if something doesn't work", items: [
+              "<b>Where did 🎞 Animation go?</b> It was in the 1.3.0 test builds and has been taken out: on an 8 GB Mac a short clip took hours. Protoart Studio is about pictures.",
               "<b>A model says “⚠ file not found”</b> (or “isn't where it was” when you press Generate): its file was moved or renamed, or the drive it's on isn't connected. Connect the drive, or right-click the model → <b>⟲ Reconnect…</b> and pick the file where it is now; your favourites and default model follow it. A whole folder that moved: Settings → your folders → right-click → Moved it…",
               "<b>“This needs a one-time download from Hugging Face … couldn't reach huggingface.co” although you're online</b> (OpenPose / Union ProMax OpenPose, Depth and some other ControlNets): fixed. The pose and depth finders' first download wasn't recognised as a download, so it was never tried. The message now also has a <b>⬇ Download it now</b> button that runs the same job again with the connection open.",
               "<b>🧩 Tiled upscale turned the picture into something else</b> (new faces, extra people, another style): fixed. It used Create's prompt, so every tile tried to draw that whole scene. It now uses a short detail prompt (add your own texture or style words in <i>Detail prompt</i>) and gentler defaults; pick a preset.",
@@ -1088,7 +1086,6 @@ const protoartApp = createApp({
               "<b>💡 suggest from the picture</b> is now in every Image to image mode (Change it, Inpaint, Expand, Edit with words), not only FLUX.2 Expand: it looks at your picture and writes a prompt describing it (Danbooru tags for Anima, Pony, Illustrious and NoobAI models), ready to edit. ↩ undo puts your prompt back.",
               "<b>💡 suggest from the picture (Image to image) showed its prompt in Create</b>: fixed. Create and Image to image keep separate prompts; after a restart the app could mix up which one was in the box.",
               "<b>Anima is slow</b>: it's a 2-billion-parameter model; on an 8 GB Mac a 10-step <b>Anima Turbo</b> picture takes about 3–4 minutes at 768 × 768 and 6–7 minutes at 832 × 1216. Quit other big apps. The first picture also loads the model (about 20 s).",
-              "<b>🎞 Animation is very slow or seems stuck at 0 %</b>: every step works on all the frames at once, so the first step can take a minute or more on an 8 GB Mac. Use 8 frames, 12–16 steps and quit other big apps. 1.3.0 also works out the motion model's attention in slices, so a 384 px clip no longer stalls an 8 GB Mac.",
               "<b>Anima pictures came out flat grey</b> (1.3.0 test builds): fixed. The Mac graphics chip worked out the Anima picture decoder (VAE) wrongly; the app now runs it a different way that gives the right picture.",
               "<b>Anima added “safe” to my prompt</b>: that's on purpose, so pictures stay all-ages unless you ask otherwise. Put your own rating tag in the prompt (safe, sensitive, nsfw or explicit) and the app leaves it alone.",
               "<b>Face swap says no face was found</b>: use a clear, front-facing, well-lit photo for the face, and a picture where the face is at least ~40 px across. <b>“The result looks explicit”</b>: face swap never saves explicit results.",
@@ -1829,9 +1826,6 @@ const protoartApp = createApp({
       let parts = String(r.ratios || "").split(/[;,]/).filter((x) => x.trim());
       parts = [...parts, ...Array(n).fill(1)].slice(0, n);
       return split(parts).map(([a, b]) => (r.layout === "rows" ? [0, a, 1, b] : [a, 0, b, 1]));
-    },
-    animJob() {
-      return this.queue.find((j) => j.cmd === "animate");
     },
     quantJob() {
       return this.queue.find((j) => j.cmd === "quantize");
@@ -5889,11 +5883,6 @@ const protoartApp = createApp({
         if (r) { this.dlJob = null; this.status = "Downloaded: from now on this works offline."; }
       } finally { this.dlBusy = false; }
     },
-    async makeAnimation() {
-      const f = this.form;
-      await this.runJob("animate", { model: f.model, prompt: f.prompt, negative_prompt: f.negative_prompt, width: f.width, height: f.height,
-                                     steps: f.steps, cfg: f.cfg, seed: f.seed, frames: this.anim.frames, fps: this.anim.fps });
-    },
     async runQuantize() {
       this.qnt.msg = "";
       const r = await this.runJob("quantize", { model: this.qnt.model, bits: this.qnt.bits });
@@ -6973,7 +6962,6 @@ const protoartApp = createApp({
       if (k === "loras") return f.loras.length ? cut(f.loras.map((l) => l.name).join(", "), 46) : "none";
       if (k === "ipa") return f.ip_adapter && f.ip_adapter.image ? "on" : "none";
       if (k === "regions") return f.regions && f.regions.on ? `${f.regions.prompts.filter((x) => x.trim()).length} areas · ${f.regions.layout}` : "off";
-      if (k === "anim") return `${this.anim.frames} frames · ${this.anim.fps} fps`;
       if (k === "size") return `${f.width}×${f.height} · ${f.fast && this.currentModel?.fast_mode ? "⚡ fast" : f.steps + " steps"} · CFG ${f.cfg} · ${f.num_images} image${f.num_images === 1 ? "" : "s"}`;
       if (k === "extras") {
         const on = [];

@@ -947,8 +947,6 @@ class Engine:
             self.emit({"type": "status", "msg": f"Loading {spec['label']}…"})
 
         load_started = time.time()
-        self.anim_pipe = None  # an AnimateDiff pipeline holds its own copy of a model: free it first
-        self.anim_key = None
         self.unload()
         self.enhancer = None  # free the Finegrain enhancer's memory too
         if 0 < ram < 16:
@@ -3427,66 +3425,6 @@ class Engine:
         record["thumb"] = str(thumbs.make(record["id"], path, result) or "") or None
         record = self._content_check(record, result)
         self.emit({"type": "image", "record": record})
-        return record
-
-    def animate(self, args):
-        """🎞 AnimateDiff: a short clip (8–24 frames) from the prompt, with the SD 1.5 model picked in Create."""
-        import animate as anim
-        model_id = args.get("model")
-        spec = all_models().get(model_id) or {}
-        if spec.get("family") != "sd15" or spec.get("engine") == "mlx" or spec.get("inpaint"):
-            raise UserError("Animations use an SD 1.5 model (AnimateDiff is made for SD 1.5): pick one in Create.")
-        prompt = (args.get("prompt") or "").strip()
-        if not prompt:
-            raise UserError("Type a prompt first.")
-        frames = max(8, min(24, int(args.get("frames") or 16)))
-        width = int(args.get("width") or 512) // 8 * 8
-        height = int(args.get("height") or 512) // 8 * 8
-        if 0 < total_ram_gb() < 16:  # every step works on all the frames at once: keep them small on 8 GB
-            side = 384 if frames <= 12 else 320
-            f = min(1.0, side / max(width, height))
-            width, height = int(width * f) // 8 * 8, int(height * f) // 8 * 8
-        steps = max(8, min(40, int(args.get("steps") or 20)))
-        cfg = float(args.get("cfg") or 7.5)
-        seed = int(args.get("seed") if args.get("seed") not in (None, "", -1) else random.randint(0, 2**31 - 1))
-        fps = max(4, min(16, int(args.get("fps") or 8)))
-        key = ("anim", model_id)
-        if getattr(self, "anim_key", None) != key or getattr(self, "anim_pipe", None) is None:
-            self.anim_pipe = None
-            self.load(model_id)
-            dtype = self.pipe.unet.dtype
-            self.emit({"type": "status", "msg": "Preparing AnimateDiff…"})
-            self.anim_pipe = anim.build(self.pipe, dtype, emit=self.emit).to(self.device())
-            self.anim_key = key
-            self.unload()  # the still-picture model isn't needed while animating (frees its memory)
-            self.anim_pipe.to(self.device())
-        pipe = self.anim_pipe
-        started = time.time()
-
-        def on_step(p, step, timestep, kw):
-            self.wait_if_paused()
-            if self.cancel_event.is_set():
-                raise Cancelled()
-            self.emit({"type": "progress", "image": 1, "images": 1, "step": step + 1, "steps": steps})
-            return kw
-
-        self.emit({"type": "status", "msg": f"Animating {frames} frames at {width} × {height}…"})
-        t = self.torch()
-        out = pipe(prompt=prompt, negative_prompt=args.get("negative_prompt") or "", num_frames=frames,
-                   width=width, height=height, num_inference_steps=steps, guidance_scale=cfg,
-                   generator=t.Generator("cpu").manual_seed(seed), callback_on_step_end=on_step)
-        clip = out.frames[0]
-        day = paths.IMAGES_DIR / datetime.now().strftime("%Y-%m-%d")
-        webp, gif = anim.save(clip, day, f"{datetime.now().strftime('%H%M%S')}_{_slug(prompt)}_{seed}_anim", fps=fps)
-        settings = {"model": model_id, "prompt": prompt, "negative_prompt": args.get("negative_prompt") or "",
-                    "width": width, "height": height, "steps": steps, "cfg": cfg, "seed": seed, "sampler": "ddim",
-                    "animation": {"frames": frames, "fps": fps, "gif": str(gif)}, "licence": anim.LICENCE,
-                    "seconds": round(time.time() - started, 1), "loras": []}
-        record = self.library.add_image(str(webp), settings, kind="animation")
-        record["thumb"] = str(thumbs.make(record["id"], str(webp), clip[0]) or "") or None
-        record = self._content_check(record, clip[len(clip) // 2])
-        self.emit({"type": "image", "record": record})
-        self.release_memory()
         return record
 
     QUANT_BITS = {8: "int8", 6: "int6", 4: "uint4"}

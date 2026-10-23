@@ -166,7 +166,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("animate", "quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -262,8 +262,6 @@ def job_label(cmd, a):
         return "Enhance prompt"
     if cmd == "faceswap":
         return "Face swap"
-    if cmd == "animate":
-        return "Animation (AnimateDiff)"
     if cmd == "quantize":
         return f"Make a {a.get('bits', 8)}-bit copy"
     if cmd == "tiled_upscale":
@@ -1910,8 +1908,6 @@ def run_job(kind, a):
         return eng.faceswap(a)
     if kind == "tiled_upscale":
         return eng.tiled_upscale(a)
-    if kind == "animate":
-        return eng.animate(a)
     if kind == "quantize":
         r = eng.quantize_model(a)
         entry = {"id": "local:" + r["path"], "path": r["path"], "kind": "folder", "family": r["family"],

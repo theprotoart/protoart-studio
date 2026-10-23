@@ -27,7 +27,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   presets, 📒 saved prompts, wildcards, a random-prompt generator that writes tags or sentences to suit the model, negative
   prompt ✨ suggest / 🎲 random matched to the model, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop, and
   🔬 compare grids picked with keys, 🎲 small change (variation seed), 📒 saved prompts with export / import, ✨ enhance and 🔄 contrast prompts, and your own default sampler / steps / guidance per
-  model and default weight per LoRA, 🗺 regional prompts, A1111-style prompt editing, 🧱 seamless tiling, 🎞 AnimateDiff
+  model and default weight per LoRA, 🗺 regional prompts, A1111-style prompt editing, 🧱 seamless tiling
   clips, and 📥 settings from A1111 / ComfyUI / InvokeAI pictures or .json
 - **Image to image:** ✨ Edit with words (FLUX.2 Klein: describe a change; paint to limit it; add reference pictures),
   change / inpaint / expand (any picture, with FLUX.2 Klein + an outpaint LoRA) / 🩹 remove, selection tools (brush, lasso, polygon lasso, magic wand, object selection),
@@ -138,7 +138,7 @@ allow commercial use, for example:
 
 - SD 1.5, Juggernaut Reborn, ControlNet 1.1: CreativeML OpenRAIL-M · SDXL: CreativeML OpenRAIL++-M
 - ERNIE-Image, FLUX.1 [schnell], IP-Adapter, Qwen2.5, WD tagger, Depth Anything V2 Small, Qwen3.5 4B: Apache-2.0 · Florence-2: MIT · mlx-vlm: MIT
-- Xinsir ControlNet Union ProMax, AnimateDiff motion adapter: Apache-2.0
+- Xinsir ControlNet Union ProMax: Apache-2.0
 - **Non-commercial:** the enhancer's 4x-UltraSharp upscaler (CC BY-NC-SA 4.0), Depth Anything V2 Base / Large
   (CC BY-NC 4.0), Anima / Anima Turbo (CircleStone Labs Non-Commercial; pictures may be used commercially), the face
   swap models inswapper_128 and ArcFace (InsightFace, non-commercial research only)

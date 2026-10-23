@@ -52,7 +52,8 @@
   consent required, NSFW-checked (explicit results refused), non-commercial labelling. New dependency: `onnx`
 - ControlNet Union ProMax (SDXL): `union:<map>` types → `ControlNetUnionModel` + the Union (img2img) pipelines with
   `control_mode`; "Which one should I use?" guide (IP-Adapter Plus / Plus Face / Union)
-- AnimateDiff (`backend/animate.py`, motion adapter v1-5-3): animated WebP + GIF, Library kind `animation`; attention slicing on (without it a 384 px clip stalled an 8 GB Mac), 8 GB: ≤384 px (320 px above 12 frames), 8 frames by default
+- AnimateDiff was tried in the 1.3.0 test builds and taken out: far too slow on 8 GB Macs (about 11 minutes a step
+  at 384 px). Protoart Studio stays focused on pictures
 - Smaller copies: SDNQ int8 / int6 / uint4 UNet copies saved as model folders (`quantize_model`)
 - Checkpoint merger (`backend/ckpt_merge.py`): weighted sum / add difference, streamed safetensors writer
 - Prompt editing (`backend/prompt_edit.py`): `[a:b:when]`, `[a:when]`, `[a::when]`, switched via
