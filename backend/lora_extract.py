@@ -54,16 +54,18 @@ def te_kohya_name(key):
     return None
 
 
-def _low_rank(diff, rank, clamp=0.99):
-    """diff (out, in) -> (up (out, r), down (r, in)), clamped like kohya so a few outliers don't blow up."""
+def _low_rank(diff, rank):
+    """diff (out, in) -> (up (out, r), down (r, in)). The singular values are shared evenly between the two halves
+    (√S each), so both stay in a similar range for half precision; only extreme outliers (far beyond the 99th
+    percentile) are clipped, so the LoRA keeps the change faithfully."""
     import torch
     r = min(rank, diff.shape[0], diff.shape[1])
     U, S, Vh = torch.linalg.svd(diff, full_matrices=False)
-    U, S, Vh = U[:, :r], S[:r], Vh[:r, :]
-    U = U @ torch.diag(S)
-    dist = torch.cat([U.flatten(), Vh.flatten()])
-    hi = torch.quantile(dist.abs()[:: max(1, dist.numel() // 1_000_000)], clamp)
-    return U.clamp(-hi, hi), Vh.clamp(-hi, hi)
+    s = torch.sqrt(S[:r])
+    up, down = U[:, :r] * s[None, :], s[:, None] * Vh[:r, :]
+    dist = torch.cat([up.flatten(), down.flatten()]).abs()
+    hi = torch.quantile(dist[:: max(1, dist.numel() // 1_000_000)], 0.99) * 8
+    return up.clamp(-hi, hi), down.clamp(-hi, hi)
 
 
 def extract(model, base, rank=32, name=None, text_encoder=True, emit=None, cancel_event=None):

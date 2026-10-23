@@ -27,7 +27,7 @@
   the instruction and its own LoRA; `edit_words` now takes `loras`)
 - Tools → Convert → Convert into: Copy / LoRA / Embedding. Model → LoRA (`backend/lora_extract.py`): per-layer
   (fine-tuned − base) of the UNet attention / feed-forward / proj layers and the first text encoder, SVD to rank
-  16–128 with kohya's quantile clamp, saved as a kohya-format LoRA with diffusers layer names (works on 8 GB: one
+  16–128 with an outlier clamp (√S split between up and down), saved as a kohya-format LoRA with diffusers layer names (works on 8 GB: one
   tensor at a time). Embedding: explains it's trained from pictures and opens Train
 - Model lists sort A → Z / Z → A / biggest (`opts.model_sort`; favourites first): Create's list, the Image to
   image model menu and the model chain
