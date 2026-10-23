@@ -42,7 +42,7 @@
   consent required, NSFW-checked (explicit results refused), non-commercial labelling. New dependency: `onnx`
 - ControlNet Union ProMax (SDXL): `union:<map>` types → `ControlNetUnionModel` + the Union (img2img) pipelines with
   `control_mode`; "Which one should I use?" guide (IP-Adapter Plus / Plus Face / Union)
-- AnimateDiff (`backend/animate.py`, motion adapter v1-5-3): animated WebP + GIF, Library kind `animation`; no attention slicing (3× slower on MPS), 8 GB: ≤384 px (320 px above 12 frames), 8 frames by default
+- AnimateDiff (`backend/animate.py`, motion adapter v1-5-3): animated WebP + GIF, Library kind `animation`; attention slicing on (without it a 384 px clip stalled an 8 GB Mac), 8 GB: ≤384 px (320 px above 12 frames), 8 frames by default
 - Smaller copies: SDNQ int8 / int6 / uint4 UNet copies saved as model folders (`quantize_model`)
 - Checkpoint merger (`backend/ckpt_merge.py`): weighted sum / add difference, streamed safetensors writer
 - Prompt editing (`backend/prompt_edit.py`): `[a:b:when]`, `[a:when]`, `[a::when]`, switched via

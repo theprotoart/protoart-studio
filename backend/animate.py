@@ -29,14 +29,15 @@ def build(sd_pipe, dtype, emit=lambda m: None):
     pipe = diffusers.AnimateDiffPipeline.from_pipe(sd_pipe, motion_adapter=adapter, torch_dtype=dtype)
     pipe.scheduler = diffusers.DDIMScheduler.from_config(
         pipe.scheduler.config, beta_schedule="linear", clip_sample=False, timestep_spacing="linspace", steps_offset=1)
-    # The VAE decodes the frames a few at a time. (Attention slicing is left off: on a Mac it made each step
-    # about three times slower.)
+    # The VAE decodes the frames a few at a time, and attention is worked out in slices: every step works on all
+    # the frames at once, and without slicing a 384 px clip needed several GB for attention alone and stalled an
+    # 8 GB Mac (swapping) before the first step finished.
     try:
         pipe.vae.enable_slicing()
     except Exception:
         pass
     try:
-        pipe.disable_attention_slicing()
+        pipe.enable_attention_slicing()
     except Exception:
         pass
     return pipe
