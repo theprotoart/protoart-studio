@@ -382,7 +382,8 @@ const protoartApp = createApp({
       dlJob: null,
       detLoraQ: "",
       gmenu: null,
-      regionBusy: -1, regionUndo: {},  // 🗺 ✨ enhance an area's prompt      // right-click menus for models, LoRAs, the queue and folders (pictures have their own)
+      regionBusy: -1, regionUndo: {},
+      regionPlanText: "", regionPlanBusy: false, regionPlanUndo: null,  // 🗺 ✨ Plan the layout from one sentence  // 🗺 ✨ enhance an area's prompt      // right-click menus for models, LoRAs, the queue and folders (pictures have their own)
       i2iSuggesting: false,  // Image to image → 💡 suggest from the picture     // Tools → Detail with a LoRA: search box      // the job that stopped for a missing first-time download (⬇ Download it now)
       dlBusy: false,
       session: [],
@@ -499,6 +500,7 @@ const protoartApp = createApp({
             { h: "1.4 (in progress): faster, and the right VAE by itself", items: [
               "<b>✨ Bloom</b> (Tools → 🎚 Adjust → Filters, and the new <b>Bloom</b> look): like Procreate's Bloom, the bright parts of the picture glow and spill soft light around them. <b>Bloom</b> sets how strong, <b>Transition</b> how much of the picture glows (low: only the brightest highlights; high: the mid-tones too), <b>Size</b> how far the light spreads, and <b>Burn</b> pushes it brighter, towards blown-out light. Lovely on lamps, neon, sunsets, eyes and magic effects.",
               "<b>VAE: Automatic</b> (Create → VAE, now the default): each SD 1.5 / SDXL model gets the right VAE by itself. A model downloaded from Civitai whose page comes with a VAE gets that VAE (it's downloaded with the model); <b>SDXL</b> models use <b>SDXL fp16-fix</b> when you have it (no black pictures, and the picture is decoded faster and with less memory); an SD 1.5 file that has no VAE inside uses <b>vae-ft-mse</b>. Otherwise the model's own. The list shows which one Automatic uses and why; pick <b>the model's own</b> or any VAE to choose yourself (each model still remembers your choice).",
+              "<b>✨ Plan the layout</b> (Create → 🗺 Regions): describe the whole picture in one sentence (“a knight on the left fighting a dragon on the right under a stormy sky”) and press <b>✨ Plan the layout</b>. The prompt enhancer's small model works out where each subject goes (columns, rows or a grid, up to 4 areas), writes each area's prompt and puts the setting in the main prompt, then switches regions on. Check the areas, press ✨ on one to add detail, and Generate; <b>↩</b> puts everything back. Leave the box empty to plan from the main prompt. The idea comes from Omost, made small enough for an 8 GB Mac.",
               "<b>A little faster for SD 1.5 and SDXL</b>: the prompt's part of the work is now done once per picture instead of at every step (the same trick DiffusionBee uses). Same picture, about 3% less time." ] },
             { h: "1.3.0: new tools", items: [
               "<b>New model: Anima</b> (CircleStone Labs, anime and illustration; Danbooru tags, sentences or both). <b>Anima Turbo</b> makes a picture in 10 steps; <b>Anima</b> uses 30 steps for the most detail. ~5.9 GB once, in the Models tab under Anima. Non-commercial licence for the model (pictures may be used commercially). It can also start from a picture in Image to image. Anima pictures are kept all-ages by default: the app adds Anima's <b>safe</b> rating tag unless your prompt already has a rating tag (safe, sensitive, nsfw or explicit).",
@@ -519,7 +521,7 @@ const protoartApp = createApp({
               "<b>Inpainting models</b> (files with “inpainting” in the name) load for Inpaint and Expand instead of failing with a conv_in size error.",
               "<b>Patchbay</b>: a <b>SELECT</b> tab at the bottom of each module picks it; the rack unit below then shows <b>that module's settings</b>, with a ⚙ FACES 2 badge so you know which copy you're editing (no second settings panel). <b>✕</b> on a module takes it off the rack (bring it back from Add a module). New <b>🔎 DETAIL</b> module: a light redraw with an “add detail” LoRA. <b>🛡 Protect areas…</b>: paint parts of the picture the rack must not change. The picture forming shows in Tools while it runs.",
               "<b>CodeFormer presets</b> (Restore faces, in Create and Tools): Balanced, Keep likeness, Heavy repair, Subtle touch-up, Old photo, Gentle. Each sets fidelity and strength; you can still change both.",
-              "<b>🗺 Regions</b> (SD 1.5 and SDXL): tick <i>Use regional prompts</i>, pick Columns, Rows or Grid and the sizes (1,1 = halves; 1,2 = a third and two thirds; Grid 1,1;1 = two on top, one below), and write a prompt for each numbered area. Each area follows its own prompt; the main prompt above sets the scene around them, and <i>Keep one scene</i> sets how much (0.2 is a good start). Describe each area fully (“a woman in a red coat, full body”) and use a wide size for columns (768 × 512 for three). <i>Add the main prompt to every area</i> blends them more but can drown the subjects. <b>FLUX.1 and ERNIE</b> do regions in two passes: the whole picture with each area's place in words, then each area redrawn from its own prompt and blended in (<i>Redraw each area</i>: 0 = skip, 0.5 = a good start); it takes about as long as one picture per area plus one. <b>FLUX.2 Klein</b> works the same way, but each area is <i>edited with words</i> to show its prompt (the slider sets how strongly the edit shows). Each area's <b>✨</b> button turns a few words (“a vintage 60s car”) into a detailed description of that subject (tags for SD models); ↩ puts yours back. Anima can't use areas: describe positions in words instead (“on the left…, on the right…”).",
+              "<b>🗺 Regions</b> (SD 1.5 and SDXL): tick <i>Use regional prompts</i>, pick Columns, Rows or Grid and the sizes (1,1 = halves; 1,2 = a third and two thirds; Grid 1,1;1 = two on top, one below), and write a prompt for each numbered area. Each area follows its own prompt; the main prompt above sets the scene around them, and <i>Keep one scene</i> sets how much (0.2 is a good start). Describe each area fully (“a woman in a red coat, full body”) and use a wide size for columns (768 × 512 for three). <i>Add the main prompt to every area</i> blends them more but can drown the subjects. <b>FLUX.1 and ERNIE</b> do regions in two passes: the whole picture with each area's place in words, then each area redrawn from its own prompt and blended in (<i>Redraw each area</i>: 0 = skip, 0.5 = a good start); it takes about as long as one picture per area plus one. <b>FLUX.2 Klein</b> works the same way, but each area is <i>edited with words</i> to show its prompt (the slider sets how strongly the edit shows). Each area's <b>✨</b> button turns a few words (“a vintage 60s car”) into a detailed description of that subject (tags for SD models); ↩ puts yours back. <b>✨ Plan the layout</b> does it all from one sentence: write what goes where (“a cosy cabin in the snow with the northern lights above”) in the box at the top of Regions, or leave it empty to use the main prompt, and the app picks the layout, writes each area's prompt and puts the setting in the main prompt (↩ undoes it). Anima can't use areas: describe positions in words instead (“on the left…, on the right…”).",
               "<b>Prompt editing</b>: <i>[cat:dog:0.5]</i> draws a cat for the first half of the steps and a dog after (a dog in a cat's pose); a number above 1 is a step (<i>[cat:dog:10]</i>). <i>[hat:0.3]</i> adds “hat” after 30 %, <i>[hat::0.3]</i> removes it. SD 1.5 and SDXL. The shape is mostly settled early, so for a bigger change switch sooner (<i>[cat:dog:0.2]</i>).",
               "<b>🧱 Seamless</b>: the picture's edges wrap around, so copies placed side by side join with no seam: textures, patterns, wallpapers.",
               "<b>📥 Settings</b>: load a picture's settings (prompt, negative prompt, steps, guidance, seed, size, sampler, model and LoRAs if you have them) from a PNG made by A1111, Forge, ComfyUI, InvokeAI or this app, or from a .json. Anything you don't have is listed. ↩ undo brings your prompt back.",
@@ -1084,6 +1086,7 @@ const protoartApp = createApp({
           sections: [
             { h: "New in 1.4: if something doesn't work", items: [
               "<b>Colours of an SDXL model look a little different than before</b>: VAE <b>Automatic</b> now uses SDXL fp16-fix for SDXL models (when it's in your VAE folder). A few models are made with their own special VAE: for those, pick <b>the model's own</b> in Create → VAE and that model remembers it.",
+              "<b>✨ Plan the layout says it couldn't find separate parts</b>: the sentence needs two or more subjects in different places. Say where they go: “on the left…, on the right…”, “at the top…, at the bottom…”, “in the top left…”. If the small model's plan is odd, press it again (each try can differ) or fix the areas by hand.",
               "<b>Bloom washes the picture out</b>: lower <b>Transition</b> (only the brightest parts glow) and <b>Burn</b>, or lower <b>Bloom</b>. On a bright picture (snow, white background) almost everything counts as bright.",
               "<b>A downloaded model's VAE</b>: when a Civitai page offers a VAE with the model, it's saved in the VAE folder with it. If that download failed, the model just uses its own VAE; Backend log says why." ] },
             { h: "New in 1.3.0: if something doesn't work", items: [
@@ -5851,6 +5854,31 @@ const protoartApp = createApp({
     },
     regionsByParts() {  // FLUX.1 / ERNIE on the fast engine: regions are drawn by parts
       return this.currentModel?.engine === "mlx" && ["flux", "ernie", "flux2"].includes(this.family);
+    },
+    // ✨ Plan the layout: one sentence → the areas (where each subject goes, its own prompt) and the scene prompt.
+    // The prompt enhancer's small model plans it (Omost's idea, small enough for 8 GB); position words are the fallback.
+    async planRegions() {
+      const text = (this.regionPlanText || this.form.prompt || "").trim();
+      if (!text) return (this.error = "Describe the picture first, e.g. “a knight on the left fighting a dragon on the right under a stormy sky”.");
+      this.regionPlanBusy = true;
+      try {
+        const res = await this.runJob("plan_regions", { prompt: text, model: this.form.model });
+        if (!res || !Array.isArray(res.prompts)) return;
+        this.regionPlanUndo = { regions: JSON.parse(JSON.stringify(this.form.regions)), prompt: this.form.prompt };
+        Object.assign(this.form.regions, { on: true, layout: res.layout, ratios: res.ratios, prompts: res.prompts.slice(0, 4) });
+        if (res.scene) this.form.prompt = res.scene;  // the main prompt sets the scene around the areas
+        this.regionUndo = {};
+        this.status = `Planned ${res.prompts.length} areas` + (res.source === "words" ? " from the position words in your sentence" : "") +
+          ": check them (✨ on an area adds detail), then Generate. ↩ puts things back.";
+      } finally { this.regionPlanBusy = false; }
+    },
+    undoRegionPlan() {
+      const u = this.regionPlanUndo;
+      if (!u) return;
+      this.form.regions = u.regions;
+      this.form.prompt = u.prompt;
+      this.regionPlanUndo = null;
+      this.status = "Areas and main prompt put back";
     },
     // ✨ on an area: a short prompt becomes a detailed description of that one subject (tags for SD models)
     async enhanceRegion(i) {

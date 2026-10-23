@@ -166,7 +166,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -260,6 +260,8 @@ def job_label(cmd, a):
             f" · image #{a.get('image_id')}"
     if cmd == "enhance_prompt":
         return "Enhance prompt"
+    if cmd == "plan_regions":
+        return "Plan the layout"
     if cmd == "faceswap":
         return "Face swap"
     if cmd == "quantize":
@@ -1730,7 +1732,7 @@ def reader():
             job = {"id": mid, "cmd": cmd, "args": a, "label": job_label(cmd, a), "model": a.get("model")}
             jobs.make_way(None if cmd == "preload" else (a.get("model") or (a.get("base") or {}).get("model")))
             # Image -> prompt is quick and the user is waiting on it, so it jumps the queue.
-            jobs.put(job, front=cmd in ("interrogate", "enhance_prompt", "control_preview"))
+            jobs.put(job, front=cmd in ("interrogate", "enhance_prompt", "plan_regions", "control_preview"))
             continue
         if cmd in NET_QUICK:  # these wait on the internet: never hold up the other buttons while they do
             threading.Thread(target=run_quick, args=(mid, cmd, a), daemon=True).start()
@@ -1809,7 +1811,7 @@ def convert_tdict_job(a, job_id):
 
 def sfw_check(kind, a):
     """Safe-for-work mode: refuse prompts that ask for adult content, and LoRAs or models marked (or named) NSFW."""
-    if not settings.get("sfw_mode") or kind not in ("generate", "edit_words", "enhance_prompt"):
+    if not settings.get("sfw_mode") or kind not in ("generate", "edit_words", "enhance_prompt", "plan_regions"):
         return
     from engine import UserError
     off = " (Safe-for-work mode is on; switch it off with 🛡 SFW at the top of Settings.)"
@@ -1896,6 +1898,8 @@ def run_job(kind, a):
         return eng.interrogate(a)
     if kind == "enhance_prompt":
         return eng.enhance_prompt(a)
+    if kind == "plan_regions":
+        return eng.plan_regions(a)
     if kind == "compare":
         return eng.compare(a, force=settings["force_load"], low_memory=settings["low_memory"])
     if kind == "train_lora":

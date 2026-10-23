@@ -172,6 +172,41 @@ class PromptEnhancer:
         result = tok.decode(out[0][start:], skip_special_tokens=True)
         return clean(result, prompt, style)
 
+    def plan_layout(self, sentence, cancel_event=None):
+        """✨ Plan the layout (Create → Regions): the model's raw answer, one "PLACE: subject" line per area
+        (read by region_plan.parse_lines)."""
+        import torch
+        from transformers import LogitsProcessor, LogitsProcessorList, StoppingCriteria, StoppingCriteriaList
+        import region_plan
+        tok, model = self._load()
+        messages = [{"role": "system", "content": region_plan.SYSTEM}]
+        for q, a in region_plan.EXAMPLES:
+            messages += [{"role": "user", "content": q}, {"role": "assistant", "content": a}]
+        messages.append({"role": "user", "content": f"{sentence}\n(Answer in English, in the line format.)"})
+        text = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        inputs = tok(text, return_tensors="pt").to(self.device)
+        start, limit, emit = inputs["input_ids"].shape[1], 150, self.emit
+        mask = self._block_mask(model, scores_device=self.device)
+
+        class Watch(StoppingCriteria):
+            def __call__(self, input_ids, scores, **kw):
+                n = input_ids.shape[1] - start
+                if n and n % 15 == 0:
+                    emit({"type": "progress", "image": 1, "images": 1, "step": min(n, limit), "steps": limit})
+                return bool(cancel_event is not None and cancel_event.is_set())
+
+        class BlockForeign(LogitsProcessor):
+            def __call__(self, input_ids, scores):
+                return scores.masked_fill(mask.unsqueeze(0), float("-inf")) if mask.shape[0] == scores.shape[-1] else scores
+
+        emit({"type": "status", "msg": "Planning the layout…"})
+        with torch.no_grad():
+            out = model.generate(**inputs, max_new_tokens=limit, do_sample=True, temperature=0.3, top_p=0.9,
+                                 repetition_penalty=1.05, pad_token_id=tok.eos_token_id,
+                                 logits_processor=LogitsProcessorList([BlockForeign()]),
+                                 stopping_criteria=StoppingCriteriaList([Watch()]))
+        return tok.decode(out[0][start:], skip_special_tokens=True)
+
     def _block_mask(self, model, scores_device):
         if getattr(self, "_mask", None) is None:
             import torch

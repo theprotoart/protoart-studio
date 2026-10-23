@@ -2066,6 +2066,34 @@ class Engine:
         from postprocess.prompt_enhance import style_for
         return {"prompt": text, "original": prompt, "style": style_for(family, bool(args.get("contrast")))}
 
+    def plan_regions(self, args):
+        """✨ Plan the layout (Create → Regions): one sentence -> areas (layout, ratios, prompts) and the scene prompt.
+        The prompt enhancer's small model writes one line per area; if its answer can't be used, the sentence's own
+        position words are read (region_plan.from_words)."""
+        import region_plan
+        sentence = (args.get("prompt") or "").strip()
+        if not sentence:
+            raise UserError("Describe the picture first, e.g. “a knight on the left fighting a dragon on the right "
+                            "under a stormy sky”.")
+        raw = ""
+        if not args.get("words_only"):
+            ram = total_ram_gb()
+            if 0 < ram < 12 and self.family in ("sdxl", "ernie") and self.pipe is not None:
+                self.unload()  # 8 GB Macs: a big image model and the enhancer don't fit together
+            try:
+                raw = self.get_prompt_enhancer().plan_layout(sentence, cancel_event=self.cancel_event)
+            except Exception as err:  # e.g. offline before the enhancer was ever downloaded: use the words
+                if self.cancel_event.is_set():
+                    raise Cancelled()
+                print("[regions] planner model unavailable:", err, flush=True)
+            if self.cancel_event.is_set():
+                raise Cancelled()
+            print("[regions] plan:", raw.replace("\n", " | ")[:400], flush=True)
+        try:
+            return region_plan.plan(sentence, raw)
+        except ValueError as e:
+            raise UserError(str(e))
+
     def _ernie_embeddings(self, spec, texts):
         """Lean mode: encode prompts with a temporarily loaded text encoder, then free it."""
         repo = spec["repo"]

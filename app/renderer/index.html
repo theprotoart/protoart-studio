@@ -577,6 +577,14 @@
         <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">a different prompt for each part of the picture</span><span v-if="cfShut('regions')" class="cfold-sum">{{ cfSummary('regions') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <label class="check"><input type="checkbox" v-model="form.regions.on"> Use regional prompts
           <span class="hint">· each area draws its own prompt; the main prompt above sets the scene around them</span></label>
+        <div class="row small reg-plan">
+          <input v-model="regionPlanText" class="grow" @keydown.enter.prevent="planRegions"
+                 placeholder="Describe the picture: “a knight on the left fighting a dragon on the right, stormy sky” (empty: the main prompt)"
+                 title="Say what goes where in one sentence; ✨ Plan the layout splits it into areas, writes each area's prompt and puts the setting in the main prompt">
+          <button class="ghost small" :disabled="regionPlanBusy" @click="planRegions"
+                  title="The prompt enhancer's small model plans the areas (columns, rows or a grid) from your sentence. ↩ undoes it">{{ regionPlanBusy ? 'Planning…' : '✨ Plan the layout' }}</button>
+          <button v-if="regionPlanUndo" class="ghost small" @click="undoRegionPlan" title="Put the areas and the main prompt back as they were">↩</button>
+        </div>
         <template v-if="form.regions.on">
           <div class="row small">
             <div class="seg">

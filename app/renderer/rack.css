@@ -2147,6 +2147,8 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .quant-module select { width: 100%; margin-bottom: 6px; }
 /* 🗺 Regional prompts */
 .reg-ratios { max-width: 120px; }
+.reg-plan { display: flex; gap: 6px; align-items: center; margin: 4px 0 6px; }
+.reg-plan .grow { flex: 1; min-width: 0; }
 .reg-map { position: relative; width: 140px; max-height: 180px; border: 1px solid #000; background: #1a1a1a; margin: 6px 0; }
 .reg-box { position: absolute; display: grid; place-items: center; font: 700 11px var(--f-eng, sans-serif); color: #ffe0a0;
   border: 1px dashed rgba(255, 196, 77, .7); background: rgba(255, 196, 77, .08); box-sizing: border-box; }
