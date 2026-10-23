@@ -22,6 +22,8 @@
 - Right-click menus: models (use, favourite, Reconnect… = `model_relocate` for a moved / missing file, Show in Finder,
   fix type, copy, remove), LoRAs, queue jobs, Settings folders; native Cut / Copy / Paste / spelling menu in text boxes
   (`dialog:locateFile`). `list_models` reports `missing`; loading a missing file says how to reconnect it
+- Image to image: Picture / Model chain / ControlNet / Prompt cards fold like Sampler and LoRAs; collapse all · expand
+  all; Model chain steps get a LoRA search box
 - Library: sticky selection bar and a 🗑 Delete button beside Compare; Tools → Detail with a LoRA: LoRA search
 - Anima (CircleStone Labs, Cosmos-Predict2 2B + Qwen3 0.6B + Qwen-Image VAE) through diffusers' modular
   `AnimaModularPipeline` (`backend/anima.py`): official diffusers files; Anima Turbo = the official

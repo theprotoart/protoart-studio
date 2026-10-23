@@ -2160,8 +2160,9 @@
   <!-- ============================ IMAGE TO IMAGE ============================ -->
   <main v-if="tab==='i2i'" class="i2i">
     <section class="i2i-left">
-      <div class="card">
-        <h3>1 · Picture</h3>
+      <div class="i2i-foldall"><button class="link" @click="i2iFoldAll(true)" title="Fold every card down to its title">collapse all</button> · <button class="link" @click="i2iFoldAll(false)">expand all</button></div>
+      <div class="card i2ifold" :class="{shut: i2iShut('picture')}">
+        <h3 @click="i2iFoldToggle('picture', $event)">1 · Picture <span v-if="i2iShut('picture')" class="cfold-sum">{{ form.init_image ? form.init_image.split('/').pop() : 'none yet' }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <div v-if="!form.init_image" class="start-drop" :class="{over: startDragOver}"
              @dragover.prevent="startDragOver=true" @dragleave="startDragOver=false" @drop.prevent="onStartDrop"
              @click="$refs.startPick.click()">
@@ -2431,8 +2432,9 @@
         <p v-if="form.loras.length" class="hint">Trigger words and 🎲 Random LoRAs are in Create.</p>
       </div>
 
-      <details v-if="form.i2i_mode === 'change'" class="card chain-card" :open="chain.steps.length > 0 || chain.running">
-        <summary><h3>🔗 Model chain <span class="hint">run the picture through several models in turn · e.g. SD 1.5 → SDXL → FLUX</span></h3></summary>
+      <div v-if="form.i2i_mode === 'change'" class="card chain-card i2ifold" :class="{shut: i2iShut('chain')}">
+        <h3 @click="i2iFoldToggle('chain', $event)">🔗 Model chain <span class="hint">run the picture through several models in turn · e.g. SD 1.5 → SDXL → FLUX</span>
+          <span v-if="i2iShut('chain')" class="cfold-sum">{{ chain.steps.length ? chain.steps.map((x) => (chainModelOf(x) || {}).label || '?').join(' → ') : 'no steps yet' }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <p class="hint">Each model redraws the last one's result with the prompt above: an SD 1.5 sketch can become an SDXL picture,
           then a FLUX.1 or ERNIE finish. Low change strength keeps the picture; higher lets each model add its own look.
           Each step can have its own LoRA and extra words: e.g. SD 1.5 with your character LoRA, then FLUX.1 for the finish.
@@ -2454,10 +2456,12 @@
                 <div class="chain-main">
                   <label>Change <span class="mod-val">{{ Number(st.strength).toFixed(2) }}</span></label>
                   <input type="range" min="0.1" max="0.9" step="0.05" v-model.number="st.strength" @change="chainSave" title="How much this model may change the picture: low keeps it, high lets the model add its own look">
-                  <label>LoRA <span class="hint">{{ chainFamilyLabel(st) }}</span></label>
+                  <label>LoRA <span class="hint">{{ chainFamilyLabel(st) }} · {{ chainLoras(st).length }} of {{ chainLoras(st, true).length }}</span></label>
+                  <input v-model="st.q" class="mod-input" type="search" placeholder="🔍 Search this model's LoRAs…" title="Type part of a LoRA's name or trigger word to narrow the list">
                   <div class="chain-lora">
                     <select v-model="st.lora" @change="chainLoraPicked(st)" :title="'A LoRA for this step only (made for ' + chainFamilyLabel(st) + ')'">
                       <option value="">none</option>
+                      <option v-if="st.lora && !chainLoras(st).some((l) => l.name === st.lora)" :value="st.lora">{{ st.lora }}</option>
                       <option v-for="l in chainLoras(st)" :key="'cl' + k + l.name" :value="l.name">{{ l.name }}</option>
                     </select>
                     <input v-if="st.lora" type="range" min="0" max="1.5" step="0.05" v-model.number="st.lora_weight" @change="chainSave" title="How strongly the LoRA is used">
@@ -2477,7 +2481,7 @@
           <button v-if="chain.running" class="danger small" @click="chainStop">■ Stop</button>
         </div>
         <p v-if="!chainModels().length" class="hint">Download SD 1.5, SDXL, Anima, FLUX.1 Schnell or ERNIE in the Models tab first.</p>
-      </details>
+      </div>
       <div v-if="form.i2i_mode !== 'change' && form.i2i_mode !== 'faceswap'" class="card hint cn-off">
         <div>2 · ControlNet is off while {{ form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'faceswap' ? 'swapping faces' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
         <div v-if="form.i2i_mode === 'edit'" class="cn-off-tips">Edit with words already keeps the layout, and <b>More pictures</b> above lend it a style, an outfit or a face.
@@ -2486,8 +2490,9 @@
           SD 1.5 and SDXL models can also take an <b>image prompt</b> (IP-Adapter, in Create → Image prompt) that copies a picture's style or subject.</div>
         <button v-if="form.i2i_mode === 'edit' || form.i2i_mode === 'inpaint'" class="ghost small" @click="switchToControlNet">Use ControlNet instead</button>
       </div>
-      <div v-else-if="form.i2i_mode === 'change'" class="card">
-        <h3>2 · ControlNet <span class="hint">{{ family === 'sdxl' ? 'SDXL' : 'SD 1.5' }} · makes the result follow the picture's structure</span></h3>
+      <div v-else-if="form.i2i_mode === 'change'" class="card i2ifold" :class="{shut: i2iShut('cn')}">
+        <h3 @click="i2iFoldToggle('cn', $event)">2 · ControlNet <span class="hint">{{ family === 'sdxl' ? 'SDXL' : 'SD 1.5' }} · makes the result follow the picture's structure</span>
+          <span v-if="i2iShut('cn')" class="cfold-sum">{{ form.control.type ? (controlTypeInfo ? controlTypeInfo.label : form.control.type) : 'off' }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <details class="which-one">
           <summary>Which one should I use?</summary>
           <div class="which-row"><div><b>The same person in different pictures</b><span class="hint">a close-up photo of the face as the reference</span></div>
@@ -2550,8 +2555,8 @@
         </template>
       </div>
 
-      <div v-if="form.i2i_mode !== 'faceswap'" class="card">
-        <h3>3 · Prompt</h3>
+      <div v-if="form.i2i_mode !== 'faceswap'" class="card i2ifold" :class="{shut: i2iShut('prompt')}">
+        <h3 @click="i2iFoldToggle('prompt', $event)">3 · Prompt <span v-if="i2iShut('prompt')" class="cfold-sum">{{ form.prompt ? (form.prompt.length > 60 ? form.prompt.slice(0, 59) + '…' : form.prompt) : 'empty' }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <textarea class="tape" v-model="form.prompt" rows="3"
                   :placeholder="form.i2i_mode === 'edit' ? 'The change, in a sentence: make the jacket red · add a hat · turn it into a watercolour…' : i2iUsesKlein ? 'Optional: what goes around the picture · more of the street · a sunny beach · the rest of the room…' : 'What the result should look like…'"></textarea>
         <div v-if="i2iUsesKlein && form.i2i_mode === 'outpaint'" class="row small i2i-enhance">

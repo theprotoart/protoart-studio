@@ -408,7 +408,7 @@ const protoartApp = createApp({
       qnt: { model: "", bits: 8, msg: "" },  // Tools → Smaller copy
       tup: { scale: 2, strength: 0.25, steps: 24, prompt: "" },  // Tools → Tiled upscale
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
-      chain: { steps: loadJSON("protoart.chain", []).map((x) => ({ lora: "", lora_weight: 1, extra: "", ...x, result: "" })),
+      chain: { steps: loadJSON("protoart.chain", []).map((x) => ({ lora: "", lora_weight: 1, extra: "", ...x, result: "", q: "" })),
                running: false, stopped: false, at: -1, done: 0 },  // 🔗 Model chain
       swapOver: false,
       promptBox: null,       // the 📒 My prompts window: {name} = saving, {name: null} = managing
@@ -1079,6 +1079,7 @@ const protoartApp = createApp({
               "<b>“This needs a one-time download from Hugging Face … couldn't reach huggingface.co” although you're online</b> (OpenPose / Union ProMax OpenPose, Depth and some other ControlNets): fixed. The pose and depth finders' first download wasn't recognised as a download, so it was never tried. The message now also has a <b>⬇ Download it now</b> button that runs the same job again with the connection open.",
               "<b>🧩 Tiled upscale turned the picture into something else</b> (new faces, extra people, another style): fixed. It used Create's prompt, so every tile tried to draw that whole scene. It now uses a short detail prompt (add your own texture or style words in <i>Detail prompt</i>) and gentler defaults; pick a preset.",
               "<b>🗺 Regional prompts barely changed the picture</b>: each area now follows only its own prompt (before, the whole main prompt was added to every area and drowned the subjects). Describe each area fully and keep the main prompt to the setting.",
+              "<b>Image to image</b>: every card (Picture, Sampler, LoRAs, Model chain, ControlNet, Prompt) folds down to its title with a click on it, and <i>collapse all · expand all</i> sits at the top. Each <b>Model chain</b> step has a search box for its LoRAs.",
               "<b>🗺 Regions with FLUX.2 Klein 4B</b> too, and a <b>✨</b> button on each area to describe its subject in detail.",
               "<b>🗺 Regions with FLUX.1 and ERNIE</b>: now possible. These models run on the fast engine, which can't split one picture's prompt by area, so the app draws the whole picture with each area's place in words, then redraws each area from its own prompt and blends it back in.",
               "<b>💡 suggest from the picture</b> is now in every Image to image mode (Change it, Inpaint, Expand, Edit with words), not only FLUX.2 Expand: it looks at your picture and writes a prompt describing it (Danbooru tags for Anima, Pony, Illustrious and NoobAI models), ready to edit. ↩ undo puts your prompt back.",
@@ -4253,18 +4254,22 @@ const protoartApp = createApp({
       if (this.chain.steps.length >= 4) return;
       const used = new Set(this.chain.steps.map((x) => x.model));
       const next = this.chainModels().find((m) => !used.has(m.id)) || this.chainModels()[0];
-      this.chain.steps.push({ model: next ? next.id : "", strength: 0.4, lora: "", lora_weight: 1, extra: "", result: "" });
+      this.chain.steps.push({ model: next ? next.id : "", strength: 0.4, lora: "", lora_weight: 1, extra: "", result: "", q: "" });
       this.chainSave();
     },
     chainSave() {  // (the results are this session's only)
-      saveJSON("protoart.chain", this.chain.steps.map(({ result, ...x }) => x));
+      saveJSON("protoart.chain", this.chain.steps.map(({ result, q, ...x }) => x));
     },
     chainModelOf(st) { return this.models.find((m) => m.id === st.model) || null; },
     chainFamilyLabel(st) { const m = this.chainModelOf(st); return m ? (FAMILY_LABEL[m.family] || m.family) : "pick a model"; },
-    chainLoras(st) {  // LoRAs made for this step's model type
+    chainLoras(st, all = false) {  // LoRAs made for this step's model type (narrowed by the step's search box)
       const m = this.chainModelOf(st);
       if (!m) return [];
-      return this.loras.filter((l) => l.family === m.family && !(this.hideNsfw && l.nsfw) && !(this.opts.hide_people && l.people));
+      const list = this.loras.filter((l) => l.family === m.family && !(this.hideNsfw && l.nsfw) && !(this.opts.hide_people && l.people));
+      const q = (st.q || "").trim().toLowerCase();
+      if (all || !q) return list;
+      return list.filter((l) => [l.name, l.file, ...(this.activeTriggers(l.name) || [])]
+        .some((v) => typeof v === "string" && v.toLowerCase().includes(q)));
     },
     chainModelChanged(st) {
       if (st.lora && !this.chainLoras(st).some((l) => l.name === st.lora)) st.lora = "";  // a LoRA for another model type
@@ -4563,6 +4568,12 @@ const protoartApp = createApp({
     i2iFoldToggle(k, e) {
       if (e && e.target.closest("button, a, input, select")) return;  // "clear all" etc. in the title still work
       this.i2iFolds = { ...this.i2iFolds, [k]: !this.i2iFolds[k] };
+      saveJSON("protoart.i2iFolds", this.i2iFolds);
+    },
+    i2iFoldAll(shut) {  // Image to image → collapse all / expand all
+      const all = {};
+      for (const k of ["picture", "chain", "cn", "prompt", "steps", "loras"]) all[k] = shut;
+      this.i2iFolds = all;
       saveJSON("protoart.i2iFolds", this.i2iFolds);
     },
     togglePtool(k) {  // one prompt-tool panel open at a time (Wildcards keeps its own switch)

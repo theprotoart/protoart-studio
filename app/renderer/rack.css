@@ -2176,3 +2176,4 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .warn-chip { color: #ffb36b; border-color: rgba(255, 140, 60, .5); }
 .ctx-menu button:disabled { opacity: .4; cursor: default; }
 .reg-btns { display: flex; flex-direction: column; gap: 4px; }
+.i2i-foldall { font-size: 12px; margin: 0 0 6px 2px; opacity: .85; }
