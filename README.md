@@ -17,7 +17,9 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 |---|---|
 | ![Edit with words, the painted area](docs/screenshots/edit-with-words-mask.jpg) | ![Edit with words, the result](docs/screenshots/edit-with-words-result.jpg) |
 
-![Tools: the patchbay wires Remove, Faces and Enhance together, with a split view of before and after](docs/screenshots/tools-patchbay.jpg)
+![Tools: the patchbay wires Faces and Detail (a LoRA pass) together, with a split view of the original and the face-restored picture](docs/screenshots/tools-patchbay.jpg)
+
+![A FLUX.2 Klein 4B picture in the Library, with its prompt, settings, seed and face-restore options](docs/screenshots/klein-picture-details.jpg)
 
 ## What it does
 
