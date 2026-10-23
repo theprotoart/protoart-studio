@@ -29,17 +29,22 @@ def build(sd_pipe, dtype, emit=lambda m: None):
     pipe = diffusers.AnimateDiffPipeline.from_pipe(sd_pipe, motion_adapter=adapter, torch_dtype=dtype)
     pipe.scheduler = diffusers.DDIMScheduler.from_config(
         pipe.scheduler.config, beta_schedule="linear", clip_sample=False, timestep_spacing="linspace", steps_offset=1)
-    # The VAE decodes the frames a few at a time, and attention is worked out in slices: every step works on all
-    # the frames at once, and without slicing a 384 px clip needed several GB for attention alone and stalled an
-    # 8 GB Mac (swapping) before the first step finished.
+    # The VAE decodes the frames a few at a time, and the picture's attention is worked out in slices: every step
+    # works on all the frames at once, and without slicing a 384 px clip needed several GB for attention alone.
     try:
         pipe.vae.enable_slicing()
     except Exception:
         pass
     try:
         pipe.enable_attention_slicing()
-    except Exception:
-        pass
+        # ...but only for the picture's own attention layers. The motion layers attend across the frames for every
+        # pixel; sliced, that became tens of thousands of tiny steps per layer (a 384 px clip never finished its
+        # first step). They keep the normal attention, which needs little memory there (8–24 frames).
+        from diffusers.models.attention_processor import AttnProcessor2_0
+        procs = pipe.unet.attn_processors
+        pipe.unet.set_attn_processor({k: (AttnProcessor2_0() if "motion_modules" in k else v) for k, v in procs.items()})
+    except Exception as e:
+        print("[animate] attention set-up:", e, flush=True)
     return pipe
 
 
