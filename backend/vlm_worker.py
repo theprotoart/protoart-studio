@@ -19,13 +19,19 @@ def main():
         except Exception:
             send({"type": "status", "msg": "Downloading the picture reader (first time only)…"})
             path = snapshot_download(req["repo"], revision=req.get("revision"))
-        send({"type": "status", "msg": "Reading the picture…"})
+        image = req.get("image")
+        send({"type": "status", "msg": "Reading the picture…" if image else "Thinking…"})
         from mlx_vlm import generate, load
         from mlx_vlm.prompt_utils import apply_chat_template
         model, processor = load(path)
-        prompt = apply_chat_template(processor, model.config, req["prompt"], num_images=1)
-        out = generate(model, processor, prompt, image=[req["image"]], max_tokens=int(req.get("max_tokens") or 320),
-                       temperature=0.0, verbose=False)
+        n = 1 if image else 0
+        try:  # text jobs: answer straight away, without a long thinking block
+            prompt = apply_chat_template(processor, model.config, req["prompt"], num_images=n,
+                                         **({} if image else {"enable_thinking": False}))
+        except TypeError:
+            prompt = apply_chat_template(processor, model.config, req["prompt"], num_images=n)
+        out = generate(model, processor, prompt, image=[image] if image else None,
+                       max_tokens=int(req.get("max_tokens") or 320), temperature=0.0, verbose=False)
         text = getattr(out, "text", out)
         send({"type": "done", "text": str(text)})
     except Exception as e:

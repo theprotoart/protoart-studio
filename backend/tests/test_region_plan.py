@@ -34,17 +34,43 @@ class PlanTests(unittest.TestCase):
 
     def test_words_fallback(self):
         p = R.plan("a woman in a red coat on the left and a man with an umbrella in the middle and a small dog on "
-                   "the right, rainy street", raw="I can't do that.")
+                   "the right, rainy street", raw="LEFT: something else\nRIGHT: another thing")
         self.assertEqual(p["source"], "words")
         self.assertEqual(p["prompts"], ["a woman in a red coat", "a man with an umbrella", "a small dog"])
         self.assertEqual(p["scene"], "rainy street")
+
+    def test_your_places_come_first(self):
+        p = R.plan("a cat on the left and a dog on the right", raw="LEFT: a horse\nRIGHT: a cow")
+        self.assertEqual((p["source"], p["prompts"]), ("words", ["a cat", "a dog"]))
+        self.assertFalse(R.needs_model("a cat on the left and a dog on the right"))
+        self.assertTrue(R.needs_model("two cats on a windowsill"))
+
+    def test_one_place_with_with(self):
+        p = R.plan("a cosy cabin in the snow with the northern lights above")
+        self.assertEqual((p["layout"], p["prompts"]), ("rows", ["the northern lights", "a cosy cabin in the snow"]))
+        p = R.plan("a lighthouse on a cliff at sunset with a sailing ship in the bottom right")
+        self.assertEqual((p["layout"], p["ratios"]), ("grid", "1;1,1"))
+        self.assertEqual(p["prompts"][0], "a lighthouse on a cliff at sunset")
+        self.assertEqual(p["prompts"][2], "a sailing ship")
+
+    def test_repetitive_model_plan_is_refused(self):
+        raw = ("LEFT: black cat with a black collar sitting on the windowsill, looking at a vase\n"
+               "RIGHT: black cat with a black collar sitting on the windowsill, looking at a book")
+        with self.assertRaises(ValueError):
+            R.plan("two cats on a windowsill", raw)
+
+    def test_similar_but_different_subjects_are_kept(self):
+        p = R.plan("two cats on a windowsill", "LEFT: a black cat sitting calmly on the left side of the windowsill\n"
+                                               "RIGHT: a white cat sitting on the right side of the windowsill")
+        self.assertEqual(len(p["prompts"]), 2)
 
     def test_no_parts(self):
         with self.assertRaises(ValueError):
             R.plan("a cat sleeping", raw="")
 
     def test_at_most_four_areas(self):
-        raw = "\n".join(f"{k}: thing {i}" for i, k in enumerate(["LEFT", "CENTER", "RIGHT", "TOP", "BOTTOM"]))
+        subjects = ["a red fox", "a grey owl", "a brown bear", "the full moon", "a frozen lake"]
+        raw = "\n".join(f"{k}: {t}" for k, t in zip(["LEFT", "CENTER", "RIGHT", "TOP", "BOTTOM"], subjects))
         self.assertLessEqual(len(R.plan("x", raw)["prompts"]), 4)
 
     def test_plans_work_with_the_regional_prompter(self):

@@ -12,10 +12,13 @@
   otherwise the model's own. An fp16-fix VAE is built with `force_upcast=False` (decoded in fp16: faster, less
   memory). Civitai downloads fetch a checkpoint's VAE file too (`download_vae`). `vae_auto` command for the UI;
   pictures record the VAE actually used (+ `vae_auto`)
-- Regions: **✨ Plan the layout** (`plan_regions` job, `backend/region_plan.py`): the prompt enhancer's Qwen2.5 writes
-  `SCENE:` + `LEFT/RIGHT/TOP/… : subject` lines (few-shot), parsed into cols / rows / grid (columns kept aligned,
-  ≤ 4 areas) and the scene for the main prompt; falls back to the sentence's own position words. Omost's idea
-  without its 8B LLM. UI: a sentence box + button + ↩ undo in Create → Regions
+- Regions: **✨ Plan the layout** (`plan_regions` job, `backend/region_plan.py`). Places said in the sentence ("on the
+  left", "above", "in the bottom right", one "… with … above" split) are used as they are, with no model. Otherwise
+  a language model writes `SCENE:` + `LEFT/RIGHT/TOP/… : subject` lines (few-shot): Qwen3.5 4B through the picture
+  reader's worker when it's set up (`vlm.chat`, text only, no thinking; one retry), else the prompt enhancer's
+  Qwen2.5. Plans that repeat one subject in several areas are refused (`_distinct`). Lines → cols / rows / grid
+  (columns kept aligned, ≤ 4 areas) + the scene for the main prompt. Omost's idea without its 8B LLM. UI: a sentence
+  box + button + ↩ undo in Create → Regions. On an 8 GB M1: ~10–20 s a plan with the 4B model
 - Speed: cross-attention keys/values worked out once per picture (`backend/kv_cache.py`, attn2 only, self-attention
   keeps its slicing; off with an image prompt or `PROTOART_NO_KV_CACHE`), ~3% per step on SD 1.5, identical output
 - Research (not in the app yet): `backend/mlx_sd/unet.py`, an MLX UNet for SD 1.5 / SDXL (diffusers weights,

@@ -115,6 +115,23 @@ def allow_install_now():
         return True
 
 
+def ready():
+    """Installed and downloaded already (text jobs use it only then: they never start a 3 GB download)."""
+    return supported() and installed() and downloaded()
+
+
+def chat(text, emit=None, cancel_event=None, max_tokens=500):
+    """A text-only answer from the same model (no picture), as written: line breaks kept, thinking removed.
+    Only when ready(); runs the worker once, like describe()."""
+    if not ready():
+        raise VlmError(f"{LABEL} isn't set up")
+    raw = _ask({"repo": REPO, "revision": REVISION, "image": None, "max_tokens": int(max_tokens), "prompt": text},
+               emit or (lambda m: None), cancel_event, dict(os.environ, PYTHONUNBUFFERED="1", HF_HUB_OFFLINE="1"))
+    if "</think>" in raw:
+        raw = raw.split("</think>", 1)[1]
+    return raw.replace("<think>", "").strip()
+
+
 def describe(image_path, style="natural", emit=None, cancel_event=None, allow_download=True, max_tokens=320):
     """Returns the prompt text. Runs vlm_worker.py once; it exits afterwards (memory back at once)."""
     emit = emit or (lambda m: None)
@@ -130,6 +147,10 @@ def describe(image_path, style="natural", emit=None, cancel_event=None, allow_do
         env["HF_HUB_OFFLINE"] = "0"
     req = {"repo": REPO, "revision": REVISION, "image": str(image_path), "max_tokens": int(max_tokens),
            "prompt": STYLES.get(style, STYLES["natural"])}
+    return clean(_ask(req, emit, cancel_event, env))
+
+
+def _ask(req, emit, cancel_event, env):
     p = subprocess.Popen([str(PY), str(HERE / "vlm_worker.py")], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE, text=True, cwd=str(HERE), env=env)
     err_tail = []
@@ -161,7 +182,7 @@ def describe(image_path, style="natural", emit=None, cancel_event=None, allow_do
         raise VlmError("The picture reader stopped unexpectedly:\n" + "\n".join(err_tail[-6:]))
     if result["type"] == "error":
         raise VlmError(result.get("msg") or "The picture reader failed.")
-    return clean(result.get("text") or "")
+    return result.get("text") or ""
 
 
 def clean(text):

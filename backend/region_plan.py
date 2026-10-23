@@ -27,7 +27,8 @@ SYSTEM = (
     "SCENE: the setting, lighting and style shared by the whole picture (no subjects)\n"
     "<PLACE>: one subject and how it looks\n"
     "PLACE is one of LEFT, CENTER, RIGHT, TOP, MIDDLE, BOTTOM, TOP LEFT, TOP RIGHT, BOTTOM LEFT, BOTTOM RIGHT. "
-    "Use 2 to 4 places, one subject each, where the user put them (or where they fit best). Each line under 25 words. "
+    "Use 2 to 4 places, one subject each, where the user put them (or where they fit best). Never put two subjects on "
+    "one line: two cats are two lines (LEFT: the black cat, RIGHT: the white cat). Each line under 25 words. "
     "Always write in English. No other text.")
 EXAMPLES = [
     ("a knight fighting a dragon under a stormy sky",
@@ -76,19 +77,32 @@ _PHRASES = [
 ]
 
 
+def _place_of(text):
+    """(place word or None, the text without its position words)."""
+    for pat, name in _PHRASES:
+        m = re.search(pat, text, flags=re.I)
+        if m:
+            rest = text[:m.start()] + text[m.end():]
+            return name(m).strip().lower(), re.sub(r"\bcorner\b", "", rest)
+    return None, text
+
+
 def from_words(sentence):
     """No model: split the sentence into parts at commas / 'and' / 'while' and read each part's position words.
     -> (scene, [(row, col, prompt)])."""
     parts = [p for p in re.split(r",|;|\band\b|\bwhile\b", sentence or "") if p.strip()]
+    placed = [_place_of(p)[0] is not None for p in parts]
+    if sum(placed) == 1:
+        # only one place said, inside a "… with …" part ("a cabin in the snow with the northern lights above"):
+        # the subject before "with" is the other area. (Not when several places are said: there "a man with an
+        # umbrella in the middle" is one subject.)
+        i = placed.index(True)
+        m = re.search(r"\bwith\b", parts[i])
+        if m and _place_of(parts[i][:m.start()])[0] is None and _place_of(parts[i][m.end():])[0] is not None:
+            parts[i:i + 1] = [parts[i][:m.start()], parts[i][m.end():]]
     scene_bits, items = [], []
     for p in parts:
-        place = None
-        for pat, name in _PHRASES:
-            m = re.search(pat, p, flags=re.I)
-            if m:
-                place = name(m).strip().lower()
-                p = (p[:m.start()] + p[m.end():])
-                break
+        place, p = _place_of(p)
         text = _clean(re.sub(r"\b(?:is|are|stands?|sits?)\s*$", "", p.strip()))
         if not text:
             continue
@@ -97,13 +111,32 @@ def from_words(sentence):
             items.append((r, c, text))
         else:
             scene_bits.append(text)
-    if len(items) == 1 and scene_bits:  # "a castle with a moon above": the other subject goes opposite
+    if len(items) == 1 and scene_bits:  # one subject placed: the first other subject takes the opposite side
         r, c, _t = items[0]
-        opp = {0: 2, 2: 0, 1: None, None: None}
-        items.append((opp[r], opp.get(c, None) if c != 1 else None, scene_bits.pop(0)))
-        if items[1][0] is None and items[1][1] is None:
-            items.pop()
+        if r in (0, 2):  # top / bottom (or a corner): the other row, full width
+            items.append((2 - r, None, scene_bits.pop(0)))
+        elif c in (0, 2):  # left / right
+            items.append((None, 2 - c, scene_bits.pop(0)))
     return ", ".join(scene_bits), items
+
+
+def _distinct(items):
+    """A usable plan from the model: different subjects in different places (a small model sometimes puts the
+    same subject in every area or repeats the whole sentence)."""
+    seen, out = set(), []
+    for r, c, t in items:
+        if (r, c) in seen:
+            continue
+        seen.add((r, c))
+        out.append((r, c, t))
+    common = {"the", "and", "with", "left", "right", "side", "top", "bottom", "middle", "center", "centre", "corner"}
+    words = [set(re.findall(r"[a-z]{3,}", t.lower())) - common for _r, _c, t in out]
+    for i in range(len(words)):
+        for j in range(i + 1, len(words)):
+            a, b = words[i], words[j]
+            if a and b and len(a & b) / min(len(a), len(b)) > 0.75:  # the same subject twice
+                return []
+    return out
 
 
 def layout(items):
@@ -123,7 +156,8 @@ def layout(items):
     rows = [sorted(grid[r]) for r in sorted(grid)]
     # keep the columns lined up ("a tree top left, a house bottom right, a lake bottom left"): a row whose places
     # were said gets an area for the rest of the scene (None) in the columns it doesn't use, if that stays ≤ 4 areas
-    cols = sorted({c for row in rows for c, _i, _t, said in row if said})
+    said = {c for row in rows for c, _i, _t, s in row if s}
+    cols = sorted(said | {2 - c for c in said})  # "bottom right" alone still leaves room on the left
     filled = [row if not all(said for *_x, said in row) else
               sorted(row + [(c, 99, None, True) for c in cols if c not in {x[0] for x in row}]) for row in rows]
     if sum(len(r) for r in filled) <= MAX_AREAS:
@@ -136,18 +170,23 @@ def layout(items):
 
 
 def plan(sentence, raw=None):
-    """The plan for one sentence, from the model's answer `raw` when it's usable, else from the sentence's words.
-    Returns {"layout", "ratios", "prompts", "scene", "source"} or raises ValueError."""
-    scene, items, source = "", [], "model"
-    if raw:
+    """The plan for one sentence. The places you said yourself ("on the left…", "above…") come first; otherwise
+    the model's answer `raw` (if its areas hold different subjects). Returns {"layout", "ratios", "prompts", "scene",
+    "source"} or raises ValueError."""
+    scene, items = from_words(sentence)
+    source = "words"
+    if len(items) < 2 and raw:
         scene, items = parse_lines(raw)
-    if len(items) < 2:
-        scene2, items = from_words(sentence)
-        scene, source = scene or scene2, "words"
+        items, source = _distinct(items), "model"
     if len(items) < 2:
         raise ValueError("Couldn't find separate parts in that description. Say where things go, e.g. “a knight on "
                          "the left, a dragon on the right, a stormy sky above”.")
     out = layout(items[:MAX_AREAS])
-    out["prompts"] = [p if p is not None else (scene or "background") for p in out["prompts"]]
+    out["prompts"] = [p if p is not None else (scene or "background scenery") for p in out["prompts"]]
     out.update(scene=scene or "", source=source)
     return out
+
+
+def needs_model(sentence):
+    """True when the sentence doesn't say where things go, so the model has to plan it."""
+    return len(from_words(sentence)[1]) < 2

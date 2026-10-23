@@ -2075,24 +2075,43 @@ class Engine:
         if not sentence:
             raise UserError("Describe the picture first, e.g. “a knight on the left fighting a dragon on the right "
                             "under a stormy sky”.")
-        raw = ""
-        if not args.get("words_only"):
-            ram = total_ram_gb()
-            if 0 < ram < 12 and self.family in ("sdxl", "ernie") and self.pipe is not None:
-                self.unload()  # 8 GB Macs: a big image model and the enhancer don't fit together
+        if args.get("words_only") or not region_plan.needs_model(sentence):
+            try:  # you said where things go: your places are used as they are
+                return region_plan.plan(sentence)
+            except ValueError as e:
+                raise UserError(str(e))
+        ram = total_ram_gb()
+        if 0 < ram < 12 and self.pipe is not None and self.family in ("sdxl", "ernie", "flux", "flux2", "anima"):
+            self.unload()  # 8 GB Macs: a big image model and a language model don't fit together
+        import vlm
+        planners = []
+        if vlm.ready():  # Qwen3.5 4B (the picture reader, if it's set up): far better plans than the 0.5B enhancer
+            def big():
+                q = region_plan.SYSTEM + "\n\n" + "\n\n".join(f"Description: {a}\n{b}" for a, b in region_plan.EXAMPLES)
+                self.emit({"type": "status", "msg": f"Planning the layout with {vlm.LABEL}…"})
+                return vlm.chat(q + f"\n\nDescription: {sentence}\n", emit=self.emit, cancel_event=self.cancel_event)
+            planners.append(("Qwen3.5 4B", big))
+            planners.append(("Qwen3.5 4B", lambda: vlm.chat(  # once more, if it kept the subjects together
+                region_plan.SYSTEM + f"\n\nDescription: {sentence}\nGive every subject its own place line (at least "
+                "two place lines).\n", emit=self.emit, cancel_event=self.cancel_event)))
+        planners.append(("prompt enhancer", lambda: self.get_prompt_enhancer().plan_layout(sentence, cancel_event=self.cancel_event)))
+        last = None
+        for name, ask in planners:
             try:
-                raw = self.get_prompt_enhancer().plan_layout(sentence, cancel_event=self.cancel_event)
-            except Exception as err:  # e.g. offline before the enhancer was ever downloaded: use the words
+                raw = ask()
+            except Exception as err:  # not set up / offline before its first download: try the next one
                 if self.cancel_event.is_set():
                     raise Cancelled()
-                print("[regions] planner model unavailable:", err, flush=True)
+                print(f"[regions] {name} unavailable:", err, flush=True)
+                continue
             if self.cancel_event.is_set():
                 raise Cancelled()
-            print("[regions] plan:", raw.replace("\n", " | ")[:400], flush=True)
-        try:
-            return region_plan.plan(sentence, raw)
-        except ValueError as e:
-            raise UserError(str(e))
+            print(f"[regions] {name} plan:", raw.replace("\n", " | ")[:400], flush=True)
+            try:
+                return dict(region_plan.plan(sentence, raw), planner=name)
+            except ValueError as e:
+                last = e
+        raise UserError(str(last) if last else "Couldn't plan the layout: the planner models aren't available.")
 
     def _ernie_embeddings(self, spec, texts):
         """Lean mode: encode prompts with a temporarily loaded text encoder, then free it."""
