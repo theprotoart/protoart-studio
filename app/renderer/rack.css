@@ -2177,3 +2177,10 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .ctx-menu button:disabled { opacity: .4; cursor: default; }
 .reg-btns { display: flex; flex-direction: column; gap: 4px; }
 .i2i-foldall { font-size: 12px; margin: 0 0 6px 2px; opacity: .85; }
+.model-search-row { display: flex; gap: 6px; align-items: center; }
+.model-search-row .model-search { flex: 1 1 auto; min-width: 0; }
+.model-sort { flex: 0 0 auto; width: auto; max-width: 140px; }
+.slot-model .model-sort { max-width: 130px; margin-left: 6px; }
+.slot-model .slot-row { display: flex; gap: 6px; align-items: center; }
+.slot-model .slot-row > select:first-child { flex: 1 1 auto; }
+.slot-model .slot-row .model-sort { min-width: 0; width: 120px; flex: none; }

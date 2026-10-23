@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["ckpt_merge", "faceswap", "tiled_upscale", "animate", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["ckpt_merge", "lora_extract", "faceswap", "tiled_upscale", "animate", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
@@ -408,6 +408,7 @@ const protoartApp = createApp({
       qnt: { model: "", bits: 8, msg: "" },  // Tools → Smaller copy
       tup: { scale: 2, strength: 0.25, steps: 24, prompt: "" },  // Tools → Tiled upscale
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
+      cvt: { to: "copy", model: "", base: "", rank: 32, te: true, name: "", msg: "" },  // Tools → Convert into (LoRA…)
       chain: { steps: loadJSON("protoart.chain", []).map((x) => ({ lora: "", lora_weight: 1, extra: "", ...x, result: "", q: "" })),
                running: false, stopped: false, at: -1, done: 0 },  // 🔗 Model chain
       swapOver: false,
@@ -1079,6 +1080,8 @@ const protoartApp = createApp({
               "<b>“This needs a one-time download from Hugging Face … couldn't reach huggingface.co” although you're online</b> (OpenPose / Union ProMax OpenPose, Depth and some other ControlNets): fixed. The pose and depth finders' first download wasn't recognised as a download, so it was never tried. The message now also has a <b>⬇ Download it now</b> button that runs the same job again with the connection open.",
               "<b>🧩 Tiled upscale turned the picture into something else</b> (new faces, extra people, another style): fixed. It used Create's prompt, so every tile tried to draw that whole scene. It now uses a short detail prompt (add your own texture or style words in <i>Detail prompt</i>) and gentler defaults; pick a preset.",
               "<b>🗺 Regional prompts barely changed the picture</b>: each area now follows only its own prompt (before, the whole main prompt was added to every area and drowned the subjects). Describe each area fully and keep the main prompt to the setting.",
+              "<b>Tools → Convert → Convert into</b>: <b>Copy</b> (the .safetensors copies as before), <b>LoRA</b> (turn a fine-tuned model into a small LoRA: pick the model, the base model it was made from, and a size; rank 32 is a good start, 64–128 keeps more of its look) or <b>Embedding</b> (embeddings are learned from pictures, so it opens Train). The LoRA appears in your LoRA list and works in other apps too.",
+              "<b>Sort the models A → Z</b> (or Z → A, or biggest first): the Sort menu beside Create's model search, and beside the Image to image model list. ★ Favourites stay first.",
               "<b>Image to image</b>: every card (Picture, Sampler, LoRAs, Model chain, ControlNet, Prompt) folds down to its title with a click on it, and <i>collapse all · expand all</i> sits at the top. Each <b>Model chain</b> step has a search box for its LoRAs, and <b>FLUX.2 Klein 4B</b> can be a chain step: it edits the picture with the words you write for that step (“make it a watercolour”), with its own LoRA if you like.",
               "<b>🗺 Regions with FLUX.2 Klein 4B</b> too, and a <b>✨</b> button on each area to describe its subject in detail.",
               "<b>🗺 Regions with FLUX.1 and ERNIE</b>: now possible. These models run on the fast engine, which can't split one picture's prompt by area, so the app draws the whole picture with each area's place in words, then redraws each area from its own prompt and blends it back in.",
@@ -1534,8 +1537,7 @@ const protoartApp = createApp({
     filteredModels() {
       const q = this.modelSearch.trim().toLowerCase();
       // favourites first, then the usual order; inpainting models only fill in painted areas (Image to image)
-      const list = [...this.installedModels].filter((m) => !m.inpaint)
-        .sort((a, b) => (this.isFav(b) ? 1 : 0) - (this.isFav(a) ? 1 : 0));
+      const list = this.sortModels([...this.installedModels].filter((m) => !m.inpaint));
       return list.filter((m) => {
         if (this.modelFilter === "fav" ? !this.isFav(m)
             : this.modelFilter === "mine" ? !m.id.startsWith("file:")
@@ -1937,8 +1939,8 @@ const protoartApp = createApp({
       const ok = (m) => (m.family === "sd15" || m.family === "sdxl") && m.engine !== "mlx";
       const mark = (list) => list.map((m) => ({ ...m, i2iOk: ok(m) }));
       return [
-        { name: "SD 1.5 · image to image, inpaint, ControlNet (built-in + yours), image prompt (IP-Adapter)", models: mark(this.installedModels.filter((m) => m.family === "sd15" && !m.inpaint)) },
-        { name: "SDXL / Pony · image to image, inpaint, image prompt (IP-Adapter), your SDXL ControlNets", models: mark(this.installedModels.filter((m) => m.family === "sdxl" && !m.inpaint)) },
+        { name: "SD 1.5 · image to image, inpaint, ControlNet (built-in + yours), image prompt (IP-Adapter)", models: mark(this.sortModels(this.installedModels.filter((m) => m.family === "sd15" && !m.inpaint))) },
+        { name: "SDXL / Pony · image to image, inpaint, image prompt (IP-Adapter), your SDXL ControlNets", models: mark(this.sortModels(this.installedModels.filter((m) => m.family === "sdxl" && !m.inpaint))) },
       ].filter((g) => g.models.length);
     },
     convShown() {
@@ -1958,6 +1960,9 @@ const protoartApp = createApp({
     },
     mergeFamily() {
       return (this.mergeModels.find((m) => m.path === this.mrg.a) || {}).family || "";
+    },
+    cvtJob() {
+      return this.queue.find((j) => j.cmd === "lora_extract");
     },
     ckJob() {
       return this.queue.find((j) => j.cmd === "ckpt_convert");
@@ -4247,8 +4252,8 @@ const protoartApp = createApp({
 
     // -------------------------------------------------------------- generate
     chainModels() {  // models a chain step can use: anything that can start from a picture (FLUX.2 Klein edits it with words)
-      return this.models.filter((m) => this.isInstalled(m) && !m.inpaint &&
-        (["sd15", "sdxl", "anima"].includes(m.family) && m.engine !== "mlx" || (m.engine === "mlx" && ["flux", "ernie", "flux2"].includes(m.family))));
+      return this.sortModels(this.models.filter((m) => this.isInstalled(m) && !m.inpaint &&
+        (["sd15", "sdxl", "anima"].includes(m.family) && m.engine !== "mlx" || (m.engine === "mlx" && ["flux", "ernie", "flux2"].includes(m.family)))));
     },
     chainAdd() {
       if (this.chain.steps.length >= 4) return;
@@ -5859,6 +5864,18 @@ const protoartApp = createApp({
       const p = TILED_PRESETS.find((x) => x.set.scale === t.scale && Math.abs(x.set.strength - t.strength) < 0.001 && x.set.steps === t.steps);
       return p ? p.id : "";
     },
+    // model lists: ★ favourites first, then the order picked in the list's Sort menu (A–Z, Z–A, biggest, the usual)
+    sortModels(list) {
+      const how = this.opts.model_sort || "";
+      const name = (m) => (m.label || "").replace(/^[^a-z0-9]+/i, "").toLowerCase();
+      const size = (m) => Number(m.disk_gb || m.download_gb || 0);
+      const by = how === "az" ? (a, b) => name(a).localeCompare(name(b), undefined, { numeric: true })
+        : how === "za" ? (a, b) => name(b).localeCompare(name(a), undefined, { numeric: true })
+        : how === "size" ? (a, b) => size(b) - size(a)
+        : () => 0;
+      return [...list].sort((a, b) => ((this.isFav(b) ? 1 : 0) - (this.isFav(a) ? 1 : 0)) || by(a, b));
+    },
+    setModelSort(v) { this.opts.model_sort = v; this.saveOpts(); },
     needsDownload(msg) { return !!(this.dlJob && /one-time download/i.test(msg || "")); },
     // ⬇ Download it now: run the same job again with the connection open for it, so whatever it needs is fetched
     async downloadAndRetry() {
@@ -5883,6 +5900,17 @@ const protoartApp = createApp({
       if (!r) return;
       this.qnt.msg = `✓ “${r.label}” (${r.gb} GB) is in the model list.`;
       this.models = await call("list_models").catch(() => this.models);
+    },
+    cvtFamily() {
+      return (this.mergeModels.find((m) => m.path === this.cvt.model) || {}).family || "";
+    },
+    async runLoraExtract() {  // Tools → Convert → LoRA
+      const c = this.cvt;
+      c.msg = "";
+      const r = await this.runJob("lora_extract", { model: c.model, base: c.base, rank: c.rank, text_encoder: c.te, name: c.name.trim() || null });
+      if (!r) return;
+      c.msg = `✓ “${r.name}” (${r.mb} MB, ${r.layers} layers) is in your LoRA list${r.family ? " for " + this.familyName(r.family) : ""}.`;
+      this.loras = await call("list_loras").catch(() => this.loras);
     },
     async runMerge() {
       const g = this.mrg;

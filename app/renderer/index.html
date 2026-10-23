@@ -88,6 +88,7 @@
       <!-- Image to image: the model -->
       <div v-else-if="tab==='i2i'" class="slot-model">
         <span class="eng slot-label">Model</span>
+        <div class="slot-row">
         <select title="The model Image to image uses: FLUX.2 Klein for Edit with words and Expand, or an SD 1.5 / SDXL model for the other modes" :value="i2iUsesKlein ? 'flux2_klein_mlx_q4' : form.model" @change="pickI2iModel($event.target.value)">
           <optgroup v-if="editModel()" label="FLUX.2 · ✨ Edit with words (uses More pictures instead of image prompt / ControlNet)">
             <option value="flux2_klein_mlx_q4">FLUX.2 Klein 4B · {{ form.i2i_mode === 'outpaint' ? '↔ Expand with the outpaint LoRA' : '✨ Edit with words' }}{{ editModel().cached ? '' : ' · ' + Math.round(editModel().download_gb) + ' GB download' }}</option>
@@ -97,6 +98,10 @@
               {{ m.label }}{{ m.people ? ' ●' : '' }}{{ m.nsfw ? ' ⚑' : '' }}{{ m.i2iOk ? (m.cached ? '' : ' · ' + Math.round(m.download_gb) + ' GB download') : ' — not for image to image' }}</option>
           </optgroup>
         </select>
+          <select class="model-sort small" :value="opts.model_sort || ''" @change="setModelSort($event.target.value)" title="Sort the model list (★ favourites stay first)">
+          <option value="">usual order</option><option value="az">A → Z</option><option value="za">Z → A</option><option value="size">biggest first</option>
+        </select>
+        </div>
         <span v-if="i2iUsesKlein" class="hint">FLUX.2 · ⚡ fast engine · the other modes use {{ currentModel ? currentModel.label : 'the Create model' }}</span>
         <span v-else class="hint">{{ familyLabel }}<template v-if="form.loras.length"> · {{ form.loras.length }} LoRA{{ form.loras.length === 1 ? "" : "s" }}</template></span>
       </div>
@@ -283,7 +288,12 @@
           <button v-for="f in modelFilters" :key="f.id" class="chip" :class="{on: modelFilter===f.id}"
                   @click="modelFilter=f.id">{{ f.label }} <small>{{ f.count }}</small></button>
         </div>
-        <input class="model-search" v-model="modelSearch" placeholder="Search models…">
+        <div class="model-search-row">
+          <input class="model-search" v-model="modelSearch" placeholder="Search models…">
+          <select class="model-sort" :value="opts.model_sort || ''" @change="setModelSort($event.target.value)" title="How the model lists are sorted (here, the Image to image list and the model chain); ★ favourites always come first">
+            <option value="">Sort: usual</option><option value="az">Sort: A → Z</option><option value="za">Sort: Z → A</option><option value="size">Sort: biggest</option>
+          </select>
+        </div>
         <div class="model-list">
           <button v-for="m in filteredModels" :key="m.id" class="model-item"
                   :class="{on: m.id===form.model, warn: !m.enough_ram, missing: m.missing}" @click="selectModel(m.id)" @contextmenu.prevent="menuModel($event, m)">
@@ -2054,7 +2064,43 @@
         </div>
         <div class="card rack-module convert-module" :class="{active: !!conv.items}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!conv.items}"></i><span class="mod-icon">🔁</span>
-            <h3>Convert</h3><span class="mod-sub">DiffusionBee → .safetensors</span></div>
+            <h3>Convert</h3><span class="mod-sub">{{ cvt.to === 'lora' ? 'model → LoRA' : cvt.to === 'emb' ? 'model → embedding?' : 'DiffusionBee → .safetensors' }}</span></div>
+          <label>Convert into</label>
+          <div class="seg mod-seg">
+            <button :class="{on: cvt.to === 'copy'}" @click="cvt.to = 'copy'" title="A standard .safetensors copy of a DiffusionBee file or an old .ckpt, for other apps">Copy</button>
+            <button :class="{on: cvt.to === 'lora'}" @click="cvt.to = 'lora'" title="Pull out what a fine-tuned model learned as a small LoRA file">LoRA</button>
+            <button :class="{on: cvt.to === 'emb'}" @click="cvt.to = 'emb'" title="Embeddings are learned from pictures, not cut out of a model">Embedding</button>
+          </div>
+          <template v-if="cvt.to === 'lora'">
+            <p class="mod-desc">Turns a fine-tuned model into a small LoRA (20–300 MB instead of 2–7 GB): what it learned on top of its base model, as a LoRA you can use with other models of the same type. The models aren't changed.</p>
+            <label>Model to turn into a LoRA</label>
+            <select v-model="cvt.model" title="A single-file .safetensors SD 1.5 or SDXL model (DiffusionBee models: make a .safetensors copy first)"><option value="">pick a model…</option>
+              <option v-for="m in mergeModels" :key="'cv' + m.id" :value="m.path">{{ m.label }} · {{ familyName(m.family) }}</option></select>
+            <label>Its base model <span class="hint">the one it was made from</span></label>
+            <select v-model="cvt.base" title="Usually SD 1.5 (or SDXL base 1.0) as a .safetensors file. Another model works too: the LoRA then holds the difference between the two"><option value="">pick a model…</option>
+              <option v-for="m in mergeModels.filter((x) => x.path !== cvt.model && (!cvtFamily() || x.family === cvtFamily()))" :key="'cb' + m.id" :value="m.path">{{ m.label }}</option></select>
+            <label title="How much detail the LoRA keeps: 16 is small and light, 32 a good start, 64–128 keeps more of the model's look (bigger file)">Size (rank) <span class="mod-val">{{ cvt.rank }}</span></label>
+            <div class="seg mod-seg">
+              <button v-for="r in [16, 32, 64, 128]" :key="'rk' + r" :class="{on: cvt.rank === r}" @click="cvt.rank = r">{{ r }}</button>
+            </div>
+            <label class="check" title="Also take what the model's text encoder learned (how it reads prompts and trigger words)"><input type="checkbox" v-model="cvt.te"> Include the text encoder</label>
+            <input v-model="cvt.name" class="mod-input" placeholder="name for the LoRA (optional)">
+            <p v-if="cvtFamily() && !mergeModels.some((x) => x.path !== cvt.model && x.family === cvtFamily())" class="mod-note warn-text">You need a second {{ familyName(cvtFamily()) }} model as the base, as a .safetensors file.</p>
+            <p v-if="cvt.msg" class="mod-note">{{ cvt.msg }}</p>
+            <div class="mod-foot">
+              <button class="primary mod-go" :disabled="!cvt.model || !cvt.base || !!cvtJob" @click="runLoraExtract">{{ cvtJob ? 'Making the LoRA…' : 'Make the LoRA' }}</button>
+              <span class="mod-plate">Converter · CV-6</span>
+            </div>
+          </template>
+          <template v-else-if="cvt.to === 'emb'">
+            <p class="mod-desc">An embedding can't be cut out of a model: it's a few learned “words” that are taught from pictures. To get one, train it from 10–30 pictures of the subject or style; it takes a while but runs on this Mac.</p>
+            <div class="mod-foot">
+              <button class="primary mod-go" @click="train.mode = 'embedding'; openTrain()">Train an embedding…</button>
+              <button class="mod-go" @click="cvt.to = 'lora'">Make a LoRA from a model instead</button>
+              <span class="mod-plate">Converter · CV-6</span>
+            </div>
+          </template>
+          <template v-else>
           <p class="mod-desc" title="Makes standard .safetensors copies of your DiffusionBee models, LoRAs and embeddings, so they work in other apps too (A1111, ComfyUI, Draw Things…). Your DiffusionBee files are left as they are. Works offline.">Copies your DiffusionBee models, LoRAs and embeddings as .safetensors for other apps. Originals untouched.</p>
           <div class="mod-foot">
             <button class="primary mod-go" @click="conv.items ? (conv.items = null) : loadConvertList()">{{ conv.items ? 'Hide the list' : 'Show my files' }}</button>
@@ -2062,6 +2108,7 @@
             <button class="mod-go" @click="ck.items ? (ck.items = null) : loadCkptList()" title="Older .ckpt checkpoints that won't load (or that you'd rather keep as the safer format): makes a .safetensors copy, read safely. The .ckpt is left as it is.">{{ ck.items ? 'Hide .ckpt list' : 'Old .ckpt files…' }}</button>
             <span class="mod-plate">Converter · CV-6</span>
           </div>
+          </template>
         </div>
       </div>
       <div v-if="ck.items" class="card convert-card convert-panel">

@@ -40,7 +40,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   Split / Side-by-side views, and a 🔌 patchbay to run Remove, Faces, Enhance, Depth, Vectorize and 🔎 Detail (with a LoRA)
   in any order with cables (modules can be moved, added twice or taken off; each copy has its own settings; 🛡 paint areas
   it must not change; live preview), 🧩 tiled upscale (MultiDiffusion), 🗜 smaller 8 / 6 / 4-bit model copies, 🧪 model
-  merger, plus `.ckpt` → `.safetensors` conversion
+  merger, `.ckpt` → `.safetensors` conversion, and model → LoRA extraction
 - **Right-click menus everywhere:** models (incl. ⟲ Reconnect… for a moved or missing file), LoRAs, the queue, your folders, pictures and text boxes
 - **Library:** right-click menu; search by prompt, seed, model or LoRA; drag to select many; ⇆ compare side by side with linked zoom; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
   first); batch edit & export; 🗜 compress to the smallest file that still looks the same

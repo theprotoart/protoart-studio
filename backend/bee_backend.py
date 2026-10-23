@@ -166,7 +166,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("animate", "quantize", "tiled_upscale", "ckpt_merge", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("animate", "quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -270,6 +270,8 @@ def job_label(cmd, a):
         return "Tiled upscale" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
     if cmd == "ckpt_merge":
         return "Merge two models"
+    if cmd == "lora_extract":
+        return "Make a LoRA from " + os.path.basename(str(a.get("model") or ""))
     if cmd == "ckpt_convert":
         return "Convert " + os.path.basename(str(a.get("path") or "")) + " to .safetensors"
     if cmd == "heal":
@@ -1930,6 +1932,19 @@ def run_job(kind, a):
         except InterruptedError:
             raise Cancelled()
         model_hub.invalidate()
+        return r
+    if kind == "lora_extract":  # Tools → Convert → Model → LoRA
+        import lora_extract
+        from engine import UserError, Cancelled
+        eng.unload()
+        try:
+            r = lora_extract.extract(a.get("model"), a.get("base"), rank=int(a.get("rank") or 32), name=a.get("name"),
+                                     text_encoder=a.get("text_encoder", True) is not False, emit=eng.emit,
+                                     cancel_event=eng.cancel_event)
+        except ValueError as e:
+            raise UserError(str(e))
+        except InterruptedError:
+            raise Cancelled()
         return r
     if kind == "ckpt_convert":
         import ckpt_convert

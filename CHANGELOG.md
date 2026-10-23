@@ -25,6 +25,12 @@
 - Image to image: Picture / Model chain / ControlNet / Prompt cards fold like Sampler and LoRAs; collapse all · expand
   all; Model chain steps get a LoRA search box; FLUX.2 Klein as a chain step (`edit_words` with the step's words as
   the instruction and its own LoRA; `edit_words` now takes `loras`)
+- Tools → Convert → Convert into: Copy / LoRA / Embedding. Model → LoRA (`backend/lora_extract.py`): per-layer
+  (fine-tuned − base) of the UNet attention / feed-forward / proj layers and the first text encoder, SVD to rank
+  16–128 with kohya's quantile clamp, saved as a kohya-format LoRA with diffusers layer names (works on 8 GB: one
+  tensor at a time). Embedding: explains it's trained from pictures and opens Train
+- Model lists sort A → Z / Z → A / biggest (`opts.model_sort`; favourites first): Create's list, the Image to
+  image model menu and the model chain
 - Library: sticky selection bar and a 🗑 Delete button beside Compare; Tools → Detail with a LoRA: LoRA search
 - Anima (CircleStone Labs, Cosmos-Predict2 2B + Qwen3 0.6B + Qwen-Image VAE) through diffusers' modular
   `AnimaModularPipeline` (`backend/anima.py`): official diffusers files; Anima Turbo = the official
