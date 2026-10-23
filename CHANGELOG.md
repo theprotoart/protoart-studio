@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.4.0 (in progress)
+
+- Adjust: **Bloom** filter (Procreate-style) and a Bloom look. `bloomPick` keeps the pixels above a threshold set by
+  Transition (soft knee, in linear light), two Gaussian blurs (Size and 3.5× Size) give a core and a halo, screened back
+  on; Burn adds the light linearly (can blow out). `withDefaults` / `fullOrder` add new filters to saved settings and
+  presets (before Film Grain when that's last)
+- VAE **Automatic** (Create → VAE, the default; `""` = Automatic, `"__own__"` = the model's own): `vaes.auto_for`
+  picks the VAE a Civitai checkpoint comes with (`vae` in its `.civitai.info`), else SDXL fp16-fix for SDXL, else
+  vae-ft-mse for an SD 1.5 .safetensors with no `first_stage_model.` weights (`has_own_vae` reads only the header);
+  otherwise the model's own. An fp16-fix VAE is built with `force_upcast=False` (decoded in fp16: faster, less
+  memory). Civitai downloads fetch a checkpoint's VAE file too (`download_vae`). `vae_auto` command for the UI;
+  pictures record the VAE actually used (+ `vae_auto`)
+- Speed: cross-attention keys/values worked out once per picture (`backend/kv_cache.py`, attn2 only, self-attention
+  keeps its slicing; off with an image prompt or `PROTOART_NO_KV_CACHE`), ~3% per step on SD 1.5, identical output
+- Research (not in the app yet): `backend/mlx_sd/unet.py`, an MLX UNet for SD 1.5 / SDXL (diffusers weights,
+  NHWC, fused attention in query chunks, optional 8/4-bit linear layers). Matches PyTorch (max diff 0.004 on SD 1.5).
+  On an 8 GB M1: SD 1.5 512 px 1.3 s/step (same as PyTorch); SDXL 1024 px 16.5 s/step 4-bit vs 32.7 s/step today, but
+  4-bit changes SDXL's output too much (9% mean difference) to ship as is. The real limit on 8 GB is memory: above
+  ~3 GB of graphics memory the Mac swaps and steps take 15–25× longer
+
 ## 1.3.0
 
 - Downloads: transformers' "Can't load image processor / configuration / tokenizer" now counts as a missing

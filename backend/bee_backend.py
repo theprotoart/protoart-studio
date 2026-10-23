@@ -831,6 +831,12 @@ def handle_quick(cmd, a):
     if cmd == "list_vaes":
         import vaes
         return {"vaes": vaes.list_vaes(), "folder": str(paths.VAE_DIR)}
+    if cmd == "vae_auto":  # what Create → VAE "Automatic" will use with this model
+        import vaes
+        from engine import all_models
+        spec = all_models().get(a.get("model")) or {}
+        name, why = vaes.auto_for(spec.get("file"), spec.get("family"))
+        return {"name": name, "why": why}
     if cmd == "list_controlnets":
         import controlnet as cnet
         return {"controlnets": cnet.user_files(), "folder": str(paths.CONTROLNET_DIR)}
@@ -1579,6 +1585,14 @@ def civitai_job(a, eng):
                                                + (f" of {total / 1e6:.0f} MB" if total else " MB")})
         try:
             path = civitai.download(info, dest, token, progress, cancelled=eng.cancel_event.is_set)
+            if info.get("vae_file"):  # the VAE its page offers: fetched with it, used with it automatically
+                eng.emit({"type": "status", "msg": f"Downloading the VAE that comes with {info['name']}…"})
+                try:
+                    civitai.download_vae(info, str(paths.VAE_DIR), token, progress, cancelled=eng.cancel_event.is_set)
+                except InterruptedError:
+                    raise
+                except Exception as err:  # the model itself is fine; it just uses its own VAE
+                    print("[civitai] couldn't download the model's VAE:", err, flush=True)
         except InterruptedError:
             from engine import Cancelled
             raise Cancelled()

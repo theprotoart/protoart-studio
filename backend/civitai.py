@@ -165,6 +165,9 @@ def describe(model, version):
         notes.append(f"{mtype or 'This kind of file'} isn't supported yet "
                      "(LoRAs, checkpoints, embeddings, VAEs and SD 1.5 / SDXL ControlNets are).")
     name = (model.get("name") or (version.get("model") or {}).get("name") or "civitai model").strip()
+    # a checkpoint whose page offers its own VAE: downloaded with it and used with it automatically
+    vf = next((x for x in version.get("files") or [] if (x.get("type") or "").upper() == "VAE"
+               and str(x.get("name", "")).lower().endswith(".safetensors")), None) if kind == "checkpoint" else None
     return {
         "model_id": model.get("id") or version.get("modelId"), "version_id": version.get("id"),
         "name": name, "version": version.get("name") or "", "type": mtype, "kind": kind,
@@ -173,6 +176,8 @@ def describe(model, version):
         "trained_words": [w for w in (version.get("trainedWords") or []) if isinstance(w, str)][:40],
         "file": f and {"name": f.get("name"), "size_mb": round(float(f.get("sizeKB") or 0) / 1024, 1),
                        "url": f.get("downloadUrl") or f"https://civitai.com/api/download/models/{version.get('id')}"},
+        "vae_file": vf and {"name": vf.get("name"), "size_mb": round(float(vf.get("sizeKB") or 0) / 1024, 1),
+                            "url": vf.get("downloadUrl")},
         "ok": ok, "notes": notes,
         "page": f"https://civitai.com/models/{model.get('id') or version.get('modelId')}",
     }
@@ -239,6 +244,18 @@ def safe_filename(name, exts=(".safetensors",)):
     name = os.path.basename(str(name or "model.safetensors")).replace("\x00", "")
     name = re.sub(r'[\\/:*?"<>|]+', "_", name).strip(" .") or "model.safetensors"
     return name if name.lower().endswith(tuple(exts)) else name + exts[0]
+
+
+def download_vae(info, dest_dir, token=None, progress=None, cancelled=lambda: False):
+    """The VAE that came with a checkpoint (its Civitai page lists one): into the VAE folder, once.
+    Returns the saved path, or None when there isn't one or it's already there."""
+    vf = info.get("vae_file") or {}
+    if not vf.get("url") or not vf.get("name"):
+        return None
+    if os.path.exists(os.path.join(dest_dir, safe_filename(vf["name"], (".safetensors",)))):
+        return None
+    sub = dict(info, file=vf, kind="vae", ok=True, type="VAE", vae_file=None, trained_words=[])
+    return download(sub, dest_dir, token, progress, cancelled)
 
 
 def download(info, dest_dir, token=None, progress=None, cancelled=lambda: False, stall_s=120):
@@ -311,6 +328,8 @@ def download(info, dest_dir, token=None, progress=None, cancelled=lambda: False,
             "name": info.get("name"), "version": info.get("version"), "baseModel": info.get("base_model"),
             "type": info.get("type"), "nsfw": info.get("nsfw"), "trainedWords": info.get("trained_words") or [],
             "page": info.get("page")}
+    if info.get("vae_file"):
+        side["vae"] = os.path.splitext(safe_filename(info["vae_file"].get("name"), (".safetensors",)))[0]
     try:
         with open(os.path.splitext(final)[0] + ".civitai.info", "w") as fh:
             json.dump(side, fh, indent=1)

@@ -93,6 +93,59 @@ def get_recommended(family, emit=lambda m: None):
     return find(rec["name"])
 
 
+OWN = "__own__"  # Create → VAE "the model's own" (an empty choice means Automatic)
+
+
+def is_fp16_fix(name):
+    low = (name or "").lower().replace("_", "-")
+    return "fp16-fix" in low or "fp16fix" in low
+
+
+def has_own_vae(model_file):
+    """Does this checkpoint file carry a VAE? (Read from the file's index only: nothing is loaded.)
+    True when it can't tell (not a .safetensors file, unreadable), so the model's own is used."""
+    try:
+        import struct
+        with open(model_file, "rb") as fh:
+            n = struct.unpack("<Q", fh.read(8))[0]
+            if n > 100_000_000:
+                return True
+            keys = json.loads(fh.read(n)).keys()
+        return any(k.startswith(("first_stage_model.", "vae.")) for k in keys)
+    except Exception:
+        return True
+
+
+def auto_for(model_file, family, rows=None):
+    """The VAE Create's "Automatic" picks for a model: (name or None for the model's own, reason).
+    1. the VAE its Civitai page comes with (downloaded with it), 2. SDXL: the fp16-fix VAE (the standard SDXL VAE
+    breaks in half precision, so the model's own is decoded slowly at full precision), 3. an SD 1.5 file with no
+    VAE inside: vae-ft-mse. Otherwise the model's own. Only VAEs already in the VAE folder are used."""
+    if family not in ("sd15", "sdxl"):
+        return None, ""
+    rows = [v for v in (rows if rows is not None else list_vaes()) if v["family"] == family]
+    by_name = {v["name"]: v for v in rows}
+    if model_file:
+        try:
+            info = json.loads(Path(model_file).with_name(Path(model_file).stem + ".civitai.info").read_text())
+            if info.get("vae") in by_name:
+                return info["vae"], "the VAE this model comes with"
+        except (OSError, ValueError):
+            pass
+    if family == "sdxl":
+        fix = next((v["name"] for v in rows if is_fp16_fix(v["name"])), None)
+        if fix:
+            return fix, "SDXL's VAE fixed for half precision: no black pictures, faster and lighter to decode"
+        return None, "the model's own (get sdxl-vae-fp16-fix for faster, safer decoding)"
+    if model_file and str(model_file).lower().endswith(".safetensors") and not has_own_vae(model_file):
+        mse = next((v["name"] for v in rows if "ft-mse" in v["name"].lower().replace("_", "-")
+                    or "ftmse" in v["name"].lower()), None)
+        if mse:
+            return mse, "this model file has no VAE inside"
+        return None, "this model file has no VAE inside: get vae-ft-mse-840000 (Create → VAE)"
+    return None, "the model's own"
+
+
 def find(name):
     return next((v for v in list_vaes() if v["name"] == name), None)
 
@@ -118,7 +171,10 @@ def build(path, template_vae):
     if not any(k.startswith(("encoder.down_blocks", "decoder.up_blocks")) for k in sd):  # original (LDM) layout
         from diffusers.loaders.single_file_utils import convert_ldm_vae_checkpoint
         sd = convert_ldm_vae_checkpoint(sd, dict(template_vae.config))
-    vae = AutoencoderKL.from_config(template_vae.config)
+    cfg = dict(template_vae.config)
+    if is_fp16_fix(Path(str(path)).stem):
+        cfg["force_upcast"] = False  # made for half precision: decode in fp16 (no slow, memory-hungry fp32 step)
+    vae = AutoencoderKL.from_config(cfg)
     missing, unexpected = vae.load_state_dict(sd, strict=False)
     print(f"[vae] {os.path.basename(str(path))}: {len(sd)} weights, {len(missing)} missing, {len(unexpected)} unexpected",
           flush=True)

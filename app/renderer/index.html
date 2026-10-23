@@ -758,12 +758,14 @@
         </div>
         <div v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="vae-row">
           <span class="clip-label" title="The VAE turns the model's internal picture into pixels. Another VAE can fix washed-out colours or blotches (e.g. vae-ft-mse for SD 1.5).">VAE</span>
-          <select v-model="form.vae" @change="rememberVae" title="Use a VAE file instead of the model's own. Only VAEs made for this model type are listed, and each model remembers its own choice.">
-            <option value="">the model's own</option>
+          <select v-model="form.vae" @change="rememberVae" title="Automatic picks the right VAE for each model: the one it comes with (from Civitai), SDXL's fp16-fix, or vae-ft-mse for an SD 1.5 file that has none. Or pick one yourself: only VAEs made for this model type are listed, and each model remembers its own choice.">
+            <option value="">Automatic{{ vaeAuto ? ' · ' + (vaeAuto.name || "model's own") : '' }}</option>
+            <option value="__own__">the model's own</option>
             <option v-for="v in compatibleVaes" :key="v.name" :value="v.name">{{ v.name }}</option>
           </select>
           <button v-if="recommendedVae" class="link" @click="getRecommendedVae"
                   :title="'Download ' + recommendedVae.label + ' (~' + recommendedVae.mb + ' MB, MIT licence) and use it with this model'">⤓ get {{ recommendedVae.label }}</button>
+          <span v-if="!form.vae && vaeAuto && vaeAuto.why" class="hint">{{ vaeAuto.why }}</span>
         </div>
         <template v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'">
           <label class="check" title="Make the picture at the model's natural size, then redraw it bigger so the detail is real (no doubled heads)">

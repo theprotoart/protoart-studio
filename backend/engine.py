@@ -18,6 +18,7 @@ from pathlib import Path
 
 import nsfw as nsfw_words
 import paths
+import kv_cache
 import samplers
 import thumbs
 import loras as lora_scan
@@ -2268,7 +2269,8 @@ class Engine:
             _set_seamless(self.pipe, bool(args.get("seamless")))
         if self.cancel_event.is_set():  # stopped while the model was loading
             raise Cancelled()
-        self._apply_vae(args.get("vae"), family)
+        vae_used, vae_why = self._pick_vae(args.get("vae"), spec, family) if is_sd else (None, "")
+        self._apply_vae(vae_used, family)
         fast = bool(args.get("fast")) and family in FAST_LORAS and mask is None
         extra = [(FAST_ADAPTER, self._fast_lora_file(family), 1.0, "Fast mode (LCM)")] if fast else None
         self.apply_loras(args.get("loras") or [], extra=extra)
@@ -2469,6 +2471,10 @@ class Engine:
             started = time.time()
             self.skip_event.clear()
             extras_info = {}
+            # the prompt's cross-attention keys/values are worked out once per picture, not at every step
+            # (DiffusionBee's trick; same picture, a few % faster). Left off with image prompts.
+            kv_on = (is_sd and not self.ip_key and getattr(pipe, "unet", None) is not None
+                     and not os.environ.get("PROTOART_NO_KV_CACHE") and kv_cache.install(pipe.unet) > 0)
             reg_orig = regions.install(pipe.unet, reg_proc) if reg_proc is not None else None
             try:
                 image = pipe(**call).images[0]
@@ -2523,6 +2529,8 @@ class Engine:
             finally:
                 if reg_orig is not None:
                     regions.remove(pipe.unet, reg_orig)
+                if kv_on:
+                    kv_cache.clear(pipe.unet)
             print(f"[timing] image {i + 1}/{n}: {time.time() - started:.1f}s for {steps} steps "
                   f"at {width}x{height} ({(time.time() - started) / max(1, steps):.2f}s/step)", flush=True)
             face_info = None
@@ -2541,7 +2549,8 @@ class Engine:
                 **({"var_seed": (var_seed + i) % 2**32, "var_strength": var_strength}
                    if var_on and init_image is None and mask is None else {}),
                 **({"clip_skip": clip_skip} if is_sd else {}),
-                **({"vae": args.get("vae")} if is_sd and args.get("vae") else {}),
+                **({"vae": vae_used} if is_sd and vae_used else {}),
+                **({"vae_auto": True} if is_sd and not args.get("vae") else {}),
                 "loras": [{"name": l["name"], "weight": float(l.get("weight", 1.0))} for l in args.get("loras") or []],
                 "seconds": round(time.time() - started, 1),
             }
@@ -2585,6 +2594,19 @@ class Engine:
             pipe.set_progress_bar_config(disable=True)  # progress goes to the app, not to the log
         except Exception:
             pass
+
+    def _pick_vae(self, choice, spec, family):
+        """Create → VAE: a VAE's name, vaes.OWN (the model's own), or empty = Automatic (the right one for this
+        model, see vaes.auto_for). Returns (name or None, why)."""
+        import vaes
+        if choice == vaes.OWN:
+            return None, "the model's own"
+        if choice:
+            return choice, "your pick"
+        name, why = vaes.auto_for(spec.get("file"), family)
+        if name:
+            print(f"[vae] automatic: {name} ({why})", flush=True)
+        return name, why
 
     def _apply_vae(self, name, family):
         """Use a VAE file instead of the model's own (Create → VAE). The model's own is kept and put back when

@@ -2,13 +2,13 @@
 // (WebGL 2). Same controls and the same order as ProtoArt Beautify's Core Image engine:
 //   Light (exposure, contrast, highlights, shadows, whites, blacks) → Color (temperature, tint, vibrance,
 //   saturation) → Presence (clarity, sharpening, vignette) → the filter stack, top to bottom
-//   (Detail Extractor, Dark Contrasts, Bleach Bypass, Glamour Glow, Film Grain).
+//   (Detail Extractor, Dark Contrasts, Bleach Bypass, Glamour Glow, Bloom, Film Grain).
 // Radii are relative to the picture's long side, so the small live preview and the full-size save match.
 /* global window */
 (function () {
   "use strict";
 
-  const FILTER_ORDER = ["extract", "dark", "bleach", "glow", "grain"];
+  const FILTER_ORDER = ["extract", "dark", "bleach", "glow", "bloom", "grain"];
 
   function defaults() {
     return {
@@ -19,6 +19,7 @@
       darkOn: false, dcStrength: 0.5, dcBrightness: 0, dcSaturation: 0,
       bleachOn: false, bbBrightness: 0, bbSaturation: 0, bbContrast: 0, bbLocalContrast: 0,
       glowOn: false, ggGlow: 0.5, ggSaturation: 0, ggWarmth: 0,
+      bloomOn: false, blAmount: 0.6, blTransition: 0.4, blSize: 0.4, blBurn: 0,
       grainOn: false, grainAmount: 0.5, grainSize: 0.3, grainSoftness: 0.3, grainColor: false,
       order: FILTER_ORDER.slice(),
     };
@@ -31,8 +32,25 @@
     { id: "moody", label: "Moody", tip: "Dark Contrasts, cooler, a soft vignette", set: { darkOn: true, dcStrength: 0.55, temperature: -0.15, vignette: 0.35 } },
     { id: "film", label: "Film", tip: "Bleach Bypass with fine grain", set: { bleachOn: true, bbSaturation: 0.1, grainOn: true, grainAmount: 0.35, grainSize: 0.2 } },
     { id: "glow", label: "Soft glow", tip: "Glamour Glow, warm: flattering skin", set: { glowOn: true, ggGlow: 0.45, ggWarmth: 0.2, contrast: -0.05 } },
+    { id: "bloom", label: "Bloom", tip: "Procreate-style Bloom: the highlights glow", set: { bloomOn: true, blAmount: 0.6, blTransition: 0.45, blSize: 0.45 } },
     { id: "bw", label: "B&W contrast", tip: "Black and white with deep contrast", set: { saturation: -1, darkOn: true, dcStrength: 0.5, clarity: 0.2 } },
   ];
+
+  // Settings saved before a filter existed: fill in the new filter's defaults and put it in the stack
+  // (at the end, or just before Film Grain when that's last).
+  function fullOrder(order) {
+    const o = (Array.isArray(order) ? order : []).filter((id) => FILTER_ORDER.includes(id));
+    for (const id of FILTER_ORDER) {
+      if (o.includes(id)) continue;
+      if (id !== "grain" && o[o.length - 1] === "grain") o.splice(o.length - 1, 0, id); else o.push(id);
+    }
+    return o;
+  }
+  function withDefaults(set) {
+    const p = Object.assign(defaults(), set || {});
+    p.order = fullOrder(p.order);
+    return p;
+  }
 
   function isDefault(p) {
     const d = defaults();
@@ -153,6 +171,26 @@ void main() {
   c = mix(c, c * 0.9 + 0.1 * b, amount * 0.3);        // and a touch of softness
   c *= vec3(1.0 + 0.06 * warmth, 1.0 + 0.01 * warmth, 1.0 - 0.06 * warmth);
   o = vec4(c, 1.0);
+}`,
+    // Bloom (like Procreate's): the bright parts of the picture spill soft light around themselves.
+    // Transition = how much of the picture counts as "bright" (low: only the brightest highlights);
+    // the blurred light is then screened back on, and Burn pushes it further, towards blown-out light.
+    bloomPick: `uniform float threshold, knee;
+void main() {
+  vec3 c = clamp(texture(img, uv).rgb, 0.0, 1.0);
+  float l = max(max(c.r, c.g), c.b);
+  float w = smoothstep(threshold - knee, threshold + knee, l);
+  o = vec4(toLin(c) * w, 1.0);
+}`,
+    bloom: `uniform sampler2D near; uniform sampler2D far; uniform float amount, burn;
+void main() {
+  vec3 c = clamp(texture(img, uv).rgb, 0.0, 1.0);
+  vec3 light = texture(near, uv).rgb * 0.6 + texture(far, uv).rgb * 0.8;   // a tight core and a wide halo
+  light *= amount * (1.6 + 4.0 * burn);
+  vec3 lin = toLin(c);
+  vec3 scr = 1.0 - (1.0 - lin) * (1.0 - clamp(light, 0.0, 1.0));            // screen: never darkens
+  lin = mix(scr, lin + light, burn);                                           // burn: adds light, can blow out
+  o = vec4(clamp(toGam(lin), 0.0, 1.0), 1.0);
 }`,
     vignette: `uniform float amount, aspect;
 void main() {
@@ -408,7 +446,7 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
       if (p.vignette) swap(this._step(cur, "vignette", { amount: p.vignette, aspect: cur.w / cur.h }));
 
       // 3. Filters, in the stacked order
-      for (const id of p.order || FILTER_ORDER) {
+      for (const id of fullOrder(p.order)) {
         if (id === "extract" && p.extractOn) {
           const r = [2, 5, 14][Math.min(2, Math.max(0, p.deRadius | 0))] * unit;
           const bl = this._blur(cur, 12 * unit);
@@ -432,6 +470,14 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
           swap(this._step(cur, "glow", { amount: p.ggGlow, warmth: p.ggWarmth }, { blurred: bl }));
           this._release(bl);
           if (p.ggSaturation) swap(this._step(cur, "controls", { contrast: 1, sat: Math.max(0, 1 + p.ggSaturation), bright: 0, gamma: 1 }));
+        } else if (id === "bloom" && p.bloomOn && p.blAmount > 0) {
+          const t = Math.min(1, Math.max(0, p.blTransition));
+          const pick = this._step(cur, "bloomPick", { threshold: 0.92 - 0.7 * t, knee: 0.04 + 0.2 * t });
+          const r = (4 + 56 * Math.min(1, Math.max(0, p.blSize))) * unit;
+          const near = this._blur(pick, r), far = this._blur(pick, r * 3.5);
+          this._release(pick);
+          swap(this._step(cur, "bloom", { amount: p.blAmount, burn: Math.min(1, Math.max(0, p.blBurn)) }, { near, far }));
+          this._release(near, far);
         } else if (id === "grain" && p.grainOn) {
           const g = this._grainTexture(cur.w, cur.h, p);
           swap(this._step(cur, "grain", { amount: 0.7 * p.grainAmount, colorGrain: !!p.grainColor }, { noise: g.blurred || g.tex }));
@@ -511,5 +557,5 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
     }
   }
 
-  window.ProtoAdjust = { AdjustEngine, defaults, LOOKS, FILTER_ORDER, isDefault, anyOn };
+  window.ProtoAdjust = { AdjustEngine, defaults, withDefaults, fullOrder, LOOKS, FILTER_ORDER, isDefault, anyOn };
 })();

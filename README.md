@@ -25,7 +25,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 
 - **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), Anima (anime; all-ages by default via its "safe" rating tag), ERNIE-Image, FLUX.1 Schnell, FLUX.2 Klein 4B
   (made for 8 GB Macs) and FLUX.1 Dev (32 GB+); LoRA stacking with per-LoRA weights (sort / filter the list, ★ favourites),
-  embeddings, VAEs (each model remembers its own; one-click recommended VAE), 20+ samplers with the top picks per model,
+  embeddings, VAEs (Automatic picks the right one for each model; each model remembers your own pick; one-click recommended VAE), 20+ samplers with the top picks per model,
   presets, 📒 saved prompts, wildcards, a random-prompt generator that writes tags or sentences to suit the model, negative
   prompt ✨ suggest / 🎲 random matched to the model, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop, and
   🔬 compare grids picked with keys, 🎲 small change (variation seed), 📒 saved prompts with export / import, ✨ enhance and 🔄 contrast prompts, and your own default sampler / steps / guidance per
@@ -38,7 +38,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   consent required), and a 🔗 model chain (SD 1.5 → SDXL → FLUX / ERNIE)
 - **Tools** (rack modules): Finegrain enhance & upscale, face restoration (CodeFormer or RestoreFormer), 🩹 remove objects
   (paint right in Tools; smart or quick fill), ✒️ vectorize to SVG, image → prompt (Qwen3.5 vision model, Florence-2 or
-  WD tagger), depth maps, 🎚 Adjust (Lightroom / Color Efex-style), DiffusionBee file conversion, Original / Result /
+  WD tagger), depth maps, 🎚 Adjust (Lightroom / Color Efex-style, plus a Procreate-style Bloom), DiffusionBee file conversion, Original / Result /
   Split / Side-by-side views, and a 🔌 patchbay to run Remove, Faces, Enhance, Depth, Vectorize and 🔎 Detail (with a LoRA)
   in any order with cables (modules can be moved, added twice or taken off; each copy has its own settings; 🛡 paint areas
   it must not change; live preview), 🧩 tiled upscale (MultiDiffusion), 🗜 smaller 8 / 6 / 4-bit model copies, 🧪 model

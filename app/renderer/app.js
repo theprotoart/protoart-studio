@@ -239,6 +239,11 @@ const ADJ_FILTERS = {
     { k: "bbLocalContrast", label: "Local contrast", min: 0, max: 1 }] },
   glow: { label: "Glamour Glow", on: "glowOn", tip: "A soft, glowing bloom: flattering for portraits.", sliders: [
     { k: "ggGlow", label: "Glow", min: 0, max: 1 }, { k: "ggSaturation", label: "Saturation" }, { k: "ggWarmth", label: "Warmth" }] },
+  bloom: { label: "Bloom", on: "bloomOn", tip: "Like Procreate's Bloom: bright parts of the picture glow and spill soft light around them.", sliders: [
+    { k: "blAmount", label: "Bloom", min: 0, max: 1, tip: "How strong the glow is" },
+    { k: "blTransition", label: "Transition", min: 0, max: 1, tip: "How much of the picture glows: low = only the brightest highlights, high = the mid-tones too" },
+    { k: "blSize", label: "Size", min: 0, max: 1, tip: "How far the light spreads" },
+    { k: "blBurn", label: "Burn", min: 0, max: 1, tip: "Pushes the glow brighter, towards blown-out light" }] },
   grain: { label: "Film Grain", on: "grainOn", tip: "Photographic grain. Usually best last in the stack.", sliders: [
     { k: "grainAmount", label: "Intensity", min: 0, max: 1 }, { k: "grainSize", label: "Grain size", min: 0, max: 1 },
     { k: "grainSoftness", label: "Softness", min: 0, max: 1 }], toggle: { k: "grainColor", off: "Mono", on: "Color" } },
@@ -491,6 +496,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.4 (in progress): faster, and the right VAE by itself", items: [
+              "<b>✨ Bloom</b> (Tools → 🎚 Adjust → Filters, and the new <b>Bloom</b> look): like Procreate's Bloom, the bright parts of the picture glow and spill soft light around them. <b>Bloom</b> sets how strong, <b>Transition</b> how much of the picture glows (low: only the brightest highlights; high: the mid-tones too), <b>Size</b> how far the light spreads, and <b>Burn</b> pushes it brighter, towards blown-out light. Lovely on lamps, neon, sunsets, eyes and magic effects.",
+              "<b>VAE: Automatic</b> (Create → VAE, now the default): each SD 1.5 / SDXL model gets the right VAE by itself. A model downloaded from Civitai whose page comes with a VAE gets that VAE (it's downloaded with the model); <b>SDXL</b> models use <b>SDXL fp16-fix</b> when you have it (no black pictures, and the picture is decoded faster and with less memory); an SD 1.5 file that has no VAE inside uses <b>vae-ft-mse</b>. Otherwise the model's own. The list shows which one Automatic uses and why; pick <b>the model's own</b> or any VAE to choose yourself (each model still remembers your choice).",
+              "<b>A little faster for SD 1.5 and SDXL</b>: the prompt's part of the work is now done once per picture instead of at every step (the same trick DiffusionBee uses). Same picture, about 3% less time." ] },
             { h: "1.3.0: new tools", items: [
               "<b>New model: Anima</b> (CircleStone Labs, anime and illustration; Danbooru tags, sentences or both). <b>Anima Turbo</b> makes a picture in 10 steps; <b>Anima</b> uses 30 steps for the most detail. ~5.9 GB once, in the Models tab under Anima. Non-commercial licence for the model (pictures may be used commercially). It can also start from a picture in Image to image. Anima pictures are kept all-ages by default: the app adds Anima's <b>safe</b> rating tag unless your prompt already has a rating tag (safe, sensitive, nsfw or explicit).",
               "<b>🗺 Regions</b> (Create, SD 1.5 and SDXL): a different prompt for each part of the picture: columns, rows or a grid, with a small map of the areas. “Keep one scene” blends them so it stays one picture.",
@@ -648,7 +657,7 @@ const protoartApp = createApp({
               "Image prompt (Style / Face…) on a fresh install: the adapter downloads by itself the first time instead of stopping with “does not appear to have a file named…”." ] },
             { h: "🎚 Adjust: edit after generating (Lightroom / Color Efex style)", items: [
               "In <b>Tools</b>: <b>🎚 Adjust the original</b> or <b>Adjust the result</b>; also <b>🎚 Adjust</b> in the Library's picture details and in Image to image.",
-              "Light, Color and Presence sliders (Exposure … Vignette), five Color Efex-style filters in a stack you can reorder, six ready Looks, and <b>your own presets</b>.",
+              "Light, Color and Presence sliders (Exposure … Vignette), six filters in a stack you can reorder (Color Efex-style, plus a Procreate-style <b>Bloom</b>), seven ready Looks, and <b>your own presets</b>.",
               "Live preview on the Mac's graphics chip; compare with <b>Edited / Original / Split</b> (or the \\ key). Saved as a new picture; the original never changes.",
               "<b>🖼 Send to Image to image</b> from Tools: the original, any result, or straight from Adjust (<b>Save &amp; send to Image to image</b>).",
               "<b>Save &amp; enhance</b> runs the AI enhancer on your adjusted picture, and <b>Several versions at once</b> makes one picture per preset in a single run, optionally enhanced too (through the queue). More under Tools → 🎚 Adjust." ] },
@@ -754,7 +763,7 @@ const protoartApp = createApp({
               "Create and Image to image each keep <b>their own prompt and negative prompt</b>: switching tabs shows that tab's own.",
               "Next to the model's name: <b>getting ready…</b> while it loads in the background, <b>● loaded, ready</b> when the next picture can start straight away (Settings → Speed)." ] },
             { h: "Extras", items: [
-              "<b>VAE</b> (SD 1.5 and SDXL): the part that turns the model's picture into pixels. Another VAE can fix washed-out colours or blotches. Only VAEs made for the model's type are listed, each model remembers its own, and <b>⤓ get</b> downloads the usual one in one click (vae-ft-mse for SD 1.5, SDXL fp16-fix for SDXL; MIT licence). VAEs from Civitai go to the VAE folder too.",
+              "<b>VAE</b> (SD 1.5 and SDXL): the part that turns the model's picture into pixels. Another VAE can fix washed-out colours or blotches. <b>Automatic</b> (the default) picks the right one for each model: the VAE its Civitai page comes with, <b>SDXL fp16-fix</b> for SDXL, or <b>vae-ft-mse</b> for an SD 1.5 file without a VAE inside; otherwise the model's own. The list shows what Automatic uses, and a hint says why. Pick <b>the model's own</b> or a VAE to choose yourself; only VAEs made for the model's type are listed and each model remembers its choice. <b>⤓ get</b> downloads the usual one in one click (vae-ft-mse for SD 1.5, SDXL fp16-fix for SDXL; MIT licence), and Automatic uses it from then on. VAEs from Civitai go to the VAE folder too.",
               "<b>CLIP skip</b> (SD 1.5 / SDXL): reads your prompt from an earlier layer of the text encoder. <b>Off</b> is normal; <b>2</b> is what many anime-style models and LoRAs were made with and often follows their style better. 3–4 is looser.",
               "Each model starts on the CLIP skip it's meant for (marked <b>★</b>): <b>2</b> for anime-style SD 1.5 models (Anything, Counterfeit, MeinaMix…), <b>Off</b> for photo and general models. SDXL always reads prompts this way, so its scale starts at <b>Standard</b>. Change it any time; your choice is remembered for that model, and <i>use recommended</i> puts it back.",
               "If a LoRA's file says which CLIP skip it was trained with, a <i>use</i> link appears under the setting. It's saved with each image and in presets, and appears in the image's details.",
@@ -876,7 +885,8 @@ const protoartApp = createApp({
               "<b>Compare</b> with the buttons under the picture: <b>Edited</b> (with your changes), <b>Original</b> (without them), or <b>Split</b> (original on the left, edited on the right; drag on the picture to move the line). The <b>\\</b> key flips between Edited and Original.",
               "<b>✕ Close Adjust</b> (under the picture, or at the bottom of the card) leaves without saving; the picture goes back to normal.",
               "<b>Light</b>: Exposure, Contrast, Highlights, Shadows, Whites, Blacks. <b>Color</b>: Temperature, Tint, Vibrance (protects skin tones), Saturation (far left = black and white). <b>Presence &amp; effects</b>: Clarity, Sharpening, Vignette.",
-              "<b>Filters</b> (Color Efex-style): Detail Extractor, Dark Contrasts, Bleach Bypass, Glamour Glow and Film Grain, applied top to bottom; reorder them with ▲▼. Click a filter's button to switch it on (amber) and open its settings; click again to switch it off.",
+              "<b>Filters</b> (Color Efex-style): Detail Extractor, Dark Contrasts, Bleach Bypass, Glamour Glow, Bloom and Film Grain, applied top to bottom; reorder them with ▲▼. Click a filter's button to switch it on (amber) and open its settings; click again to switch it off.",
+              "<b>Bloom</b> (like Procreate's): bright parts glow and spill light around them. <b>Bloom</b> = strength; <b>Transition</b> = how much glows (low: only the brightest highlights, high: mid-tones too); <b>Size</b> = how far the light spreads; <b>Burn</b> = brighter, towards blown-out light. Glamour Glow softens the whole picture (portraits); Bloom only lights up what's already bright (lamps, neon, sun, sparkles).",
               "<b>Looks</b> (Punchy, Detail pop, Moody, Film, Soft glow, B&amp;W contrast) are starting points: pick one, then fine-tune. <b>Last used</b> brings back the settings you last saved. Double-click a slider to reset it.",
               "<b>My presets</b>: set the sliders and filters the way you like, press <b>＋ Save as preset</b> and give it a name. It's listed next to the Looks for every picture from then on (kept on this Mac, also after updates); click a preset to apply it, <b>✕</b> deletes it. Saving with a name you already used replaces that preset.",
               "<b>Save as new picture</b> adds an adjusted copy to the Library, linked to the original (which never changes); it appears under the original in Tools.",
@@ -1072,6 +1082,10 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "New in 1.4: if something doesn't work", items: [
+              "<b>Colours of an SDXL model look a little different than before</b>: VAE <b>Automatic</b> now uses SDXL fp16-fix for SDXL models (when it's in your VAE folder). A few models are made with their own special VAE: for those, pick <b>the model's own</b> in Create → VAE and that model remembers it.",
+              "<b>Bloom washes the picture out</b>: lower <b>Transition</b> (only the brightest parts glow) and <b>Burn</b>, or lower <b>Bloom</b>. On a bright picture (snow, white background) almost everything counts as bright.",
+              "<b>A downloaded model's VAE</b>: when a Civitai page offers a VAE with the model, it's saved in the VAE folder with it. If that download failed, the model just uses its own VAE; Backend log says why." ] },
             { h: "New in 1.3.0: if something doesn't work", items: [
               "<b>Where did 🎞 Animation go?</b> It was in the 1.3.0 test builds and has been taken out: on an 8 GB Mac a short clip took hours. Protoart Studio is about pictures.",
               "<b>A model says “⚠ file not found”</b> (or “isn't where it was” when you press Generate): its file was moved or renamed, or the drive it's on isn't connected. Connect the drive, or right-click the model → <b>⟲ Reconnect…</b> and pick the file where it is now; your favourites and default model follow it. A whole folder that moved: Settings → your folders → right-click → Moved it…",
@@ -1276,6 +1290,7 @@ const protoartApp = createApp({
       trigEdit: { name: "", text: "" },
       embeddings: [],
       vaes: [],
+      vaeAuto: null,   // what VAE "Automatic" uses with the current model: {name, why}
       vaeByModel: loadJSON("protoart.vaeByModel", {}),   // model id -> the VAE you picked for it
       vaeFolder: "",
       userControlnets: [],
@@ -6248,10 +6263,21 @@ const protoartApp = createApp({
       if (res) this.models = await call("list_models");
     },
     // VAE: each model remembers the VAE you used with it; a VAE made for another model type is never kept
+    // "" = Automatic (the right VAE for this model: the one it comes with, SDXL's fp16-fix, vae-ft-mse for an SD 1.5
+    // file without one); "__own__" = the model's own; otherwise a VAE file you picked.
     pickVaeFor(m) {
       const saved = (this.vaeByModel || {})[m.id];
-      const ok = (name) => this.vaes.some((v) => v.name === name && v.family === m.family);
+      const ok = (name) => name === "__own__" || this.vaes.some((v) => v.name === name && v.family === m.family);
       this.form.vae = saved && ok(saved) ? saved : "";  // never a VAE made for another model type
+      this.refreshVaeAuto();
+    },
+    async refreshVaeAuto() {
+      const m = this.currentModel;
+      this.vaeAuto = null;
+      if (!m || !["sd15", "sdxl"].includes(m.family) || m.engine === "mlx") return;
+      const id = m.id;
+      const r = await call("vae_auto", { model: id }).catch(() => null);
+      if (r && this.form.model === id) this.vaeAuto = r;
     },
     rememberVae() {
       if (!this.form.model) return;
@@ -6264,14 +6290,14 @@ const protoartApp = createApp({
       if (!row) return;
       await this.refreshExtras(false);
       if (this.family === fam) {
-        this.form.vae = row.name;
+        this.form.vae = "";  // Automatic picks it from now on
         this.rememberVae();
       }
       this.status = `${row.name} is ready and picked for this model`;
     },
     async refreshExtras(all = true) {
       const [v, c] = await Promise.all([call("list_vaes").catch(() => null), call("list_controlnets").catch(() => null)]);
-      if (v) { this.vaes = v.vaes; this.vaeFolder = v.folder; }
+      if (v) { this.vaes = v.vaes; this.vaeFolder = v.folder; this.refreshVaeAuto(); }
       if (c) { this.userControlnets = c.controlnets; this.controlnetFolder = c.folder; }
       if (all) {
         this.embeddings = await call("list_embeddings").catch(() => this.embeddings);
@@ -6899,7 +6925,7 @@ const protoartApp = createApp({
             if (adj && r) {
               // the Adjust preset / Look runs here on the graphics chip; the engine does the rest
               await eng.setImage(await createImageBitmap(new Blob([await this.readImageBytes(r.path)])), 256);
-              const blob = await eng.exportPNG(Object.assign(window.ProtoAdjust.defaults(), JSON.parse(JSON.stringify(adj.set))));
+              const blob = await eng.exportPNG(window.ProtoAdjust.withDefaults(JSON.parse(JSON.stringify(adj.set))));
               const bytes = new Uint8Array(await blob.arrayBuffer());
               try {
                 if (!window.bee.writeAdjusted) throw new Error("No handler registered");
@@ -7062,11 +7088,11 @@ const protoartApp = createApp({
       this.adj.p.order = o;
     },
     adjLook(look) {
-      this.adj.p = Object.assign(window.ProtoAdjust.defaults(), look.set);
+      this.adj.p = window.ProtoAdjust.withDefaults(look.set);
       this.adj.openFilter = "";
     },
     adjLookOn(look) {
-      const d = Object.assign(window.ProtoAdjust.defaults(), look.set);
+      const d = window.ProtoAdjust.withDefaults(look.set);
       return Object.keys(d).every((k) => k === "order" || this.adj.p[k] === d[k]);
     },
     adjResetAll() {
@@ -7119,11 +7145,11 @@ const protoartApp = createApp({
       }
     },
     adjApplyPreset(pr) {
-      this.adj.p = Object.assign(window.ProtoAdjust.defaults(), JSON.parse(JSON.stringify(pr.set || {})));
+      this.adj.p = window.ProtoAdjust.withDefaults(JSON.parse(JSON.stringify(pr.set || {})));
       this.adj.openFilter = "";
     },
     adjPresetOn(pr) {
-      const d = Object.assign(window.ProtoAdjust.defaults(), pr.set || {});
+      const d = window.ProtoAdjust.withDefaults(pr.set || {});
       return Object.keys(d).every((k) => (k === "order" ? d.order.join() === this.adj.p.order.join() : this.adj.p[k] === d[k]));
     },
     async adjDeletePreset(pr) {
@@ -7139,7 +7165,7 @@ const protoartApp = createApp({
     },
     adjUseLast() {
       const last = loadJSON(ADJ_KEY, null);
-      if (last) this.adj.p = Object.assign(window.ProtoAdjust.defaults(), last);
+      if (last) this.adj.p = window.ProtoAdjust.withDefaults(last);
     },
     adjChanged() {
       return this.adj.p && window.ProtoAdjust && window.ProtoAdjust.anyOn(this.adj.p);
@@ -7199,7 +7225,7 @@ const protoartApp = createApp({
         if (id === "current") { if (this.adjChanged()) items.push({ name: "current settings", set: JSON.parse(JSON.stringify(this.adj.p)) }); }
         else {
           const pr = this.adjPresets.find((x) => x.name === id);
-          if (pr) items.push({ name: pr.name, set: Object.assign(window.ProtoAdjust.defaults(), JSON.parse(JSON.stringify(pr.set))) });
+          if (pr) items.push({ name: pr.name, set: window.ProtoAdjust.withDefaults(JSON.parse(JSON.stringify(pr.set))) });
         }
       }
       return items;
