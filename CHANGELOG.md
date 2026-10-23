@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.4.0 (in progress)
+## 1.4.0
 
 - Adjust: **Bloom** filter (Procreate-style) and a Bloom look. `bloomPick` keeps the pixels above a threshold set by
   Transition (soft knee, in linear light), two Gaussian blurs (Size and 3.5× Size) give a core and a halo, screened back
