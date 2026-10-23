@@ -1953,13 +1953,17 @@ def main():
             eng.previews = bool(settings.get("previews", True))
             eng.embed_meta = "none" if settings.get("embed_meta") == "none" else "details"
             eng.check_pictures = bool(settings.get("check_pictures") or settings.get("sfw_mode"))
+            forced = bool(a.get("allow_download")) and not net.strict  # ⬇ "Download it now" in the app
+            if forced:
+                emit({"type": "status", "msg": "Downloading anything this needs from Hugging Face (first time only)…", "job": mid})
+                net.set_online(True)
             try:
                 data = run_job(kind, a)  # offline first: uses only what's already on this Mac
             except Cancelled:
                 raise
             except Exception as first:
-                if kind in ("preload", "model_delete", "civitai_download") or not net.looks_like_missing_download(first):
-                    raise  # a preload never downloads
+                if forced or kind in ("preload", "model_delete", "civitai_download") or not net.looks_like_missing_download(first):
+                    raise  # a preload never downloads (and a forced download was already online)
                 if net.strict:
                     raise UserError("This needs files that aren't on your Mac yet, and Strict offline mode is on. "
                                     "Turn it off in Settings → Privacy to allow the one-time download.")
@@ -1980,6 +1984,8 @@ def main():
             problem = net.hf_auth_problem(e) or download_problem(e) or ckpt_problem(e)  # say what to do
             emit({"type": "error", "id": mid, "msg": problem or f"{type(e).__name__}: {e}"})
         finally:
+            if forced:
+                net.set_online(False)
             if eng is not None:
                 eng.current_job = None
                 try:

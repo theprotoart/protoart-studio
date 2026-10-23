@@ -129,6 +129,8 @@
                     title="Unselect every picture (you stay in Select mode)">✕ Deselect all{{ selected.length ? ' (' + selected.length + ')' : '' }}</button>
             <button v-if="selectMode" class="primary small lib-compare" :disabled="selected.length < 2" @click="openCompareView"
                     :title="selected.length < 2 ? 'Select 2 or more pictures to compare them side by side' : 'Show the selected pictures side by side (up to 6)'">⇆ Compare{{ selected.length > 1 ? ' (' + Math.min(selected.length, 6) + ')' : '' }}</button>
+            <button v-if="selectMode" class="danger small lib-del-top" :disabled="!selected.length" @click="askDelete(selected.slice())"
+                    title="Delete the selected pictures (asks first). This button stays at the top while you scroll">🗑 Delete{{ selected.length ? ' (' + selected.length + ')' : '' }}</button>
           </span>
           <select title="Show only pictures made with this model" v-model="lib.model" @change="queryLibrary()">
             <option value="">All models</option>
@@ -556,10 +558,15 @@
         </div>
       </section>
 
+      <section v-if="['flux', 'flux2', 'ernie', 'anima'].includes(family)" class="regions cfold" :class="{shut: cfShut('regions')}">
+        <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">SD 1.5 and SDXL only</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <p class="hint">Regional prompts need an SD 1.5 or SDXL model: {{ familyLabel }} runs on a different engine that can't split the prompt by area.
+          It understands positions in plain words, though: “on the left a woman in a red coat, in the middle a man with an umbrella, on the right a small dog”.</p>
+      </section>
       <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="regions cfold" :class="{shut: cfShut('regions')}">
         <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">a different prompt for each part of the picture</span><span v-if="cfShut('regions')" class="cfold-sum">{{ cfSummary('regions') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <label class="check"><input type="checkbox" v-model="form.regions.on"> Use regional prompts
-          <span class="hint">· the main prompt above sets the scene; each area adds its own</span></label>
+          <span class="hint">· each area draws its own prompt; the main prompt above sets the scene around them</span></label>
         <template v-if="form.regions.on">
           <div class="row small">
             <div class="seg">
@@ -584,6 +591,9 @@
             <input type="range" min="0" max="0.6" step="0.05" v-model.number="form.regions.base" title="How much of the main prompt every area also follows: higher blends the areas into one scene, lower keeps them more separate">
             <span class="mod-val">{{ Number(form.regions.base).toFixed(2) }}</span>
           </div>
+          <label class="check" title="Off (best for different subjects per area): each area follows only its own prompt. On: the main prompt is added to every area too, which blends them but can drown the subjects">
+            <input type="checkbox" v-model="form.regions.add_main"> Add the main prompt to every area</label>
+          <p class="hint">Tips: describe each area fully (“a woman in a red coat, full body”), keep the main prompt to the setting (“a city street, photo”), and use a size wide enough for the areas (768 × 512 for three columns).</p>
         </template>
       </section>
       <section v-if="family === 'sd15' && currentModel?.engine !== 'mlx'" class="anim cfold" :class="{shut: cfShut('anim')}">
@@ -887,7 +897,7 @@
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
-      <div v-if="error" class="error-box">{{ error }}</div>
+      <div v-if="error" class="error-box" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button></div>
       <div v-if="livePreviewShown" class="live-preview" :class="{covered: previewCovered}">
         <img :src="livePreview.src" alt="live preview"><span v-if="previewCovered" class="nsfw-cover">NSFW prompt · preview hidden</span>
         <div class="live-caption">
@@ -1895,10 +1905,12 @@
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🔎</span>
             <h3>Detail with a LoRA</h3><span v-if="patchPicked('detail')" class="mod-editing">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">patchbay · {{ currentModel ? currentModel.label : 'pick a model in Create' }}</span></div>
           <p class="mod-desc">A light redraw with the model picked in Create and one LoRA (an “add detail” LoRA, a style…): sharper skin, fabric and texture, same picture. Runs as the patchbay's DETAIL module.</p>
-          <label>LoRA</label>
+          <label>LoRA <span class="hint">{{ detLoras().length }} of {{ compatibleLoras.length }}</span></label>
+          <input v-model="detLoraQ" class="mod-input" type="search" placeholder="🔍 Search LoRAs (name or trigger word)…" title="Type part of a LoRA's name or trigger word to narrow the list">
           <select v-model="post.det.lora" title="The LoRA used for the detail pass (only ones that fit the Create model are listed)">
             <option value="">none (just a light redraw)</option>
-            <option v-for="l in compatibleLoras" :key="'det' + l.name" :value="l.name">{{ l.name }}</option>
+            <option v-if="post.det.lora && !detLoras().some((l) => l.name === post.det.lora)" :value="post.det.lora">{{ post.det.lora }}</option>
+            <option v-for="l in detLoras()" :key="'det' + l.name" :value="l.name">{{ l.name }}</option>
           </select>
           <label>LoRA weight <span class="mod-val">{{ Number(post.det.weight).toFixed(2) }}</span></label>
           <input type="range" min="0" max="1.5" step="0.05" v-model.number="post.det.weight" title="How strongly the LoRA is used">
@@ -1959,15 +1971,21 @@
         <div class="card rack-module tiled-module" :class="{active: !!tiledJob}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🧩</span>
             <h3>Tiled upscale</h3><span class="mod-sub">MultiDiffusion · {{ currentModel && ['sd15', 'sdxl'].includes(family) ? currentModel.label : 'needs an SD 1.5 / SDXL model in Create' }}</span></div>
-          <p class="mod-desc" title="The picture is enlarged, then the Create model redraws it lightly in overlapping tiles, averaged at every step so there are no seams. Uses Create's prompt (or the picture's own).">Enlarges the picture and lets your Create model add real detail, tile by tile, with no seams.</p>
+          <p class="mod-desc" title="The picture is enlarged, then the Create model redraws it lightly in overlapping tiles, averaged at every step so there are no seams. It uses a short detail prompt, not Create's (each tile would redraw that whole scene).">Enlarges the picture and lets your Create model add real detail, tile by tile, with no seams.</p>
+          <label>Preset</label>
+          <div class="seg mod-seg tup-presets">
+            <button v-for="pr in TILED_PRESETS" :key="pr.id" :class="{on: tupPreset() === pr.id}" @click="Object.assign(tup, pr.set)" :title="pr.tip">{{ pr.label }}</button>
+          </div>
           <label>Size</label>
           <div class="seg mod-seg">
             <button v-for="x in [1.5, 2, 3]" :key="'tu' + x" :class="{on: tup.scale === x}" @click="tup.scale = x">{{ x }}×</button>
           </div>
           <label title="How much the model may redraw: 0.25–0.4 adds detail and keeps the picture">New detail <span class="mod-val">{{ Number(tup.strength).toFixed(2) }}</span></label>
-          <input type="range" min="0.15" max="0.6" step="0.05" v-model.number="tup.strength" title="0.25–0.4 adds detail and keeps the picture; higher redraws more">
+          <input type="range" min="0.15" max="0.6" step="0.05" v-model.number="tup.strength" title="0.2–0.3 adds detail and keeps the picture; higher redraws more (and can add new things)">
           <label>Steps <span class="mod-val">{{ tup.steps }}</span></label>
           <input type="range" min="10" max="40" step="1" v-model.number="tup.steps" title="Only the last part of the steps is used (as in image to image)">
+          <label title="Optional: words for the texture or style to add (oil paint, film grain, skin pores…). Don't describe the whole scene: each tile would try to draw it again">Detail prompt <span class="hint">optional</span></label>
+          <input v-model="tup.prompt" class="mod-input" placeholder="empty = just sharper detail · or e.g. oil painting texture, film grain">
           <p class="mod-note">{{ tool.source ? tiledEstimate : 'Pick a picture above.' }}</p>
           <div class="mod-foot">
             <button class="primary mod-go" :disabled="!tool.source || !!tiledJob || !['sd15', 'sdxl'].includes(family)" @click="toolTiled">{{ tiledJob ? 'Upscaling…' : 'Upscale' }}</button>
@@ -2109,7 +2127,7 @@
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
-      <div v-if="error" class="error-box">{{ error }}</div>
+      <div v-if="error" class="error-box" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button></div>
 
       <div v-if="tool.results.length">
         <h3 class="results-head">Results <button class="ghost small" @click="tool.results = []; tool.latest = null"
@@ -2404,20 +2422,45 @@
         <summary><h3>🔗 Model chain <span class="hint">run the picture through several models in turn · e.g. SD 1.5 → SDXL → FLUX</span></h3></summary>
         <p class="hint">Each model redraws the last one's result with the prompt above: an SD 1.5 sketch can become an SDXL picture,
           then a FLUX.1 or ERNIE finish. Low change strength keeps the picture; higher lets each model add its own look.
+          Each step can have its own LoRA and extra words: e.g. SD 1.5 with your character LoRA, then FLUX.1 for the finish.
           Each switch loads a model (20–60 s on an 8 GB Mac).</p>
-        <div v-for="(st, k) in chain.steps" :key="k" class="chain-step" :class="{on: chain.at === k}">
-          <span class="chain-n">{{ k + 1 }}</span>
-          <select v-model="st.model" @change="chainSave" title="The model for this step">
-            <option v-for="m in chainModels()" :key="m.id" :value="m.id">{{ m.label }}</option>
-          </select>
-          <span class="hint">change</span>
-          <input type="range" min="0.1" max="0.9" step="0.05" v-model.number="st.strength" @change="chainSave" title="How much this model may change the picture">
-          <span class="mod-val">{{ Number(st.strength).toFixed(2) }}</span>
-          <button class="ghost small" @click="chain.steps.splice(k, 1); chainSave()" title="Take this step out">✕</button>
+        <div class="chain-rack">
+          <template v-for="(st, k) in chain.steps" :key="'cs' + k">
+            <div class="chain-mod" :class="{on: chain.at === k, done: chain.done > k && chain.at !== k}">
+              <div class="chain-head">
+                <i class="mod-lamp" :class="{on: chain.at === k}"></i>
+                <span class="chain-n">{{ k + 1 }}</span>
+                <select v-model="st.model" @change="chainModelChanged(st)" title="The model for this step">
+                  <option v-for="m in chainModels()" :key="m.id" :value="m.id">{{ m.label }}</option>
+                </select>
+                <button class="ghost small" :disabled="k === 0 || chain.running" @click="chainMove(k, -1)" title="Move this step earlier">↑</button>
+                <button class="ghost small" :disabled="k === chain.steps.length - 1 || chain.running" @click="chainMove(k, 1)" title="Move this step later">↓</button>
+                <button class="ghost small" :disabled="chain.running" @click="chain.steps.splice(k, 1); chainSave()" title="Take this step out">✕</button>
+              </div>
+              <div class="chain-body">
+                <div class="chain-main">
+                  <label>Change <span class="mod-val">{{ Number(st.strength).toFixed(2) }}</span></label>
+                  <input type="range" min="0.1" max="0.9" step="0.05" v-model.number="st.strength" @change="chainSave" title="How much this model may change the picture: low keeps it, high lets the model add its own look">
+                  <label>LoRA <span class="hint">{{ chainFamilyLabel(st) }}</span></label>
+                  <div class="chain-lora">
+                    <select v-model="st.lora" @change="chainLoraPicked(st)" :title="'A LoRA for this step only (made for ' + chainFamilyLabel(st) + ')'">
+                      <option value="">none</option>
+                      <option v-for="l in chainLoras(st)" :key="'cl' + k + l.name" :value="l.name">{{ l.name }}</option>
+                    </select>
+                    <input v-if="st.lora" type="range" min="0" max="1.5" step="0.05" v-model.number="st.lora_weight" @change="chainSave" title="How strongly the LoRA is used">
+                    <span v-if="st.lora" class="mod-val">{{ Number(st.lora_weight ?? 1).toFixed(2) }}</span>
+                  </div>
+                  <input v-model="st.extra" @change="chainSave" class="mod-input" placeholder="Extra words for this step (e.g. the LoRA's trigger word)" title="Added to the prompt for this step only">
+                </div>
+                <img v-if="st.result" :src="fileUrl(st.result)" class="chain-thumb" @click="form.init_image = st.result" title="This step's result · click to start from it">
+              </div>
+            </div>
+            <div v-if="k < chain.steps.length - 1" class="chain-arrow" aria-hidden="true">↓</div>
+          </template>
         </div>
         <div class="row">
-          <button class="ghost small" :disabled="chain.steps.length >= 4 || !chainModels().length" @click="chainAdd">＋ Add a model</button>
-          <button class="primary" :disabled="!chain.steps.length || chain.running || !form.init_image" @click="runChain">{{ chain.running ? 'Running step ' + (chain.at + 1) + '…' : '▶ Run chain' }}</button>
+          <button class="ghost small" :disabled="chain.steps.length >= 4 || !chainModels().length || chain.running" @click="chainAdd">＋ Add a model</button>
+          <button class="primary" :disabled="!chain.steps.length || chain.running || !form.init_image" @click="runChain">{{ chain.running ? 'Running step ' + (chain.at + 1) + ' of ' + chain.steps.length + '…' : '▶ Run chain' }}</button>
           <button v-if="chain.running" class="danger small" @click="chainStop">■ Stop</button>
         </div>
         <p v-if="!chainModels().length" class="hint">Download SD 1.5, SDXL, Anima, FLUX.1 Schnell or ERNIE in the Models tab first.</p>
@@ -2506,6 +2549,12 @@
           <button v-if="undoPrompt" class="link" @click="form.prompt = undoPrompt; undoPrompt = null">↩ undo</button>
           <span class="hint">FLUX.2 reads plain sentences: describe what goes around the picture</span>
         </div>
+        <div v-if="form.i2i_mode !== 'outpaint' || !i2iUsesKlein" class="row small i2i-enhance">
+          <button class="link" @click="suggestI2iPrompt" :disabled="!form.init_image || i2iSuggesting"
+                  title="Look at your picture (on this Mac) and write a prompt that describes it, ready to edit: change a word or two to change the picture">{{ i2iSuggesting ? '💡 looking at the picture…' : '💡 suggest from the picture' }}</button>
+          <button v-if="undoPrompt" class="link" @click="form.prompt = undoPrompt; undoPrompt = null">↩ undo</button>
+          <span v-if="form.i2i_mode === 'edit'" class="hint">Edit with words wants the change itself (“make the jacket red”): the suggestion describes the picture so you can see what to change</span>
+        </div>
         <div v-if="form.i2i_mode !== 'edit' && form.i2i_mode !== 'remove' && !i2iUsesKlein" class="row small i2i-enhance">
           <label class="check" title="Before each picture, a small language model turns your prompt into a detailed one (the same switch as in Create)">
             <input type="checkbox" v-model="form.enhance_prompt"> ✨ Enhance prompt when generating</label>
@@ -2569,7 +2618,7 @@
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
-      <div v-if="error" class="error-box">{{ error }}</div>
+      <div v-if="error" class="error-box" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button></div>
       <div v-if="form.i2i_mode === 'change' && form.control.type && cnGuide" class="card cn-guide cn-guide-card">
         <div class="cn-guide-head"><h3>🎛 {{ cnGuide.title }} <span class="hint">· ControlNet guide</span></h3><span class="grow"></span>
           <button class="ghost small" @click="applyCnGuide" title="Set the strength, timing and picture settings this ControlNet works best with">Use these settings</button></div>
@@ -3667,7 +3716,7 @@
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
-      <div v-if="error" class="error-box">{{ error }}</div>
+      <div v-if="error" class="error-box" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button></div>
         </div>
 
         <div class="row">

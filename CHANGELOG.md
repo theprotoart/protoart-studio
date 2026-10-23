@@ -2,6 +2,21 @@
 
 ## 1.3.0
 
+- Downloads: transformers' "Can't load image processor / configuration / tokenizer" now counts as a missing
+  first-time download (the OpenPose finder, Depth Anything…), so the job retries online instead of failing with
+  "couldn't reach huggingface.co". Download errors get a **⬇ Download it now** button (`allow_download`: the job runs
+  with the connection open)
+- Tiled upscale: a detail prompt (+ optional words) instead of Create's scene prompt, which made every tile redraw
+  the scene (extra faces); gentler defaults (0.25), presets (Gentle / Detail / Creative / Print / Quick),
+  CFG ≤ 6, a duplicate-subject negative prompt
+- Regional prompts: areas use only their own prompt by default (`add_main`, off); the main prompt reaches them through
+  the base blend. FLUX / ERNIE / Anima show a note (no regional attention on those engines)
+- Model chain: one module per step with its own LoRA + weight, extra words (a picked LoRA's trigger words added),
+  reorder, and the step's result thumbnail
+- Image to image: the prompt box's owner (Create / Image to image) is matched to the opening tab at start-up, and
+  💡 suggest from the picture writes into Image to image's prompt even if you switched tabs
+- Image to image: 💡 suggest from the picture in every mode (tags for Anima / Pony / Illustrious / NoobAI)
+- Library: sticky selection bar and a 🗑 Delete button beside Compare; Tools → Detail with a LoRA: LoRA search
 - Anima (CircleStone Labs, Cosmos-Predict2 2B + Qwen3 0.6B + Qwen-Image VAE) through diffusers' modular
   `AnimaModularPipeline` (`backend/anima.py`): official diffusers files; Anima Turbo = the official
   `anima-turbo-v1.1` ComfyUI file converted on load (`model.diffusion_model.` → Cosmos `net.` names → diffusers,

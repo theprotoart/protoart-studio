@@ -32,7 +32,10 @@ OFFLINE_HINTS = ("offline", "local_files_only", "localentrynotfound", "cannot fi
                  "couldn't connect", "could not connect", "not found in the cache", "outgoing traffic has been disabled",
                  "we couldn't connect", "connection error", "not cached",
                  # diffusers' own wording when a file (e.g. an image prompt adapter) isn't downloaded yet
-                 "does not appear to have a file named")
+                 "does not appear to have a file named",
+                 # transformers' wording when a model's files aren't downloaded yet (e.g. the OpenPose finder)
+                 "can't load image processor", "can't load the configuration", "can't load tokenizer",
+                 "can't load feature extractor", "can't load the model", "we couldn't connect to")
 
 
 class NeedsDownload(Exception):

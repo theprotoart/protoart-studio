@@ -2215,7 +2215,9 @@ class Engine:
                 raise UserError("Regional prompts and an image prompt (IP-Adapter) can't be combined yet: switch one off.")
             import regions
             boxes = regions.parse_layout(rg.get("layout") or "cols", rg.get("ratios") or "", len(rg_prompts))
-            common = (prompts[0] if rg.get("use_main", True) else "").strip()
+            # each area follows its own prompt; the main prompt reaches it through the "keep one scene" blend
+            # (adding the whole main prompt to every area drowned the areas' subjects in the scene)
+            common = (prompts[0] if rg.get("add_main") else "").strip()
             embeds = []
             for rp in rg_prompts:
                 full = f"{common}, {rp}" if common else rp
@@ -3408,11 +3410,14 @@ class Engine:
             except Exception:
                 pass
         steps = int(args.get("steps") or 20)
-        strength = max(0.1, min(0.7, float(args.get("strength") or 0.35)))
+        strength = max(0.1, min(0.6, float(args.get("strength") or 0.3)))
         cfg = float(args.get("cfg") or (6.0 if family == "sdxl" else 7.0))
         seed = int(args.get("seed") if args.get("seed") not in (None, "", -1) else random.randint(0, 2**31 - 1))
-        prompt = (args.get("prompt") or "").strip() or (src.get("prompt") if isinstance(src, dict) else "") or "highly detailed, sharp focus"
-        negative = args.get("negative_prompt") or "blurry, lowres, artifacts"
+        # A detail prompt, not the picture's scene: each tile only sees part of the picture, and a scene prompt makes
+        # every tile draw the whole scene again (extra faces and people). Your words are added for texture / style.
+        extra = (args.get("prompt") or "").strip()
+        prompt = ", ".join(x for x in (extra, "highly detailed, sharp focus, fine texture, high quality") if x)
+        negative = args.get("negative_prompt") or "blurry, lowres, artifacts, extra faces, extra people, duplicate, watermark, text"
         started = time.time()
 
         def on_step(i, total):
