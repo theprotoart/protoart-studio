@@ -3398,6 +3398,8 @@ class Engine:
         self.load(model_id)
         pipe = self.pipe
         _set_seamless(pipe, False)
+        tile_px = 1024 if family == "sdxl" else 512
+        self._tune_for_size(pipe, tile_px, tile_px)  # attention slicing on small Macs (without it: 10× slower)
         sampler = args.get("sampler")
         if sampler:
             try:

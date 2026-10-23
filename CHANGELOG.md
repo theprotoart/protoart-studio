@@ -16,7 +16,7 @@
 - Model chain (Image to image): sequential `generate` jobs across models; fast engine img2img for FLUX.1 / ERNIE
   (mflux `image_path` / `image_strength`)
 - Tiled upscale (`backend/tiled.py`, MultiDiffusion): per-step averaged tile noise predictions with Gaussian
-  weights, VAE tiling, SDXL per-tile time ids
+  weights, VAE tiling, SDXL per-tile time ids; attention slicing on small Macs (without it each tile step was ~10× slower on 8 GB)
 - Face swap (`backend/faceswap.py`): RetinaFace landmarks (facexlib), ArcFace w600k_r50 identity → inswapper_128
   (fp16, ONNX Runtime, CPU), optional 256 px "pixel boost" (2 × 2 tiles), soft inverse-warp paste, CodeFormer tidy;
   consent required, NSFW-checked (explicit results refused), non-commercial labelling. New dependency: `onnx`
