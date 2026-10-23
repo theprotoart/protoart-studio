@@ -985,6 +985,29 @@ def handle_quick(cmd, a):
             model_hub.LOCAL_MODELS[:] = [x for x in model_hub.LOCAL_MODELS if x.get("id") != entry["id"]] + [entry]
         library.set_setting("local_models", model_hub.LOCAL_MODELS)
         return model_hub.LOCAL_MODELS
+    if cmd == "model_relocate":  # right-click a model whose file went missing → Reconnect: point it at the file again
+        new = str(a.get("path") or "")
+        if not os.path.isabs(new) or not os.path.exists(new):
+            raise ValueError("That file wasn't found.")
+        old_id = str(a.get("id") or "")
+        try:
+            entry = model_hub.inspect_local(new)
+        except Exception as e:
+            raise ValueError(f"That doesn't look like a model file this app can use ({e}).")
+        old = next((x for x in model_hub.LOCAL_MODELS if x.get("id") == old_id), None)
+        if old:  # keep what you set for it (its type and name)
+            entry["family"] = old.get("family") or entry.get("family")
+            if old.get("label") and old.get("label") != os.path.basename(str(old.get("path") or "")):
+                entry["label"] = old["label"]
+            for k in ("bits",):
+                if old.get(k):
+                    entry[k] = old[k]
+        keep_keys = ("id", "path", "kind", "family", "class_name", "label", "download_gb", "bits")
+        entry = {k: entry.get(k) for k in keep_keys}
+        model_hub.LOCAL_MODELS[:] = [x for x in model_hub.LOCAL_MODELS if x.get("id") not in (old_id, entry["id"])] + [entry]
+        library.set_setting("local_models", model_hub.LOCAL_MODELS)
+        model_hub.invalidate()
+        return {"id": entry["id"], "old": old_id, "label": entry.get("label")}
     if cmd == "model_local_remove":
         model_hub.LOCAL_MODELS[:] = [x for x in model_hub.LOCAL_MODELS if x.get("id") != a.get("id")]
         library.set_setting("local_models", model_hub.LOCAL_MODELS)

@@ -10,12 +10,17 @@
   the scene (extra faces); gentler defaults (0.25), presets (Gentle / Detail / Creative / Print / Quick),
   CFG ≤ 6, a duplicate-subject negative prompt
 - Regional prompts: areas use only their own prompt by default (`add_main`, off); the main prompt reaches them through
-  the base blend. FLUX / ERNIE / Anima show a note (no regional attention on those engines)
+  the base blend. FLUX.1 / ERNIE (fast engine): regions by parts (`regions_by_parts`: positional prompt for the
+  whole picture, then each area redrawn by image to image from its own prompt and feather-blended back; `refine`).
+  FLUX.2 Klein / Anima show a note
 - Model chain: one module per step with its own LoRA + weight, extra words (a picked LoRA's trigger words added),
   reorder, and the step's result thumbnail
 - Image to image: the prompt box's owner (Create / Image to image) is matched to the opening tab at start-up, and
   💡 suggest from the picture writes into Image to image's prompt even if you switched tabs
 - Image to image: 💡 suggest from the picture in every mode (tags for Anima / Pony / Illustrious / NoobAI)
+- Right-click menus: models (use, favourite, Reconnect… = `model_relocate` for a moved / missing file, Show in Finder,
+  fix type, copy, remove), LoRAs, queue jobs, Settings folders; native Cut / Copy / Paste / spelling menu in text boxes
+  (`dialog:locateFile`). `list_models` reports `missing`; loading a missing file says how to reconnect it
 - Library: sticky selection bar and a 🗑 Delete button beside Compare; Tools → Detail with a LoRA: LoRA search
 - Anima (CircleStone Labs, Cosmos-Predict2 2B + Qwen3 0.6B + Qwen-Image VAE) through diffusers' modular
   `AnimaModularPipeline` (`backend/anima.py`): official diffusers files; Anima Turbo = the official

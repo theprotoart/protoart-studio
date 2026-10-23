@@ -2172,3 +2172,6 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .chain-thumb { width: 84px; height: 84px; object-fit: cover; border-radius: 6px; cursor: pointer; flex: none; border: 1px solid rgba(255, 255, 255, .15); }
 .chain-arrow { text-align: center; opacity: .6; line-height: 1.4; }
 .seg.mod-seg.tup-presets { display: grid; flex-wrap: wrap; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); }
+.model-item.missing .m-name, .shop-card.missing .shop-top { opacity: .7; }
+.warn-chip { color: #ffb36b; border-color: rgba(255, 140, 60, .5); }
+.ctx-menu button:disabled { opacity: .4; cursor: default; }

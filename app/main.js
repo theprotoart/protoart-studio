@@ -169,6 +169,25 @@ function createWindow() {
     return { action: "deny" };
   });
   win.webContents.on("will-navigate", (e) => e.preventDefault());
+  // Right-click in a text box (prompts, names, search boxes): the usual Cut / Copy / Paste / Select All, with
+  // spelling suggestions. Elsewhere the page shows its own menus (pictures, models, LoRAs, folders, the queue).
+  win.webContents.on("context-menu", (_e, params) => {
+    if (!params.isEditable && !(params.selectionText || "").trim()) return;
+    const f = params.editFlags || {};
+    const items = [];
+    for (const w of (params.dictionarySuggestions || []).slice(0, 5))
+      items.push({ label: w, click: () => win.webContents.replaceMisspelling(w) });
+    if (params.misspelledWord) {
+      if (!items.length) items.push({ label: "No spelling suggestions", enabled: false });
+      items.push({ label: "Learn Spelling", click: () => win.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord) });
+      items.push({ type: "separator" });
+    }
+    if (params.isEditable) items.push({ role: "undo", enabled: !!f.canUndo }, { role: "redo", enabled: !!f.canRedo }, { type: "separator" },
+                                      { role: "cut", enabled: !!f.canCut });
+    items.push({ role: "copy", enabled: !!f.canCopy });
+    if (params.isEditable) items.push({ role: "paste", enabled: !!f.canPaste }, { type: "separator" }, { role: "selectAll" });
+    Menu.buildFromTemplate(items).popup({ window: win });
+  });
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -331,6 +350,19 @@ handle("dialog:pickTdict", async () => {
     buttonLabel: "Choose",
   });
   return res.canceled ? [] : res.filePaths;
+});
+// Right-click → Reconnect / Locate: find one file again (a model or LoRA that was moved or renamed)
+handle("dialog:locateFile", async (_e, opts) => {
+  const o = opts && typeof opts === "object" ? opts : {};
+  const def = typeof o.defaultPath === "string" && path.isAbsolute(o.defaultPath) ? o.defaultPath : undefined;
+  const res = await dialog.showOpenDialog(win, {
+    title: typeof o.title === "string" ? o.title.slice(0, 200) : "Find the file",
+    defaultPath: def,
+    properties: o.folders ? ["openFile", "openDirectory"] : ["openFile"],
+    filters: [{ name: "Model files", extensions: ["safetensors", "ckpt", "pt", "bin", "tdict", "gguf"] }],
+    buttonLabel: "Use this file",
+  });
+  return res.canceled ? null : res.filePaths[0] || null;
 });
 handle("dialog:pickModels", async () => {
   const res = await dialog.showOpenDialog(win, {

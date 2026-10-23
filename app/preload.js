@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld("bee", {
   pickFolder: (current) => ipcRenderer.invoke("dialog:pickFolder", current),
   // Pick model files (.safetensors/.ckpt) and/or model folders from this Mac.
   pickModels: () => ipcRenderer.invoke("dialog:pickModels"),
+  // Right-click → Reconnect: point a moved model or LoRA at its file again.
+  locateFile: (opts) => ipcRenderer.invoke("dialog:locateFile", opts),
   // Tools → Convert: pick .tdict files or folders.
   pickTdict: () => ipcRenderer.invoke("dialog:pickTdict"),
   // Pick embedding files (.safetensors / .pt) to copy into Protoart's embeddings folder.

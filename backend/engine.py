@@ -677,6 +677,9 @@ class Engine:
              "engine": v.get("engine", "torch"), "fast_mode": v["family"] in FAST_LORAS and not v.get("engine"),
              "clip_skip": recommended_clip_skip(v, k), "flavor": model_flavor(v, k),
              "path": (str(v.get("file") or v.get("tdict") or v.get("local_dir") or "") or None) if ":" in k else None,
+             # your own file that isn't where it was (moved, renamed, or its drive isn't connected): right-click → Reconnect
+             "missing": bool(":" in k and (v.get("file") or v.get("tdict") or v.get("local_dir"))
+                             and not os.path.exists(str(v.get("file") or v.get("tdict") or v.get("local_dir")))),
              "family_set": bool(v.get("family_set")), "detected_family": v.get("detected_family"),
              "single_file": bool(v.get("file") or v.get("tdict")) and ":" in k, "inpaint": bool(v.get("inpaint")),
              "nsfw_auto": nsfw_words.name_flag(v["label"], k, os.path.basename(
@@ -899,6 +902,10 @@ class Engine:
         if model_id not in models:
             raise UserError(f"Unknown model: {model_id}")
         spec = models[model_id]
+        own = spec.get("file") or spec.get("tdict") or spec.get("local_dir")
+        if own and not os.path.exists(str(own)):
+            raise UserError(f"“{spec['label']}” isn't where it was ({own}): it was moved or renamed, or its drive isn't "
+                            "connected. Right-click it in the model list → Reconnect… to point the app at the file.")
         if spec.get("local_dir"):  # a diffusers folder on this Mac: load it like a repo, never online
             spec = dict(spec, repo=spec["local_dir"])
         family = spec["family"]
@@ -1293,6 +1300,99 @@ class Engine:
         self.emit({"type": "status", "msg": f"Downloading the fast-mode LoRA (first time only, ~{int(gb * 1000)} MB)…"})
         return hf_hub_download(repo, fname)
 
+    @staticmethod
+    def _region_place(box):
+        """Where an area is, in words: "on the left", "at the top right", "in the middle"."""
+        x0, y0, x1, y1 = box
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        h = "left" if cx < 0.36 else "right" if cx > 0.64 else ""
+        v = "top" if cy < 0.36 else "bottom" if cy > 0.64 else ""
+        if v and h:
+            return f"at the {v} {h}"
+        if v:
+            return f"at the {v}"
+        return f"on the {h}" if h else "in the middle"
+
+    def regions_by_parts(self, args, force=False):
+        """🗺 Regional prompts on FLUX.1 / ERNIE (fast engine), which can't split one picture's prompt by area:
+        1. the whole picture is drawn from the main prompt plus each area's prompt with its place in words
+           ("on the left, a woman in a red coat…"), which these models follow well;
+        2. each area is then redrawn on its own from its own prompt (image to image on that part, a little bigger
+           than the area) and blended back in with soft edges."""
+        import regions
+        import tempfile
+        from PIL import Image, ImageDraw, ImageFilter
+        rg = args["regions"]
+        rps = [x.strip() for x in rg.get("prompts") or [] if isinstance(x, str) and x.strip()]
+        boxes = regions.parse_layout(rg.get("layout") or "cols", rg.get("ratios") or "", len(rps))
+        main = (args.get("prompt") or "").strip().rstrip(".")
+        places = [self._region_place(b) for b in boxes]
+        composed = ". ".join([main] if main else []) + ("." if main else "")
+        composed = (composed + " " + " ".join(f"{pl[0].upper() + pl[1:]}, {rp.rstrip('.')}." for pl, rp in zip(places, rps))).strip()
+        seed = args.get("seed")
+        seed = int(seed) if seed not in (None, "", -1) else random.randint(0, 2**31 - 1)
+        refine = max(0.0, min(0.8, float(rg.get("refine", 0.5))))
+        started = time.time()
+        n_steps = 1 + (len(rps) if refine > 0 else 0)
+        self.emit({"type": "status", "msg": f"Regions (fast engine): 1 of {n_steps} · the whole picture, each area in its place…"})
+        base = dict(args, prompt=composed, regions=None, num_images=1, seed=seed, enhance_prompt=False, _raw=True)
+        first = self.generate(base, force=force)
+        if not first:
+            raise Cancelled()
+        img = first[0]["image"].convert("RGB")
+        W, H = img.size
+        tmpdir = Path(tempfile.mkdtemp(prefix="regions_", dir=str(paths.HOME / "tmp") if (paths.HOME / "tmp").is_dir() else None))
+        if refine > 0:
+            for k, (box, rp) in enumerate(zip(boxes, rps)):
+                if self.cancel_event.is_set():
+                    raise Cancelled()
+                self.emit({"type": "status", "msg": f"Regions (fast engine): {k + 2} of {n_steps} · redrawing area {k + 1} ({places[k]})…"})
+                x0, y0, x1, y1 = int(box[0] * W), int(box[1] * H), int(box[2] * W), int(box[3] * H)
+                mx, my = max(16, (x1 - x0) // 8), max(16, (y1 - y0) // 8)   # a margin, so the edges blend
+                cx0, cy0, cx1, cy1 = max(0, x0 - mx), max(0, y0 - my), min(W, x1 + mx), min(H, y1 + my)
+                cw, ch = cx1 - cx0, cy1 - cy0
+                crop = img.crop((cx0, cy0, cx1, cy1))
+                f = max(1.0, 512 / min(cw, ch))
+                f = min(f, 1280 / max(cw, ch))
+                tw, th = max(256, int(cw * f) // 16 * 16), max(256, int(ch * f) // 16 * 16)
+                src = tmpdir / f"area{k}.png"
+                crop.resize((tw, th), Image.LANCZOS).save(src)
+                part = self.generate(dict(args, prompt=f"{rp.rstrip('.')}, {main}" if main else rp, regions=None, num_images=1,
+                                          init_image=str(src), strength=refine, width=tw, height=th, seed=seed + k + 1,
+                                          enhance_prompt=False, _raw=True), force=force)
+                if not part:
+                    raise Cancelled()
+                back = part[0]["image"].convert("RGB").resize((cw, ch), Image.LANCZOS)
+                # soft-edged mask: full inside the area, fading out across the margin
+                mask = Image.new("L", (cw, ch), 0)
+                ImageDraw.Draw(mask).rectangle((x0 - cx0 if cx0 else 0, y0 - cy0 if cy0 else 0,
+                                                cw - (cx1 - x1 if cx1 < W else 0), ch - (cy1 - y1 if cy1 < H else 0)), fill=255)
+                mask = mask.filter(ImageFilter.GaussianBlur(max(4, min(mx, my) / 2)))
+                img.paste(back, (cx0, cy0), mask)
+        for f_ in tmpdir.glob("*"):
+            try:
+                f_.unlink()
+            except OSError:
+                pass
+        try:
+            tmpdir.rmdir()
+        except OSError:
+            pass
+        spec = all_models()[args["model"]]
+        s0 = first[0]["settings"]
+        settings = dict(s0, prompt=composed, seed=seed, width=img.width, height=img.height,
+                        seconds=round(time.time() - started, 1),
+                        regions={"layout": rg.get("layout"), "ratios": rg.get("ratios"), "prompts": rps, "refine": refine,
+                                 "method": "by parts (fast engine)"})
+        if main and main != composed:
+            settings["original_prompt"] = args.get("prompt")
+        path = self._save(img, settings)
+        record = self.library.add_image(path, settings, kind="generated")
+        record["thumb"] = str(thumbs.make(record["id"], path, img) or "") or None
+        record = self._people_check(self._content_check(record, img), img)
+        self.emit({"type": "image", "record": record})
+        return [record]
+
     def _generate_anima(self, args, model_id, spec, prompts, negatives, originals, width, height, steps, cfg, seeds,
                         init_image, strength, force=False):
         """Anima (diffusers modular pipeline): text to image, or image to image with a start picture."""
@@ -1458,6 +1558,9 @@ class Engine:
                         settings["enhance_prompt"] = True
                 if face_info:
                     settings["face_restore"] = face_info
+                if args.get("_raw"):  # a step of a bigger job (regions on the fast engine): not saved on its own
+                    results.append({"image": image, "seed": img_seed, "seconds": round(secs, 1), "settings": settings})
+                    continue
                 path = self._save(image, settings)
                 record = self.library.add_image(path, settings, kind="generated")
                 record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
@@ -1993,6 +2096,10 @@ class Engine:
         d = spec["defaults"]
         family = spec["family"]
         is_sd = family in ("sd15", "sdxl") and spec.get("engine") != "mlx"
+        rg0 = args.get("regions") if isinstance(args.get("regions"), dict) else None
+        if (rg0 and rg0.get("on", True) and spec.get("engine") == "mlx" and family in ("flux", "ernie") and not args.get("_raw")
+                and not args.get("init_image") and len([x for x in rg0.get("prompts") or [] if isinstance(x, str) and x.strip()]) >= 2):
+            return self.regions_by_parts(args, force=force)
         if spec.get("inpaint") and not (args.get("mask") or isinstance(args.get("outpaint"), dict)):
             raise UserError(f"{spec['label']} is an inpainting model: it only fills in painted areas. It's used by "
                             "Image to image → Inpaint and Expand; pick another model to make or change whole pictures.")

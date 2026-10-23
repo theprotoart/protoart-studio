@@ -81,7 +81,7 @@ function defaultForm() {
     sampler: "", seed: -1, num_images: 1, loras: [],
     var_seed: -1, var_strength: 0,  // 🎲 Small change (variation seed): 0 = off
     seamless: false,  // 🧱 Seamless: the picture tiles
-    regions: { on: false, layout: "cols", ratios: "1,1", prompts: ["", ""], base: 0.2, add_main: false },  // 🗺 Regional prompts
+    regions: { on: false, layout: "cols", ratios: "1,1", prompts: ["", ""], base: 0.2, add_main: false, refine: 0.5 },  // 🗺 Regional prompts
     swap: { face: "", which: "all", boost: 1, restore: true, consent: false },  // 🔁 Face swap (Image to image)
     vae: "",
     restore_faces: false, face_strength: 0.8, face_model: "codeformer", face_fidelity: 0.5, enhance_prompt: false, clip_skip: 1, quality_tags: true,
@@ -376,6 +376,7 @@ const protoartApp = createApp({
       error: "",
       dlJob: null,
       detLoraQ: "",
+      gmenu: null,      // right-click menus for models, LoRAs, the queue and folders (pictures have their own)
       i2iSuggesting: false,  // Image to image → 💡 suggest from the picture     // Tools → Detail with a LoRA: search box      // the job that stopped for a missing first-time download (⬇ Download it now)
       dlBusy: false,
       session: [],
@@ -493,6 +494,7 @@ const protoartApp = createApp({
               "<b>New model: Anima</b> (CircleStone Labs, anime and illustration; Danbooru tags, sentences or both). <b>Anima Turbo</b> makes a picture in 10 steps; <b>Anima</b> uses 30 steps for the most detail. ~5.9 GB once, in the Models tab under Anima. Non-commercial licence for the model (pictures may be used commercially). It can also start from a picture in Image to image. Anima pictures are kept all-ages by default: the app adds Anima's <b>safe</b> rating tag unless your prompt already has a rating tag (safe, sensitive, nsfw or explicit).",
               "<b>🗺 Regions</b> (Create, SD 1.5 and SDXL): a different prompt for each part of the picture: columns, rows or a grid, with a small map of the areas. “Keep one scene” blends them so it stays one picture.",
               "<b>🔗 Model chain</b> (Image to image → 🔄 Change it): run a picture through several models in turn, e.g. SD 1.5 → SDXL → FLUX.1 or ERNIE, each with its own change strength. FLUX.1 Schnell and ERNIE (fast engine) can now start from a picture too.",
+              "<b>Right-click menus across the app</b>: models (use, favourite, <b>⟲ Reconnect…</b> a moved or missing file, Show in Finder, fix the type, copy the name or location, remove from the list), LoRAs (add or take out, trigger words, Show in Finder, fix the type), the queue (start next, move up or down, stop), your folders in Settings (reconnect, show, stop using) and text boxes (cut, copy, paste, spelling). Pictures keep their own menu.",
               "<b>Library → Select</b>: the selection bar stays at the top while you scroll, and there's a 🗑 Delete button next to Compare. <b>Detail with a LoRA</b> (Tools) has a search box for the LoRA list.",
               "<b>🧩 Tiled upscale</b> (Tools): enlarges a picture 1.5–3× and lets your Create model add real detail tile by tile (MultiDiffusion), with no seams and little memory.",
               "<b>🔁 Face swap</b> (Image to image): put the face from one photo onto the person in another, tidied with CodeFormer (fidelity 0.7, 60%). Only for faces you have permission to use; non-commercial licence (inswapper_128); explicit results aren't saved.",
@@ -508,7 +510,7 @@ const protoartApp = createApp({
               "<b>Inpainting models</b> (files with “inpainting” in the name) load for Inpaint and Expand instead of failing with a conv_in size error.",
               "<b>Patchbay</b>: a <b>SELECT</b> tab at the bottom of each module picks it; the rack unit below then shows <b>that module's settings</b>, with a ⚙ FACES 2 badge so you know which copy you're editing (no second settings panel). <b>✕</b> on a module takes it off the rack (bring it back from Add a module). New <b>🔎 DETAIL</b> module: a light redraw with an “add detail” LoRA. <b>🛡 Protect areas…</b>: paint parts of the picture the rack must not change. The picture forming shows in Tools while it runs.",
               "<b>CodeFormer presets</b> (Restore faces, in Create and Tools): Balanced, Keep likeness, Heavy repair, Subtle touch-up, Old photo, Gentle. Each sets fidelity and strength; you can still change both.",
-              "<b>🗺 Regions</b> (SD 1.5 and SDXL): tick <i>Use regional prompts</i>, pick Columns, Rows or Grid and the sizes (1,1 = halves; 1,2 = a third and two thirds; Grid 1,1;1 = two on top, one below), and write a prompt for each numbered area. Each area follows its own prompt; the main prompt above sets the scene around them, and <i>Keep one scene</i> sets how much (0.2 is a good start). Describe each area fully (“a woman in a red coat, full body”) and use a wide size for columns (768 × 512 for three). <i>Add the main prompt to every area</i> blends them more but can drown the subjects. FLUX, ERNIE and Anima can't use areas: describe positions in words instead (“on the left…, on the right…”).",
+              "<b>🗺 Regions</b> (SD 1.5 and SDXL): tick <i>Use regional prompts</i>, pick Columns, Rows or Grid and the sizes (1,1 = halves; 1,2 = a third and two thirds; Grid 1,1;1 = two on top, one below), and write a prompt for each numbered area. Each area follows its own prompt; the main prompt above sets the scene around them, and <i>Keep one scene</i> sets how much (0.2 is a good start). Describe each area fully (“a woman in a red coat, full body”) and use a wide size for columns (768 × 512 for three). <i>Add the main prompt to every area</i> blends them more but can drown the subjects. <b>FLUX.1 and ERNIE</b> do regions in two passes: the whole picture with each area's place in words, then each area redrawn from its own prompt and blended in (<i>Redraw each area</i>: 0 = skip, 0.5 = a good start); it takes about as long as one picture per area plus one. FLUX.2 Klein and Anima can't use areas: describe positions in words instead (“on the left…, on the right…”).",
               "<b>Prompt editing</b>: <i>[cat:dog:0.5]</i> draws a cat for the first half of the steps and a dog after (a dog in a cat's pose); a number above 1 is a step (<i>[cat:dog:10]</i>). <i>[hat:0.3]</i> adds “hat” after 30 %, <i>[hat::0.3]</i> removes it. SD 1.5 and SDXL. The shape is mostly settled early, so for a bigger change switch sooner (<i>[cat:dog:0.2]</i>).",
               "<b>🧱 Seamless</b>: the picture's edges wrap around, so copies placed side by side join with no seam: textures, patterns, wallpapers.",
               "<b>📥 Settings</b>: load a picture's settings (prompt, negative prompt, steps, guidance, seed, size, sampler, model and LoRAs if you have them) from a PNG made by A1111, Forge, ComfyUI, InvokeAI or this app, or from a .json. Anything you don't have is listed. ↩ undo brings your prompt back.",
@@ -1072,9 +1074,11 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "New in 1.3.0: if something doesn't work", items: [
+              "<b>A model says “⚠ file not found”</b> (or “isn't where it was” when you press Generate): its file was moved or renamed, or the drive it's on isn't connected. Connect the drive, or right-click the model → <b>⟲ Reconnect…</b> and pick the file where it is now; your favourites and default model follow it. A whole folder that moved: Settings → your folders → right-click → Moved it…",
               "<b>“This needs a one-time download from Hugging Face … couldn't reach huggingface.co” although you're online</b> (OpenPose / Union ProMax OpenPose, Depth and some other ControlNets): fixed. The pose and depth finders' first download wasn't recognised as a download, so it was never tried. The message now also has a <b>⬇ Download it now</b> button that runs the same job again with the connection open.",
               "<b>🧩 Tiled upscale turned the picture into something else</b> (new faces, extra people, another style): fixed. It used Create's prompt, so every tile tried to draw that whole scene. It now uses a short detail prompt (add your own texture or style words in <i>Detail prompt</i>) and gentler defaults; pick a preset.",
               "<b>🗺 Regional prompts barely changed the picture</b>: each area now follows only its own prompt (before, the whole main prompt was added to every area and drowned the subjects). Describe each area fully and keep the main prompt to the setting.",
+              "<b>🗺 Regions with FLUX.1 and ERNIE</b>: now possible. These models run on the fast engine, which can't split one picture's prompt by area, so the app draws the whole picture with each area's place in words, then redraws each area from its own prompt and blends it back in.",
               "<b>💡 suggest from the picture</b> is now in every Image to image mode (Change it, Inpaint, Expand, Edit with words), not only FLUX.2 Expand: it looks at your picture and writes a prompt describing it (Danbooru tags for Anima, Pony, Illustrious and NoobAI models), ready to edit. ↩ undo puts your prompt back.",
               "<b>💡 suggest from the picture (Image to image) showed its prompt in Create</b>: fixed. Create and Image to image keep separate prompts; after a restart the app could mix up which one was in the box.",
               "<b>Anima is slow</b>: it's a 2-billion-parameter model; on an 8 GB Mac a 10-step <b>Anima Turbo</b> picture takes about 3–4 minutes at 768 × 768 and 6–7 minutes at 832 × 1216. Quit other big apps. The first picture also loads the model (about 20 s).",
@@ -4373,7 +4377,9 @@ const protoartApp = createApp({
       if (!sd || !args.hires?.on) delete args.hires;
       if (!sd || !args.face_detailer?.on) delete args.face_detailer;
       if (!sd || !args.ip_adapter?.image) delete args.ip_adapter;
-      if (!sd || !args.regions?.on) delete args.regions;
+      // regions: SD 1.5 / SDXL inside the model; FLUX.1 and ERNIE (fast engine) by parts (see regions_by_parts)
+      const byParts = this.currentModel?.engine === "mlx" && ["flux", "ernie"].includes(this.family);
+      if (!(sd || byParts) || !args.regions?.on) delete args.regions;
       if (!sd) delete args.seamless;
       return args;
     },
@@ -5710,6 +5716,105 @@ const protoartApp = createApp({
       if (!q) return all;
       return all.filter((l) => [l.name, l.file, l.label, ...(l.triggers || l.trigger_words || [])]
         .some((v) => typeof v === "string" && v.toLowerCase().includes(q)));
+    },
+    // -------------------------------------------------------------- right-click menus
+    openMenu(e, title, items) {
+      const list = items.filter(Boolean);
+      while (list.length && list[list.length - 1] === "-") list.pop();
+      const h = 40 + list.reduce((a, it) => a + (it === "-" ? 9 : 32), 0);
+      this.ctx = null;
+      this.gmenu = { x: Math.max(4, Math.min(e.clientX, innerWidth - 260)), y: Math.max(4, Math.min(e.clientY, innerHeight - h - 8)), title, items: list };
+    },
+    async runMenuItem(it) {
+      this.gmenu = null;
+      if (it.disabled || typeof it.run !== "function") return;
+      try { await it.run(); } catch (e) { this.error = e.message; }
+    },
+    async copyText(text, what) {
+      try { await navigator.clipboard.writeText(String(text || "")); this.status = `Copied ${what}`; }
+      catch { this.error = "Couldn't use the clipboard."; }
+    },
+    menuModel(e, m) {
+      const local = m.id.startsWith("local:") && (this.modelDirs?.local || []).some((x) => x.id === m.id);
+      this.openMenu(e, m.label, [
+        { label: "✓ Use this model", run: () => this.selectModel(m.id), disabled: m.missing },
+        { label: this.isFav(m) ? "★ Remove from favourites" : "☆ Add to favourites", run: () => this.toggleFav(m) },
+        "-",
+        m.missing ? { label: "⟲ Reconnect… (find the file)", tip: "The file isn't where it was: moved, renamed, or its drive isn't connected. Point the app at it", run: () => this.reconnectModel(m) } : null,
+        m.path && !m.missing ? { label: "📂 Show in Finder", run: () => window.bee.showInFolder(m.path) } : null,
+        m.path && !m.missing ? { label: "⟲ Use a different file for it…", tip: "Point this model at another copy of the file (e.g. after moving it)", run: () => this.reconnectModel(m) } : null,
+        !m.path && !m.cached && !m.missing ? { label: "⬇ Download it", run: () => this.downloadModel(m) } : null,
+        m.path ? { label: "🏷 Wrong type? Fix it…", tip: "Listed as SD 1.5 but it's SDXL (or the other way round)?", run: () => this.fixLoraType(m.label.replace(/ \(your( inpainting)? file\)$/, "")) } : null,
+        "-",
+        { label: m.people ? "Untag People" : "Tag as People (made of real people)", run: () => this.markPeople("model", m) },
+        { label: m.nsfw ? "Mark safe" : "Mark NSFW", run: () => this.markItem("model", m) },
+        "-",
+        { label: "⧉ Copy name", run: () => this.copyText(m.label, "the model's name") },
+        m.path ? { label: "⧉ Copy file location", run: () => this.copyText(m.path, "the file's location") } : null,
+        local ? { label: "Remove from the list (the file stays)", danger: true, run: () => this.removeLocalModel(m.id) } : null,
+      ]);
+    },
+    async reconnectModel(m) {
+      const name = (m.path || m.label).split("/").pop();
+      const dir = m.path ? m.path.split("/").slice(0, -1).join("/") : undefined;
+      const picked = await window.bee.locateFile({ title: `Where is “${name}” now?`, defaultPath: dir, folders: !/\.[a-z0-9]+$/i.test(name) });
+      if (!picked) return;
+      const r = await call("model_relocate", { id: m.id, path: picked });
+      this.models = await call("list_models");
+      const fix = (id) => (id === r.old ? r.id : id);  // your own settings that named the old file
+      if (this.form.model === r.old) { this.form.model = r.id; await this.onModelChange(); }
+      this.opts.default_model = fix(this.opts.default_model);
+      this.opts.preload_start = fix(this.opts.preload_start);
+      if (this.favModels.includes(r.old)) { this.favModels = this.favModels.map(fix); saveJSON("protoart.favModels", this.favModels); }
+      this.chain.steps.forEach((st) => { st.model = fix(st.model); });
+      try { this.modelDirs = await call("model_dirs_get"); } catch { /* the list is enough */ }
+      this.status = `Reconnected “${r.label || name}” to ${picked}`;
+    },
+    menuLora(e, l, activeIndex = -1) {
+      const name = l.name;
+      this.openMenu(e, name, [
+        activeIndex < 0 ? { label: "＋ Add to the prompt", run: () => this.addLoraByName(name) }
+                        : { label: "✕ Take it out of the prompt", run: () => this.form.loras.splice(activeIndex, 1) },
+        this.isFavLora && l.family ? { label: this.isFavLora(l) ? "★ Remove from favourites" : "☆ Add to favourites", run: () => this.toggleFavLora(l) } : null,
+        "-",
+        l.file ? { label: "📂 Show in Finder", run: () => window.bee.showInFolder(l.file) } : null,
+        { label: "🔤 Trigger words…", tip: "See, copy or set the words that switch this LoRA on", run: async () => {
+          await this.fetchTriggers(name);
+          const w = this.activeTriggers(name);
+          if (w.length) await this.copyText(w.join(", "), `the trigger words (${w.join(", ")})`);
+          else this.status = `No trigger words known for ${name}: add them in its row (🔤) after adding it to the prompt`;
+        } },
+        { label: "🏷 Wrong type? Fix it…", run: () => this.fixLoraType(name) },
+        "-",
+        l.family ? { label: l.people ? "Untag People" : "Tag as People (made of real people)", run: () => this.markPeople("lora", l) } : null,
+        l.family ? { label: l.nsfw ? "Mark safe" : "Mark NSFW", run: () => this.markItem("lora", l) } : null,
+        "-",
+        { label: "⧉ Copy name", run: () => this.copyText(name, "the LoRA's name") },
+        l.file ? { label: "⧉ Copy file location", run: () => this.copyText(l.file, "the file's location") } : null,
+      ]);
+    },
+    menuJob(e, j) {
+      const queued = j.state === "queued";
+      this.openMenu(e, j.label || j.cmd, [
+        queued && this.queuedIndex(j) > 0 ? { label: "⤒ Start it next", run: () => this.moveJob(j.id, -this.queuedIndex(j)) } : null,
+        queued ? { label: "▲ Move up", run: () => this.moveJob(j.id, -1) } : null,
+        queued ? { label: "▼ Move down", run: () => this.moveJob(j.id, 1) } : null,
+        j.state === "running" && this.canSkipImage ? { label: "⏭ Skip this picture", run: () => this.skipImage() } : null,
+        "-",
+        { label: j.state === "running" ? "■ Stop it" : "✕ Take it out of the queue", danger: true, run: () => this.cancelJob(j.id) },
+      ]);
+    },
+    menuFolder(e, f) {
+      this.openMenu(e, f.path, [
+        f.found ? { label: "📂 Show in Finder", run: () => window.bee.openFolder(f.path) } : null,
+        { label: f.found ? "⟲ Moved it… (point to its new place)" : "⟲ Reconnect… (find it)", run: () => this.relinkFolder(f.path) },
+        { label: "⧉ Copy location", run: () => this.copyText(f.path, "the folder's location") },
+        "-",
+        { label: "Stop using this folder (files stay)", danger: true, run: () => this.forgetFolder(f.path) },
+      ]);
+    },
+    regionsByParts() {  // FLUX.1 / ERNIE on the fast engine: regions are drawn by parts
+      return this.currentModel?.engine === "mlx" && ["flux", "ernie"].includes(this.family);
     },
     tupPreset() {
       const t = this.tup;

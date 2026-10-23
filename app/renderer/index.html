@@ -286,7 +286,7 @@
         <input class="model-search" v-model="modelSearch" placeholder="Search models…">
         <div class="model-list">
           <button v-for="m in filteredModels" :key="m.id" class="model-item"
-                  :class="{on: m.id===form.model, warn: !m.enough_ram}" @click="selectModel(m.id)">
+                  :class="{on: m.id===form.model, warn: !m.enough_ram, missing: m.missing}" @click="selectModel(m.id)" @contextmenu.prevent="menuModel($event, m)">
             <span class="m-row"><span class="m-name" :title="m.label">{{ m.label }}</span><span class="marks">
               <span class="fav-star" :class="{on: isFav(m)}" role="button" :aria-label="isFav(m) ? 'Favourite: click to remove' : 'Add to favourites'" @click.stop="toggleFav(m)"
                     :title="isFav(m) ? '★ Favourite · click to remove (favourites are listed first; ★ Favorites shows only them)' : 'Click to add to your favourites'">★</span><i
@@ -294,7 +294,7 @@
                   :title="m.people ? 'Tagged People (made of real people) · click to untag' : 'Click to tag as People: made of real people (hidden when Hide People is on)'"></i><span
                   class="nsfw-flag" :class="{on: m.nsfw}" role="button" :aria-label="m.nsfw ? 'Marked NSFW' : 'Mark as NSFW'" @click.stop="markItem('model', m)"
                   :title="m.nsfw ? 'NSFW (' + (m.nsfw_mark ? 'you marked it' : 'from its name') + ') · click to mark it safe' : 'Click to mark as NSFW (hidden when Hide NSFW is on)'">⚑</span></span></span>
-            <span class="m-meta">{{ familyName(m.family) }}<template v-if="m.flavor"> · {{ flavorName(m.flavor) }}</template> · {{ modelSizeText(m) }}<template v-if="!m.enough_ram"> · needs {{ m.min_ram_gb }} GB RAM</template></span>
+            <span class="m-meta">{{ familyName(m.family) }}<template v-if="m.flavor"> · {{ flavorName(m.flavor) }}</template> · {{ modelSizeText(m) }}<template v-if="!m.enough_ram"> · needs {{ m.min_ram_gb }} GB RAM</template><template v-if="m.missing"> · <b class="warn-text">⚠ file not found: right-click → Reconnect</b></template></span>
           </button>
           <div v-if="!filteredModels.length" class="hint m-empty">No models match.</div>
         </div>
@@ -480,7 +480,7 @@
           <label class="check lora-rand-every" title="Each time you press Generate, every LoRA in the list is swapped for a new random mix">
             <input type="checkbox" v-model="loraRand.every"> New random mix every time I press Generate</label>
         </div>
-        <div v-for="(l, i) in form.loras" :key="l.name" class="lora-active">
+        <div v-for="(l, i) in form.loras" :key="l.name" class="lora-active" @contextmenu.prevent="menuLora($event, loras.find((x) => x.name === l.name) || l, i)">
         <div class="lora-row">
           <span class="lora-name" :title="l.name">{{ l.name }}</span>
           <input type="range" min="-2" max="2" step="0.05" v-model.number="l.weight" title="How strongly this LoRA is used (1 = full, 0.5 = half)">
@@ -532,7 +532,7 @@
           </select>
         </div>
         <div v-if="loraOpen" class="lora-list">
-          <button v-for="l in shownLoras" :key="l.name" class="lora-item" @click="addLoraByName(l.name)">
+          <button v-for="l in shownLoras" :key="l.name" class="lora-item" @click="addLoraByName(l.name)" @contextmenu.prevent="menuLora($event, l)">
             <span class="l-name" :title="l.name">{{ l.name }}</span><span class="marks"><span class="fav-star" :class="{on: isFavLora(l)}" role="button"
                   :aria-label="isFavLora(l) ? 'Favourite: click to remove' : 'Add to favourites'" @click.stop="toggleFavLora(l)"
                   :title="isFavLora(l) ? '★ Favourite · click to remove (favourites are listed first)' : 'Click to add to your favourite LoRAs'">★</span><i class="people-dot" :class="{on: l.people}" role="button" :aria-label="l.people ? 'Tagged People' : 'Tag as People'" @click.stop="markPeople('lora', l)"
@@ -558,12 +558,12 @@
         </div>
       </section>
 
-      <section v-if="['flux', 'flux2', 'ernie', 'anima'].includes(family)" class="regions cfold" :class="{shut: cfShut('regions')}">
-        <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">SD 1.5 and SDXL only</span><span class="cfold-chev" aria-hidden="true"></span></label>
-        <p class="hint">Regional prompts need an SD 1.5 or SDXL model: {{ familyLabel }} runs on a different engine that can't split the prompt by area.
-          It understands positions in plain words, though: “on the left a woman in a red coat, in the middle a man with an umbrella, on the right a small dog”.</p>
+      <section v-if="['flux2', 'anima'].includes(family) || (['sd15', 'sdxl'].includes(family) && currentModel?.engine === 'mlx')" class="regions cfold" :class="{shut: cfShut('regions')}">
+        <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">not with this model</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <p class="hint">Regional prompts work with SD 1.5, SDXL, FLUX.1 and ERNIE. {{ familyLabel }} understands positions in plain words, though:
+          “on the left a woman in a red coat, in the middle a man with an umbrella, on the right a small dog”.</p>
       </section>
-      <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="regions cfold" :class="{shut: cfShut('regions')}">
+      <section v-if="(['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx') || regionsByParts()" class="regions cfold" :class="{shut: cfShut('regions')}">
         <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">a different prompt for each part of the picture</span><span v-if="cfShut('regions')" class="cfold-sum">{{ cfSummary('regions') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <label class="check"><input type="checkbox" v-model="form.regions.on"> Use regional prompts
           <span class="hint">· each area draws its own prompt; the main prompt above sets the scene around them</span></label>
@@ -587,11 +587,19 @@
           </div>
           <div class="row small">
             <button class="ghost small" :disabled="form.regions.prompts.length >= 4" @click="form.regions.prompts.push('')">＋ Add an area</button>
-            <span class="hint">Keep one scene</span>
-            <input type="range" min="0" max="0.6" step="0.05" v-model.number="form.regions.base" title="How much of the main prompt every area also follows: higher blends the areas into one scene, lower keeps them more separate">
-            <span class="mod-val">{{ Number(form.regions.base).toFixed(2) }}</span>
+            <template v-if="!regionsByParts()">
+              <span class="hint">Keep one scene</span>
+              <input type="range" min="0" max="0.6" step="0.05" v-model.number="form.regions.base" title="How much of the main prompt every area also follows: higher blends the areas into one scene, lower keeps them more separate">
+              <span class="mod-val">{{ Number(form.regions.base).toFixed(2) }}</span>
+            </template>
+            <template v-else>
+              <span class="hint">Redraw each area</span>
+              <input type="range" min="0" max="0.8" step="0.05" v-model.number="form.regions.refine" title="After the whole picture is drawn, each area is redrawn from its own prompt: 0 = no redraw (faster), 0.4–0.6 = the area follows its prompt more closely, higher changes it more">
+              <span class="mod-val">{{ Number(form.regions.refine ?? 0.5).toFixed(2) }}</span>
+            </template>
           </div>
-          <label class="check" title="Off (best for different subjects per area): each area follows only its own prompt. On: the main prompt is added to every area too, which blends them but can drown the subjects">
+          <p v-if="regionsByParts()" class="hint">{{ familyLabel }} draws regions in two passes: the whole picture with each area's place in words (“on the left, …”), then each area redrawn from its own prompt and blended back in. It takes about {{ 1 + (Number(form.regions.refine ?? 0.5) > 0 ? form.regions.prompts.filter((x) => x.trim()).length : 0) }}× as long as one picture.</p>
+          <label v-if="!regionsByParts()" class="check" title="Off (best for different subjects per area): each area follows only its own prompt. On: the main prompt is added to every area too, which blends them but can drown the subjects">
             <input type="checkbox" v-model="form.regions.add_main"> Add the main prompt to every area</label>
           <p class="hint">Tips: describe each area fully (“a woman in a red coat, full body”), keep the main prompt to the setting (“a city street, photo”), and use a size wide enough for the areas (768 × 512 for three columns).</p>
         </template>
@@ -862,7 +870,7 @@
             <button class="ghost small-btn" @click="stopAll" title="Stop the current job and clear the queue">Stop all</button>
           </span>
         </div>
-        <div v-for="(j, i) in queue" :key="j.id" class="job" :class="j.state">
+        <div v-for="(j, i) in queue" :key="j.id" class="job" :class="j.state" @contextmenu.prevent="menuJob($event, j)">
           <div class="job-main">
             <span class="job-state">{{ j.state==='running' ? '▶' : i }}</span>
             <span class="job-label" :title="j.label">{{ j.label }}</span>
@@ -1271,13 +1279,14 @@
     <section v-for="g in shopModels" :key="g.id" class="shop-group mpanel" :class="{open: !shopShut(g.id)}">
       <h3 @click="shopFoldToggle(g.id)"><i class="led" :class="{on: !shopShut(g.id)}"></i>{{ g.title }} <span class="hint">· {{ g.models.length }} · {{ g.hint }}</span></h3>
       <div v-if="!shopShut(g.id)" class="shop-grid">
-        <div v-for="m in g.models" :key="m.id" class="card shop-card" :class="{current: m.id === form.model}">
+        <div v-for="m in g.models" :key="m.id" class="card shop-card" :class="{current: m.id === form.model, missing: m.missing}" @contextmenu.prevent="menuModel($event, m)">
           <div class="shop-top">
             <i class="led" :class="isInstalled(m) ? 'green on' : m.enough_ram ? 'on' : 'red on'"></i>
             <span class="chip static">{{ familyName(m.family) }}</span>
             <span v-if="m.flavor" class="chip static">{{ flavorName(m.flavor) }}</span>
             <span v-if="m.engine === 'mlx'" class="chip static">⚡ fast engine</span>
             <span v-if="m.id === form.model" class="chip static">in use</span>
+            <span v-if="m.missing" class="chip static warn-chip" title="The file isn't where it was (moved, renamed, or its drive isn't connected): right-click → Reconnect">⚠ file not found</span>
             <span v-if="m.id === opts.default_model" class="chip static default-chip" title="Create starts with this model">★ default</span>
             <span class="marks card-marks">
               <span class="fav-star" :class="{on: isFav(m)}" role="button" @click="toggleFav(m)"
@@ -2408,7 +2417,7 @@
         <input class="lora-search" v-model="i2iLora.q" @focus="i2iLora.open = true"
                :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ', or #tag)'">
         <div v-if="i2iLora.open" class="lora-list">
-          <button v-for="l in i2iShownLoras" :key="l.name" class="lora-item" @click="addLoraByName(l.name); i2iLora.q = ''">
+          <button v-for="l in i2iShownLoras" :key="l.name" class="lora-item" @click="addLoraByName(l.name); i2iLora.q = ''" @contextmenu.prevent="menuLora($event, l)">
             <span class="l-name" :title="l.name">{{ l.name }}</span><span class="marks"><span v-if="isFavLora(l)" class="fav-star on">★</span></span>
             <span class="hint l-meta" :title="loraMetaTitle(l)"><span class="l-tag">{{ loraTag(l) }}</span><span class="l-size">{{ l.size_mb }} MB</span></span>
           </button>
@@ -3217,7 +3226,7 @@
       that used it carries on: LoRA and embedding folders, LoRA types, watched folders, models you added, your ⚑ and ● marks, and
       which model made each picture in the Library.</p>
     <table v-if="folders.length">
-      <tr v-for="f in folders" :key="f.path"><td>
+      <tr v-for="f in folders" :key="f.path" @contextmenu.prevent="menuFolder($event, f)"><td>
           <span :class="f.found ? 'led green on' : 'led red on'" class="led" style="margin-right:8px"></span>
           <button class="link" @click="openFolder(f.path)" :disabled="!f.found">{{ f.path }}</button>
           <span v-if="!f.found" class="hint warn"> · not found (moved, renamed, or the drive isn't connected)</span></td>
@@ -3594,6 +3603,15 @@
         <button @click="answerSlow(null)">Cancel</button>
         <button class="ghost" @click="answerSlow('go')">Go ahead anyway</button>
       </div>
+    </div>
+  </div>
+  <div v-if="gmenu" class="ctx-backdrop" @click="gmenu = null" @contextmenu.prevent="gmenu = null">
+    <div class="ctx-menu" :style="{left: gmenu.x + 'px', top: gmenu.y + 'px'}" @click.stop>
+      <div class="ctx-title" :title="gmenu.title">{{ gmenu.title }}</div>
+      <template v-for="(it, k) in gmenu.items" :key="'gm' + k">
+        <hr v-if="it === '-'">
+        <button v-else :class="{'ctx-danger': it.danger}" :disabled="it.disabled" :title="it.tip || ''" @click="runMenuItem(it)">{{ it.label }}</button>
+      </template>
     </div>
   </div>
   <div v-if="ctx" class="ctx-backdrop" @click="ctx = null" @contextmenu.prevent="ctx = null">
