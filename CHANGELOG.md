@@ -21,6 +21,24 @@
   box + button + ↩ undo in Create → Regions. On an 8 GB M1: ~10–20 s a plan with the 4B model
 - Speed: cross-attention keys/values worked out once per picture (`backend/kv_cache.py`, attn2 only, self-attention
   keeps its slicing; off with an image prompt or `PROTOART_NO_KV_CACHE`), ~3% per step on SD 1.5, identical output
+- Adjust: **◎ control points** per step (`p.points[base|filterId] = [{x, y, r, op}]`, up to 16): a step's result is
+  blended back over the picture from before it by a `pointMask` pass (max of soft discs, full strength to 35 % of the
+  radius). Add / Remove / move on the preview, Size and Opacity per point; looks and presets keep the points, presets
+  and Last used don't store them
+- Tools: **🪡 Puppet warp** (`app/renderer/puppet.js`): pins (x, y → tx, ty), moving-least-squares rigid deformation
+  (Schaefer et al. 2006) on a 24–80 grid, drawn as a textured WebGL mesh over the original; full-size export to PNG,
+  saved through `adjust_save` (`editor: "Puppet warp"`, suffix `_warped`)
+- Library: 💾 Save prompt / ⧉ Copy prompt in picture details; saved prompts carry an `nsfw` flag (`prompt_flags`;
+  older ones flagged once at start) and are hidden while Hide NSFW is on. Select → ⤓ Prompts .txt / ⤓ Settings .json
+  (`settings_list`, read by 📥 Settings as its first item)
+- Privacy: **🔒 Privacy mode** (`opts.privacy_mode`) hides the Hide NSFW / Hide People buttons in Create and the
+  Library; both switches and the hidden / unchecked counts moved to Settings → Privacy (the Library shows only the
+  picture count)
+- 8 GB Macs: SDXL always loads with the 8-bit UNet when RAM < the model's `min_ram_gb`; with an IP-Adapter loaded
+  only the self-attention layers are sliced (`_slice_self_attention`), instead of no slicing (90+ s/step on SD 1.5)
+- Create → reset all: clears LoRAs, unloads the model (`unload_model`), returns to the ☆ default model, folds all.
+  Reset Tools settings also clears the patchbay cables (undo restores them). Knob tips go above the knob and stay
+  hidden while turning. Image prompt label says "downloaded" (`ip_status`). Convert: Embedding option removed
 - Research (not in the app yet): `backend/mlx_sd/unet.py`, an MLX UNet for SD 1.5 / SDXL (diffusers weights,
   NHWC, fused attention in query chunks, optional 8/4-bit linear layers). Matches PyTorch (max diff 0.004 on SD 1.5).
   On an 8 GB M1: SD 1.5 512 px 1.3 s/step (same as PyTorch); SDXL 1024 px 16.5 s/step 4-bit vs 32.7 s/step today, but

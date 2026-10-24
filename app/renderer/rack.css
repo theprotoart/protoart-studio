@@ -2186,3 +2186,31 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .slot-model .slot-row { display: flex; gap: 6px; align-items: center; }
 .slot-model .slot-row > select:first-child { flex: 1 1 auto; }
 .slot-model .slot-row .model-sort { min-width: 0; width: 120px; flex: none; }
+/* 🔒 Privacy mode (Settings → Privacy): a soft pink button */
+.privacy-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+.privacy-btn { background: #e9b9c3; color: #4a1f29; border: 1px solid #c98d9b; border-radius: 4px; padding: 6px 14px; font-weight: 600; }
+.privacy-btn:hover { background: #f1c9d1; }
+.privacy-btn.on { background: #f4a3b4; border-color: #d97a90; box-shadow: 0 0 10px rgba(244, 163, 180, 0.55); color: #3c1420; }
+/* ◎ Adjust control points */
+.adj-overlay { position: absolute; }
+.adj-overlay.adding { cursor: crosshair; }
+.adj-pt { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; border: 1px dashed rgba(255, 255, 255, 0.25);
+  pointer-events: none; }
+.adj-pt b { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: rgba(30, 30, 30, 0.6); border: 2px solid rgba(255, 255, 255, 0.45); pointer-events: auto; cursor: grab; }
+.adj-pt.mine { border: 1px solid rgba(255, 224, 160, 0.7); }
+.adj-pt.mine b { border-color: #ffd27a; background: #c9871f; }
+.adj-pt.sel { border: 1.5px solid #ffd27a; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); }
+.adj-pt.sel b { box-shadow: 0 0 8px #ffd27a; }
+.adj-points { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0; }
+.adj-points select { max-width: 220px; }
+.adj-points .pt-add.on { background: #c9871f; color: #1a1205; }
+.adj-point-opts input[type=range] { width: 120px; }
+.adj-pt-line { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin: 4px 0; }
+/* 🪡 Puppet warp */
+.pw-overlay { cursor: crosshair; }
+.pw-pin { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #f2f2f2;
+  border: 2px solid #1a1a1a; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6); cursor: grab; }
+.pw-pin.sel { background: #ffd27a; box-shadow: 0 0 8px #ffd27a; }
+.pw-steps { margin: 4px 0 8px 18px; padding: 0; font-size: 13px; line-height: 1.5; }
+.pw-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }

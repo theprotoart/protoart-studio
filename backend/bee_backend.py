@@ -592,10 +592,13 @@ def handle_quick(cmd, a):
             if src:
                 src_path = src["path"]
         adjust = a.get("adjust") if isinstance(a.get("adjust"), dict) else {}
-        info = {"source_id": src_id, "source_path": src_path, "editor": "Adjust", "settings": settings_}
+        warp = a.get("editor") == "Puppet warp"  # Tools → 🪡 Puppet warp saves through here too
+        info = {"source_id": src_id, "source_path": src_path, "editor": "Puppet warp" if warp else "Adjust",
+                "settings": settings_}
         try:
             rec = edits.import_into_library(library, paths.IMAGES_DIR, thumbs, f, info, emit,
-                                            extra={"adjust": adjust}, suffix="adjusted")
+                                            extra={"puppet": adjust} if warp else {"adjust": adjust},
+                                            suffix="warped" if warp else "adjusted")
         finally:
             try:
                 os.remove(f)
@@ -1113,6 +1116,29 @@ def handle_quick(cmd, a):
         if not a.get("dry_run"):
             thumbs.remove(res["ids"])
         return res
+    if cmd == "prompt_flags":  # 📒 saved prompts: which ones ask for adult content (hidden while Hide NSFW is on)
+        return {"flags": [bool(content.prompt_flag(t)) for t in (a.get("texts") or [])[:1000]]}
+    if cmd == "ip_status":  # Create → Image prompt: which adapter files are on this Mac already (no network)
+        from huggingface_hub import hf_hub_download
+
+        def have(f):
+            try:
+                hf_hub_download("h94/IP-Adapter", f, local_files_only=True)
+                return True
+            except Exception:
+                return False
+        kinds = {"style": ("ip-adapter_sd15.safetensors", "ip-adapter_sdxl_vit-h.safetensors"),
+                 "plus": ("ip-adapter-plus_sd15.safetensors", "ip-adapter-plus_sdxl_vit-h.safetensors"),
+                 "face": ("ip-adapter-plus-face_sd15.safetensors", "ip-adapter-plus-face_sdxl_vit-h.safetensors")}
+        return {"encoder": have("models/image_encoder/model.safetensors"),
+                "kinds": {k: {"sd15": have("models/" + a15), "sdxl": have("sdxl_models/" + axl)}
+                          for k, (a15, axl) in kinds.items()}}
+    if cmd == "unload_model":  # Create → reset all: give back the memory of the loaded model and its LoRAs
+        if jobs.busy() or _engine is None:
+            return {"unloaded": False}
+        _engine.unload()
+        _engine.release_memory()
+        return {"unloaded": True}
     if cmd == "free_original":
         if jobs.busy():
             raise ValueError("Wait for the queue to finish first.")

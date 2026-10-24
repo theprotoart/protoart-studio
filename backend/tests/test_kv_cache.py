@@ -55,5 +55,26 @@ class KVCacheTests(unittest.TestCase):
         self.assertFalse(any(isinstance(p, kv_cache.CachedCrossAttn) for p in unet.attn_processors.values()))
 
 
+class SliceSelfAttentionTests(unittest.TestCase):
+    def test_only_self_attention_is_sliced(self):
+        import torch
+        from diffusers.models.attention_processor import AttnProcessor2_0
+        import engine
+        torch.manual_seed(2)
+        unet = tiny_unet()
+
+        class Adapter(AttnProcessor2_0):  # stands in for the image prompt adapter's layers
+            pass
+        unet.set_attn_processor({k: (Adapter() if ".attn2." in k else p) for k, p in unet.attn_processors.items()})
+        x, ctx = torch.randn(2, 4, 8, 8), torch.randn(2, 7, 24)
+        with torch.no_grad():
+            want = unet(x, 500, encoder_hidden_states=ctx).sample
+            engine._slice_self_attention(unet)
+            got = unet(x, 500, encoder_hidden_states=ctx).sample
+        kinds = {k.split(".attn")[1][0]: type(p).__name__ for k, p in unet.attn_processors.items()}
+        self.assertEqual(kinds, {"1": "SlicedAttnProcessor", "2": "Adapter"})
+        self.assertLess((want - got).abs().max().item(), 1e-4)
+
+
 if __name__ == "__main__":
     unittest.main()

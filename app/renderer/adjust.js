@@ -192,6 +192,19 @@ void main() {
   lin = mix(scr, lin + light, burn);                                           // burn: adds light, can blow out
   o = vec4(clamp(toGam(lin), 0.0, 1.0), 1.0);
 }`,
+    // ◎ Control points (like Nik Color Efex): blend a step's result back into the picture only around the points.
+    // pts[i] = (x, y, radius, opacity): x, y in 0..1 from the top left, radius in units of the long side.
+    pointMask: `uniform sampler2D orig; uniform vec4 pts[16]; uniform int n; uniform vec2 scale;
+void main() {
+  float m = 0.0;
+  for (int i = 0; i < 16; i++) {
+    if (i >= n) break;
+    vec4 q = pts[i];
+    float d = length((uv - q.xy) * scale) / max(q.z, 1e-4);
+    m = max(m, q.w * (1.0 - smoothstep(0.35, 1.0, d)));   // full strength in the middle, a soft edge
+  }
+  o = mix(texture(orig, uv), texture(img, uv), m);
+}`,
     vignette: `uniform float amount, aspect;
 void main() {
   vec3 c = texture(img, uv).rgb;
@@ -347,7 +360,8 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
         if (l === null) continue;
         if (Array.isArray(v)) gl.uniform2f(l, v[0], v[1]);
         else if (typeof v === "boolean") gl.uniform1i(l, v ? 1 : 0);
-        else if (Number.isInteger(v) && k === "radius") gl.uniform1i(l, v);
+        else if (v instanceof Float32Array) gl.uniform4fv(l, v);
+        else if (Number.isInteger(v) && (k === "radius" || k === "n")) gl.uniform1i(l, v);
         else gl.uniform1f(l, v);
       }
       gl.bindFramebuffer(gl.FRAMEBUFFER, target ? target.fb : null);
@@ -418,6 +432,19 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
       let cur = this._step(src, "copy", {});
       const swap = (next) => { if (next !== cur) { this._release(cur); cur = next; } };
 
+      // ◎ a step with control points only shows around its points: keep the picture from before it, then blend
+      const pointsFor = (id) => ((p.points || {})[id] || []).filter((q) => q && q.op > 0 && q.r > 0).slice(0, 16);
+      const begin = (id) => (pointsFor(id).length ? this._step(cur, "copy", {}) : null);
+      const end = (id, before) => {
+        if (!before) return;
+        const pts = pointsFor(id), arr = new Float32Array(64);
+        pts.forEach((q, i) => arr.set([q.x, q.y, q.r, q.op], i * 4));
+        const long = Math.max(cur.w, cur.h);
+        swap(this._step(cur, "pointMask", { pts: arr, n: pts.length, scale: [cur.w / long, cur.h / long] }, { orig: before }));
+        this._release(before);
+      };
+      const baseBefore = begin("base");
+
       // 1. Light and Color
       const recovery = p.shadows > 0 || p.highlights < 0;
       const curve = p.shadows < 0 || p.highlights > 0 || p.whites !== 0 || p.blacks !== 0;
@@ -445,8 +472,12 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
       if (p.sharpen > 0) swap(this._local(cur, 0.9 * unit, 1.6 * p.sharpen));
       if (p.vignette) swap(this._step(cur, "vignette", { amount: p.vignette, aspect: cur.w / cur.h }));
 
+      end("base", baseBefore);
+
       // 3. Filters, in the stacked order
       for (const id of fullOrder(p.order)) {
+        const on = { extract: p.extractOn, dark: p.darkOn, bleach: p.bleachOn, glow: p.glowOn, bloom: p.bloomOn, grain: p.grainOn }[id];
+        const before = on ? begin(id) : null;
         if (id === "extract" && p.extractOn) {
           const r = [2, 5, 14][Math.min(2, Math.max(0, p.deRadius | 0))] * unit;
           const bl = this._blur(cur, 12 * unit);
@@ -484,6 +515,7 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
           this._release(g.blurred);
           this.gl.deleteTexture(g.tex.t);
         }
+        end(id, before);
       }
       return cur;
     }

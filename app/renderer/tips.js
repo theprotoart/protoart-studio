@@ -196,8 +196,10 @@
     const w = t.offsetWidth, h = t.offsetHeight, pad = 8;
     let x = r.left + r.width / 2 - w / 2;
     x = Math.max(pad, Math.min(x, window.innerWidth - w - pad));
-    let y = r.bottom + 8;
-    if (y + h > window.innerHeight - pad) y = r.top - h - 8;  // no room below: above it
+    // a knob's tip goes above it: below, it would cover the knob's number
+    const above = node.closest && node.closest(".rack-knob") && r.top - h - 8 > pad;
+    let y = above ? r.top - h - 8 : r.bottom + 8;
+    if (!above && y + h > window.innerHeight - pad) y = r.top - h - 8;  // no room below: above it
     t.style.left = `${Math.round(x)}px`;
     t.style.top = `${Math.round(Math.max(pad, y))}px`;
   }
@@ -240,7 +242,14 @@
     return null;
   }
 
+  // While a knob or slider is being turned (button held), no tip: it would cover the numbers being changed.
+  // (Knobs use pointer events, which can swallow the mousedown that normally hides a tip.)
+  let pressed = false;
+  document.addEventListener("pointerdown", () => { pressed = true; hide(); }, true);
+  for (const ev of ["pointerup", "pointercancel"]) document.addEventListener(ev, () => { pressed = false; }, true);
+  window.addEventListener("blur", () => { pressed = false; });
   document.addEventListener("mouseover", (e) => {
+    if (pressed) return;
     const hit = e.target && e.target.nodeType === 1 ? findTip(e.target) : null;
     const node = hit && hit.node;
     if (!node || node === current) return;
@@ -249,7 +258,7 @@
     if (!enabled || !text) return;
     current = node;
     timer = setTimeout(() => {
-      if (current !== node || !document.body.contains(node)) return;
+      if (pressed || current !== node || !document.body.contains(node)) return;
       el().textContent = node.dataset.tip || text;
       place(node);
     }, DELAY_MS);

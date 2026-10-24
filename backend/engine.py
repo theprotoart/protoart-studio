@@ -331,6 +331,20 @@ def _max_side(family):
     return 1024 if ram < 24 else 1536
 
 
+def _slice_self_attention(unet, slice_size=2):
+    """Attention slicing for the self-attention layers only (the image prompt adapter's cross-attention layers stay
+    as they are). Same pictures, much less memory for the big attention tables."""
+    if unet is None:
+        return
+    from diffusers.models.attention_processor import SlicedAttnProcessor
+    procs = unet.attn_processors
+    if not any(".attn1." in k and type(p).__name__ in ("AttnProcessor2_0", "AttnProcessor") for k, p in procs.items()):
+        return
+    unet.set_attn_processor({k: (SlicedAttnProcessor(slice_size) if ".attn1." in k and
+                                 type(p).__name__ in ("AttnProcessor2_0", "AttnProcessor") else p)
+                             for k, p in procs.items()})
+
+
 def _set_seamless(pipe, on):
     """Make every convolution in the UNet and VAE wrap around the edges (A1111's "Tiling"), or back to normal."""
     import torch
@@ -914,6 +928,11 @@ class Engine:
         # Low-memory (8-bit) only for SDXL: SD 1.5 already fits in 8 GB, and 8-bit loading of single-file
         # SD 1.5 models was a source of loading errors. ERNIE builds are already quantized.
         low_memory = bool(low_memory) and family == "sdxl"
+        ram0 = total_ram_gb()
+        if family == "sdxl" and spec.get("low_memory_min_ram_gb") and 0 < ram0 < spec["min_ram_gb"]:
+            # SDXL on a Mac with less memory than it needs (8 GB): always the 8-bit UNet. Half the memory, practically
+            # the same pictures, and no swapping to disk (full precision took minutes per step there)
+            low_memory = True
         if spec.get("quantize_unet"):
             low_memory = False  # already 8-bit
         lean = self.is_lean(spec)
@@ -1803,10 +1822,11 @@ class Engine:
         heavy = self.family == "sdxl" or self.family == "ernie"
         # On Apple Silicon below 64 GB, attention slicing *helps* speed: it keeps memory pressure down so
         # macOS doesn't start swapping (turning it off made 512px images on an 8 GB Mac far slower).
-        slice_attn = self.family in ("sd15", "sdxl") and (ram < 64) and not self.ip_key
-        # (attention slicing would replace the image prompt adapter's layers, so it stays off while one is loaded)
+        slice_attn = self.family in ("sd15", "sdxl") and (ram < 64)
+        # (with an image prompt adapter only the self-attention layers are sliced: the adapter lives in the
+        # cross-attention layers. Leaving slicing off with one made 8 GB Macs swap: 90+ s a step)
         tile_vae = (ram < 12 and mp > 0.7) or (ram < 24 and mp > 1.1) or mp > 2.5
-        want = (slice_attn, tile_vae)
+        want = (slice_attn, tile_vae, self.ip_key)
         if self._tuning == want:
             return
         def call(names):
@@ -1820,9 +1840,11 @@ class Engine:
                         except Exception:
                             pass
         if self.family in ("sd15", "sdxl") and not self.ip_key:
-            # (never touched while an image prompt adapter is loaded: switching slicing on OR off swaps out
-            # every attention layer, including the adapter's, and the next picture fails)
             call(["enable_attention_slicing"] if slice_attn else ["disable_attention_slicing"])
+        elif self.family in ("sd15", "sdxl") and slice_attn:
+            # an image prompt adapter is loaded: pipe-wide slicing would swap out its layers (and the next picture
+            # fails), so only the self-attention layers (attn1, where the big tables are) are sliced
+            _slice_self_attention(getattr(pipe, "unet", None))
         call(["enable_vae_tiling", "enable_tiling"] if tile_vae else ["disable_vae_tiling", "disable_tiling"])
         call(["enable_vae_slicing", "enable_slicing"])  # only matters for several images at once; no speed cost
         self._tuning = want

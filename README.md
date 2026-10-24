@@ -38,7 +38,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   consent required), and a 🔗 model chain (SD 1.5 → SDXL → FLUX / ERNIE)
 - **Tools** (rack modules): Finegrain enhance & upscale, face restoration (CodeFormer or RestoreFormer), 🩹 remove objects
   (paint right in Tools; smart or quick fill), ✒️ vectorize to SVG, image → prompt (Qwen3.5 vision model, Florence-2 or
-  WD tagger), depth maps, 🎚 Adjust (Lightroom / Color Efex-style, plus a Procreate-style Bloom), DiffusionBee file conversion, Original / Result /
+  WD tagger), depth maps, 🎚 Adjust (Lightroom / Color Efex-style with ◎ control points, plus a Procreate-style Bloom), 🪡 Puppet warp, DiffusionBee file conversion, Original / Result /
   Split / Side-by-side views, and a 🔌 patchbay to run Remove, Faces, Enhance, Depth, Vectorize and 🔎 Detail (with a LoRA)
   in any order with cables (modules can be moved, added twice or taken off; each copy has its own settings; 🛡 paint areas
   it must not change; live preview), 🧩 tiled upscale (MultiDiffusion), 🗜 smaller 8 / 6 / 4-bit model copies, 🧪 model

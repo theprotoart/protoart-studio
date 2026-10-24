@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["ckpt_merge", "lora_extract", "faceswap", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["ckpt_merge", "lora_extract", "faceswap", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
@@ -209,6 +209,8 @@ const isPicture = (f) => !!f && ((f.type || "").startsWith("image/") || PICTURE_
 const ADJ_KEY = "protoart.adjustLast";  // the last Adjust settings you saved ("Last used")
 let adjEngine = null;                   // the WebGL engine (kept outside Vue: not reactive)
 let adjFrame = 0;
+let pwEngine = null;                    // 🪡 Puppet warp's WebGL engine (outside Vue too)
+let pwFrame = 0;
 // Adjust panel: Camera Raw-style sliders (Light, Color, Presence) and the Color Efex-style filter stack
 const ADJ_SECTIONS = [
   { id: "light", label: "Light", tip: "Like Camera Raw's Light panel. Double-click a slider to reset it.", sliders: [
@@ -435,7 +437,7 @@ const protoartApp = createApp({
                             // speed: get a model ready before you press Generate ("last" = the one you last used)
                             preload_start: "last", preload_on_pick: true,
                             // content filter (off until you turn it on)
-                            hide_nsfw: false, check_pictures: false, hide_people: false, sfw_mode: false, use_inpaint_model: true,
+                            hide_nsfw: false, check_pictures: false, hide_people: false, privacy_mode: false, sfw_mode: false, use_inpaint_model: true,
                             tooltips: true,       // quick tips when pointing at buttons (Settings → Look)
                             default_model: "" },   // the model Create starts with (Models tab → ☆ Default)
         loadJSON(OPTS_KEY, {})),
@@ -457,10 +459,16 @@ const protoartApp = createApp({
       livePreview: null,
       // Adjust (sliders + filters after generating): {open, rec, p, before, busy, msg, error, openFilter, size}
       adj: { open: false, rec: null, p: null, before: false, busy: false, msg: "", error: "", openFilter: "", size: null,
+             // ◎ control points: the step they belong to ("base" = Light, Color & Presence, or a filter id), adding mode,
+             // and the selected point
+             pointTarget: "base", pointMode: false, pointSel: -1, pointDrag: null, ovl: null,
              fold: {}, which: "original", view: "after", split: 0.5, presetName: "", savingPreset: false,
              // several versions at once: which settings ("current" and/or preset names), enhance too, and in which order
              batch: ["current"], batchEnhance: false, batchOrder: "enhance_first" },
       adjPresets: [],   // your saved Adjust presets: [{name, set}]
+      // 🪡 Puppet warp (Tools): pins [{x, y, tx, ty}] in 0..1 from the top left (x, y = where you put it, tx, ty = now)
+      pw: { open: false, rec: null, pins: [], sel: -1, density: 48, busy: false, msg: "", error: "", original: false,
+            ovl: null, size: null },
       // Library → Batch edit & export (PhotoMill-style) with Press compression
       bx: { open: false, ids: [], adjust: "", format: "same", quality: 90, compress: "balanced", dpi: 72, keep_meta: false,
             pattern: "{name}", dest: "", resize: { mode: "none", value: 2048, w: 1080, h: 1350, no_upscale: true },
@@ -501,7 +509,13 @@ const protoartApp = createApp({
               "<b>✨ Bloom</b> (Tools → 🎚 Adjust → Filters, and the new <b>Bloom</b> look): like Procreate's Bloom, the bright parts of the picture glow and spill soft light around them. <b>Bloom</b> sets how strong, <b>Transition</b> how much of the picture glows (low: only the brightest highlights; high: the mid-tones too), <b>Size</b> how far the light spreads, and <b>Burn</b> pushes it brighter, towards blown-out light. Lovely on lamps, neon, sunsets, eyes and magic effects.",
               "<b>VAE: Automatic</b> (Create → VAE, now the default): each SD 1.5 / SDXL model gets the right VAE by itself. A model downloaded from Civitai whose page comes with a VAE gets that VAE (it's downloaded with the model); <b>SDXL</b> models use <b>SDXL fp16-fix</b> when you have it (no black pictures, and the picture is decoded faster and with less memory); an SD 1.5 file that has no VAE inside uses <b>vae-ft-mse</b>. Otherwise the model's own. The list shows which one Automatic uses and why; pick <b>the model's own</b> or any VAE to choose yourself (each model still remembers your choice).",
               "<b>✨ Plan the layout</b> (Create → 🗺 Regions): describe the whole picture in one sentence (“a knight on the left fighting a dragon on the right under a stormy sky”) and press <b>✨ Plan the layout</b>. If your sentence says where things go (“on the left”, “above”, “in the bottom right”), those places are used as they are; if not, a language model works out where each subject goes (Qwen3.5 4B when the picture reader is set up, otherwise the prompt enhancer's small model). It picks columns, rows or a grid (up to 4 areas), writes each area's prompt and puts the setting in the main prompt, then switches regions on. Check the areas, press ✨ on one to add detail, and Generate; <b>↩</b> puts everything back. Leave the box empty to plan from the main prompt. The idea comes from Omost, made small enough for an 8 GB Mac.",
-              "<b>A little faster for SD 1.5 and SDXL</b>: the prompt's part of the work is now done once per picture instead of at every step (the same trick DiffusionBee uses). Same picture, about 3% less time." ] },
+              "<b>A little faster for SD 1.5 and SDXL</b>: the prompt's part of the work is now done once per picture instead of at every step (the same trick DiffusionBee uses). Same picture, about 3% less time.",
+              "<b>◎ Control points in Adjust</b> (like Nik Color Efex): make any filter, or the Light / Color / Presence sliders, show only where you point. Pick the step under <b>◎ Control points for</b>, press <b>＋ Add</b> and click the picture: Bloom only on a lantern or glowing eyes, the rest untouched. Drag a point to move it, set its <b>Size</b> and <b>Opacity</b>, <b>✕ Remove</b> takes it out.",
+              "<b>🪡 Puppet warp</b> (Tools, like Photoshop's): click to put pins on the picture, drag a pin to bend an arm, a tail or a pose, and the picture bends around the other pins. Saved as a copy; <b>Save &amp; send to Image to image</b> lets your model smooth the bent parts.",
+              "<b>Library</b>: <b>💾 Save prompt</b> and <b>⧉ Copy prompt</b> in a picture's details (saved prompts are in Create → 📒 Saved; NSFW ones are hidden there while Hide NSFW is on). Select pictures → <b>⤓ Prompts .txt</b> or <b>⤓ Settings .json</b> exports them all at once.",
+              "<b>🔒 Privacy mode</b> (Settings → Privacy, the soft pink button): takes the Hide NSFW and Hide People buttons off Create and the Library, so nobody looking at your screen sees them; set them in Settings → Privacy instead. The Library now only shows how many pictures there are: the hidden and not-yet-checked counts are in Settings → Privacy.",
+              "<b>Faster on 8 GB Macs</b>: SDXL models always load in 8-bit there (half the memory, practically the same pictures; full size made the Mac use the disk and take minutes a step), and the Image prompt (IP-Adapter) no longer switches off the memory saver (it made SD 1.5 take 90+ seconds a step).",
+              "<b>Smaller things</b>: Create's ↺ reset all also clears the LoRAs, takes the model out of memory and goes back to your ☆ default model; ↺ Reset Tools settings pulls out the patchbay cables too (undo puts them back); a knob's tip shows above it and hides while you turn it; Image prompt says “downloaded” once it is; Convert no longer offers Embedding (embeddings are trained: Train → Embedding)." ] },
             { h: "1.3.0: new tools", items: [
               "<b>New model: Anima</b> (CircleStone Labs, anime and illustration; Danbooru tags, sentences or both). <b>Anima Turbo</b> makes a picture in 10 steps; <b>Anima</b> uses 30 steps for the most detail. ~5.9 GB once, in the Models tab under Anima. Non-commercial licence for the model (pictures may be used commercially). It can also start from a picture in Image to image. Anima pictures are kept all-ages by default: the app adds Anima's <b>safe</b> rating tag unless your prompt already has a rating tag (safe, sensitive, nsfw or explicit).",
               "<b>🗺 Regions</b> (Create, SD 1.5 and SDXL): a different prompt for each part of the picture: columns, rows or a grid, with a small map of the areas. “Keep one scene” blends them so it stays one picture.",
@@ -881,7 +895,13 @@ const protoartApp = createApp({
               "<b>Strength</b> blends the result with the original (0.7–0.8 looks most natural). <b>Fidelity</b> (CodeFormer only): low gives the cleanest face, high (0.7+) keeps more of the person's own features.",
               "Each model downloads once, the first time you use it (RestoreFormer ~280 MB, CodeFormer ~360 MB), and is checked against a pinned SHA-256. CodeFormer's licence allows <b>non-commercial use only</b>.",
               "Tick both in <b>Run on this image</b> to enhance first, then restore faces, as one finished picture." ] },
+            { h: "🪡 Puppet warp (like Photoshop's)", items: [
+              "Tools → <b>🪡 Puppet warp</b> (under the picture), or <b>🪡 Puppet warp the result</b> after a tool has run. The picture on the left becomes the live preview.",
+              "<b>Click</b> the picture to put a pin. Pins hold their spot. <b>Drag</b> a pin and the picture bends around it, while the other pins stay put: pin the shoulder and hips, then drag the hand.",
+              "<b>⌥-click</b> or <b>double-click</b> a pin (or ✕ Remove pin) to take it out; ↺ Remove all starts again; hold <b>◐ Hold for the original</b> to compare. <b>Smoothness</b>: More points gives smoother bends.",
+              "<b>💾 Save the warped copy</b> adds it to the Library (the original stays). Bending stretches pixels a little: <b>Save &amp; send to Image to image</b> and redraw it lightly (0.2–0.35 change) with your model." ] },
             { h: "🎚 Adjust: light, colour and filters", items: [
+              "<b>◎ Control points</b>: under <b>◎ Control points for</b>, pick Light, Color &amp; Presence or a filter that's on, press <b>＋ Add</b>, then click the picture. That step now shows only around its points (full strength in the middle, softly fading at the edge), like Nik Color Efex. Drag a point to move it; <b>Size</b> and <b>Opacity</b> are under the bar; <b>✕ Remove</b> takes out the selected point. A filter's settings also show its points (＋ add a point, whole picture again). Points belong to this picture: presets and Last used keep only the sliders.",
               "Edits a picture the way Lightroom / Camera Raw and Nik Color Efex do, live on the Mac's graphics chip. It works in the <b>Tools</b> tab: press <b>🎚 Adjust the original</b> (or <b>Adjust the result</b> after enhancing) under the picture; <b>🎚 Adjust</b> in the Library's picture details and in Image to image brings the picture to Tools for you.",
               "The picture on the left becomes the live preview, and the controls are in the <b>Adjust</b> card on the right.",
               "<b>Compare</b> with the buttons under the picture: <b>Edited</b> (with your changes), <b>Original</b> (without them), or <b>Split</b> (original on the left, edited on the right; drag on the picture to move the line). The <b>\\</b> key flips between Edited and Original.",
@@ -1085,6 +1105,10 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "New in 1.4.0: if something doesn't work", items: [
+              "<b>A step takes minutes, or the Mac says it's short of memory</b>: on an 8 GB Mac the picture runs out of memory and macOS moves it to the disk (the queue's time is real, measured as it goes). Quit other big apps (web browsers with many tabs, other image apps; while Claude is working on your Mac it uses some memory too), use SD 1.5 or ⚡ fast mode, or a smaller size. SDXL already loads in 8-bit on 8 GB Macs.",
+              "<b>Control points don't seem to do anything</b>: the points belong to the step chosen under ◎ Control points for. A filter has to be switched on to get points; with no points, the step works on the whole picture.",
+              "<b>Puppet warp bends the whole picture</b>: one pin moves everything. Put pins where the picture should stay still first (two or three), then drag the one you want to bend.",
+              "<b>I can't find Hide NSFW / Hide People</b>: 🔒 Privacy mode is on: they're in Settings → Privacy.",
               "<b>Colours of an SDXL model look a little different than before</b>: VAE <b>Automatic</b> now uses SDXL fp16-fix for SDXL models (when it's in your VAE folder). A few models are made with their own special VAE: for those, pick <b>the model's own</b> in Create → VAE and that model remembers it.",
               "<b>✨ Plan the layout says it couldn't find separate parts</b>: the sentence needs two or more subjects in different places. Say where they go: “on the left…, on the right…”, “at the top…, at the bottom…”, “in the top left…”. If the small model's plan is odd, press it again (each try can differ) or fix the areas by hand.",
               "<b>Bloom washes the picture out</b>: lower <b>Transition</b> (only the brightest parts glow) and <b>Burn</b>, or lower <b>Bloom</b>. On a bright picture (snow, white background) almost everything counts as bright.",
@@ -1095,7 +1119,7 @@ const protoartApp = createApp({
               "<b>“This needs a one-time download from Hugging Face … couldn't reach huggingface.co” although you're online</b> (OpenPose / Union ProMax OpenPose, Depth and some other ControlNets): fixed. The pose and depth finders' first download wasn't recognised as a download, so it was never tried. The message now also has a <b>⬇ Download it now</b> button that runs the same job again with the connection open.",
               "<b>🧩 Tiled upscale turned the picture into something else</b> (new faces, extra people, another style): fixed. It used Create's prompt, so every tile tried to draw that whole scene. It now uses a short detail prompt (add your own texture or style words in <i>Detail prompt</i>) and gentler defaults; pick a preset.",
               "<b>🗺 Regional prompts barely changed the picture</b>: each area now follows only its own prompt (before, the whole main prompt was added to every area and drowned the subjects). Describe each area fully and keep the main prompt to the setting.",
-              "<b>Tools → Convert → Convert into</b>: <b>Copy</b> (the .safetensors copies as before), <b>LoRA</b> (turn a fine-tuned model into a small LoRA: pick the model, the base model it was made from, and a size; rank 32 is a good start, 64–128 keeps more of its look) or <b>Embedding</b> (embeddings are learned from pictures, so it opens Train). The LoRA appears in your LoRA list and works in other apps too.",
+              "<b>Tools → Convert → Convert into</b>: <b>Copy</b> (the .safetensors copies as before) or <b>LoRA</b> (turn a fine-tuned model into a small LoRA: pick the model, the base model it was made from, and a size; rank 32 is a good start, 64–128 keeps more of its look). (Embeddings are learned from pictures: Train → Embedding.) The LoRA appears in your LoRA list and works in other apps too.",
               "<b>Sort the models A → Z</b> (or Z → A, or biggest first): the Sort menu beside Create's model search, and beside the Image to image model list. ★ Favourites stay first.",
               "<b>Image to image</b>: every card (Picture, Sampler, LoRAs, Model chain, ControlNet, Prompt) folds down to its title with a click on it, and <i>collapse all · expand all</i> sits at the top. Each <b>Model chain</b> step has a search box for its LoRAs, and <b>FLUX.2 Klein 4B</b> can be a chain step: it edits the picture with the words you write for that step (“make it a watercolour”), with its own LoRA if you like.",
               "<b>🗺 Regions with FLUX.2 Klein 4B</b> too, and a <b>✨</b> button on each area to describe its subject in detail.",
@@ -1293,6 +1317,7 @@ const protoartApp = createApp({
       trigEdit: { name: "", text: "" },
       embeddings: [],
       vaes: [],
+      ipStatus: null,  // Image prompt: which adapter files are already downloaded (ip_status)
       vaeAuto: null,   // what VAE "Automatic" uses with the current model: {name, why}
       vaeByModel: loadJSON("protoart.vaeByModel", {}),   // model id -> the VAE you picked for it
       vaeFolder: "",
@@ -1537,8 +1562,12 @@ const protoartApp = createApp({
     negPresets() {  // 📒 negative prompts saved on their own
       return this.promptPresets.filter((p) => p.kind === "negative");
     },
+    // 📒 My prompts as shown: NSFW ones are left out while Hide NSFW (or Safe-for-work mode) is on
+    visiblePromptPresets() {
+      return this.hideNsfw ? this.promptPresets.filter((p) => !p.nsfw) : this.promptPresets;
+    },
     promptOnlyPresets() {
-      return this.promptPresets.filter((p) => p.kind !== "negative");
+      return this.visiblePromptPresets.filter((p) => p.kind !== "negative");
     },
     inpaintModel() {
       // Image to image → Inpaint / Expand with an SD 1.5 (or SDXL) model: an inpainting checkpoint of the same type,
@@ -2057,6 +2086,14 @@ const protoartApp = createApp({
     controlTypeInfo() {
       return this.controlTypes.find((t) => t.id === this.form.control.type);
     },
+    ipReadyText() {  // "ready" once the adapter for this model type (and the chosen kind) is on this Mac
+      const st = this.ipStatus, fam = this.family === "sdxl" ? "sdxl" : "sd15";
+      if (!st) return "~2.6 GB first time";
+      const kind = (this.form.ip_adapter && this.form.ip_adapter.kind) || "style";
+      const k = (st.kinds || {})[kind] || {};
+      if (st.encoder && k[fam]) return "downloaded";
+      return st.encoder ? "~100 MB first time for this one" : "~2.6 GB first time";
+    },
     compatibleVaes() {
       return this.vaes.filter((v) => v.family === this.family);
     },
@@ -2343,6 +2380,8 @@ const protoartApp = createApp({
       if (this.resetUndo && Date.now() - (this._resetAt || 0) > 2500) this.resetUndo = null;
     } },
     "adj.p": { deep: true, handler() { this.adjRender(); } },
+    "pw.pins": { deep: true, handler() { this.pwRender(); } },
+    "pw.original"() { this.pwRender(); },
     "adj.before"() { this.adjRender(); },
     "adj.view"() { this.adjRender(); },
     "adj.split"() { this.adjRender(); },
@@ -2368,6 +2407,7 @@ const protoartApp = createApp({
   },
 
   async mounted() {
+    window.addEventListener("resize", () => { if (this.adj.open) this.adjPlaceOverlay(); if (this.pw.open) this.pwPlaceOverlay(); });
     // the saved form remembers whose prompt is in the box (Create's or Image to image's): match it to the tab the
     // app opens on, or Image to image's prompt would show (and be written) in Create
     this.swapPrompts(this.tab === "i2i" ? "i2i" : "create");
@@ -2419,6 +2459,8 @@ const protoartApp = createApp({
       if (m.type === "progress") this.onProgress(m);
       if (m.type === "enhanced_prompt") this.lastEnhanced = { prompt: m.prompt, original: m.original };
       if (m.type === "model_ready") this.readyModel = m.model;
+      if (m.type === "status" && /image prompt adapter/i.test(m.msg || "") && this.ipReadyText !== "downloaded")
+        setTimeout(() => this.refreshIpStatus(), 30000);  // after its first download, the label says "downloaded"
       if (m.type === "queue") {
         if (typeof m.paused === "boolean") this.setPaused(m.paused);
         const prev = this.runningJob;
@@ -2482,6 +2524,7 @@ const protoartApp = createApp({
       }
     },
     async init() {
+      setTimeout(() => this.flagSavedPrompts(), 4000);
       this.backendDead = false;
       try {
         await call("set_settings", this.opts);
@@ -3150,32 +3193,43 @@ const protoartApp = createApp({
       this.resetCreateAll();
       setTimeout(() => { this.resetFlip = false; }, 550);
     },
-    // Create → reset all: every setting back to the start (prompt, model and presets stay)
+    // Create → reset all: a clean slate. Prompts cleared, no LoRAs, the loaded model taken out of memory, the model
+    // list back to your default model, every setting back to the start, every section folded. Presets stay.
     async resetCreateAll() {
-      const m = this.currentModel;
-      if (!m) return;
       this.resetUndo = null;  // no undo: the lever springs back
-      // a clean slate: no prompt or negative prompt either (Image to image's own prompt is left alone)
-      const keep = { model: this.form.model, prompt: "", negative_prompt: "", prompt_owner: this.form.prompt_owner,
-                     i2i_prompt: this.form.i2i_prompt, i2i_negative: this.form.i2i_negative };
+      // (Image to image's own prompt is left alone)
+      const keep = { prompt: "", negative_prompt: "", prompt_owner: this.form.prompt_owner,
+                     i2i_prompt: this.form.i2i_prompt, i2i_negative: this.form.i2i_negative, loras: [] };
+      const start = this.opts.default_model || "";  // Models tab → ☆ Default
+      const was = this.form.model;
       this.form = Object.assign(defaultForm(), keep);
+      // the model list goes back to your ☆ default model (or stays on the one picked, if there's no default)
+      this.form.model = start && this.models.some((x) => x.id === start) ? start : was;
       this.cmp.open = false;
       this.lastEnhanced = null;
       this.lorasAside = {};
       saveJSON("protoart.lorasAside", this.lorasAside);
-      await this.onModelChange();
+      clearTimeout(this.preloadTimer);
+      const freed = await call("unload_model", {}).catch(() => null);  // the preloaded model and its LoRAs leave memory
+      if (this.currentModel) await this.onModelChange();
+      clearTimeout(this.preloadTimer);  // don't load it straight back in
       this.cfAll(true);  // every section folded down to one line
-      this.status = "Create is reset: prompts cleared, everything back to the start, sections folded";
+      this.status = "Create is reset: prompts and LoRAs cleared" + (freed && freed.unloaded ? ", model taken out of memory" : "") +
+        ", everything back to the start, sections folded";
     },
     resetTools() {
       this.toolsUndo = JSON.parse(JSON.stringify(this.post));
+      this.toolsUndoCables = this.patch.running ? null : JSON.parse(JSON.stringify(this.patch.cables || []));
       this.post = defaultPost();
-      this.status = "Tools settings reset · undo puts them back";
+      if (!this.patch.running) this.patchReset("clear");  // the patchbay's cables come out too
+      this.status = "Tools settings reset and patchbay cables pulled out · undo puts them back";
     },
     undoResetTools() {
       if (!this.toolsUndo) return;
       this.post = this.toolsUndo;
+      if (this.toolsUndoCables && !this.patch.running) { this.patch.cables = this.toolsUndoCables; this.patchSave(); }
       this.toolsUndo = null;
+      this.toolsUndoCables = null;
       this.status = "Tools settings restored";
     },
     undoResetCreate() {
@@ -3723,6 +3777,7 @@ const protoartApp = createApp({
 
     // -------------------------------------------------------------- tools tab
     openInTools(r) {
+      if (this.pw.open) this.closePuppet();
       this.tool.source = { path: r.path, image_id: r.id, width: r.width, height: r.height,
                            label: `Library image #${r.id}` };
       this.tool.latest = null;
@@ -3765,6 +3820,7 @@ const protoartApp = createApp({
       const usable = await this.preparePicture(path);
       if (!usable) return;
       this.closeAdjust();
+      this.closePuppet();
       this.tool.latest = null;
       this.tool.source = { path: usable, image_id: null, width: 0, height: 0, label: name || path.split("/").pop() };
     },
@@ -3939,6 +3995,7 @@ const protoartApp = createApp({
       if (!this.tool.source) return;
       if (on) {
         if (this.adj.open) this.closeAdjust();
+        if (this.pw.open) this.closePuppet();
         this.mask.data = this.patch.protect && this.patch.protect.for === this.tool.source.path ? this.patch.protect.data : null;
         this.mask.for = this.tool.source.path;
         this.tool.protecting = true;
@@ -6298,6 +6355,10 @@ const protoartApp = createApp({
       const ok = (name) => name === "__own__" || this.vaes.some((v) => v.name === name && v.family === m.family);
       this.form.vae = saved && ok(saved) ? saved : "";  // never a VAE made for another model type
       this.refreshVaeAuto();
+      this.refreshIpStatus();
+    },
+    async refreshIpStatus() {
+      this.ipStatus = await call("ip_status", {}).catch(() => this.ipStatus);
     },
     async refreshVaeAuto() {
       const m = this.currentModel;
@@ -6610,17 +6671,50 @@ const protoartApp = createApp({
       };
       reader.readAsText(file);
     },
-    confirmSavePrompt() {
+    async confirmSavePrompt() {
       const name = (this.promptBox?.name || "").trim();
       if (!name) return;
       const neg = this.promptBox?.kind === "negative";
+      const entry = neg ? { name, kind: "negative", negative: this.form.negative_prompt || "" }
+                        : { name, prompt: this.form.prompt, negative: this.form.negative_prompt || "" };
+      entry.nsfw = neg ? false : await this.promptIsNsfw(entry.prompt);
       const list = this.promptPresets.filter((p) => p.name !== name);
-      list.unshift(neg ? { name, kind: "negative", negative: this.form.negative_prompt || "" }
-                       : { name, prompt: this.form.prompt, negative: this.form.negative_prompt || "" });
+      list.unshift(entry);
       this.promptPresets = list.slice(0, 500);
       saveJSON("protoart.prompts", this.promptPresets);
       this.promptBox = null;
       this.status = `Saved “${name}” in 📒 My prompts`;
+    },
+    async promptIsNsfw(text) {
+      const r = await call("prompt_flags", { texts: [text || ""] }).catch(() => null);
+      return !!(r && r.flags && r.flags[0]);
+    },
+    async flagSavedPrompts() {  // prompts saved before 1.4 get their NSFW flag once
+      const todo = this.promptPresets.filter((p) => p.nsfw === undefined && p.kind !== "negative");
+      if (!todo.length) return;
+      const r = await call("prompt_flags", { texts: todo.map((p) => p.prompt || "") }).catch(() => null);
+      if (!r || !r.flags) return;
+      todo.forEach((p, i) => { p.nsfw = !!r.flags[i]; });
+      saveJSON("protoart.prompts", this.promptPresets);
+    },
+    // Library → picture details → 💾 Save prompt: into 📒 My prompts (NSFW if the picture or its prompt is)
+    async savePictureprompt(r) {
+      if (!r || !r.prompt) return;
+      const words = r.prompt.replace(/[(),:\[\]]/g, " ").split(/\s+/).filter(Boolean).slice(0, 5).join(" ") || "My prompt";
+      if (this.promptPresets.some((p) => p.prompt === r.prompt && (p.negative || "") === (r.negative_prompt || ""))) {
+        this.status = "That prompt is already in 📒 My prompts";
+        return;
+      }
+      let name = words, i = 2;
+      while (this.promptPresets.some((p) => p.name === name)) name = `${words} (${i++})`;
+      const nsfw = !!r.nsfw || await this.promptIsNsfw(r.prompt);
+      this.promptPresets = [{ name, prompt: r.prompt, negative: r.negative_prompt || "", nsfw }, ...this.promptPresets].slice(0, 500);
+      saveJSON("protoart.prompts", this.promptPresets);
+      this.status = `Saved “${name}” in 📒 My prompts (Create → 📒 Saved)` + (nsfw ? " · hidden while Hide NSFW is on" : "");
+    },
+    async copyPictureprompt(r) {
+      try { await navigator.clipboard.writeText(r.prompt || ""); this.status = "Prompt copied"; }
+      catch { this.error = "Couldn't copy the prompt."; }
     },
     promptPresetName(kind) {
       const src = kind === "negative" ? (this.form.negative_prompt || "") : this.form.prompt;
@@ -7030,6 +7124,7 @@ const protoartApp = createApp({
     // -------------------------------------------------------------- Adjust: sliders and filters on the GPU
     // Adjust lives in the Tools tab: the picture on the left becomes the live preview, the controls are a card on the right.
     async openAdjust(r, keepSettings = false) {
+      if (this.pw.open) this.closePuppet();
       if (!r || !r.path) return;
       if (!window.ProtoAdjust) { this.error = "Adjust didn't load: quit and reopen the app."; return; }
       if (this.tab !== "tools" || !this.tool.source) {
@@ -7058,6 +7153,129 @@ const protoartApp = createApp({
       }
       this.adj.busy = false;
     },
+    // -------------------------------------------------------------- 🪡 Puppet warp (Tools)
+    async openPuppet(r) {
+      if (!window.ProtoPuppet) { this.error = "Puppet warp didn't load: quit and reopen the app."; return; }
+      if (this.adj.open) this.closeAdjust();
+      Object.assign(this.pw, { open: true, rec: r, pins: [], sel: -1, busy: true, msg: "Loading the picture…", error: "", original: false, ovl: null });
+      try {
+        const bmp = await createImageBitmap(new Blob([await this.readImageBytes(r.path)]));
+        await this.$nextTick();
+        const canvas = this.$refs.pwCanvas;
+        if (!canvas) throw new Error("the preview isn't on screen");
+        if (pwEngine) pwEngine.destroy();
+        pwEngine = new window.ProtoPuppet.PuppetEngine(canvas);
+        pwEngine.setDensity(this.pw.density);
+        await pwEngine.setImage(bmp, 1600);
+        this.pw.size = [bmp.width, bmp.height];
+        this.pw.msg = "";
+        this.pwRender();
+        this.$nextTick(() => document.getElementById("puppet-card")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      } catch (e) {
+        this.pw.error = "Couldn't open the picture for Puppet warp: " + (e.message || e);
+      }
+      this.pw.busy = false;
+    },
+    closePuppet() {
+      this.pw.open = false;
+      this.pw.pins = [];
+      if (pwEngine) { pwEngine.destroy(); pwEngine = null; }
+    },
+    pwRender() {
+      if (!pwEngine || !this.pw.open) return;
+      cancelAnimationFrame(pwFrame);
+      pwFrame = requestAnimationFrame(() => {
+        try { pwEngine.render(this.pw.pins, this.pw.original); } catch (e) { this.pw.error = e.message; }
+        this.pwPlaceOverlay();
+      });
+    },
+    pwPlaceOverlay() {
+      const c = this.$refs.pwCanvas, wrap = c && c.parentElement;
+      if (!c || !wrap) return;
+      const a = c.getBoundingClientRect(), b = wrap.getBoundingClientRect();
+      const ovl = [a.left - b.left, a.top - b.top, a.width, a.height].map((v) => Math.round(v));
+      if (!this.pw.ovl || this.pw.ovl.join() !== ovl.join()) this.pw.ovl = ovl;
+    },
+    pwXY(e) {
+      const r = this.$refs.pwOverlay.getBoundingClientRect();
+      return [Math.min(1, Math.max(0, (e.clientX - r.left) / Math.max(1, r.width))),
+              Math.min(1, Math.max(0, (e.clientY - r.top) / Math.max(1, r.height)))];
+    },
+    pwStageDown(e) {  // click the picture: a new pin there (it holds that spot until you drag it)
+      if (this.pw.pins.length >= 40) { this.status = "That's the most pins (40): remove one first"; return; }
+      const [x, y] = this.pwXY(e);
+      const [ox, oy] = this.pwUnwarp(x, y);  // the spot of the original picture that's under the click now
+      this.pw.pins = [...this.pw.pins, { x: ox, y: oy, tx: x, ty: y }];
+      this.pw.sel = this.pw.pins.length - 1;
+      this.pwPinDown(e, this.pw.sel);
+    },
+    pwUnwarp(x, y) {  // where a point of the bent picture came from (the pins swapped round: close enough)
+      const pins = this.pw.pins;
+      if (!pins.length) return [x, y];
+      const [w, h] = this.pw.size || [1, 1];
+      return window.ProtoPuppet.mlsRigid(x, y, pins.map((k) => [k.tx, k.ty]), pins.map((k) => [k.x, k.y]), w / h);
+    },
+    pwPinDown(e, i) {
+      if (e.altKey) { this.pwRemovePin(i); return; }  // ⌥-click a pin: take it out
+      this.pw.sel = i;
+      const move = (ev) => {
+        const [x, y] = this.pwXY(ev);
+        this.pw.pins = this.pw.pins.map((k, n) => (n === i ? { ...k, tx: x, ty: y } : k));
+      };
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    },
+    pwRemovePin(i) {
+      const n = i != null && i >= 0 ? i : this.pw.sel >= 0 ? this.pw.sel : this.pw.pins.length - 1;
+      if (n < 0) return;
+      this.pw.pins = this.pw.pins.filter((_k, k) => k !== n);
+      this.pw.sel = -1;
+    },
+    pwPinStyle(k) {
+      return { left: k.tx * 100 + "%", top: k.ty * 100 + "%" };
+    },
+    pwSetDensity(n) {
+      this.pw.density = n;
+      if (pwEngine) { pwEngine.setDensity(n); this.pwRender(); }
+    },
+    pwMoved() {
+      return this.pw.pins.some((k) => Math.abs(k.x - k.tx) > 1e-4 || Math.abs(k.y - k.ty) > 1e-4);
+    },
+    async pwSave(then) {
+      if (!pwEngine || !this.pwMoved()) return;
+      const r = this.pw.rec;
+      this.pw.busy = true;
+      this.pw.msg = "Bending the full-size picture…";
+      this.pw.error = "";
+      try {
+        const blob = await pwEngine.exportPNG(this.pw.pins);
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const args = { image_id: r.id ?? null, path: r.path, editor: "Puppet warp",
+                       adjust: { pins: JSON.parse(JSON.stringify(this.pw.pins)), density: this.pw.density } };
+        try {
+          if (!window.bee.writeAdjusted) throw new Error("No handler registered");
+          args.file = await window.bee.writeAdjusted(bytes);
+        } catch (e) {
+          if (!/No handler registered/.test(String(e.message || e))) throw e;
+          let bin = "";
+          for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+          args.data_b64 = btoa(bin);
+        }
+        const rec = await call("adjust_save", args);
+        if (rec) this.tool.results.unshift(rec);
+        this.closePuppet();
+        if (rec && rec.id != null) {
+          this.tool.latest = rec;
+          this.status = "Warped copy saved to the Library (the original is unchanged)";
+          if (then === "i2i") this.useAsStart(rec);  // a light redraw smooths stretched areas
+        }
+      } catch (e) {
+        this.pw.error = "Couldn't save: " + (e.message || e);
+      }
+      this.pw.busy = false;
+      this.pw.msg = "";
+    },
     async readImageBytes(path) {
       // the window's own file reader (needs the app fully restarted after an update), else via the engine
       const web = /\.(png|jpe?g|webp|gif|bmp)$/i.test(path);  // what the window can decode itself
@@ -7079,7 +7297,15 @@ const protoartApp = createApp({
       adjFrame = requestAnimationFrame(() => {
         const view = this.adj.before ? "before" : this.adj.view;
         try { adjEngine.render(this.adj.p, view, this.adj.split); } catch (e) { this.adj.error = e.message; }
+        this.adjPlaceOverlay();
       });
+    },
+    adjPlaceOverlay() {  // the control-point layer sits exactly over the preview picture
+      const c = this.$refs.adjCanvas, wrap = c && c.parentElement;
+      if (!c || !wrap) return;
+      const a = c.getBoundingClientRect(), b = wrap.getBoundingClientRect();
+      const ovl = [a.left - b.left, a.top - b.top, a.width, a.height].map((v) => Math.round(v));
+      if (!this.adj.ovl || this.adj.ovl.join() !== ovl.join()) this.adj.ovl = ovl;
     },
     adjDefault(k) {
       return window.ProtoAdjust.defaults()[k];
@@ -7108,6 +7334,8 @@ const protoartApp = createApp({
       const f = ADJ_FILTERS[id];
       this.adj.p[f.on] = !this.adj.p[f.on];
       this.adj.openFilter = this.adj.p[f.on] ? id : (this.adj.openFilter === id ? "" : this.adj.openFilter);
+      if (this.adj.p[f.on]) { this.adj.pointTarget = id; this.adj.pointSel = -1; }  // ◎ Add now puts points for this filter
+      else if (this.adj.pointTarget === id) { this.adj.pointTarget = "base"; this.adj.pointSel = -1; }
     },
     adjMove(id, dir) {
       const o = this.adj.p.order.slice(), i = o.indexOf(id), j = i + dir;
@@ -7116,7 +7344,7 @@ const protoartApp = createApp({
       this.adj.p.order = o;
     },
     adjLook(look) {
-      this.adj.p = window.ProtoAdjust.withDefaults(look.set);
+      this.adj.p = Object.assign(window.ProtoAdjust.withDefaults(look.set), this.adjKeepPoints());
       this.adj.openFilter = "";
     },
     adjLookOn(look) {
@@ -7125,7 +7353,84 @@ const protoartApp = createApp({
     },
     adjResetAll() {
       this.adj.p = window.ProtoAdjust.defaults();
+      this.adj.pointSel = -1; this.adj.pointMode = false;
       this.adj.openFilter = "";
+    },
+    // ◎ Control points (like Nik Color Efex): a step (Light/Color/Presence, or one filter) shows only around its points
+    adjKeepPoints() {  // looks and presets change the sliders, not where you put points
+      return this.adj.p && this.adj.p.points ? { points: this.adj.p.points } : {};
+    },
+    adjPointTargets() {
+      const t = [{ id: "base", label: "Light, Color & Presence" }];
+      for (const id of (this.adj.p && this.adj.p.order) || []) {
+        const f = ADJ_FILTERS[id];
+        if (f && this.adj.p[f.on]) t.push({ id, label: f.label });
+      }
+      return t;
+    },
+    adjPoints(target) {
+      return ((this.adj.p && this.adj.p.points) || {})[target || this.adj.pointTarget] || [];
+    },
+    adjPointCount(target) {
+      return this.adjPoints(target).length;
+    },
+    adjSetPoints(target, list) {
+      const pts = { ...((this.adj.p && this.adj.p.points) || {}) };
+      if (list.length) pts[target] = list; else delete pts[target];
+      this.adj.p.points = pts;
+    },
+    adjStartAdd() {
+      if (!this.adjPointTargets().some((t) => t.id === this.adj.pointTarget)) this.adj.pointTarget = "base";
+      this.adj.pointMode = !this.adj.pointMode;
+      if (this.adj.view === "before") this.adj.view = "after";
+    },
+    adjStageXY(e) {
+      const r = this.$refs.adjOverlay.getBoundingClientRect();
+      return [Math.min(1, Math.max(0, (e.clientX - r.left) / Math.max(1, r.width))),
+              Math.min(1, Math.max(0, (e.clientY - r.top) / Math.max(1, r.height)))];
+    },
+    adjOverlayDown(e) {  // adding mode: a click on the picture puts a point there
+      if (!this.adj.pointMode) return;
+      const [x, y] = this.adjStageXY(e);
+      const list = [...this.adjPoints(), { x, y, r: 0.12, op: 1 }].slice(0, 16);
+      this.adjSetPoints(this.adj.pointTarget, list);
+      this.adj.pointSel = list.length - 1;
+      this.adj.pointMode = false;
+      this.status = "Point added: drag it to move it; set its Size and Opacity in the Adjust card";
+    },
+    adjPointDown(e, i) {  // drag a point to move it
+      this.adj.pointSel = i;
+      const move = (ev) => {
+        const [x, y] = this.adjStageXY(ev);
+        const list = this.adjPoints().map((q, k) => (k === i ? { ...q, x, y } : q));
+        this.adjSetPoints(this.adj.pointTarget, list);
+      };
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    },
+    adjSelPoint() {
+      return this.adjPoints()[this.adj.pointSel] || null;
+    },
+    adjPointSet(k, v) {
+      const i = this.adj.pointSel;
+      this.adjSetPoints(this.adj.pointTarget, this.adjPoints().map((q, n) => (n === i ? { ...q, [k]: Number(v) } : q)));
+    },
+    adjRemovePoint() {
+      const list = this.adjPoints();
+      if (!list.length) return;
+      const i = this.adj.pointSel >= 0 && this.adj.pointSel < list.length ? this.adj.pointSel : list.length - 1;
+      this.adjSetPoints(this.adj.pointTarget, list.filter((_q, n) => n !== i));
+      this.adj.pointSel = -1;
+      this.status = list.length > 1 ? "Point removed" : "Point removed: this step applies to the whole picture again";
+    },
+    adjClearPoints(target) {
+      this.adjSetPoints(target, []);
+      if (target === this.adj.pointTarget) this.adj.pointSel = -1;
+    },
+    adjPointStyle(q) {  // the circle on the preview: radius is in units of the picture's long side
+      const [w, h] = this.adj.size || [1, 1], long = Math.max(w, h);
+      return { left: q.x * 100 + "%", top: q.y * 100 + "%", width: (2 * q.r * long / w) * 100 + "%", height: (2 * q.r * long / h) * 100 + "%" };
     },
     // compare: Edited / Original / Split (drag the line); the \\ key flips between Edited and Original
     adjSetView(v) {
@@ -7173,7 +7478,7 @@ const protoartApp = createApp({
       }
     },
     adjApplyPreset(pr) {
-      this.adj.p = window.ProtoAdjust.withDefaults(JSON.parse(JSON.stringify(pr.set || {})));
+      this.adj.p = Object.assign(window.ProtoAdjust.withDefaults(JSON.parse(JSON.stringify(pr.set || {}))), this.adjKeepPoints());
       this.adj.openFilter = "";
     },
     adjPresetOn(pr) {
@@ -7224,7 +7529,8 @@ const protoartApp = createApp({
       this.adj.error = "";
       try {
         const rec = await this.adjSaveVersion(adjEngine, p, r);
-        saveJSON(ADJ_KEY, p);
+        const { points, ...plain } = p;  // control points belong to one picture: "Last used" keeps the rest
+        saveJSON(ADJ_KEY, plain);
         this.closeAdjust();
         if (rec && rec.id != null) {
           this.tool.latest = rec;
@@ -7440,6 +7746,12 @@ const protoartApp = createApp({
       if (why.length) return "NSFW: " + why.join(" and ");
       return r.nsfw_score != null ? `looks safe (checker ${Math.round(r.nsfw_score * 100)}%)` : "not checked by the picture checker yet";
     },
+    // 🔒 Privacy mode (Settings → Privacy): the Hide NSFW / Hide People buttons leave Create and the Library
+    async setPrivacyMode(on) {
+      this.opts.privacy_mode = !!on;
+      await this.saveOpts();
+      this.status = on ? "Privacy mode on: Hide NSFW and Hide People are only in Settings → Privacy" : "Privacy mode off";
+    },
     async setCheckPictures(on) {
       this.opts.check_pictures = !!on;
       await this.saveOpts();
@@ -7490,17 +7802,42 @@ const protoartApp = createApp({
       const ids = !inDetail && this.selectMode && this.selected.includes(r.id) && this.selected.length > 1 ? [...this.selected] : [r.id];
       this.ctx = { x: Math.min(e.clientX, innerWidth - 240), y: Math.min(e.clientY, innerHeight - 340), r, ids, inDetail };
     },
-    exportSettings(r) {  // a picture's settings as .json (📥 Settings loads it back)
+    pictureSettings(r) {  // what ⤓ Settings .json writes for one picture (file paths on this Mac stay private)
       const st = { ...(r.settings || {}), prompt: r.prompt, negative_prompt: r.negative_prompt, width: r.width, height: r.height,
                    steps: r.steps, cfg: r.cfg, sampler: r.sampler, seed: r.seed, model: r.model, loras: r.loras || [] };
-      delete st.init_image;  // file paths on this Mac stay private
-      const url = URL.createObjectURL(new Blob([JSON.stringify({ app: "Protoart Studio", kind: "settings", version: 1, settings: st }, null, 2)], { type: "application/json" }));
+      delete st.init_image;
+      delete st.control_image;
+      return st;
+    },
+    downloadText(name, text, type) {
+      const url = URL.createObjectURL(new Blob([text], { type }));
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Protoart settings ${r.seed ?? r.id}.json`;
+      a.download = name;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
+    },
+    exportSettings(r) {  // a picture's settings as .json (📥 Settings loads it back)
+      this.downloadText(`Protoart settings ${r.seed ?? r.id}.json`,
+        JSON.stringify({ app: "Protoart Studio", kind: "settings", version: 1, settings: this.pictureSettings(r) }, null, 2), "application/json");
       this.status = "Settings saved as .json: load them again with 📥 Settings in Create";
+    },
+    // Library → Select → ⤓ Prompts .txt / ⤓ Settings .json: the selected pictures in one file
+    exportSelected(kind) {
+      const ids = new Set(this.selected);
+      const rows = (this.lib.results || []).filter((r) => ids.has(r.id));
+      if (!rows.length) return;
+      const day = new Date().toISOString().slice(0, 10);
+      if (kind === "txt") {
+        const text = rows.map((r) => (r.prompt || "") + (r.negative_prompt ? `\nNegative: ${r.negative_prompt}` : "")
+          + `\n(${[r.model, r.seed != null ? "seed " + r.seed : "", r.width && r.height ? r.width + "×" + r.height : ""].filter(Boolean).join(" · ")})`).join("\n\n");
+        this.downloadText(`Protoart prompts ${day} (${rows.length}).txt`, text + "\n", "text/plain");
+      } else {
+        const items = rows.map((r) => this.pictureSettings(r));
+        this.downloadText(`Protoart settings ${day} (${rows.length}).json`,
+          JSON.stringify({ app: "Protoart Studio", kind: "settings_list", version: 1, items }, null, 2), "application/json");
+      }
+      this.status = `Exported ${rows.length} picture${rows.length === 1 ? "" : "s"}' ${kind === "txt" ? "prompts" : "settings"}`;
     },
     async savePictureAs(r) {
       try {

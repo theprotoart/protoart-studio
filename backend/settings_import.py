@@ -188,6 +188,9 @@ def from_json_text(text):
         return None
     if isinstance(d, dict) and d.get("app") == "Protoart Studio" and d.get("kind") == "settings":
         d = d.get("settings") or {}
+    elif isinstance(d, dict) and d.get("app") == "Protoart Studio" and d.get("kind") == "settings_list":
+        items = [x for x in d.get("items") or [] if isinstance(x, dict)]
+        d = items[0] if items else {}  # several pictures exported together: the first one's settings
     return parse_comfy(d) or parse_plain(d) or (parse_plain(d.get("invokeai_metadata")) if isinstance(d, dict) else None)
 
 

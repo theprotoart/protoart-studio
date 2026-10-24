@@ -76,13 +76,13 @@
             <option v-for="p in presets" :key="p.id" :value="p.name">{{ p.name }}</option>
           </select>
           <button class="ghost" :disabled="!selectedPreset" @click="deletePreset" title="Delete preset">🗑</button>
-          <label class="check nsfw-switch" :class="{on: hideNsfw, locked: opts.sfw_mode}" :title="opts.sfw_mode ? 'Safe-for-work mode is on: NSFW stays hidden (Settings → Content filter)' : 'Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings.'"><input type="checkbox" :checked="hideNsfw" :disabled="opts.sfw_mode" @change="setHideNsfw($event.target.checked)"> {{ opts.sfw_mode ? '🛡 SFW' : 'Hide NSFW' }}</label>
+          <label v-if="!opts.privacy_mode" class="check nsfw-switch" :class="{on: hideNsfw, locked: opts.sfw_mode}" :title="opts.sfw_mode ? 'Safe-for-work mode is on: NSFW stays hidden (Settings → Content filter)' : 'Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings.'"><input type="checkbox" :checked="hideNsfw" :disabled="opts.sfw_mode" @change="setHideNsfw($event.target.checked)"> {{ opts.sfw_mode ? '🛡 SFW' : 'Hide NSFW' }}</label>
         </div>
         <div class="slot-line">
           <input v-model="newPresetName" placeholder="Save current settings as…" @keyup.enter="savePreset">
           <button @click="savePreset" :disabled="!newPresetName.trim()">Save</button>
           <label class="check" title="Also save the prompt and negative prompt in the preset"><input type="checkbox" v-model="presetIncludesPrompt"> incl. prompt</label>
-          <label class="check" title="Hide the models and LoRAs you tagged ● People (made of real people)"><input type="checkbox" :checked="opts.hide_people" @change="setHidePeople($event.target.checked)"> Hide People</label>
+          <label v-if="!opts.privacy_mode" class="check" title="Hide the models and LoRAs you tagged ● People (made of real people)"><input type="checkbox" :checked="opts.hide_people" @change="setHidePeople($event.target.checked)"> Hide People</label>
         </div>
       </div>
       <!-- Image to image: the model -->
@@ -148,11 +148,9 @@
         </div>
         <div class="slot-line">
           <label class="check"><input type="checkbox" v-model="lib.starred" @change="queryLibrary()"> ★ Starred only</label>
-          <label class="check nsfw-switch" :class="{on: hideNsfw, locked: opts.sfw_mode}" :title="opts.sfw_mode ? 'Safe-for-work mode is on: NSFW stays hidden (Settings → Content filter)' : 'Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings.'"><input type="checkbox" :checked="hideNsfw" :disabled="opts.sfw_mode" @change="setHideNsfw($event.target.checked)"> {{ opts.sfw_mode ? '🛡 SFW' : 'Hide NSFW' }}</label>
-          <label class="check" :class="{on: opts.hide_people}" title="Hide pictures of people (the prompt describes a person, or faces are found in the picture) and pictures made with models or LoRAs you tagged ● People. Same switch in Create and Settings."><input type="checkbox" :checked="opts.hide_people" @change="setHidePeople($event.target.checked)"> Hide People</label>
-          <span class="hint">{{ libShown.length }} image{{ libShown.length===1?'':'s' }}<template v-if="hideNsfw && content.nsfw"> · {{ content.nsfw }} hidden</template><template v-if="libPeopleHidden"> · {{ libPeopleHidden }} People hidden</template></span>
-          <span v-if="opts.hide_people && content.faces_unchecked" class="hint">· {{ content.faces_unchecked }} older picture{{ content.faces_unchecked === 1 ? '' : 's' }} not checked for people yet
-            <button class="link" @click="peopleScan" title="Look for faces in them once (on this Mac, ~100 MB the first time), so Hide People hides pictures of people too">check now</button></span>
+          <label v-if="!opts.privacy_mode" class="check nsfw-switch" :class="{on: hideNsfw, locked: opts.sfw_mode}" :title="opts.sfw_mode ? 'Safe-for-work mode is on: NSFW stays hidden (Settings → Content filter)' : 'Hide NSFW (not safe for work) pictures, models and LoRAs. Same switch in Create, Library and Settings.'"><input type="checkbox" :checked="hideNsfw" :disabled="opts.sfw_mode" @change="setHideNsfw($event.target.checked)"> {{ opts.sfw_mode ? '🛡 SFW' : 'Hide NSFW' }}</label>
+          <label v-if="!opts.privacy_mode" class="check" :class="{on: opts.hide_people}" title="Hide pictures of people (the prompt describes a person, or faces are found in the picture) and pictures made with models or LoRAs you tagged ● People. Same switch in Create and Settings."><input type="checkbox" :checked="opts.hide_people" @change="setHidePeople($event.target.checked)"> Hide People</label>
+          <span class="hint">{{ libShown.length }} image{{ libShown.length===1?'':'s' }}</span>
           <span class="spacer"></span>
           <button v-if="libLoras.length" class="ghost" :class="{on: libLoraOpen || lib.loras.length}" @click="libLoraOpen = !libLoraOpen"
                   title="Show images made with particular LoRAs">Filter by LoRA{{ lib.loras.length ? ' (' + lib.loras.length + ')' : '' }}</button>
@@ -350,7 +348,7 @@
               <option v-for="p in promptOnlyPresets" :key="p.name" :value="p.name">{{ p.name }}</option>
             </select>
             <button class="link" @click="savePromptPreset" :disabled="!form.prompt.trim()" title="Keep this prompt and negative prompt under a name, to use again later">＋ save</button>
-            <button v-if="promptPresets.length" class="link" @click="deletePromptPreset" title="See, use or delete your saved prompts">manage…</button>
+            <button v-if="visiblePromptPresets.length" class="link" @click="deletePromptPreset" title="See, use or delete your saved prompts">manage…</button>
           </div>
         </div>
         <div v-if="ptool === 'image'" class="wild-panel ptool-panel">
@@ -627,7 +625,7 @@
         </template>
       </section>
       <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="ipa cfold" :class="{shut: cfShut('ipa')}">
-        <label @click="cfToggle('ipa', $event)">Image prompt <span class="hint">IP-Adapter · borrow the look, style or face of a picture · ~2.6 GB first time</span><span v-if="cfShut('ipa')" class="cfold-sum">{{ cfSummary('ipa') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <label @click="cfToggle('ipa', $event)">Image prompt <span class="hint">IP-Adapter · borrow the look, style or face of a picture · {{ ipReadyText }}</span><span v-if="cfShut('ipa')" class="cfold-sum">{{ cfSummary('ipa') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <details class="which-one">
           <summary>Which one should I use?</summary>
           <div class="which-row"><div><b>The same person in different pictures</b><span class="hint">a close-up photo of the face as the reference</span></div>
@@ -1038,6 +1036,8 @@
       <span class="hint sel-tip" title="Drag across pictures (or draw a box) to select several at once. Start the drag on a selected picture to unselect instead.">drag to select several</span>
       <span class="spacer"></span>
       <button class="primary" :disabled="!selected.length" @click="openBatch()" title="Resize, convert, compress (Press), rename, apply an Adjust preset: all the selected pictures at once">🗂 Batch edit &amp; export…</button>
+      <button class="ghost" :disabled="!selected.length" @click="exportSelected('txt')" title="The selected pictures' prompts (and negative prompts) in one text file">⤓ Prompts .txt</button>
+      <button class="ghost" :disabled="!selected.length" @click="exportSelected('json')" title="The selected pictures' full settings in one .json file (📥 Settings in Create loads them back)">⤓ Settings .json</button>
       <button class="ghost" :disabled="!selected.length" @click="openBatch(null, bxBuiltins()[0])" title="Make smaller copies that look the same (Press)">🗜 Compress</button>
       <button class="ghost" :disabled="!selected.length" @click="markPictures(selected.slice(), true)" title="The NSFW filter hides these">Mark NSFW</button>
       <button class="ghost" :disabled="!selected.length" @click="markPictures(selected.slice(), false)" title="The NSFW filter always shows these">Mark safe</button>
@@ -1409,9 +1409,32 @@
       <div class="tool-drop" :class="{over: tool.dragOver}" @dragover.prevent="tool.dragOver=true"
            @dragleave="tool.dragOver=false" @drop.prevent="toolDrop" @click="$refs.toolPick.click()">
         <div v-if="adj.open" class="adjust-canvas-wrap" :class="{splitting: adj.view === 'split'}" @click.stop @mousedown="adjSplitDrag">
-          <canvas ref="adjCanvas" class="adjust-canvas"></canvas>
+            <canvas ref="adjCanvas" class="adjust-canvas"></canvas>
+            <!-- ◎ control points: the selected step's points (others faint); click to add in adding mode, drag to move -->
+            <div v-if="adj.p && adj.view !== 'before' && adj.ovl" ref="adjOverlay" class="adj-overlay" :class="{adding: adj.pointMode}"
+                 :style="{left: adj.ovl[0] + 'px', top: adj.ovl[1] + 'px', width: adj.ovl[2] + 'px', height: adj.ovl[3] + 'px', pointerEvents: adj.pointMode ? 'auto' : 'none'}"
+                 @mousedown.stop @pointerdown="adjOverlayDown">
+              <template v-for="t in adjPointTargets()" :key="'pt-' + t.id">
+                <i v-for="(q, i) in adjPoints(t.id)" :key="t.id + i" class="adj-pt"
+                   :class="{mine: t.id === adj.pointTarget, sel: t.id === adj.pointTarget && i === adj.pointSel}" :style="adjPointStyle(q)"
+                   @pointerdown.stop="t.id === adj.pointTarget ? adjPointDown($event, i) : (adj.pointTarget = t.id, adj.pointSel = i)"
+                   :title="t.label + ' · point ' + (i + 1) + ' · drag to move'"><b></b></i>
+              </template>
+            </div>
           <span class="adjust-badge">{{ adj.view === 'before' ? 'ORIGINAL' : adj.view === 'split' ? 'ORIGINAL  |  EDITED' : 'EDITED' }}</span>
           <span v-if="adj.busy || adj.msg" class="adjust-badge busy">{{ adj.msg || 'Working…' }}</span>
+        </div>
+        <div v-else-if="pw.open" class="adjust-canvas-wrap pw-wrap" @click.stop>
+          <canvas ref="pwCanvas" class="adjust-canvas"></canvas>
+          <!-- 🪡 pins: click the picture to add one, drag a pin to bend, ⌥-click a pin to take it out -->
+          <div v-if="pw.ovl && !pw.original" ref="pwOverlay" class="adj-overlay pw-overlay"
+               :style="{left: pw.ovl[0] + 'px', top: pw.ovl[1] + 'px', width: pw.ovl[2] + 'px', height: pw.ovl[3] + 'px'}"
+               @pointerdown="pwStageDown">
+            <i v-for="(k, i) in pw.pins" :key="'pin' + i" class="pw-pin" :class="{sel: i === pw.sel}" :style="pwPinStyle(k)"
+               @pointerdown.stop="pwPinDown($event, i)" @dblclick.stop="pwRemovePin(i)" title="Drag to bend · ⌥-click or double-click to remove"></i>
+          </div>
+          <span class="adjust-badge">{{ pw.original ? 'ORIGINAL' : 'PUPPET WARP' }}</span>
+          <span v-if="pw.busy || pw.msg" class="adjust-badge busy">{{ pw.msg || 'Working…' }}</span>
         </div>
         <div v-else-if="tool.source && tool.healing" class="mask-stage tool-mask" @click.stop @dragover.stop>
           <img :src="fileUrl(tool.source.path)" @load="initMaskCanvas" ref="maskImg" draggable="false">
@@ -1470,13 +1493,15 @@
           <span class="tool-caption-size">{{ tool.source.width }} × {{ tool.source.height }} px</span>
           <button class="ghost small" @click="editIn(tool.source.image_id != null ? {id: tool.source.image_id, path: tool.source.path} : {path: tool.source.path})"
                   :title="'Open the picture in ' + editorName()">✏️ Edit in {{ editorName() }}</button>
-          <button class="ghost small" @click="closeAdjust(); tool.source=null; tool.latest=null; tool.healing=false"
+          <button class="ghost small" @click="closeAdjust(); closePuppet(); tool.source=null; tool.latest=null; tool.healing=false"
                   title="Take this picture out of Tools (the file itself isn't deleted)">✕ Remove picture</button>
         </div>
       </div>
-      <div v-if="tool.source && !adj.open" class="row adjust-open-row">
+      <div v-if="tool.source && !adj.open && !pw.open" class="row adjust-open-row">
         <button class="adjust-big" @click="openAdjust(tool.source.image_id != null ? {id: tool.source.image_id, path: tool.source.path} : {path: tool.source.path})"
                 title="Lightroom-style light and colour sliders and Color Efex-style filters, with a live preview">🎚 Adjust the original</button>
+        <button class="adjust-big" @click="openPuppet(tool.source.image_id != null ? {id: tool.source.image_id, path: tool.source.path} : {path: tool.source.path})"
+                title="Like Photoshop's Puppet Warp: put pins on the picture and drag them to bend a pose, an arm, a tail…">🪡 Puppet warp</button>
         <button class="adjust-big" @click="useAsStart(tool.source)" title="Open this picture in Image to image as the starting picture">🖼 Send to Image to image</button>
       </div>
 
@@ -1503,6 +1528,7 @@
             · <button class="link" @click="editIn(tool.latest)">✏️ edit in {{ editorName() }}</button></p>
           <div v-if="tool.latest.kind !== 'depth'" class="row tool-next">
             <button v-if="!adj.open" @click="openAdjust(tool.latest)">🎚 Adjust the result</button>
+            <button v-if="!pw.open" @click="openPuppet(tool.latest)" title="Put pins on the result and drag them to bend it">🪡 Puppet warp the result</button>
             <button @click="useAsStart(tool.latest)" title="Open this picture in Image to image as the starting picture">🖼 Send to Image to image</button>
             <button class="ghost" @click="closeAdjust(); openInTools(tool.latest)" title="Make this the picture Tools works on (enhance it again, adjust it, …)">Use as the new original</button>
           </div>
@@ -1521,6 +1547,34 @@
         <span class="grow"></span>
         <button class="ghost small" @click="resetTools" title="Enhance, Restore faces and Depth back to their starting settings. Your Adjust presets, export presets and pictures aren't touched.">↺ Reset Tools settings</button>
         <button v-if="toolsUndo" class="link small" @click="undoResetTools">undo</button>
+      </div>
+      <div v-if="pw.open" id="puppet-card" class="card adjust-card puppet-card">
+        <h3>🪡 Puppet warp <span class="hint">pins and bends, like Photoshop · live preview on the left · saved as a copy</span></h3>
+        <div v-if="pw.error" class="error-box">{{ pw.error }}</div>
+        <ol class="pw-steps">
+          <li><b>Pin what should stay</b>: click the picture to put a pin (e.g. on the shoulder, the hips, the feet).</li>
+          <li><b>Drag a pin to bend</b>: put one on the hand or head and drag it; the picture bends around the pins.</li>
+          <li><b>Take a pin out</b>: ⌥-click or double-click it, or press ✕ Remove pin.</li>
+        </ol>
+        <div class="row small pw-row">
+          <span class="hint">{{ pw.pins.length }} pin{{ pw.pins.length === 1 ? '' : 's' }}</span>
+          <button class="ghost small" :disabled="!pw.pins.length" @click="pwRemovePin()">✕ Remove pin</button>
+          <button class="ghost small" :disabled="!pw.pins.length" @click="pw.pins = []; pw.sel = -1">↺ Remove all</button>
+          <button class="ghost small" @mousedown="pw.original = true" @mouseup="pw.original = false" @mouseleave="pw.original = false"
+                  title="Hold to see the picture as it was">◐ Hold for the original</button>
+        </div>
+        <div class="row small pw-row"><span class="hint">Smoothness</span>
+          <div class="seg">
+            <button v-for="d in [[24, 'Fewer points'], [48, 'Normal'], [80, 'More points']]" :key="'d' + d[0]" :class="{on: pw.density === d[0]}"
+                    @click="pwSetDensity(d[0])" :title="d[0] > 48 ? 'Smoother bends, a little slower' : d[0] < 48 ? 'Faster, a little stiffer' : 'A good balance'">{{ d[1] }}</button>
+          </div></div>
+        <p class="hint">Tip: one pin moves the whole picture. Put two or three pins where it should stay still before you bend something.
+          Bending stretches the picture a little: <b>Save &amp; send to Image to image</b> lets your model redraw it lightly (0.2–0.35 change).</p>
+        <div class="row">
+          <button class="primary" :disabled="!pwMoved() || pw.busy" @click="pwSave()">💾 Save the warped copy</button>
+          <button :disabled="!pwMoved() || pw.busy" @click="pwSave('i2i')" title="Save it, then open it in Image to image for a light redraw that smooths the bent parts">Save &amp; send to Image to image</button>
+          <button class="ghost" @click="closePuppet">✕ Close</button>
+        </div>
       </div>
       <div v-if="adj.open" id="adjust-card" class="card adjust-card">
         <h3>🎚 Adjust <span class="hint">light, colour &amp; filters · live preview on the left · saved as a copy</span></h3>
@@ -1541,6 +1595,22 @@
             </template>
             <button v-else class="ghost small" :disabled="!adjChanged()" @click="adj.savingPreset = true; $nextTick(() => $refs.adjPresetInput && $refs.adjPresetInput.focus())"
                     title="Save the current sliders and filters as a preset you can use on any picture">＋ Save as preset</button>
+          </div>
+          <div class="adj-points">
+            <span class="hint">◎ Control points for</span>
+            <select v-model="adj.pointTarget" @change="adj.pointSel = -1; adj.pointMode = false" title="Which step the points belong to: that step then only shows around its points (like Nik Color Efex)">
+              <option v-for="t in adjPointTargets()" :key="'pto' + t.id" :value="t.id">{{ t.label }}{{ adjPointCount(t.id) ? ' · ' + adjPointCount(t.id) : '' }}</option>
+            </select>
+            <button class="ghost small pt-add" :class="{on: adj.pointMode}" @click="adjStartAdd"
+                    title="Then click the picture where this step should show (e.g. Bloom only on a lantern or glowing eyes)">＋ Add</button>
+            <button class="ghost small" :disabled="!adjPointCount()" @click="adjRemovePoint" title="Remove the selected point (or the last one)">✕ Remove</button>
+            <span class="hint">{{ adj.pointMode ? 'click the picture to place it' : adjPointCount() ? 'shows only around the points' : 'no points: the whole picture' }}</span>
+          </div>
+          <div v-if="adjSelPoint()" class="adj-points adj-point-opts">
+            <span class="hint">Point {{ adj.pointSel + 1 }}</span>
+            <label>Size</label><input type="range" min="0.02" max="0.6" step="0.01" :value="adjSelPoint().r" @input="adjPointSet('r', $event.target.value)">
+            <label>Opacity</label><input type="range" min="0" max="1" step="0.05" :value="adjSelPoint().op" @input="adjPointSet('op', $event.target.value)">
+            <span class="adj-val">{{ Math.round(adjSelPoint().op * 100) }}%</span>
           </div>
           <div class="adjust-cols">
             <div>
@@ -1578,6 +1648,9 @@
                   <div v-if="adjFilters[id].toggle" class="adj-row"><label>Grain</label>
                     <div class="seg"><button :class="{on: !adj.p[adjFilters[id].toggle.k]}" @click="adj.p[adjFilters[id].toggle.k] = false">{{ adjFilters[id].toggle.off }}</button>
                       <button :class="{on: adj.p[adjFilters[id].toggle.k]}" @click="adj.p[adjFilters[id].toggle.k] = true">{{ adjFilters[id].toggle.on }}</button></div></div>
+                  <div class="adj-pt-line"><span class="hint">◎ {{ adjPointCount(id) ? adjPointCount(id) + ' control point' + (adjPointCount(id) === 1 ? '' : 's') + ': only around them' : 'whole picture' }}</span>
+                    <button class="link small" @click="adj.pointTarget = id; adj.pointSel = -1; adjStartAdd()" title="Click the picture where this filter should show">＋ add a point</button>
+                    <button v-if="adjPointCount(id)" class="link small" @click="adjClearPoints(id)">whole picture again</button></div>
                   <button class="link small" @click="adjResetFilter(id)">reset this filter</button>
                 </div>
               </div>
@@ -2063,12 +2136,11 @@
         </div>
         <div class="card rack-module convert-module" :class="{active: !!conv.items}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!conv.items}"></i><span class="mod-icon">🔁</span>
-            <h3>Convert</h3><span class="mod-sub">{{ cvt.to === 'lora' ? 'model → LoRA' : cvt.to === 'emb' ? 'model → embedding?' : 'DiffusionBee → .safetensors' }}</span></div>
+            <h3>Convert</h3><span class="mod-sub">{{ cvt.to === 'lora' ? 'model → LoRA' : 'DiffusionBee → .safetensors' }}</span></div>
           <label>Convert into</label>
           <div class="seg mod-seg">
             <button :class="{on: cvt.to === 'copy'}" @click="cvt.to = 'copy'" title="A standard .safetensors copy of a DiffusionBee file or an old .ckpt, for other apps">Copy</button>
             <button :class="{on: cvt.to === 'lora'}" @click="cvt.to = 'lora'" title="Pull out what a fine-tuned model learned as a small LoRA file">LoRA</button>
-            <button :class="{on: cvt.to === 'emb'}" @click="cvt.to = 'emb'" title="Embeddings are learned from pictures, not cut out of a model">Embedding</button>
           </div>
           <template v-if="cvt.to === 'lora'">
             <p class="mod-desc">Turns a fine-tuned model into a small LoRA (20–300 MB instead of 2–7 GB): what it learned on top of its base model, as a LoRA you can use with other models of the same type. The models aren't changed.</p>
@@ -2088,14 +2160,6 @@
             <p v-if="cvt.msg" class="mod-note">{{ cvt.msg }}</p>
             <div class="mod-foot">
               <button class="primary mod-go" :disabled="!cvt.model || !cvt.base || !!cvtJob" @click="runLoraExtract">{{ cvtJob ? 'Making the LoRA…' : 'Make the LoRA' }}</button>
-              <span class="mod-plate">Converter · CV-6</span>
-            </div>
-          </template>
-          <template v-else-if="cvt.to === 'emb'">
-            <p class="mod-desc">An embedding can't be cut out of a model: it's a few learned “words” that are taught from pictures. To get one, train it from 10–30 pictures of the subject or style; it takes a while but runs on this Mac.</p>
-            <div class="mod-foot">
-              <button class="primary mod-go" @click="train.mode = 'embedding'; openTrain()">Train an embedding…</button>
-              <button class="mod-go" @click="cvt.to = 'lora'">Make a LoRA from a model instead</button>
               <span class="mod-plate">Converter · CV-6</span>
             </div>
           </template>
@@ -3501,8 +3565,9 @@
     <h2>Options</h2>
     <label class="check"><input type="checkbox" v-model="opts.previews" @change="saveOpts">
       Show a live preview while an image is being made</label>
-    <label class="check"><input type="checkbox" v-model="opts.low_memory" @change="saveOpts">
+    <label class="check" v-if="(sys.ram_gb || 99) >= 12"><input type="checkbox" v-model="opts.low_memory" @change="saveOpts">
       Low-memory mode for SDXL (8-bit while loading; slightly slower)</label>
+    <div class="hint" v-else>SDXL models always load in 8-bit on this {{ sys.ram_gb }} GB Mac: half the memory, practically the same pictures, and far faster than swapping to disk.</div>
     <div class="hint" v-if="(sys.ram_gb || 0) < 24">⏳ Before a picture starts, settings that are too heavy for this Mac's {{ sys.ram_gb }} GB get a short warning with a faster choice.
       <button class="link" @click="resetSlowWarnings" title="Show again the warnings you switched off with “Don't warn me about this again”">show the warnings I switched off again</button></div>
     <label class="check"><input type="checkbox" v-model="opts.force_load" @change="saveOpts">
@@ -3510,6 +3575,18 @@
     </section>
     <section class="set-sec" id="privacy-section">
     <h2>Privacy</h2>
+    <div class="row privacy-row">
+      <button class="privacy-btn" :class="{on: opts.privacy_mode}" @click="setPrivacyMode(!opts.privacy_mode)"
+              title="Takes the Hide NSFW and Hide People buttons off Create and the Library (they keep working as set here), so nobody looking at your screen sees them">🔒 Privacy mode {{ opts.privacy_mode ? 'on' : 'off' }}</button>
+      <span class="hint">{{ opts.privacy_mode ? 'The Hide NSFW and Hide People buttons are only here in Settings.' : 'Hides the Hide NSFW and Hide People buttons in Create and the Library; set them here instead.' }}</span>
+    </div>
+    <div class="row privacy-row">
+      <label class="check nsfw-switch" :class="{on: hideNsfw, locked: opts.sfw_mode}"><input type="checkbox" :checked="hideNsfw" :disabled="opts.sfw_mode" @change="setHideNsfw($event.target.checked)"> Hide NSFW</label>
+      <label class="check" :class="{on: opts.hide_people}"><input type="checkbox" :checked="opts.hide_people" @change="setHidePeople($event.target.checked)"> Hide People</label>
+    </div>
+    <p class="hint">
+      Library: {{ content.total }} picture{{ content.total === 1 ? '' : 's' }}<template v-if="hideNsfw && content.nsfw"> · {{ content.nsfw }} hidden as NSFW</template><template v-if="libPeopleHidden"> · {{ libPeopleHidden }} hidden as People</template><template v-if="opts.hide_people && content.faces_unchecked"> · {{ content.faces_unchecked }} older picture{{ content.faces_unchecked === 1 ? '' : 's' }} not checked for people yet
+        <button class="link" @click="peopleScan" title="Look for faces in them once (on this Mac, ~100 MB the first time), so Hide People hides pictures of people too">check now</button></template></p>
     <label class="check" title="Blocks every download and sign-in check. Models and tools already on this Mac keep working."><input type="checkbox" :checked="strictOffline" @change="setStrictOffline($event.target.checked)">
       Strict offline: never go online</label>
     <p class="hint">Everything already runs on this Mac and nothing is ever uploaded. Normally the app goes online only to download
@@ -3631,8 +3708,8 @@
         </div>
       </template>
       <template v-else>
-        <div v-if="!promptPresets.length" class="hint">Nothing saved yet.</div>
-        <div v-for="p in promptPresets" :key="p.name" class="prompt-row">
+        <div v-if="!visiblePromptPresets.length" class="hint">Nothing saved yet.</div>
+        <div v-for="p in visiblePromptPresets" :key="p.name" class="prompt-row">
           <div class="prompt-row-text"><b>{{ p.name }}</b><span class="hint">{{ p.kind === 'negative' ? '⊖ negative: ' + p.negative : p.prompt }}</span></div>
           <button class="ghost small" @click="applyPromptPreset(p.name); promptBox = null">Use</button>
           <button class="ghost small" @click="removePromptPreset(p)" title="Delete (asks first)">✕</button>
@@ -3767,6 +3844,8 @@
         <div class="detail-side">
           <button class="ghost" @click="detail=null" title="Close (Esc)">✕ Close</button>
           <span v-if="detailList.length > 1" class="hint">{{ detailIndex + 1 }} of {{ detailList.length }}</span>
+          <button v-if="detail.prompt" class="ghost" @click="savePictureprompt(detail)" title="Keep this prompt and its negative prompt in 📒 My prompts (Create → 📒 Saved). NSFW prompts are hidden there while Hide NSFW is on">💾 Save prompt</button>
+          <button v-if="detail.prompt" class="ghost" @click="copyPictureprompt(detail)" title="Copy the prompt">⧉ Copy prompt</button>
           <button class="danger-outline" @click="askDelete([detail.id])" title="Delete this picture (asks first)">🗑 Delete</button>
         </div>
         </div>
@@ -3817,6 +3896,7 @@
 </div>
 <script src="../node_modules/vue/dist/vue.global.prod.js"></script>
 <script src="adjust.js"></script>
+<script src="puppet.js"></script>
 <script src="prompt_generator.js"></script>
 <script src="natural_prompt.js"></script>
 <script src="negative_prompt.js"></script>
