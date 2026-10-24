@@ -42,7 +42,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   Split / Side-by-side views, and a 🔌 patchbay to run Remove, Faces, Enhance, Depth, Vectorize and 🔎 Detail (with a LoRA)
   in any order with cables (modules can be moved, added twice or taken off; each copy has its own settings; 🛡 paint areas
   it must not change; live preview), 🧩 tiled upscale (MultiDiffusion), 🗜 smaller 8 / 6 / 4-bit model copies, 🧪 model
-  merger, `.ckpt` → `.safetensors` conversion, and model → LoRA extraction
+  merger, `.ckpt` → `.safetensors` conversion, and model → LoRA extraction (drag files or folders onto Convert)
 - **Right-click menus everywhere:** models (incl. ⟲ Reconnect… for a moved or missing file, and 💾 Keep a copy on this Mac for a model on an external drive, so it loads in seconds), LoRAs, the queue, your folders, pictures and text boxes
 - **Library:** right-click menu; search by prompt, seed, model or LoRA; drag to select many; ⇆ compare side by side with linked zoom; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
   first); batch edit & export; 🗜 compress to the smallest file that still looks the same
@@ -112,7 +112,7 @@ Nothing is copied: files are used where they are (an external drive is fine, as 
 |---|---|
 | Everything in one place | Settings → **Model folders → Main folder**: pick one folder (an external drive is fine); its *Models*, *LoRAs*, *Embeddings*, *VAE* and *ControlNet* sub-folders are used. **↻ Refresh** re-reads everything |
 | Base model files (`.safetensors`, `.ckpt`, diffusers folders) | Models tab → **Your model files** → *Add model files or folders…*, or Settings → **Model folders** → *More model folders → Add folders…* (every model in it, including ones added later) |
-| Old `.ckpt` models that won't load | Tools → **Convert → Old .ckpt files…**: a `.safetensors` copy, read safely (nothing in the file is run; the `.ckpt` isn't changed) |
+| Old `.ckpt` models that won't load | Tools → **Convert → Old .ckpt files…** (or drag the file onto Convert): a `.safetensors` copy, read safely (nothing in the file is run; the `.ckpt` isn't changed) |
 | LoRAs | Settings → **LoRA folders** → *Add LoRA folders…*; set a folder's type (SD 1.5 / SDXL / FLUX / ERNIE) or leave it on *Auto* |
 | Embeddings | Settings → **Embeddings** → *Add embedding files…* / *Add folders…* |
 | Downloads from Civitai / Hugging Face | Models tab → **Add from Civitai** / **Add from Hugging Face** (paste a link). Some need a free account: the app shows the steps |

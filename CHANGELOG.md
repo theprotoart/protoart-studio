@@ -2,6 +2,9 @@
 
 ## 1.4.1
 
+- Tools → Convert: **drag and drop** (`convertDrop`, paths via `webUtils.getPathForFile`): .tdict files and folders →
+  `convert_list` (ticked), .ckpt / .pt / .pth → `ckpt_convert` one after another, .safetensors that are your models →
+  the LoRA maker's model, then base
 - Models: **💾 Keep a copy on this Mac** (right-click a `local:` .safetensors under /Volumes). `backend/local_copy.py`:
   free-space check (size + 3 GB), chunked read-only copy to `MODELS_DIR/<name>.part` → fsync → size check → rename,
   sidecars (.civitai.info, previews) copied if absent, never overwrites a different file, cancellable. `kept_copies`

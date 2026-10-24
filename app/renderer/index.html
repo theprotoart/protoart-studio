@@ -2135,7 +2135,8 @@
           </div>
           <p v-if="mrg.msg" class="mod-note">{{ mrg.msg }}</p>
         </div>
-        <div class="card rack-module convert-module" :class="{active: !!conv.items}">
+        <div class="card rack-module convert-module" :class="{active: !!conv.items, over: conv.over}" @dragover.prevent="conv.over = true" @dragleave="conv.over = false" @drop.prevent="convertDrop"
+             title="Drop DiffusionBee files (.tdict) or folders, an old .ckpt model, or a .safetensors model here">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!conv.items}"></i><span class="mod-icon">🔁</span>
             <h3>Convert</h3><span class="mod-sub">{{ cvt.to === 'lora' ? 'model → LoRA' : 'DiffusionBee → .safetensors' }}</span></div>
           <label>Convert into</label>
@@ -2144,7 +2145,7 @@
             <button :class="{on: cvt.to === 'lora'}" @click="cvt.to = 'lora'" title="Pull out what a fine-tuned model learned as a small LoRA file">LoRA</button>
           </div>
           <template v-if="cvt.to === 'lora'">
-            <p class="mod-desc">Turns a fine-tuned model into a small LoRA (20–300 MB instead of 2–7 GB): what it learned on top of its base model, as a LoRA you can use with other models of the same type. The models aren't changed.</p>
+            <p class="mod-desc">Drop the model (then its base model) here, or pick them below. Turns a fine-tuned model into a small LoRA (20–300 MB instead of 2–7 GB): what it learned on top of its base model, as a LoRA you can use with other models of the same type. The models aren't changed.</p>
             <label>Model to turn into a LoRA</label>
             <select v-model="cvt.model" title="A single-file .safetensors SD 1.5 or SDXL model (DiffusionBee models: make a .safetensors copy first)"><option value="">pick a model…</option>
               <option v-for="m in mergeModels" :key="'cv' + m.id" :value="m.path">{{ m.label }} · {{ familyName(m.family) }}</option></select>
@@ -2165,7 +2166,7 @@
             </div>
           </template>
           <template v-else>
-          <p class="mod-desc" title="Makes standard .safetensors copies of your DiffusionBee models, LoRAs and embeddings, so they work in other apps too (A1111, ComfyUI, Draw Things…). Your DiffusionBee files are left as they are. Works offline.">Copies your DiffusionBee models, LoRAs and embeddings as .safetensors for other apps. Originals untouched.</p>
+          <p class="mod-desc" title="Makes standard .safetensors copies of your DiffusionBee models, LoRAs and embeddings, so they work in other apps too (A1111, ComfyUI, Draw Things…). Your DiffusionBee files are left as they are. Works offline.">Copies your DiffusionBee models, LoRAs and embeddings as .safetensors for other apps. Originals untouched. <b>Drop files here</b>: .tdict files or folders, or an old .ckpt.</p>
           <div class="mod-foot">
             <button class="primary mod-go" @click="conv.items ? (conv.items = null) : loadConvertList()">{{ conv.items ? 'Hide the list' : 'Show my files' }}</button>
             <button class="mod-go" @click="pickConvertFiles" title="Pick DiffusionBee .tdict files, or folders that hold them, anywhere on this Mac (an external drive too)">Pick files or a folder…</button>
@@ -2175,7 +2176,7 @@
           </template>
         </div>
       </div>
-      <div v-if="ck.items" class="card convert-card convert-panel">
+      <div v-if="ck.items" class="card convert-card convert-panel" :class="{over: conv.over}" @dragover.prevent="conv.over = true" @dragleave="conv.over = false" @drop.prevent="convertDrop">
         <h3>🔁 Old .ckpt checkpoints <span class="hint">→ .safetensors copies</span>
           <button class="ghost small conv-close" @click="ck.items = null" title="Close the list">✕</button></h3>
         <p class="hint">.ckpt is an older format: newer PyTorch refuses many of them, and opening one the ordinary way could run code
@@ -2199,7 +2200,7 @@
           <button class="danger small" @click="cancelJob(ckJob.id)">■ Stop</button></div>
         <div v-if="ck.msg" class="hint">{{ ck.msg }}</div>
       </div>
-      <div v-if="conv.items" class="card convert-card convert-panel">
+      <div v-if="conv.items" class="card convert-card convert-panel" :class="{over: conv.over}" @dragover.prevent="conv.over = true" @dragleave="conv.over = false" @drop.prevent="convertDrop">
         <h3>🔁 {{ conv.picked ? 'The files you picked' : 'Your DiffusionBee files' }} <span class="hint">pick what to convert · .tdict → .safetensors</span>
           <button class="ghost small" @click="pickConvertFiles" title="Pick other .tdict files or folders">Pick files or a folder…</button>
           <button v-if="conv.picked" class="ghost small" @click="loadConvertList()" title="Back to the files the app found on its own">Show all mine</button>

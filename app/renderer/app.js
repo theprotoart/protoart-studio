@@ -505,7 +505,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.4.1: Keep a model on this Mac, LoRA filters in Image to image, Newest first", items: [
+            { h: "1.4.1: Keep a model on this Mac, drag and drop in Convert, LoRA filters in Image to image, Newest first", items: [
+              "<b>Drag and drop in 🔁 Convert</b> (Tools): drop files or folders straight onto the Convert module. DiffusionBee <b>.tdict</b> files, or a folder that holds them, open in the list ready to convert (ticked); an old <b>.ckpt</b> model is converted to .safetensors right away (one after another if you drop several); in <b>LoRA</b> mode, drop the model and then its base model (both have to be your models already). Your files are only read, never changed.",
               "<b>Image to image → LoRAs</b> now has the same filters as Create: <b>★</b> (only your favourites), the order, and the kind list, where <b>● People</b> shows only LoRAs of real people and <b>Not People</b> hides them (also your own 🏷 tags). Each LoRA in the list has its ★ and ● too, to mark it right there. The order and filter are shared: change them in one tab and the other follows.",
               "<b>Newest first / Oldest first</b> (both LoRA lists): the LoRAs you added most recently at the top. “Added” is when the file arrived on this Mac or drive (downloaded, copied or moved in), even if the file itself is older. ★ favourites still come first.",
               "<b>💾 Keep a copy on this Mac</b> (right-click a model whose file is on an external drive): a model on a drive takes a minute or more to load; on the Mac's own disk it takes seconds. This copies the file (and its Civitai info and preview) into Protoart's models folder and uses the copy from then on: your favourite, default model, VAE choice and saved settings move to it, and the drive's file isn't listed twice. It checks the free space first (it always leaves 3 GB free) and shows the progress in the queue (■ stops it, nothing half-copied is left). The file on the drive is only read: never changed, moved or deleted. Making pictures isn't faster once the model has loaded; only the loading is. Undo: right-click the copy → Show in Finder, move it to the Trash, and the drive's file is used again." ] },
@@ -935,7 +936,7 @@ const protoartApp = createApp({
               "<b>🗜 Smaller copy</b>: pick an SD 1.5 or SDXL model and 8, 6 or 4 bits; a new model “… · 8-bit” appears in the list. 8-bit looks the same and needs about half the memory for the UNet; 4-bit is smallest and a little softer. Not faster per step.",
               "<b>🧪 Model merger</b>: <i>Blend</i> mixes two models (amount = how much of B); <i>Add difference</i> adds what model B learned on top of its base model C to model A (for example to make an inpainting version of your favourite model). The new model is saved in your checkpoints folder; the VAE comes from model A.",
               "When the prompt is ready: <b>⧉ Copy</b>, <b>🖼 Use in Image to image</b> (opens the picture there with the prompt in the box) or <b>✍ Use in Create</b>.",
-              "<b>Convert DiffusionBee files</b> makes standard .safetensors copies of your old models, LoRAs and embeddings.",
+              "<b>Convert DiffusionBee files</b> makes standard .safetensors copies of your old models, LoRAs and embeddings. You can drag .tdict files or folders onto the Convert module, or an old .ckpt (converted right away); in LoRA mode drop the model, then its base model.",
               "<b>Old .ckpt files…</b> lists the .ckpt checkpoints in your folders (or pick one) and makes a .safetensors copy in your checkpoints folder. It reads only the weights, so nothing hidden in the file can run; <i>half size</i> makes a smaller copy that gives the same pictures. The .ckpt isn't changed." ] },
           ] },
         { id: "train", go: "train", icon: "🎓", title: "Train", summary: "Teach the app your own character, object or style; merge LoRAs",
@@ -1112,6 +1113,7 @@ const protoartApp = createApp({
             { h: "New in 1.4.1: if something doesn't work", items: [
               "<b>Image to image's LoRA list is shorter than it should be</b>: a filter is on. The ★ button (favourites only) and the kind list (● People, Not People, a 🏷 tag…) are shared with Create: set the kind to <b>All kinds</b> and switch ★ off.",
               "<b>Newest first puts an old LoRA at the top</b>: it was copied or moved into its folder recently, which counts as “added”. Renaming a file doesn't change it.",
+              "<b>Dropping a file on Convert does nothing</b>: drop it on the Convert module itself (the panel with the 🔁 lamp; it gets a dashed outline). A .safetensors file can't be converted (it already is one); in LoRA mode it has to be one of your models: add its folder in the Models tab first. A folder with no .tdict files in it says “No DiffusionBee files … were found there”.",
               "<b>💾 Keep a copy on this Mac isn't in the menu</b>: it's only for single <b>.safetensors</b> files on an external drive (a model already on the Mac loads fast; a .ckpt can be converted first in Tools → Convert; model folders aren't copied).",
               "<b>“Not enough free space”</b> when keeping a copy: the copy needs the model's size plus 3 GB to spare (macOS needs room on an 8 GB Mac). Empty the Trash, or remove models you don't use, then try again.",
               "<b>The model still takes a while the first time</b> after copying: the first load after a restart reads the whole file once; after that it's quick. Making each picture isn't faster: on an 8 GB Mac that's set by memory (see the first item above)." ] },
@@ -1292,7 +1294,7 @@ const protoartApp = createApp({
               "<b>Restart backend</b> (Settings) clears most stuck states without closing the app." ] },
           ] },
       ],
-      conv: { items: null, search: "", kind: "", selected: [], out_dir: "", free_gb: 0, loras_to_lora_folder: true, result: null, picked: false },
+      conv: { items: null, search: "", kind: "", selected: [], out_dir: "", free_gb: 0, loras_to_lora_folder: true, result: null, picked: false, over: false },
       controlTypes: [],
       controlMap: null,
       cnApplied: null,  // {type, before}: the guide's settings were put in when this ControlNet was picked (undo)
@@ -6076,6 +6078,45 @@ const protoartApp = createApp({
       this.ck.msg = `✓ Saved ${r.path.split("/").pop()} (${r.gb} GB): pick it in Create's model list.`;
       this.models = await call("list_models").catch(() => this.models);
       this.loadCkptList();
+    },
+    // Tools → Convert: drop files or folders on it. .tdict files / folders → the DiffusionBee list (ticked),
+    // a .ckpt → converted to .safetensors (like “Pick a .ckpt file…”), a .safetensors model → the LoRA maker's lists
+    async convertDrop(e) {
+      this.conv.over = false;
+      const files = [...(e.dataTransfer?.files || [])];
+      const paths = files.map((f) => { try { return window.bee.pathForFile(f); } catch { return ""; } }).filter(Boolean);
+      if (!paths.length) return;
+      const ext = (p) => (p.match(/\.([a-z0-9]+)$/i) || [])[1]?.toLowerCase() || "";
+      const ckpts = paths.filter((p) => ["ckpt", "pt", "pth"].includes(ext(p)));
+      const st = paths.filter((p) => ext(p) === "safetensors");
+      // the rest: .tdict files and folders (looked through for .tdict files; anything else is reported as not found)
+      const tdicts = paths.filter((p) => !ckpts.includes(p) && !st.includes(p));
+      this.error = "";
+      if (tdicts.length) {
+        this.cvt.to = "copy";
+        await this.loadConvertList(tdicts);
+      }
+      if (ckpts.length) {
+        this.cvt.to = "copy";
+        if (!this.ck.items) await this.loadCkptList();
+        if (ckpts.length > 1) this.status = `Converting ${ckpts.length} .ckpt files, one after another (see the queue)`;
+        for (const f of ckpts) await this.convertCkpt(f);
+      }
+      if (st.length) {
+        const known = st.map((p) => this.mergeModels.find((m) => m.path === p)).filter(Boolean);
+        if (!known.length) {
+          this.error = "That .safetensors file isn't one of your models yet (a LoRA, or a model in a folder the app doesn't watch). " +
+            "To turn a model into a LoRA, add it in the Models tab first; .safetensors files don't need converting.";
+        } else {
+          this.cvt.to = "lora";
+          for (const m of known) {
+            if (!this.cvt.model || this.cvt.model === m.path) this.cvt.model = m.path;
+            else this.cvt.base = m.path;
+          }
+          this.cvt.msg = this.cvt.base ? "Model and base model set from the files you dropped: check them, then Make the LoRA."
+            : "Model set from the file you dropped: now pick (or drop) its base model.";
+        }
+      }
     },
     async pickConvertFiles() {
       const picked = await window.bee.pickTdict();

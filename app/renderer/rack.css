@@ -2214,3 +2214,6 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .pw-pin.sel { background: #ffd27a; box-shadow: 0 0 8px #ffd27a; }
 .pw-steps { margin: 4px 0 8px 18px; padding: 0; font-size: 13px; line-height: 1.5; }
 .pw-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+
+/* Tools → Convert: a file dragged over it */
+.convert-module.over, .convert-panel.over { outline: 2px dashed var(--amber, #ffae2b); outline-offset: 3px; }
