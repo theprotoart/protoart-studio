@@ -24,7 +24,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 ## What it does
 
 - **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), Anima (anime; all-ages by default via its "safe" rating tag), ERNIE-Image, FLUX.1 Schnell, FLUX.2 Klein 4B
-  (made for 8 GB Macs) and FLUX.1 Dev (32 GB+); LoRA stacking with per-LoRA weights (sort / filter the list, ★ favourites),
+  (made for 8 GB Macs) and FLUX.1 Dev (32 GB+); LoRA stacking with per-LoRA weights (sort A–Z / newest first, filter by kind or ● People, ★ favourites, in Create and Image to image),
   embeddings, VAEs (Automatic picks the right one for each model; each model remembers your own pick; one-click recommended VAE), 20+ samplers with the top picks per model,
   presets, 📒 saved prompts, wildcards, a random-prompt generator that writes tags or sentences to suit the model, negative
   prompt ✨ suggest / 🎲 random matched to the model, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop, and
@@ -43,7 +43,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   in any order with cables (modules can be moved, added twice or taken off; each copy has its own settings; 🛡 paint areas
   it must not change; live preview), 🧩 tiled upscale (MultiDiffusion), 🗜 smaller 8 / 6 / 4-bit model copies, 🧪 model
   merger, `.ckpt` → `.safetensors` conversion, and model → LoRA extraction
-- **Right-click menus everywhere:** models (incl. ⟲ Reconnect… for a moved or missing file), LoRAs, the queue, your folders, pictures and text boxes
+- **Right-click menus everywhere:** models (incl. ⟲ Reconnect… for a moved or missing file, and 💾 Keep a copy on this Mac for a model on an external drive, so it loads in seconds), LoRAs, the queue, your folders, pictures and text boxes
 - **Library:** right-click menu; search by prompt, seed, model or LoRA; drag to select many; ⇆ compare side by side with linked zoom; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
   first); batch edit & export; 🗜 compress to the smallest file that still looks the same
 - **Train:** LoRA training (SD 1.5 / SDXL; ERNIE on 32 GB+ Macs), embedding training (SD 1.5), square crop / keep-whole

@@ -531,6 +531,7 @@
         <div v-if="loraOpen" class="lora-sort-row">
           <select v-model="loraSort" title="The order of the list (★ favourites always come first)">
             <option value="az">Name A → Z</option><option value="za">Name Z → A</option>
+            <option value="new">Newest first</option><option value="old">Oldest first</option>
             <option value="big">Biggest first</option><option value="small">Smallest first</option>
           </select>
           <select v-model="loraKind" title="Show only one kind of LoRA">
@@ -2529,14 +2530,33 @@
           <input type="number" min="-5" max="5" step="0.05" v-model.number="l.weight" class="num">
           <button class="ghost" @click="form.loras.splice(i,1)" title="Remove">✕</button>
         </div>
-        <input class="lora-search" v-model="i2iLora.q" @focus="i2iLora.open = true"
-               :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ', or #tag)'">
+        <div class="lora-search-row">
+          <input class="lora-search" v-model="i2iLora.q" @focus="i2iLora.open = true"
+                 :placeholder="'+ add a LoRA… (search ' + addableLoras.length + ', or #tag)'">
+          <button class="chip" :class="{on: loraFavOnly}" @click="loraFavOnly = !loraFavOnly; i2iLora.open = true"
+                  title="Show only your ★ favourite LoRAs (click the ★ on a LoRA to add it)">★ <small>{{ favLoras.length }}</small></button>
+        </div>
+        <div v-if="i2iLora.open" class="lora-sort-row">
+          <select v-model="loraSort" title="The order of the list (★ favourites always come first) · the same as in Create">
+            <option value="az">Name A → Z</option><option value="za">Name Z → A</option>
+            <option value="new">Newest first</option><option value="old">Oldest first</option>
+            <option value="big">Biggest first</option><option value="small">Smallest first</option>
+          </select>
+          <select v-model="loraKind" title="Show only one kind of LoRA: ● People are LoRAs of real people · the same as in Create">
+            <option value="">All kinds ({{ addableLoras.length }})</option>
+            <option v-for="k in loraKinds" :key="k.id" :value="k.id">{{ k.label }} ({{ k.n }})</option>
+            <option value="__tags">🏷 Make or manage your own tags…</option>
+          </select>
+        </div>
         <div v-if="i2iLora.open" class="lora-list">
           <button v-for="l in i2iShownLoras" :key="l.name" class="lora-item" @click="addLoraByName(l.name); i2iLora.q = ''" @contextmenu.prevent="menuLora($event, l)">
-            <span class="l-name" :title="l.name">{{ l.name }}</span><span class="marks"><span v-if="isFavLora(l)" class="fav-star on">★</span></span>
+            <span class="l-name" :title="l.name">{{ l.name }}</span><span class="marks"><span class="fav-star" :class="{on: isFavLora(l)}" role="button"
+                  :aria-label="isFavLora(l) ? 'Favourite: click to remove' : 'Add to favourites'" @click.stop="toggleFavLora(l)"
+                  :title="isFavLora(l) ? '★ Favourite · click to remove (favourites are listed first)' : 'Click to add to your favourite LoRAs'">★</span><i class="people-dot" :class="{on: l.people}" role="button" :aria-label="l.people ? 'Tagged People' : 'Tag as People'" @click.stop="markPeople('lora', l)"
+                  :title="l.people ? 'Tagged People (made of real people) · click to untag' : 'Click to tag as People: made of real people (hidden when Hide People is on)'"></i></span>
             <span class="hint l-meta" :title="loraMetaTitle(l)"><span class="l-tag">{{ loraTag(l) }}</span><span class="l-size">{{ l.size_mb }} MB</span></span>
           </button>
-          <div v-if="!i2iShownLoras.length" class="hint m-empty">{{ addableLoras.length ? 'No LoRAs match.' : 'No more ' + familyLabel + ' LoRAs to add.' }}</div>
+          <div v-if="!i2iShownLoras.length" class="hint m-empty">{{ addableLoras.length ? 'No LoRAs match' + (loraKind || loraFavOnly ? ' (a filter is on: All kinds and ★ off show every one).' : '.') : 'No more ' + familyLabel + ' LoRAs to add.' }}</div>
           <button class="link close-list" @click="i2iLora.open = false; i2iLora.q = ''">close list</button>
         </div>
         <p v-if="form.loras.length" class="hint">Trigger words and 🎲 Random LoRAs are in Create.</p>

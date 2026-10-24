@@ -153,7 +153,8 @@ def scan(lora_dir, only_loras=False):
             continue  # Settings → Embeddings lists these
         if only_loras and (not is_lora or st.st_size > 2_500_000_000):
             continue
-        row = {"name": p.stem, "file": str(p), "family": family, "size_mb": round(st.st_size / 1e6, 1)}
+        row = {"name": p.stem, "file": str(p), "family": family, "size_mb": round(st.st_size / 1e6, 1),
+               "added": added_time(st)}
         cs = clip_skip_from_meta(meta)
         if cs:
             row["clip_skip"] = cs
@@ -165,6 +166,12 @@ def scan(lora_dir, only_loras=False):
             row["nsfw_auto"] = True  # content filter: name or training tags say NSFW
         out.append(row)
     return out
+
+
+def added_time(st):
+    """When the file arrived on this disk, for "Newest first". Copying, downloading or moving a file in sets its
+    status-change time (st_ctime) even when the copy keeps the original's modified date, so the later of the two."""
+    return int(max(st.st_mtime, st.st_ctime))
 
 
 def folder_family(path):
@@ -203,6 +210,13 @@ def all_loras(lora_dir):
     return out
 
 
+def _added_of(path):
+    try:
+        return added_time(Path(path).stat())
+    except OSError:
+        return 0
+
+
 def _extra_dirs():
     """LoRA folders you added, then the folders you watch for models (Models → Watch a folder): a LoRA dropped
     anywhere in those is found too, as the Models tab says (before, only the LoRA folders were looked in)."""
@@ -237,7 +251,7 @@ def _all_loras(lora_dir):
                 continue  # the original .safetensors is already listed: prefer it
             taken.add(name)
             out.append({"name": name, "file": i["file"], "family": i["family"],
-                        "size_mb": i["size_mb"], "source": "diffusionbee",
+                        "size_mb": i["size_mb"], "source": "diffusionbee", "added": _added_of(i["file"]),
                         **({"nsfw_auto": True} if nsfw.name_flag(name) else {})})
     except Exception as e:  # never let a bad DiffusionBee file break the LoRA list
         import sys

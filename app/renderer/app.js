@@ -505,6 +505,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.4.1: Keep a model on this Mac, LoRA filters in Image to image, Newest first", items: [
+              "<b>Image to image → LoRAs</b> now has the same filters as Create: <b>★</b> (only your favourites), the order, and the kind list, where <b>● People</b> shows only LoRAs of real people and <b>Not People</b> hides them (also your own 🏷 tags). Each LoRA in the list has its ★ and ● too, to mark it right there. The order and filter are shared: change them in one tab and the other follows.",
+              "<b>Newest first / Oldest first</b> (both LoRA lists): the LoRAs you added most recently at the top. “Added” is when the file arrived on this Mac or drive (downloaded, copied or moved in), even if the file itself is older. ★ favourites still come first.",
+              "<b>💾 Keep a copy on this Mac</b> (right-click a model whose file is on an external drive): a model on a drive takes a minute or more to load; on the Mac's own disk it takes seconds. This copies the file (and its Civitai info and preview) into Protoart's models folder and uses the copy from then on: your favourite, default model, VAE choice and saved settings move to it, and the drive's file isn't listed twice. It checks the free space first (it always leaves 3 GB free) and shows the progress in the queue (■ stops it, nothing half-copied is left). The file on the drive is only read: never changed, moved or deleted. Making pictures isn't faster once the model has loaded; only the loading is. Undo: right-click the copy → Show in Finder, move it to the Trash, and the drive's file is used again." ] },
             { h: "1.4.0: Plan the layout, Bloom, the right VAE by itself", items: [
               "<b>✨ Bloom</b> (Tools → 🎚 Adjust → Filters, and the new <b>Bloom</b> look): like Procreate's Bloom, the bright parts of the picture glow and spill soft light around them. <b>Bloom</b> sets how strong, <b>Transition</b> how much of the picture glows (low: only the brightest highlights; high: the mid-tones too), <b>Size</b> how far the light spreads, and <b>Burn</b> pushes it brighter, towards blown-out light. Lovely on lamps, neon, sunsets, eyes and magic effects.",
               "<b>VAE: Automatic</b> (Create → VAE, now the default): each SD 1.5 / SDXL model gets the right VAE by itself. A model downloaded from Civitai whose page comes with a VAE gets that VAE (it's downloaded with the model); <b>SDXL</b> models use <b>SDXL fp16-fix</b> when you have it (no black pictures, and the picture is decoded faster and with less memory); an SD 1.5 file that has no VAE inside uses <b>vae-ft-mse</b>. Otherwise the model's own. The list shows which one Automatic uses and why; pick <b>the model's own</b> or any VAE to choose yourself (each model still remembers your choice).",
@@ -820,7 +824,7 @@ const protoartApp = createApp({
               "Pick the model right here; steps and CFG are next to it.",
               "<b>✨ Edit with words</b> (FLUX.2 Klein): describe the change in the prompt — “make the jacket red”, “add sunglasses”, “replace the sky with a sunset”, “turn it into a watercolour” — and press <b>✨ Edit</b>. It keeps the rest of the picture. Paint over a part first and only that part can change (everything else stays exactly as it was): best for precise edits. Add up to 3 <b>more pictures</b> to borrow from (“dress her in the outfit from the second picture”, “paint it in the style of the second picture”). It always uses FLUX.2 Klein, whatever model Create has (4.6 GB the first time), takes about as long as one FLUX.2 picture, and ignores LoRAs and the negative prompt.",
               "<b>🩹 Remove</b>: paint over what you want gone and press 🩹 Remove; it's filled in from its surroundings (no prompt or model needed). <b>✨ Smart fill</b> handles objects, people and patterns (~208 MB download the first time); <b>⚡ Quick fill</b> is instant for dust, spots and thin lines. Cover the thing fully, a little past its edges.",
-              "<b>LoRAs</b> card: add a LoRA (search the list), set its weight with the slider, ✕ removes it. They're the same LoRAs as in Create (both tabs share the model); trigger words and 🎲 Random LoRAs are in Create." ] },
+              "<b>LoRAs</b> card: add a LoRA (search the list, or #tag for your 🏷 tags), set its weight with the slider, ✕ removes it. Under the search: the order (A → Z, <b>Newest first</b>, biggest…) and the kind list (<b>● People</b> / <b>Not People</b>, .safetensors, Pony…); <b>★</b> shows only favourites. They're the same LoRAs and the same filters as in Create (both tabs share the model); trigger words and 🎲 Random LoRAs are in Create." ] },
             { h: "🖌 Inpaint", items: [
               "<b>Selection tools</b> (everywhere you paint over a picture): <b>🖌 Brush</b>, <b>🧽 Erase</b>, <b>➰ Lasso</b> (draw around an area; it fills when you let go), <b>⬠ Polygon</b> (click the corners; click the first point, double-click or press Return to close), <b>🪄 Wand</b> (click a colour; the tolerance slider sets how similar), <b>⬚ Object</b> (drag a box around something and its outline is found). <b>＋ Add / － Subtract</b>, or hold ⌥ Option to subtract. Keys: B E L P W O; Esc cancels.",
               "<b>Brush size</b>: a ring the size of the brush follows the pointer (dashed when erasing); moving the size slider shows it on the picture, and the metal well next to the slider shows the size.",
@@ -1037,7 +1041,8 @@ const protoartApp = createApp({
             { h: "Managing your models", items: [
               "<b>Embeddings, VAEs &amp; ControlNets</b> (bottom of the Models tab): the smaller files that work with a base model, with SD 1.5 / SDXL filters, search and Open folder.",
               "<b>Remove</b> buttons for your own models are locked 🔒: click the lock first, then Remove (it always asks). Two of your files with the same name show the folder each is in, and “a copy” when they're the same size.",
-              "<b>LoRA list</b> (Create): sort by name A → Z / Z → A or by size, and show only one kind (.safetensors, DiffusionBee, Pony…). ★ favourites always come first.",
+              "<b>LoRA list</b> (Create and Image to image): sort by name A → Z / Z → A, <b>newest / oldest first</b> or by size, and show only one kind (.safetensors, DiffusionBee, Pony…, ● People / Not People, your 🏷 tags). ★ favourites always come first.",
+              "<b>💾 Keep a copy on this Mac</b> (right-click a model whose file is on an external drive): a model on a drive takes a minute or more to load; on the Mac's own disk it takes seconds. This copies the file (and its Civitai info and preview) into Protoart's models folder and uses the copy from then on: your favourite, default model, VAE choice and saved settings move to it, and the drive's file isn't listed twice. It checks the free space first (it always leaves 3 GB free) and shows the progress in the queue (■ stops it, nothing half-copied is left). The file on the drive is only read: never changed, moved or deleted. Making pictures isn't faster once the model has loaded; only the loading is. Undo: right-click the copy → Show in Finder, move it to the Trash, and the drive's file is used again.",
               "<b>Bigger Macs</b>: FLUX.1 Dev (32 GB or more; personal use only, needs a free Hugging Face account that accepted its licence). <b>8 GB Macs</b>: FLUX.2 Klein 4B, FLUX.1 Schnell 3-bit, ERNIE-Image Turbo 4-bit and SD 1.5 work best.",
               "At the top of this tab: <b>Your model files</b> (files you added from this Mac, with Remove), <b>Add from Civitai</b>, <b>Add from Hugging Face</b> (with the models you added) and <b>Fix a type</b>. They stay folded until you click one; the + Add buttons open the right one.",
               "<b>★ Favorites</b>: click the ★ on a model (here, or when you point at it in Create's model list) to make it a favourite. Favourites are listed first in Create, and <b>★ Favorites</b> (in Create and in this tab's toolbar) shows only them. They're remembered on this Mac; the model files are never changed or copied.",
@@ -1104,6 +1109,12 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "New in 1.4.1: if something doesn't work", items: [
+              "<b>Image to image's LoRA list is shorter than it should be</b>: a filter is on. The ★ button (favourites only) and the kind list (● People, Not People, a 🏷 tag…) are shared with Create: set the kind to <b>All kinds</b> and switch ★ off.",
+              "<b>Newest first puts an old LoRA at the top</b>: it was copied or moved into its folder recently, which counts as “added”. Renaming a file doesn't change it.",
+              "<b>💾 Keep a copy on this Mac isn't in the menu</b>: it's only for single <b>.safetensors</b> files on an external drive (a model already on the Mac loads fast; a .ckpt can be converted first in Tools → Convert; model folders aren't copied).",
+              "<b>“Not enough free space”</b> when keeping a copy: the copy needs the model's size plus 3 GB to spare (macOS needs room on an 8 GB Mac). Empty the Trash, or remove models you don't use, then try again.",
+              "<b>The model still takes a while the first time</b> after copying: the first load after a restart reads the whole file once; after that it's quick. Making each picture isn't faster: on an 8 GB Mac that's set by memory (see the first item above)." ] },
             { h: "New in 1.4.0: if something doesn't work", items: [
               "<b>A step takes minutes, or the Mac says it's short of memory</b>: on an 8 GB Mac the picture runs out of memory and macOS moves it to the disk (the queue's time is real, measured as it goes). Quit other big apps (web browsers with many tabs, other image apps; while Claude is working on your Mac it uses some memory too), use SD 1.5 or ⚡ fast mode, or a smaller size. SDXL already loads in 8-bit on 8 GB Macs.",
               "<b>Control points don't seem to do anything</b>: the points belong to the step chosen under ◎ Control points for. A filter has to be switched on to get points; with no points, the step works on the whole picture.",
@@ -1637,14 +1648,7 @@ const protoartApp = createApp({
       return this.compatibleLoras.filter((l) => !used.has(l.name));
     },
     filteredLoras() {
-      const q = this.loraSearch.trim().toLowerCase();
-      const k = this.loraKind;
-      const tagQ = q.startsWith("#") ? q.slice(1) : "";
-      return this.sortLoras(this.addableLoras.filter((l) => (!q || (tagQ ? this.loraTagsOf(l.name).some((t) => t.includes(tagQ))
-          : l.name.toLowerCase().includes(q) || this.loraTagsOf(l.name).includes(q)))
-        && (!this.loraFavOnly || this.isFavLora(l))
-        && (!k || (k.startsWith("tag:") ? this.loraTagsOf(l.name).includes(k.slice(4))
-          : k === "people" ? !!l.people : k === "not_people" ? !l.people : this.loraKindOf(l) === k || l.flavor === k))));
+      return this.pickLoras(this.loraSearch);
     },
     loraKinds() {  // what the LoRA list can be narrowed to: file kind, and Pony / Illustrious / NoobAI when present
       const kinds = new Map();
@@ -1666,11 +1670,9 @@ const protoartApp = createApp({
       return this.filteredLoras.slice(0, 200); // render at most 200 rows at once (keeps older Macs smooth)
     },
     // Image to image's own LoRA picker (the same LoRAs as Create: both tabs use one model and one LoRA list)
+    // (the order, the kind / People filter and ★ only are shared with Create's list too)
     i2iShownLoras() {
-      const q = this.i2iLora.q.trim().toLowerCase();
-      const tq = q.startsWith("#") ? q.slice(1) : "";  // #pencil: your 🏷 tag
-      return this.sortLoras(this.addableLoras.filter((l) => !q || (tq ? this.loraTagsOf(l.name).some((t) => t.includes(tq))
-        : l.name.toLowerCase().includes(q) || this.loraTagsOf(l.name).includes(q)))).slice(0, 200);
+      return this.pickLoras(this.i2iLora.q).slice(0, 200);
     },
     moreLoras() {
       return Math.max(0, this.filteredLoras.length - 200);
@@ -5077,7 +5079,18 @@ const protoartApp = createApp({
     loraKindOf(l) {
       return /\.tdict$/i.test(l.file || "") || l.source === "diffusionbee" ? "diffusionbee" : "safetensors";
     },
-    sortLoras(list) {  // ★ favourites first, then the chosen order (A–Z, Z–A, biggest, smallest, newest list order)
+    // the LoRAs a search box shows: the words typed (#word = your 🏷 tag), the kind / ● People filter, ★ only, the order
+    pickLoras(search) {
+      const q = (search || "").trim().toLowerCase();
+      const k = this.loraKind;
+      const tagQ = q.startsWith("#") ? q.slice(1) : "";
+      return this.sortLoras(this.addableLoras.filter((l) => (!q || (tagQ ? this.loraTagsOf(l.name).some((t) => t.includes(tagQ))
+          : l.name.toLowerCase().includes(q) || this.loraTagsOf(l.name).includes(q)))
+        && (!this.loraFavOnly || this.isFavLora(l))
+        && (!k || (k.startsWith("tag:") ? this.loraTagsOf(l.name).includes(k.slice(4))
+          : k === "people" ? !!l.people : k === "not_people" ? !l.people : this.loraKindOf(l) === k || l.flavor === k))));
+    },
+    sortLoras(list) {  // ★ favourites first, then the chosen order (A–Z, Z–A, newest, oldest, biggest, smallest)
       const by = this.loraSort;
       const name = (l) => (l.name || "").toLowerCase();
       let out = list.slice();
@@ -5085,6 +5098,8 @@ const protoartApp = createApp({
       else if (by === "za") out.sort((a, b) => name(b).localeCompare(name(a)));
       else if (by === "big") out.sort((a, b) => (b.size_mb || 0) - (a.size_mb || 0));
       else if (by === "small") out.sort((a, b) => (a.size_mb || 0) - (b.size_mb || 0));
+      else if (by === "new") out.sort((a, b) => (b.added || 0) - (a.added || 0) || name(a).localeCompare(name(b)));
+      else if (by === "old") out.sort((a, b) => (a.added || 0) - (b.added || 0) || name(a).localeCompare(name(b)));
       return this.favFirst(out);
     },
     maskTarget() {  // the picture being painted on: Tools' picture, or Image to image's
@@ -5839,6 +5854,8 @@ const protoartApp = createApp({
         m.missing ? { label: "⟲ Reconnect… (find the file)", tip: "The file isn't where it was: moved, renamed, or its drive isn't connected. Point the app at it", run: () => this.reconnectModel(m) } : null,
         m.path && !m.missing ? { label: "📂 Show in Finder", run: () => window.bee.showInFolder(m.path) } : null,
         m.path && !m.missing ? { label: "⟲ Use a different file for it…", tip: "Point this model at another copy of the file (e.g. after moving it)", run: () => this.reconnectModel(m) } : null,
+        m.can_keep && !m.missing ? { label: "💾 Keep a copy on this Mac", tip: "Copy it from the drive onto this Mac's own disk: it loads in seconds instead of a minute or more. The file on the drive stays as it is", run: () => this.keepModelLocal(m) } : null,
+        m.kept_from ? { label: "💾 On this Mac (a copy)", disabled: true, tip: "Copied from " + m.kept_from + ". Move this copy to the Trash (Show in Finder) to use the drive's file again" } : null,
         !m.path && !m.cached && !m.missing ? { label: "⬇ Download it", run: () => this.downloadModel(m) } : null,
         m.path ? { label: "🏷 Wrong type? Fix it…", tip: "Listed as SD 1.5 but it's SDXL (or the other way round)?", run: () => this.fixLoraType(m.label.replace(/ \(your( inpainting)? file\)$/, "")) } : null,
         "-",
@@ -5849,6 +5866,36 @@ const protoartApp = createApp({
         m.path ? { label: "⧉ Copy file location", run: () => this.copyText(m.path, "the file's location") } : null,
         local ? { label: "Remove from the list (the file stays)", danger: true, run: () => this.removeLocalModel(m.id) } : null,
       ]);
+    },
+    // 💾 Keep a copy on this Mac: copy a drive's model into Protoart's models folder and switch to the copy
+    async keepModelLocal(m) {
+      let c;
+      try { c = await call("model_keep_check", { path: m.path }); } catch (e) { this.error = e.message; return; }
+      if (!c.ok) { this.error = c.why; return; }
+      const gb = (x) => (x / 1e9).toFixed(1) + " GB";
+      if (c.why !== "already copied" && !(await this.confirmAsk(`Keep a copy of “${m.label}” on this Mac?`,
+        `It copies ${gb(c.size)} into Protoart's models folder (${gb(c.free)} free now). It then loads from this Mac in seconds instead of from the drive.\n\n` +
+        "The file on the drive isn't changed, moved or deleted. To undo, move the copy to the Trash (right-click it → Show in Finder).", "Copy it"))) return;
+      this.status = `Copying ${m.label} to this Mac…`;
+      const r = await this.runJob("model_keep_local", { path: m.path, id: m.id, label: m.label });
+      if (!r) return;
+      this.models = await call("list_models");
+      this.renameModelId(r.old, r.id);
+      this.status = `${m.label} is now on this Mac (${r.gb} GB): it loads from here from now on`;
+    },
+    // a model now has another id (a kept copy, a reconnected file): your settings follow it
+    renameModelId(old, id) {
+      if (!old || !id || old === id) return;
+      const fix = (x) => (x === old ? id : x);
+      this.opts.default_model = fix(this.opts.default_model);
+      this.opts.preload_start = fix(this.opts.preload_start);
+      this.saveOpts();
+      if (this.favModels.includes(old)) { this.favModels = this.favModels.map(fix); saveJSON("protoart.favModels", this.favModels); }
+      for (const [store, key] of [[this.vaeByModel, "protoart.vaeByModel"], [this.modelDefaults, "protoart.modelDefaults"]]) {
+        if (store && old in store && !(id in store)) { store[id] = store[old]; saveJSON(key, store); }
+      }
+      this.chain.steps.forEach((st) => { st.model = fix(st.model); });
+      if (this.form.model === old) { this.form.model = id; this.onModelChange(); }
     },
     async reconnectModel(m) {
       const name = (m.path || m.label).split("/").pop();

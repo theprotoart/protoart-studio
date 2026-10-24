@@ -565,6 +565,14 @@ def all_models():
             m[um["id"]] = model_hub.to_spec(um)
         except Exception as e:
             print("[engine] bad added model entry:", um, e, flush=True)
+    # 💾 Keep a copy on this Mac: a drive's file with a copy in Protoart's models folder uses the copy (loads in
+    # seconds, not a minute). Its old id still works (settings, queued jobs, saved chains) but isn't listed twice.
+    import local_copy
+    for lm in list(model_hub.LOCAL_MODELS) + model_hub.scan_model_dirs():
+        cid = lm.get("path") and local_copy.copy_id(lm["path"])
+        if cid and cid in m and lm["id"] in m:
+            m[cid] = dict(m[cid], kept_from=lm["path"])
+            m[lm["id"]] = dict(m[cid], kept_as=cid)
     for mid, fam in model_hub.MODEL_FAMILY.items():  # Settings → Fix a type: you picked SD 1.5 / SDXL for a file
         spec = m.get(mid)
         if spec and fam in ("sd15", "sdxl") and spec.get("family") != fam and (spec.get("file") or spec.get("tdict")):
@@ -583,7 +591,7 @@ def _tell_apart(m):
     from collections import defaultdict
     by_label = defaultdict(list)
     for k, v in m.items():
-        if v.get("file") and ":" in k:
+        if v.get("file") and ":" in k and not v.get("kept_as"):
             by_label[v["label"]].append(k)
     for label, keys in by_label.items():
         if len(keys) < 2:
@@ -698,8 +706,11 @@ class Engine:
              "family_set": bool(v.get("family_set")), "detected_family": v.get("detected_family"),
              "single_file": bool(v.get("file") or v.get("tdict")) and ":" in k, "inpaint": bool(v.get("inpaint")),
              "nsfw_auto": nsfw_words.name_flag(v["label"], k, os.path.basename(
-                 str(v.get("file") or v.get("tdict") or v.get("local_dir") or "")))}
-            for k, v in all_models().items()
+                 str(v.get("file") or v.get("tdict") or v.get("local_dir") or ""))),
+             "kept_from": v.get("kept_from"),
+             "can_keep": bool(":" in k and k.startswith("local:") and str(v.get("file") or "").lower().endswith(".safetensors")
+                              and str(os.path.realpath(str(v.get("file")))).startswith("/Volumes/"))}
+            for k, v in all_models().items() if not v.get("kept_as")
         ]
 
     def download_model(self, model_id):

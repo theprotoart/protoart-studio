@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.1
+
+- Models: **💾 Keep a copy on this Mac** (right-click a `local:` .safetensors under /Volumes). `backend/local_copy.py`:
+  free-space check (size + 3 GB), chunked read-only copy to `MODELS_DIR/<name>.part` → fsync → size check → rename,
+  sidecars (.civitai.info, previews) copied if absent, never overwrites a different file, cancellable. `kept_copies`
+  setting (original → copy). `all_models` makes the old `local:` id an alias of the `file:` copy (`kept_as`, not
+  listed; old settings and queued jobs still work); the copy has `kept_from`. NSFW / People marks and a fixed type
+  move to the copy; the UI moves favourite, default model, VAE choice, model defaults and chain steps
+  (`renameModelId`). Trash the copy and the drive's file is listed again
+- Image to image → LoRAs: the ★ favourites-only button, the order and the kind / ● People / Not People / 🏷 tag filter,
+  shared with Create (one `pickLoras(search)` for both lists); ★ and ● can be set in its list
+- LoRA lists: **Newest first / Oldest first**. Each LoRA row has `added` (`loras.added_time`: the later of st_mtime
+  and st_ctime, so a copied or downloaded file counts from when it arrived)
+
 ## 1.4.0
 
 - Adjust: **Bloom** filter (Procreate-style) and a Bloom look. `bloomPick` keeps the pixels above a threshold set by

@@ -126,6 +126,9 @@ model_hub.MODEL_DIRS[:] = [d for d in (library.get_setting("model_dirs", []) or 
 model_hub.MODEL_FAMILY.update({k: v for k, v in (library.get_setting("model_families", {}) or {}).items()
                                if isinstance(k, str) and v in ("sd15", "sdxl")})
 model_hub.USER_MODELS[:] = [m for m in (library.get_setting("user_models", []) or []) if isinstance(m, dict)]
+import local_copy  # noqa: E402
+local_copy.KEPT.update({k: v for k, v in (library.get_setting("kept_copies", {}) or {}).items()
+                        if isinstance(k, str) and isinstance(v, str) and "/" not in v})
 loras.EXTRA_DIRS[:] = [d for d in (library.get_setting("lora_dirs", []) or []) if isinstance(d, str)]
 embeddings.EXTRA_DIRS[:] = [d for d in (library.get_setting("embedding_dirs", []) or []) if isinstance(d, str)]
 import vaes as _vaes  # noqa: E402
@@ -166,7 +169,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -230,6 +233,8 @@ def job_label(cmd, a):
         return "Find people in Library pictures (Hide People)"
     if cmd == "civitai_download":
         return "Download from Civitai · " + str(a.get("name") or a.get("url") or "")
+    if cmd == "model_keep_local":
+        return "Keep a copy on this Mac · " + os.path.basename(str(a.get("path") or ""))
     if cmd == "model_delete":
         import engine as _e
         return "Delete " + str(_e.all_models().get(a.get("model"), {}).get("label", a.get("model"))) + " from this Mac"
@@ -1019,6 +1024,8 @@ def handle_quick(cmd, a):
         library.set_setting("local_models", model_hub.LOCAL_MODELS)
         model_hub.invalidate()
         return {"id": entry["id"], "old": old_id, "label": entry.get("label")}
+    if cmd == "model_keep_check":  # before 💾 Keep a copy on this Mac: is there room? (nothing is written)
+        return local_copy.check(a.get("path"))
     if cmd == "model_local_remove":
         model_hub.LOCAL_MODELS[:] = [x for x in model_hub.LOCAL_MODELS if x.get("id") != a.get("id")]
         library.set_setting("local_models", model_hub.LOCAL_MODELS)
@@ -1644,6 +1651,37 @@ def civitai_job(a, eng):
     return {"path": path, "name": name, "kind": info["kind"], "family": info.get("family"), "dest": dest}
 
 
+def keep_local_job(a, eng):
+    """Models → right-click → 💾 Keep a copy on this Mac: copy a drive's model file into Protoart's models folder.
+    The original is only read. Your marks (NSFW, People) and the type you picked move to the copy."""
+    from engine import Cancelled, UserError
+    src, old_id = str(a.get("path") or ""), str(a.get("id") or "")
+    name = os.path.basename(src)
+
+    def progress(done, total):
+        eng.emit({"type": "progress", "image": 1, "images": 1, "step": max(1, int(done / 1e8)), "steps": max(1, int(total / 1e8))})
+        eng.emit({"type": "status", "msg": f"Copying {name} to this Mac: {done / 1e9:.1f} of {total / 1e9:.1f} GB"})
+    try:
+        r = local_copy.copy(src, progress, cancelled=eng.cancel_event.is_set)
+    except ValueError as e:
+        raise UserError(str(e))
+    except InterruptedError:
+        raise Cancelled()
+    except OSError as e:
+        raise UserError(f"Couldn't copy {name}: {e.strerror or e}. Nothing was changed on the drive.")
+    library.set_setting("kept_copies", dict(local_copy.KEPT))
+    marks = content.load_marks()
+    for kind in ("models", "people_models"):
+        if old_id in marks[kind] and r["id"] not in marks[kind]:
+            content.set_mark(kind, r["id"], marks[kind][old_id])
+    if old_id in model_hub.MODEL_FAMILY and r["id"] not in model_hub.MODEL_FAMILY:
+        model_hub.MODEL_FAMILY[r["id"]] = model_hub.MODEL_FAMILY[old_id]
+        library.set_setting("model_families", dict(model_hub.MODEL_FAMILY))
+    model_hub.invalidate()
+    eng.emit({"type": "status", "msg": f"{name} is now on this Mac ({r['gb']} GB): it loads from here from now on"})
+    return dict(r, old=old_id)
+
+
 def move_lora_to_type_folder(name, fam):
     """Move a LoRA file (and its sidecar files: trigger words, preview, info) into the LoRA folder you set to
     type `fam`. Only from your own LoRA folders; never overwrites. Returns {"to": folder} / {"skipped": why}."""
@@ -1918,6 +1956,8 @@ def run_job(kind, a):
         return eng.delete_model(a)
     if kind == "civitai_download":
         return civitai_job(a, eng)
+    if kind == "model_keep_local":
+        return keep_local_job(a, eng)
     if kind == "postprocess":
         return eng.postprocess(a, force=settings["force_load"])
     if kind == "interrogate":
