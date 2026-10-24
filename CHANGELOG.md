@@ -2,6 +2,10 @@
 
 ## 1.4.1
 
+- Model → LoRA reads DiffusionBee **.tdict** models directly (`lora_extract.open_weights` / `_TDictWeights`: memory-mapped,
+  one tensor at a time, original SD key names), as the model or the base. UI: **→ LoRA** next to a model in the
+  DiffusionBee list, .tdict drops in LoRA mode (`cvtAddTdicts`), DiffusionBee models in its lists (`cvtModels`), the
+  base guessed from the plain SD 1.5 / SDXL model (`cvtSetFile`)
 - Tips on buttons that had none: Convert → LoRA size (rank 16–128), Hi-res ×1.5 / ×2, tiled upscale size, batch
   export size / format / dpi, and Image to image's ⚡ / ★ sampler picks
 - Tools → Convert: **drag and drop** (`convertDrop`, paths via `webUtils.getPathForFile`): .tdict files and folders →

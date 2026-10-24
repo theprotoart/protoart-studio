@@ -55,6 +55,51 @@ class ExtractTests(unittest.TestCase):
         self.assertEqual(r["layers"], 1)
         self.assertEqual(r["unchanged"], 1)
 
+    def test_straight_from_a_diffusionbee_tdict(self):
+        try:
+            import numpy as np
+            import torch
+            from safetensors.torch import save_file, load_file
+        except Exception:
+            self.skipTest("torch / safetensors not installed")
+        from test_tdict import write_tdict
+        torch.manual_seed(1)
+        k = "model.diffusion_model.input_blocks.1.1.transformer_blocks.0.attn1.to_q.weight"
+        base = {k: torch.randn(64, 64)}
+        delta = torch.randn(64, 4) @ torch.randn(4, 64) * 0.1
+        with tempfile.TemporaryDirectory() as d:
+            save_file(base, os.path.join(d, "base.safetensors"))
+            tuned = os.path.join(d, "myModel_myModel.tdict")
+            write_tdict(tuned, {k: (base[k] + delta).numpy().astype(np.float16)}, 12)  # 12 = an SD 1.5 model
+            src = open(tuned, "rb").read()
+            old = L.paths.LORAS_DIR
+            L.paths.LORAS_DIR = Path(d) / "loras"
+            try:
+                r = L.extract(tuned, os.path.join(d, "base.safetensors"), rank=8)
+                sd = load_file(r["path"])
+            finally:
+                L.paths.LORAS_DIR = old
+            self.assertEqual(open(tuned, "rb").read(), src)  # the .tdict isn't changed
+        self.assertEqual(r["name"], "myModel-lora-r8")
+        n = "lora_unet_down_blocks_0_attentions_0_transformer_blocks_0_attn1_to_q"
+        rebuilt = sd[n + ".lora_up.weight"].float() @ sd[n + ".lora_down.weight"].float()
+        self.assertLess((rebuilt - delta).abs().max().item(), 0.03)
+
+    def test_a_tdict_lora_is_refused_kindly(self):
+        try:
+            import numpy as np
+        except Exception:
+            self.skipTest("numpy not installed")
+        from test_tdict import write_tdict
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "style.tdict")
+            write_tdict(p, {"lora_unet_x_lora_up": np.zeros((4, 4), np.float32)}, 0)
+            with self.assertRaises(ValueError) as e:
+                L.open_weights(p)
+            self.assertIn("Convert", str(e.exception))
+            with self.assertRaises(ValueError):
+                L.open_weights(os.path.join(d, "missing.safetensors"))
+
 
 if __name__ == "__main__":
     unittest.main()

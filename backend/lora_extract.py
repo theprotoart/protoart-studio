@@ -5,7 +5,8 @@ A fine-tuned model is its base model plus changes. The change in each attention 
 (down × up, by SVD), the same way kohya's "extract LoRA from models" does. The result is a standard kohya-format
 LoRA (diffusers layer names) that works in this app and in A1111, ComfyUI, Draw Things…
 
-Both models must be .safetensors checkpoints of the same type (SD 1.5 with SD 1.5, SDXL with SDXL). The base should
+Both models must be checkpoints of the same type: .safetensors, or DiffusionBee .tdict models read directly (no
+.safetensors copy needed first). Both (SD 1.5 with SD 1.5, SDXL with SDXL). The base should
 be the model the fine-tune was made from (SD 1.5 base for most SD 1.5 models); with another base the LoRA holds the
 difference between those two models instead. Weights are read one at a time, so it works on an 8 GB Mac. Rank 16–64:
 higher keeps more of the model's look (bigger file).
@@ -68,18 +69,51 @@ def _low_rank(diff, rank):
     return up.clamp(-hi, hi), down.clamp(-hi, hi)
 
 
+class _TDictWeights:
+    """A DiffusionBee .tdict model read like a .safetensors file (keys / get_tensor), one weight at a time."""
+    def __init__(self, path):
+        import tdict_reader
+        info = tdict_reader.describe(path)
+        if info.get("kind") != "checkpoint":
+            raise ValueError(f"{Path(path).name} is a DiffusionBee {info.get('kind') or 'file'}, not a regular model: "
+                             "only regular models can be turned into a LoRA (a DiffusionBee LoRA only needs "
+                             "converting: Convert → Copy).")
+        self.td = tdict_reader.TDict(path)
+        if any(str(v.get("dtype", "")).startswith("cus") for v in self.td.keys.values()):
+            raise ValueError(f"{Path(path).name} uses DiffusionBee's own compressed format, which can't be read.")
+        self._keys = [k for k in self.td.keys if k.startswith(tdict_reader.CKPT_PREFIXES) and "_split_" not in k
+                      and not k.endswith(".bias_by_weight")]
+
+    def keys(self):
+        return list(self._keys)
+
+    def get_tensor(self, k):
+        import numpy as np
+        import torch
+        return torch.from_numpy(np.array(self.td.array(k), dtype=np.float32))
+
+
+def open_weights(path):
+    """A model's weights, from a .safetensors or a DiffusionBee .tdict file."""
+    p = str(path or "")
+    if not p or not os.path.isfile(p):
+        raise ValueError(f"{Path(p).name or 'A model'} wasn't found (is its drive connected?).")
+    if p.lower().endswith(".safetensors"):
+        from safetensors import safe_open
+        return safe_open(p, "pt")
+    if p.lower().endswith(".tdict"):
+        return _TDictWeights(p)
+    raise ValueError(f"Pick .safetensors or DiffusionBee .tdict models ({Path(p).name} isn't one).")
+
+
 def extract(model, base, rank=32, name=None, text_encoder=True, emit=None, cancel_event=None):
     import torch
-    from safetensors import safe_open
     from safetensors.torch import save_file
     emit = emit or (lambda m: None)
     rank = int(max(4, min(128, rank)))
-    for f in (model, base):
-        if not f or not str(f).endswith(".safetensors") or not os.path.isfile(f):
-            raise ValueError(f"Pick .safetensors checkpoint files ({Path(str(f or '')).name or 'missing'} isn't one).")
-    if os.path.realpath(model) == os.path.realpath(base):
+    if model and base and os.path.realpath(model) == os.path.realpath(base):
         raise ValueError("Pick two different models: the one to turn into a LoRA, and the base it was made from.")
-    fa, fb = safe_open(model, "pt"), safe_open(base, "pt")
+    fa, fb = open_weights(model), open_weights(base)
     keys_b = set(fb.keys())
     targets = []
     for k in fa.keys():
@@ -92,12 +126,16 @@ def extract(model, base, rank=32, name=None, text_encoder=True, emit=None, cance
         if n and k in keys_b:
             targets.append((k, n))
     if not targets:
-        raise ValueError("These don't look like SD 1.5 / SDXL checkpoints (single .safetensors files), or they aren't "
+        raise ValueError("These don't look like SD 1.5 / SDXL checkpoints (.safetensors or DiffusionBee .tdict files), or they aren't "
                          "the same type. Both must be SD 1.5, or both SDXL.")
     unet_a = sum(1 for k in fa.keys() if k.startswith(UNET) and UNET_LAYER.search(k))
     if sum(1 for k, _ in targets if k.startswith(UNET)) < 0.9 * unet_a:
         raise ValueError("These two models aren't the same type (SD 1.5 goes with SD 1.5, SDXL with SDXL).")
-    out_name = (name or f"{Path(model).stem}-lora-r{rank}").strip().replace("/", "-")[:120]
+    stem = Path(model).stem
+    if str(model).lower().endswith(".tdict"):
+        import tdict_reader
+        stem = tdict_reader.clean_name(model)  # DiffusionBee's file names carry extra bits: the model's own name
+    out_name = (name or f"{stem}-lora-r{rank}").strip().replace("/", "-")[:120]
     paths.LORAS_DIR.mkdir(parents=True, exist_ok=True)
     out = paths.LORAS_DIR / (out_name + ".safetensors")
     n = 1

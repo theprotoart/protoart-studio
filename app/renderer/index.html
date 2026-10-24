@@ -2150,13 +2150,13 @@
             <button :class="{on: cvt.to === 'lora'}" @click="cvt.to = 'lora'" title="Pull out what a fine-tuned model learned as a small LoRA file">LoRA</button>
           </div>
           <template v-if="cvt.to === 'lora'">
-            <p class="mod-desc">Drop the model (then its base model) here, or pick them below. Turns a fine-tuned model into a small LoRA (20–300 MB instead of 2–7 GB): what it learned on top of its base model, as a LoRA you can use with other models of the same type. The models aren't changed.</p>
+            <p class="mod-desc">Drop the model (then its base model) here, or pick them below; DiffusionBee .tdict models work directly. Turns a fine-tuned model into a small LoRA (20–300 MB instead of 2–7 GB): what it learned on top of its base model, as a LoRA you can use with other models of the same type. The models aren't changed.</p>
             <label>Model to turn into a LoRA</label>
-            <select v-model="cvt.model" title="A single-file .safetensors SD 1.5 or SDXL model (DiffusionBee models: make a .safetensors copy first)"><option value="">pick a model…</option>
-              <option v-for="m in mergeModels" :key="'cv' + m.id" :value="m.path">{{ m.label }} · {{ familyName(m.family) }}</option></select>
+            <select v-model="cvt.model" title="A single-file SD 1.5 or SDXL model: .safetensors, or a DiffusionBee model (.tdict) read directly"><option value="">pick a model…</option>
+              <option v-for="m in cvtModels" :key="'cv' + m.id" :value="m.path">{{ m.label }} · {{ familyName(m.family) }}</option></select>
             <label>Its base model <span class="hint">the one it was made from</span></label>
             <select v-model="cvt.base" title="Usually SD 1.5 (or SDXL base 1.0) as a .safetensors file. Another model works too: the LoRA then holds the difference between the two"><option value="">pick a model…</option>
-              <option v-for="m in mergeModels.filter((x) => x.path !== cvt.model && (!cvtFamily() || x.family === cvtFamily()))" :key="'cb' + m.id" :value="m.path">{{ m.label }}</option></select>
+              <option v-for="m in cvtModels.filter((x) => x.path !== cvt.model && (!cvtFamily() || x.family === cvtFamily()))" :key="'cb' + m.id" :value="m.path">{{ m.label }}</option></select>
             <label title="How much detail the LoRA keeps: 16 is small and light, 32 a good start, 64–128 keeps more of the model's look (bigger file)">Size (rank) <span class="mod-val">{{ cvt.rank }}</span></label>
             <div class="seg mod-seg">
               <button v-for="r in [16, 32, 64, 128]" :key="'rk' + r" :class="{on: cvt.rank === r}" @click="cvt.rank = r"
@@ -2164,7 +2164,7 @@
             </div>
             <label class="check" title="Also take what the model's text encoder learned (how it reads prompts and trigger words)"><input type="checkbox" v-model="cvt.te"> Include the text encoder</label>
             <input v-model="cvt.name" class="mod-input" placeholder="name for the LoRA (optional)">
-            <p v-if="cvtFamily() && !mergeModels.some((x) => x.path !== cvt.model && x.family === cvtFamily())" class="mod-note warn-text">You need a second {{ familyName(cvtFamily()) }} model as the base, as a .safetensors file.</p>
+            <p v-if="cvtFamily() && !cvtModels.some((x) => x.path !== cvt.model && x.family === cvtFamily())" class="mod-note warn-text">You need a second {{ familyName(cvtFamily()) }} model as the base (usually the plain {{ familyName(cvtFamily()) }} model), as a .safetensors or DiffusionBee file.</p>
             <p v-if="cvt.msg" class="mod-note">{{ cvt.msg }}</p>
             <div class="mod-foot">
               <button class="primary mod-go" :disabled="!cvt.model || !cvt.base || !!cvtJob" @click="runLoraExtract">{{ cvtJob ? 'Making the LoRA…' : 'Make the LoRA' }}</button>
@@ -2228,6 +2228,8 @@
             <input type="checkbox" :value="it.file" v-model="conv.selected">
             <span>{{ it.name }}</span>
             <span class="hint">{{ convKindLabel(it.kind) }}{{ it.family && it.family !== 'unknown' ? ' · ' + familyName(it.family) : '' }} · {{ it.size_mb }} MB</span>
+            <button v-if="it.kind === 'checkpoint'" class="ghost small conv-to-lora" @click.prevent.stop="cvtAddTdicts([it.file])"
+                    title="Turn this DiffusionBee model straight into a small LoRA (20–300 MB), without making a .safetensors copy first. It's read directly; the .tdict isn't changed">→ LoRA</button>
           </label>
           <div v-if="convShown.length > 300" class="hint">…and {{ convShown.length - 300 }} more; search to narrow down</div>
           <div v-if="!convShown.length" class="hint">Nothing matches.</div>
