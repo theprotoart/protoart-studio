@@ -779,7 +779,8 @@
             <input type="checkbox" v-model="form.hires.on"> 🔍 Hi-res fix <span class="hint">sharp large images · {{ hiresTarget }}</span></label>
           <div v-if="form.hires.on" class="extra-opts">
             <div class="seg">
-              <button v-for="v in [1.5, 2]" :key="v" :class="{on: form.hires.scale === v}" @click="form.hires.scale = v">×{{ v }}</button>
+              <button v-for="v in [1.5, 2]" :key="v" :class="{on: form.hires.scale === v}" @click="form.hires.scale = v"
+                      :title="v === 2 ? 'Redraw at twice the size: the most detail, about four times the work (on 8 GB Macs it can be slow)' : 'Redraw at 1.5× the size: more detail, about twice the work'">×{{ v }}</button>
             </div>
             <span class="hint">redraw</span>
             <input type="range" min="0.2" max="0.7" step="0.05" v-model.number="form.hires.strength" title="How much the bigger version may change: 0.35–0.5 adds detail and keeps the picture">
@@ -973,7 +974,8 @@
           <label>Size</label>
           <div class="seg bx-seg">
             <button v-for="m in [['none','Keep'],['long','Long side'],['short','Short side'],['fit','Fit in box'],['percent','Percent']]" :key="m[0]"
-                    :class="{on: bx.resize.mode === m[0]}" @click="bx.resize.mode = m[0]">{{ m[1] }}</button>
+                    :class="{on: bx.resize.mode === m[0]}" @click="bx.resize.mode = m[0]"
+                    :title="{none: 'Keep each picture its own size', long: 'Make the longer side this many pixels', short: 'Make the shorter side this many pixels', fit: 'Fit inside a box (width × height), keeping the shape', percent: 'Scale by a percentage of the original size'}[m[0]]">{{ m[1] }}</button>
           </div>
           <div class="row" v-if="bx.resize.mode !== 'none'">
             <template v-if="bx.resize.mode === 'fit'">
@@ -987,7 +989,8 @@
           <label>Format</label>
           <div class="seg bx-seg">
             <button v-for="f in [['same','Same as original'],['jpeg','JPEG'],['png','PNG'],['webp','WebP'],['tiff','TIFF']]" :key="f[0]"
-                    :class="{on: bx.format === f[0]}" @click="bx.format = f[0]">{{ f[1] }}</button>
+                    :class="{on: bx.format === f[0]}" @click="bx.format = f[0]"
+                    :title="{same: 'Keep each picture in the format it has now', jpeg: 'JPEG: small files for sharing; no transparency', png: 'PNG: exact quality, bigger files, keeps transparency', webp: 'WebP: smaller than JPEG at the same look; most apps and browsers open it', tiff: 'TIFF: for print and photo editors; large files'}[f[0]]">{{ f[1] }}</button>
           </div>
           <label>Compress <span class="hint">Press: the smallest file that still looks the same (JPEG and PNG)</span></label>
           <div class="seg bx-seg">
@@ -1000,7 +1003,8 @@
             <span v-if="bx.format === 'webp' && bx.compress !== 'off'" class="hint">(Press works on JPEG and PNG; WebP uses this quality)</span>
           </div>
           <label>Resolution</label>
-          <div class="seg bx-seg"><button v-for="d in [72, 150, 300]" :key="d" :class="{on: bx.dpi === d}" @click="bx.dpi = d">{{ d }} dpi</button></div>
+          <div class="seg bx-seg"><button v-for="d in [72, 150, 300]" :key="d" :class="{on: bx.dpi === d}" @click="bx.dpi = d"
+                    :title="{72: '72 dpi: for screens and the web (the pixels stay the same)', 150: '150 dpi: everyday prints', 300: '300 dpi: high-quality prints (the pixels stay the same; it sets the printed size)'}[d]">{{ d }} dpi</button></div>
         </div>
         <div>
           <label>Picture details <span class="hint">prompt, settings</span></label>
@@ -2074,7 +2078,8 @@
           </div>
           <label>Size</label>
           <div class="seg mod-seg">
-            <button v-for="x in [1.5, 2, 3]" :key="'tu' + x" :class="{on: tup.scale === x}" @click="tup.scale = x">{{ x }}×</button>
+            <button v-for="x in [1.5, 2, 3]" :key="'tu' + x" :class="{on: tup.scale === x}" @click="tup.scale = x"
+                    :title="'Make the picture ' + x + ' times as wide and tall' + (x === 3 ? ' (the slowest; best for print)' : '')">{{ x }}×</button>
           </div>
           <label title="How much the model may redraw: 0.25–0.4 adds detail and keeps the picture">New detail <span class="mod-val">{{ Number(tup.strength).toFixed(2) }}</span></label>
           <input type="range" min="0.15" max="0.6" step="0.05" v-model.number="tup.strength" title="0.2–0.3 adds detail and keeps the picture; higher redraws more (and can add new things)">
@@ -2154,7 +2159,8 @@
               <option v-for="m in mergeModels.filter((x) => x.path !== cvt.model && (!cvtFamily() || x.family === cvtFamily()))" :key="'cb' + m.id" :value="m.path">{{ m.label }}</option></select>
             <label title="How much detail the LoRA keeps: 16 is small and light, 32 a good start, 64–128 keeps more of the model's look (bigger file)">Size (rank) <span class="mod-val">{{ cvt.rank }}</span></label>
             <div class="seg mod-seg">
-              <button v-for="r in [16, 32, 64, 128]" :key="'rk' + r" :class="{on: cvt.rank === r}" @click="cvt.rank = r">{{ r }}</button>
+              <button v-for="r in [16, 32, 64, 128]" :key="'rk' + r" :class="{on: cvt.rank === r}" @click="cvt.rank = r"
+                      :title="{16: 'Rank 16: the smallest, lightest LoRA. Keeps the main look; fine detail may fade', 32: 'Rank 32: a good start. Keeps most of the model\'s look (twice the size of 16)', 64: 'Rank 64: keeps more of the model\'s look and detail (twice the size of 32)', 128: 'Rank 128: closest to the model; the biggest file (twice the size of 64), a little slower to make and load'}[r]">{{ r }}</button>
             </div>
             <label class="check" title="Also take what the model's text encoder learned (how it reads prompts and trigger words)"><input type="checkbox" v-model="cvt.te"> Include the text encoder</label>
             <input v-model="cvt.name" class="mod-input" placeholder="name for the LoRA (optional)">
@@ -2483,9 +2489,11 @@
           <template v-else><option v-for="s in samplers" :key="'ia' + s.id" :value="s.id">{{ s.label }}</option></template>
         </select>
         <div v-if="samplerPicks().fast.length" class="chips i2i-sampler-picks"><span class="hint">⚡</span>
-          <button v-for="s in samplerPicks().fast" :key="'icf' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)">{{ s.label }}</button>
+          <button v-for="s in samplerPicks().fast" :key="'icf' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)"
+                  :title="'⚡ Quick to a clean picture with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ s.label }}</button>
           <span class="hint">★</span>
-          <button v-for="s in samplerPicks().quality" :key="'icq' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)">{{ s.label }}</button>
+          <button v-for="s in samplerPicks().quality" :key="'icq' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)"
+                  :title="'★ Most detailed results with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ s.label }}</button>
         </div>
         <div class="grid2 i2i-model-opts">
           <div class="span2 knob-row">

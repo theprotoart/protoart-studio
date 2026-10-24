@@ -2,6 +2,8 @@
 
 ## 1.4.1
 
+- Tips on buttons that had none: Convert → LoRA size (rank 16–128), Hi-res ×1.5 / ×2, tiled upscale size, batch
+  export size / format / dpi, and Image to image's ⚡ / ★ sampler picks
 - Tools → Convert: **drag and drop** (`convertDrop`, paths via `webUtils.getPathForFile`): .tdict files and folders →
   `convert_list` (ticked), .ckpt / .pt / .pth → `ckpt_convert` one after another, .safetensors that are your models →
   the LoRA maker's model, then base
