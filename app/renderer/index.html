@@ -2162,6 +2162,11 @@
               <button v-for="r in [16, 32, 64, 128]" :key="'rk' + r" :class="{on: cvt.rank === r}" @click="cvt.rank = r"
                       :title="{16: 'Rank 16: the smallest, lightest LoRA. Keeps the main look; fine detail may fade', 32: 'Rank 32: a good start. Keeps most of the model\'s look (twice the size of 16)', 64: 'Rank 64: keeps more of the model\'s look and detail (twice the size of 32)', 128: 'Rank 128: closest to the model; the biggest file (twice the size of 64), a little slower to make and load'}[r]">{{ r }}</button>
             </div>
+            <label title="Tags the new LoRA as it's made, so the LoRA lists' filters find it straight away (you can change it later)">What is it?</label>
+            <div class="seg mod-seg">
+              <button v-for="k in [['style', 'Style', 'A look or art style: tagged 🏷 style'], ['people', 'Person', 'A real person: tagged ● People (hidden when Hide People is on)'], ['character', 'Character', 'A made-up character, creature or object: tagged 🏷 character'], ['', 'Not sure', 'No tag: you can tag it later in the LoRA list']]"
+                      :key="'ck' + k[0]" :class="{on: cvt.kind === k[0]}" @click="cvt.kind = k[0]" :title="k[2]">{{ k[1] }}</button>
+            </div>
             <label class="check" title="Also take what the model's text encoder learned (how it reads prompts and trigger words)"><input type="checkbox" v-model="cvt.te"> Include the text encoder</label>
             <input v-model="cvt.name" class="mod-input" placeholder="name for the LoRA (optional)">
             <p v-if="cvtFamily() && !cvtModels.some((x) => x.path !== cvt.model && x.family === cvtFamily())" class="mod-note warn-text">You need a second {{ familyName(cvtFamily()) }} model as the base (usually the plain {{ familyName(cvtFamily()) }} model), as a .safetensors or DiffusionBee file.</p>

@@ -2,6 +2,8 @@
 
 ## 1.4.1
 
+- Convert → LoRA: **What is it?** (Style / Person / Character / Not sure) tags the new LoRA as it's made
+  (`content_mark` people, or the 🏷 style / character tag)
 - Model → LoRA reads DiffusionBee **.tdict** models directly (`lora_extract.open_weights` / `_TDictWeights`: memory-mapped,
   one tensor at a time, original SD key names), as the model or the base. UI: **→ LoRA** next to a model in the
   DiffusionBee list, .tdict drops in LoRA mode (`cvtAddTdicts`), DiffusionBee models in its lists (`cvtModels`), the

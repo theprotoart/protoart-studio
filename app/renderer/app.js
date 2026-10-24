@@ -415,7 +415,7 @@ const protoartApp = createApp({
       qnt: { model: "", bits: 8, msg: "" },  // Tools → Smaller copy
       tup: { scale: 2, strength: 0.25, steps: 24, prompt: "" },  // Tools → Tiled upscale
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
-      cvt: { to: "copy", model: "", base: "", rank: 32, te: true, name: "", msg: "", extra: [] },  // extra: DiffusionBee files dropped or sent from the list  // Tools → Convert into (LoRA…)
+      cvt: { to: "copy", model: "", base: "", rank: 32, te: true, name: "", msg: "", extra: [], kind: "" },  // extra: DiffusionBee files dropped or sent from the list  // Tools → Convert into (LoRA…)
       chain: { steps: loadJSON("protoart.chain", []).map((x) => ({ lora: "", lora_weight: 1, extra: "", ...x, result: "", q: "" })),
                running: false, stopped: false, at: -1, done: 0 },  // 🔗 Model chain
       swapOver: false,
@@ -507,6 +507,7 @@ const protoartApp = createApp({
           sections: [
             { h: "1.4.1: Keep a model on this Mac, DiffusionBee model → LoRA in one step, drag and drop in Convert, LoRA filters in Image to image, Newest first", items: [
               "<b>DiffusionBee model → LoRA in one step</b> (Tools → 🔁 Convert): a DiffusionBee model (.tdict) can now be turned straight into a small LoRA, with no .safetensors copy first. In the list of your DiffusionBee files, press <b>→ LoRA</b> next to a model; or choose <b>Convert into → LoRA</b> and drop the .tdict file on it (DiffusionBee models are also in its model lists). The base model is filled in for you when the plain SD 1.5 (or SDXL) model is on your Mac; check it, then <b>Make the LoRA</b>. The .tdict file is only read.",
+              "<b>What is it?</b> (Convert → LoRA): say what the new LoRA is before you make it, <b>Style</b>, <b>Person</b> or <b>Character</b>, and it's tagged as it's made: a person gets ● People (hidden when Hide People is on), a style or character gets the 🏷 style / 🏷 character tag, so the LoRA lists' filters find it straight away. Change it later in the LoRA list like any other tag.",
               "<b>Drag and drop in 🔁 Convert</b> (Tools): drop files or folders straight onto the Convert module. DiffusionBee <b>.tdict</b> files, or a folder that holds them, open in the list ready to convert (ticked); an old <b>.ckpt</b> model is converted to .safetensors right away (one after another if you drop several); in <b>LoRA</b> mode, drop the model and then its base model (both have to be your models already). Your files are only read, never changed.",
               "<b>Image to image → LoRAs</b> now has the same filters as Create: <b>★</b> (only your favourites), the order, and the kind list, where <b>● People</b> shows only LoRAs of real people and <b>Not People</b> hides them (also your own 🏷 tags). Each LoRA in the list has its ★ and ● too, to mark it right there. The order and filter are shared: change them in one tab and the other follows.",
               "<b>Newest first / Oldest first</b> (both LoRA lists): the LoRAs you added most recently at the top. “Added” is when the file arrived on this Mac or drive (downloaded, copied or moved in), even if the file itself is older. ★ favourites still come first.",
@@ -939,6 +940,7 @@ const protoartApp = createApp({
               "When the prompt is ready: <b>⧉ Copy</b>, <b>🖼 Use in Image to image</b> (opens the picture there with the prompt in the box) or <b>✍ Use in Create</b>.",
               "<b>Convert DiffusionBee files</b> makes standard .safetensors copies of your old models, LoRAs and embeddings. You can drag .tdict files or folders onto the Convert module, or an old .ckpt (converted right away); in LoRA mode drop the model, then its base model.",
               "<b>A DiffusionBee model straight to a LoRA</b>: press <b>→ LoRA</b> next to a model in the DiffusionBee list (or drop the .tdict in LoRA mode). It's read directly, so there's no 2–7 GB .safetensors copy to make first. The base model is usually the plain SD 1.5 model; the app picks it when it finds it.",
+              "<b>What is it?</b> under the LoRA size: Style, Person or Character tags the new LoRA as it's made (● People, 🏷 style, 🏷 character).",
               "<b>Old .ckpt files…</b> lists the .ckpt checkpoints in your folders (or pick one) and makes a .safetensors copy in your checkpoints folder. It reads only the weights, so nothing hidden in the file can run; <i>half size</i> makes a smaller copy that gives the same pictures. The .ckpt isn't changed." ] },
           ] },
         { id: "train", go: "train", icon: "🎓", title: "Train", summary: "Teach the app your own character, object or style; merge LoRAs",
@@ -6057,6 +6059,15 @@ const protoartApp = createApp({
       const r = await this.runJob("lora_extract", { model: c.model, base: c.base, rank: c.rank, text_encoder: c.te, name: c.name.trim() || null });
       if (!r) return;
       c.msg = `✓ “${r.name}” (${r.mb} MB, ${r.layers} layers) is in your LoRA list${r.family ? " for " + this.familyName(r.family) : ""}.`;
+      // What is it? → tagged as it's made, so it's in the right filter straight away
+      if (c.kind === "people") {
+        try { await call("content_mark", { kind: "lora", name: r.name, tag: "people", value: true }); c.msg += " Tagged ● People."; }
+        catch (e) { this.error = e.message; }
+      } else if (c.kind === "style" || c.kind === "character") {
+        this.loraTags = { ...this.loraTags, [r.name]: [...new Set([...this.loraTagsOf(r.name), c.kind])].sort() };
+        this.saveLoraTags();
+        c.msg += ` Tagged 🏷 ${c.kind}.`;
+      }
       this.loras = await call("list_loras").catch(() => this.loras);
     },
     async runMerge() {
