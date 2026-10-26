@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.4.2
+
+- Puppet warp: **✂ Separate the subject** (`pwSelectSubject` / `pwUseSubject`): the selection tools pick the subject;
+  `heal` with `temp` + `grow` fills what's behind it (LaMa, not saved to the Library); `PuppetEngine.setSubject(matte,
+  background)` draws the filled background, then only the subject, bent and cut out by its mask (blended), in the
+  preview and the full-size export
+- Adjust: **🖌 paint where a step shows** (`AdjustEngine.setPaint`, `pointMask` takes a painted texture as well as the
+  points), Paint / Erase / Clear, brush size and strength, [ ] keys
+- Enhance: **🎨 Keep the picture's style** (`keep_style`, `style_words`): no SDXLrender LoRA, more_details ≤ 0.3,
+  creativity ≤ 0.25, resemblance ≥ 0.8, "photo…" negative, then `color_match.keep_tones` puts the original's broad
+  colour and light back
+- Edit with words and Inpaint: `color_match.match_to_original` corrects the redraw's broad light/colour to the
+  original around the painted area (normalised-convolution blur of the difference) before compositing
+- Convert → LoRA: **🔍 Find it** (`lora_base_find` job, `lora_extract.find_base`: relative weight difference over ~80
+  sampled weights, .safetensors or .tdict); extraction reports `kept_pct` and `covered_pct`, and the UI warns when the
+  base looks wrong
+- [ ] / − + change the brush size wherever you paint
+- Fixes: Merge LoRAs listed nothing (a second `mergeFamily` computed property, from the model merger, replaced it;
+  also `mergeJob`), now `mrgFamily` / `mrgJob`; embedding training with transformers 5 (`attach_words` via
+  `set_input_embeddings`); a selection belongs to one tab (`mask.tab`, `maskIsFor`); Vectorize ✕ clear; the Library
+  selection bar hides under Compare and full-window boxes sit above it
+
 ## 1.4.1
 
 - Convert → LoRA: **What is it?** (Style / Person / Character / Not sure) tags the new LoRA as it's made

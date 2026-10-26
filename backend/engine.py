@@ -2586,7 +2586,13 @@ class Engine:
                                        if control else "")
                                     + "Details are in Settings → Backend log.")
                 if mask is not None and not outpaint and not args.get("only_masked"):
-                    # keep everything outside the mask exactly as it was (the model slightly changes it)
+                    # keep everything outside the mask exactly as it was (the model slightly changes it), with the
+                    # painted part's light and colour matched to the original around it (no lighter patch)
+                    try:
+                        import color_match
+                        image = color_match.match_to_original(image, init_image, mask)
+                    except Exception as e:
+                        print("[engine] colour match skipped:", e, flush=True)
                     image = Image.composite(image, init_image, mask)
                 if hires:
                     phase["name"] = "Hi-res fix"
@@ -3049,9 +3055,23 @@ class Engine:
             if step == "enhance":
                 enh = self.get_enhancer(force=force)
                 opts = dict(args.get("options") or {})
+                keep_style = bool(opts.pop("keep_style", False)) and not opts.get("instant")
+                style_words = str(opts.pop("style_words", "") or "").strip()[:200]
                 if not opts.get("prompt"):
                     # Reuse the image's own prompt so the enhancer adds the right kind of detail.
                     opts["prompt"] = "masterpiece, best quality, highres, " + (src["prompt"] or "")
+                if keep_style:
+                    # 🎨 Keep the picture's style: the enhancer's model is a photo model; without its "render" LoRA,
+                    # with lighter changes, "photo" as a negative and the picture's own style words, it adds detail
+                    # in the picture's own look (painting, drawing, anime) instead of turning it photographic
+                    opts["prompt"] = ", ".join(x for x in ["best quality, highres", style_words, (src["prompt"] or "").strip()] if x)
+                    opts["negative_prompt"] = ("photo, photograph, photorealistic, realistic, realistic skin, 3d render, cgi, "
+                                               "worst quality, low quality, normal quality")
+                    opts["lora_sdxl_render"] = 0.0
+                    opts["lora_more_details"] = min(0.3, float(opts.get("lora_more_details", 0.5) or 0.5))
+                    opts["denoise_strength"] = min(0.25, float(opts.get("denoise_strength", 0.35) or 0.35))
+                    opts["controlnet_scale"] = max(0.8, float(opts.get("controlnet_scale", 0.6) or 0.6))
+                before_enh = out
                 seed = int(args.get("seed") if args.get("seed") not in (None, "", -1) else random.randint(0, 2**31 - 1))
                 self.emit({"type": "status", "msg": f"Enhancing {out.width}×{out.height} → ×{opts.get('upscale_factor', 2)}…"})
                 from postprocess.finegrain import EnhanceCancelled
@@ -3073,7 +3093,13 @@ class Engine:
                                             on_preview=pv, **opts)
                 except EnhanceCancelled:
                     raise Cancelled()
-                settings["enhance"] = dict(used, seed=seed)
+                if keep_style:
+                    try:  # the colours and light come back from the picture; the new detail stays
+                        import color_match
+                        out = color_match.keep_tones(out, before_enh.resize(out.size, Image.LANCZOS))
+                    except Exception as e:
+                        print("[engine] keep tones skipped:", e, flush=True)
+                settings["enhance"] = dict(used, seed=seed, keep_style=keep_style, **({"style_words": style_words} if style_words else {}))
             else:
                 if len(steps) > 1 and 0 < total_ram_gb() < 16:
                     self.enhancer = None  # 8 GB Macs: free the enhancer before the face model
@@ -3160,6 +3186,10 @@ class Engine:
             raise UserError("Couldn't read the painted area.")
         if not mask.getbbox():
             raise UserError("Paint over what you want to remove first.")
+        grow = int(args.get("grow") or 0)
+        if grow > 0:  # 🪡 Puppet warp's background: cover the subject's edge fully, so no outline is left behind
+            from PIL import ImageFilter
+            mask = mask.convert("L").point(lambda v: 255 if v > 127 else 0).filter(ImageFilter.MaxFilter(min(61, grow * 2 + 1)))
         method = "quick" if args.get("method") == "quick" else "lama"
         started = time.time()
         emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
@@ -3183,6 +3213,18 @@ class Engine:
         except ValueError as e:
             raise UserError(str(e))
         emit({"type": "progress", "image": 1, "images": 1, "step": 1, "steps": 1})
+        if args.get("temp"):  # a working picture (Puppet warp's filled background): not saved to the Library
+            tmp = paths.HOME / "tmp"
+            tmp.mkdir(parents=True, exist_ok=True)
+            for old in tmp.glob("puppet_bg_*.png"):  # yesterday's working pictures
+                try:
+                    if time.time() - old.stat().st_mtime > 86400:
+                        old.unlink()
+                except OSError:
+                    pass
+            p = tmp / f"puppet_bg_{os.getpid()}_{int(time.time() * 1000)}.png"
+            out.save(p)
+            return {"path": str(p), "temp": True, "width": out.width, "height": out.height}
         settings = dict(src.get("settings") or {})
         settings.update({k: src.get(k) for k in ("prompt", "negative_prompt", "model", "sampler", "steps", "cfg", "seed")})
         settings["loras"] = src.get("loras") or []
@@ -3513,6 +3555,11 @@ class Engine:
             # only the painted area changes, with a soft edge; everything else is the untouched original
             m = mask.convert("L").point(lambda v: 255 if v > 127 else 0).filter(ImageFilter.MaxFilter(5))
             m = m.filter(ImageFilter.GaussianBlur(max(2, min(image.size) // 200)))
+            try:  # the redraw often comes out a little lighter overall: match its light to the original around it
+                import color_match
+                result = color_match.match_to_original(result, image, m)
+            except Exception as e:
+                print("[engine] colour match skipped:", e, flush=True)
             result = Image.composite(result, image, m)
         secs = time.time() - started
         print(f"[timing] edit with words: {secs:.1f}s for {steps} steps at {width}x{height}", flush=True)

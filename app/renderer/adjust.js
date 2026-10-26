@@ -194,9 +194,10 @@ void main() {
 }`,
     // ◎ Control points (like Nik Color Efex): blend a step's result back into the picture only around the points.
     // pts[i] = (x, y, radius, opacity): x, y in 0..1 from the top left, radius in units of the long side.
-    pointMask: `uniform sampler2D orig; uniform vec4 pts[16]; uniform int n; uniform vec2 scale;
+    // Painted areas (🖌 paint where it shows) add to the points: `paint` holds them in its red channel.
+    pointMask: `uniform sampler2D orig; uniform sampler2D paint; uniform bool hasPaint; uniform vec4 pts[16]; uniform int n; uniform vec2 scale;
 void main() {
-  float m = 0.0;
+  float m = hasPaint ? texture(paint, uv).r : 0.0;
   for (int i = 0; i < 16; i++) {
     if (i >= n) break;
     vec4 q = pts[i];
@@ -290,6 +291,15 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
       this.pool = [];
       this.src = null;
       this.curveTex = this._tex(256, 1, false);
+      this.paint = {};  // step id -> texture of where you painted it to show
+      this.blank = this._tex(1, 1, false, new Uint8Array([0, 0, 0, 255]));
+    }
+
+    // 🖌 where a step shows, painted: `source` is a canvas (white = shows) or null to take it away
+    setPaint(id, source) {
+      const gl = this.gl;
+      if (this.paint[id]) { gl.deleteTexture(this.paint[id].t); delete this.paint[id]; }
+      if (source) this.paint[id] = this._upload(source);
     }
 
     _program(fs) {
@@ -434,13 +444,15 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
 
       // ◎ a step with control points only shows around its points: keep the picture from before it, then blend
       const pointsFor = (id) => ((p.points || {})[id] || []).filter((q) => q && q.op > 0 && q.r > 0).slice(0, 16);
-      const begin = (id) => (pointsFor(id).length ? this._step(cur, "copy", {}) : null);
+      const begin = (id) => (pointsFor(id).length || this.paint[id] ? this._step(cur, "copy", {}) : null);
       const end = (id, before) => {
         if (!before) return;
         const pts = pointsFor(id), arr = new Float32Array(64);
         pts.forEach((q, i) => arr.set([q.x, q.y, q.r, q.op], i * 4));
         const long = Math.max(cur.w, cur.h);
-        swap(this._step(cur, "pointMask", { pts: arr, n: pts.length, scale: [cur.w / long, cur.h / long] }, { orig: before }));
+        const paint = this.paint[id];
+        swap(this._step(cur, "pointMask", { pts: arr, n: pts.length, scale: [cur.w / long, cur.h / long], hasPaint: !!paint },
+                        { orig: before, paint: paint || this.blank }));
         this._release(before);
       };
       const baseBefore = begin("base");
@@ -585,6 +597,7 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
       this._freePool();
       const gl = this.gl;
       if (this.src) gl.deleteTexture(this.src.t);
+      for (const id of Object.keys(this.paint)) gl.deleteTexture(this.paint[id].t);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     }
   }

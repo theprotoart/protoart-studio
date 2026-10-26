@@ -66,6 +66,7 @@ def _low_rank(diff, rank):
     up, down = U[:, :r] * s[None, :], s[:, None] * Vh[:r, :]
     dist = torch.cat([up.flatten(), down.flatten()]).abs()
     hi = torch.quantile(dist[:: max(1, dist.numel() // 1_000_000)], 0.99) * 8
+    _low_rank.energy = (float(S.pow(2).sum()), float(S[:r].pow(2).sum()))  # all of the change, and what's kept
     return up.clamp(-hi, hi), down.clamp(-hi, hi)
 
 
@@ -143,6 +144,7 @@ def extract(model, base, rank=32, name=None, text_encoder=True, emit=None, cance
         out = paths.LORAS_DIR / f"{out_name}-{n}.safetensors"
         n += 1
     sd, kept, same = {}, 0, 0
+    e_all = e_kept = 0.0  # how much of the change (in the layers a LoRA covers) the LoRA keeps
     for i, (k, kn) in enumerate(targets):
         if cancel_event is not None and cancel_event.is_set():
             raise InterruptedError()
@@ -163,6 +165,8 @@ def extract(model, base, rank=32, name=None, text_encoder=True, emit=None, cance
             same += 1
             continue
         up, down = _low_rank(diff, rank)
+        e_all += _low_rank.energy[0]
+        e_kept += _low_rank.energy[1]
         if conv:
             up, down = up[:, :, None, None], down[:, :, None, None]
         r = down.shape[0]
@@ -173,10 +177,77 @@ def extract(model, base, rank=32, name=None, text_encoder=True, emit=None, cance
     if not kept:
         raise ValueError("These two models are the same in every layer a LoRA covers: there's nothing to extract. "
                          "Pick the base model the other one was made from.")
+    # and how much of the model's whole change is in layers a LoRA can't hold (resnets, norms…): a lot means the
+    # base is most likely not the model it was made from
+    covered = {k for k, _ in targets}
+    e_other = 0.0
+    kb = set(fb.keys())
+    for i, k in enumerate(fa.keys()):
+        if k in covered or not k.endswith(".weight") or k not in kb or not (k.startswith(UNET) or TE_LAYER.search(k)):
+            continue
+        if cancel_event is not None and cancel_event.is_set():
+            raise InterruptedError()
+        a, b = fa.get_tensor(k).float(), fb.get_tensor(k).float()
+        if a.shape == b.shape:
+            e_other += float((a - b).pow(2).sum())
+    kept_pct = round(100 * e_kept / e_all, 1) if e_all else 100.0
+    covered_pct = round(100 * e_all / (e_all + e_other), 1) if (e_all + e_other) else 100.0
     fam = "sdxl" if any(k.startswith("conditioner.") for k in fa.keys()) else "sd15"
     meta = {"ss_network_module": "networks.lora", "ss_network_dim": str(rank), "ss_network_alpha": str(rank),
             "ss_base_model_version": "sdxl_base_v1-0" if fam == "sdxl" else "sd_v1",
             "protoart_extracted_from": Path(model).name, "protoart_base": Path(base).name}
     save_file(sd, str(out), metadata=meta)
     return {"path": str(out), "name": out.stem, "layers": kept, "unchanged": same, "rank": rank, "family": fam,
-            "mb": round(os.path.getsize(out) / 1e6, 1)}
+            "mb": round(os.path.getsize(out) / 1e6, 1), "kept_pct": kept_pct, "covered_pct": covered_pct}
+
+
+# ------------------------------------------------------------------ which model was it made from?
+def _sample_keys(keys, n=80):
+    """Weights spread over the whole model (UNet attention and resnets, and the text encoder)."""
+    ks = sorted(k for k in keys if k.endswith(".weight") and (k.startswith(UNET) or "text_model" in k or "cond_stage_model" in k
+                                                               or k.startswith("conditioner.")))
+    return ks[:: max(1, len(ks) // n)][:n]
+
+
+def change_from(model_w, base_path, keys):
+    """How far a model is from a possible base: the size of the difference over the sampled weights, as a share
+    of the base's own size (0.0 = the same model). None if they aren't the same kind of model."""
+    fb = open_weights(base_path)
+    kb = set(fb.keys())
+    num = den = 0.0
+    used = 0
+    for k in keys:
+        if k not in kb:
+            continue
+        a, b = model_w.get_tensor(k).float(), fb.get_tensor(k).float()
+        if a.shape != b.shape:
+            continue
+        num += float((a - b).pow(2).sum())
+        den += float(b.pow(2).sum())
+        used += 1
+    if used < max(5, len(keys) // 2) or den <= 0:
+        return None
+    return (num / den) ** 0.5
+
+
+def find_base(model, candidates, progress=None, cancelled=None):
+    """Rank the candidates by how close the model is to each: the one it was made from is far closer than the
+    rest. -> [{"path", "change"}] closest first (change: 0.012 = 1.2 % different)."""
+    fa = open_weights(model)
+    keys = _sample_keys(fa.keys())
+    out = []
+    cands = [c for c in dict.fromkeys(candidates) if c and os.path.realpath(c) != os.path.realpath(model)]
+    for i, c in enumerate(cands):
+        if cancelled and cancelled():
+            raise InterruptedError()
+        if progress:
+            progress(i, len(cands), c)
+        try:
+            ch = change_from(fa, c, keys)
+        except Exception as e:  # a file that can't be read is just left out
+            print("[lora_extract] couldn't compare with", Path(c).name, e, flush=True)
+            ch = None
+        if ch is not None:
+            out.append({"path": c, "change": round(ch, 5)})
+    out.sort(key=lambda r: r["change"])
+    return out

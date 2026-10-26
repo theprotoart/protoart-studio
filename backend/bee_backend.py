@@ -169,7 +169,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -235,6 +235,8 @@ def job_label(cmd, a):
         return "Download from Civitai · " + str(a.get("name") or a.get("url") or "")
     if cmd == "model_keep_local":
         return "Keep a copy on this Mac · " + os.path.basename(str(a.get("path") or ""))
+    if cmd == "lora_base_find":
+        return "Find the base model of " + os.path.basename(str(a.get("model") or ""))
     if cmd == "model_delete":
         import engine as _e
         return "Delete " + str(_e.all_models().get(a.get("model"), {}).get("label", a.get("model"))) + " from this Mac"
@@ -2013,6 +2015,24 @@ def run_job(kind, a):
             raise Cancelled()
         model_hub.invalidate()
         return r
+    if kind == "lora_base_find":  # Tools → Convert → LoRA → 🔍 Find it: which of your models it was made from
+        import lora_extract
+        from engine import UserError, Cancelled
+        eng.unload()
+        cands = [c for c in (a.get("candidates") or []) if isinstance(c, str) and os.path.isabs(c)][:80]
+        if not cands:
+            raise UserError("There are no other models of this type to compare with.")
+
+        def progress(i, n, path):
+            eng.emit({"type": "progress", "image": 1, "images": 1, "step": i + 1, "steps": n})
+            eng.emit({"type": "status", "msg": f"Comparing with {os.path.basename(path)} ({i + 1} of {n})…"})
+        try:
+            ranked = lora_extract.find_base(a.get("model"), cands, progress, cancelled=eng.cancel_event.is_set)
+        except ValueError as e:
+            raise UserError(str(e))
+        except InterruptedError:
+            raise Cancelled()
+        return {"ranked": ranked}
     if kind == "lora_extract":  # Tools → Convert → Model → LoRA
         import lora_extract
         from engine import UserError, Cancelled

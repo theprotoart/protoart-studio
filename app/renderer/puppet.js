@@ -43,9 +43,10 @@
   const VS = `#version 300 es
 in vec2 pos; in vec2 tc; out vec2 uv; uniform bool flipY;
 void main() { uv = tc; vec2 c = pos * 2.0 - 1.0; gl_Position = vec4(c.x, flipY ? -c.y : c.y, 0.0, 1.0); }`;
+  // With a subject: only the subject (its mask, carried by the bend) is drawn, over the filled-in background.
   const FS = `#version 300 es
-precision highp float; in vec2 uv; out vec4 o; uniform sampler2D img; uniform float alpha;
-void main() { o = vec4(texture(img, uv).rgb, alpha); }`;
+precision highp float; in vec2 uv; out vec4 o; uniform sampler2D img; uniform sampler2D matte; uniform bool useMatte; uniform float alpha;
+void main() { o = vec4(texture(img, uv).rgb, useMatte ? texture(matte, uv).r : alpha); }`;
 
   class PuppetEngine {
     constructor(canvas) {
@@ -74,6 +75,21 @@ void main() { o = vec4(texture(img, uv).rgb, alpha); }`;
       this.quadBuf = gl.createBuffer();
       this.maxSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
       this.grid = 48;
+    }
+
+    // ✂ Subject: `matte` = a canvas/bitmap (white = the subject), `background` = the picture with the subject filled
+    // in. Then only the subject bends; the background stays put and shows where the subject moved away from.
+    async setSubject(matte, background) {
+      const gl = this.gl;
+      for (const k of ["matteTex", "bgTex"]) if (this[k]) { gl.deleteTexture(this[k]); this[k] = null; }
+      this.matteFull = matte || null;
+      this.bgFull = background || null;
+      if (!matte || !background) return;
+      const pw = this.canvas.width, ph = this.canvas.height;
+      const small = async (b) => (b.width === pw && b.height === ph ? b
+        : await window.createImageBitmap(b, { resizeWidth: pw, resizeHeight: ph, resizeQuality: "high" }));
+      this.matteTex = this._upload(await small(matte));
+      this.bgTex = this._upload(await small(background));
     }
 
     async setImage(bitmap, previewMax = 1600) {
@@ -133,8 +149,9 @@ void main() { o = vec4(texture(img, uv).rgb, alpha); }`;
       return out;
     }
 
-    _draw(tex, pins, w, h, fb, flipY, showOriginal) {
+    _draw(tex, pins, w, h, fb, flipY, showOriginal, layers) {
       const gl = this.gl;
+      const sub = layers && layers.matte && layers.bg ? layers : null;
       gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
       gl.viewport(0, 0, w, h);
       gl.clearColor(0, 0, 0, 1);
@@ -144,9 +161,14 @@ void main() { o = vec4(texture(img, uv).rgb, alpha); }`;
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.uniform1i(gl.getUniformLocation(this.prog, "img"), 0);
       gl.uniform1i(gl.getUniformLocation(this.prog, "flipY"), flipY ? 1 : 0);
+      gl.uniform1i(gl.getUniformLocation(this.prog, "matte"), 1);
+      const useMatte = gl.getUniformLocation(this.prog, "useMatte");
+      gl.uniform1i(useMatte, 0);
       const alpha = gl.getUniformLocation(this.prog, "alpha");
-      // underneath: the picture as it was, so nothing is left empty where the bent part moved away from
+      // underneath: the picture as it was, so nothing is left empty where the bent part moved away from;
+      // with a subject, the background with the subject filled in (and the original only while comparing)
       gl.uniform1f(alpha, 1);
+      if (sub && !showOriginal) gl.bindTexture(gl.TEXTURE_2D, sub.bg);
       gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
       gl.enableVertexAttribArray(0);
       gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
@@ -154,6 +176,15 @@ void main() { o = vec4(texture(img, uv).rgb, alpha); }`;
       gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       if (showOriginal) return;
+      if (sub) {  // the subject on top, cut out by its mask (soft edge) and bent with the pins
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, sub.matte);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.uniform1i(useMatte, 1);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      }
       gl.bindBuffer(gl.ARRAY_BUFFER, this.posBuf);
       gl.bufferData(gl.ARRAY_BUFFER, this._deformed(pins, w, h), gl.DYNAMIC_DRAW);
       gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
@@ -161,11 +192,13 @@ void main() { o = vec4(texture(img, uv).rgb, alpha); }`;
       gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.idxBuf);
       gl.drawElements(gl.TRIANGLES, this.count, gl.UNSIGNED_INT, 0);
+      if (sub) { gl.disable(gl.BLEND); gl.uniform1i(useMatte, 0); }
     }
 
     render(pins, showOriginal = false) {
       if (!this.tex) return;
-      this._draw(this.tex, pins, this.canvas.width, this.canvas.height, null, true, showOriginal);
+      this._draw(this.tex, pins, this.canvas.width, this.canvas.height, null, true, showOriginal,
+                 this.matteTex ? { matte: this.matteTex, bg: this.bgTex } : null);
     }
 
     // the full-size picture, warped -> PNG Blob
@@ -174,6 +207,12 @@ void main() { o = vec4(texture(img, uv).rgb, alpha); }`;
       if (Math.max(full.width, full.height) > this.maxSize)
         throw new Error(`The picture is bigger than this Mac's graphics can warp (${this.maxSize} px).`);
       const tex = this._upload(full);
+      let layers = null;
+      if (this.matteFull && this.bgFull) {  // the subject's mask and the filled background, at full size
+        const fit = async (b) => (b.width === full.width && b.height === full.height ? b
+          : await window.createImageBitmap(b, { resizeWidth: full.width, resizeHeight: full.height, resizeQuality: "high" }));
+        layers = { matte: this._upload(await fit(this.matteFull)), bg: this._upload(await fit(this.bgFull)) };
+      }
       const t = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, t);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, full.width, full.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
@@ -181,7 +220,7 @@ void main() { o = vec4(texture(img, uv).rgb, alpha); }`;
       gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
       try {
-        this._draw(tex, pins, full.width, full.height, fb, false, false);
+        this._draw(tex, pins, full.width, full.height, fb, false, false, layers);
         const px = new Uint8ClampedArray(full.width * full.height * 4);
         gl.readPixels(0, 0, full.width, full.height, gl.RGBA, gl.UNSIGNED_BYTE, px);  // row 0 = the top (drawn unflipped)
         const c = new OffscreenCanvas(full.width, full.height);
@@ -192,12 +231,14 @@ void main() { o = vec4(texture(img, uv).rgb, alpha); }`;
         gl.deleteFramebuffer(fb);
         gl.deleteTexture(t);
         gl.deleteTexture(tex);
+        if (layers) { gl.deleteTexture(layers.matte); gl.deleteTexture(layers.bg); }
       }
     }
 
     destroy() {
       const gl = this.gl;
       if (this.tex) gl.deleteTexture(this.tex);
+      for (const k of ["matteTex", "bgTex"]) if (this[k]) gl.deleteTexture(this[k]);
       for (const b of [this.posBuf, this.tcBuf, this.idxBuf, this.quadBuf]) gl.deleteBuffer(b);
       gl.deleteProgram(this.prog);
     }

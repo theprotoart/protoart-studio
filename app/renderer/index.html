@@ -1034,7 +1034,7 @@
       </div>
       <div v-for="e in bx.errors" :key="e" class="hint warn">⚠ {{ e }}</div>
     </div>
-    <div v-if="selectMode" class="select-bar">
+    <div v-if="selectMode && !compareView" class="select-bar">
       <span>{{ selected.length }} selected</span>
       <button class="link" @click="selectAll">Select all {{ libShown.length }}</button>
       <button class="ghost small" :disabled="!selected.length" @click="selected=[]">✕ Deselect all</button>
@@ -1416,9 +1416,10 @@
         <div v-if="adj.open" class="adjust-canvas-wrap" :class="{splitting: adj.view === 'split'}" @click.stop @mousedown="adjSplitDrag">
             <canvas ref="adjCanvas" class="adjust-canvas"></canvas>
             <!-- ◎ control points: the selected step's points (others faint); click to add in adding mode, drag to move -->
-            <div v-if="adj.p && adj.view !== 'before' && adj.ovl" ref="adjOverlay" class="adj-overlay" :class="{adding: adj.pointMode}"
-                 :style="{left: adj.ovl[0] + 'px', top: adj.ovl[1] + 'px', width: adj.ovl[2] + 'px', height: adj.ovl[3] + 'px', pointerEvents: adj.pointMode ? 'auto' : 'none'}"
+            <div v-if="adj.p && adj.view !== 'before' && adj.ovl" ref="adjOverlay" class="adj-overlay" :class="{adding: adj.pointMode, painting: !!adj.paintMode}"
+                 :style="{left: adj.ovl[0] + 'px', top: adj.ovl[1] + 'px', width: adj.ovl[2] + 'px', height: adj.ovl[3] + 'px', pointerEvents: adj.pointMode || adj.paintMode ? 'auto' : 'none'}"
                  @mousedown.stop @pointerdown="adjOverlayDown">
+              <canvas v-show="adj.paintMode" ref="adjPaintView" class="adj-paint-view"></canvas>
               <template v-for="t in adjPointTargets()" :key="'pt-' + t.id">
                 <i v-for="(q, i) in adjPoints(t.id)" :key="t.id + i" class="adj-pt"
                    :class="{mine: t.id === adj.pointTarget, sel: t.id === adj.pointTarget && i === adj.pointSel}" :style="adjPointStyle(q)"
@@ -1429,7 +1430,7 @@
           <span class="adjust-badge">{{ adj.view === 'before' ? 'ORIGINAL' : adj.view === 'split' ? 'ORIGINAL  |  EDITED' : 'EDITED' }}</span>
           <span v-if="adj.busy || adj.msg" class="adjust-badge busy">{{ adj.msg || 'Working…' }}</span>
         </div>
-        <div v-else-if="pw.open" class="adjust-canvas-wrap pw-wrap" @click.stop>
+        <div v-else-if="pw.open && !pw.selecting" class="adjust-canvas-wrap pw-wrap" @click.stop>
           <canvas ref="pwCanvas" class="adjust-canvas"></canvas>
           <!-- 🪡 pins: click the picture to add one, drag a pin to bend, ⌥-click a pin to take it out -->
           <div v-if="pw.ovl && !pw.original" ref="pwOverlay" class="adj-overlay pw-overlay"
@@ -1438,11 +1439,11 @@
             <i v-for="(k, i) in pw.pins" :key="'pin' + i" class="pw-pin" :class="{sel: i === pw.sel}" :style="pwPinStyle(k)"
                @pointerdown.stop="pwPinDown($event, i)" @dblclick.stop="pwRemovePin(i)" title="Drag to bend · ⌥-click or double-click to remove"></i>
           </div>
-          <span class="adjust-badge">{{ pw.original ? 'ORIGINAL' : 'PUPPET WARP' }}</span>
+          <span class="adjust-badge">{{ pw.original ? 'ORIGINAL' : pw.subject ? 'PUPPET WARP · SUBJECT ONLY' : 'PUPPET WARP' }}</span>
           <span v-if="pw.busy || pw.msg" class="adjust-badge busy">{{ pw.msg || 'Working…' }}</span>
         </div>
         <div v-else-if="tool.source && tool.healing" class="mask-stage tool-mask" @click.stop @dragover.stop>
-          <img :src="fileUrl(tool.source.path)" @load="initMaskCanvas" ref="maskImg" draggable="false">
+          <img :src="fileUrl(maskTarget())" @load="initMaskCanvas" ref="maskImg" draggable="false">
           <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove($event); brushAt($event)" @pointerup="maskUp"
                   @pointerleave="maskUp(); brush.show = false" :style="{cursor: ['brush', 'erase'].includes(mask.tool || 'brush') ? 'none' : 'crosshair'}" @dblclick="selFinishPoly"></canvas>
           <canvas ref="selCanvas" class="sel-canvas"></canvas>
@@ -1568,6 +1569,35 @@
           <button class="ghost small" @mousedown="pw.original = true" @mouseup="pw.original = false" @mouseleave="pw.original = false"
                   title="Hold to see the picture as it was">◐ Hold for the original</button>
         </div>
+        <div class="pw-subject">
+          <template v-if="pw.selecting">
+            <p class="mod-desc mod-live">← Select the subject on the picture: <b>⬚ Object</b> (drag a box around it) is quickest; Brush, Lasso or Polygon fix the edge.</p>
+            <div class="sel-tools" role="toolbar" aria-label="Selection tools">
+              <button v-for="t in SEL_TOOLS" :key="'pws' + t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
+            </div>
+            <div class="sel-opts">
+              <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the selection (or hold ⌥ Option)">－ Subtract</button></div>
+              <span class="hint">brush {{ mask.size }} · [ ] to change</span>
+            </div>
+            <div class="row small">
+              <button class="primary" :disabled="!mask.data" @click="pwUseSubject" title="Only the subject bends; what was behind it is filled in (Smart fill, ~208 MB the first time)">✓ Use this subject</button>
+              <button class="link" @click="maskClear">clear</button>
+              <button class="ghost small" @click="pwCancelSelect">Cancel</button>
+            </div>
+          </template>
+          <template v-else-if="pw.subject">
+            <p class="hint">✂ <b>Subject only</b>: the pins bend the subject; the background stays still and is filled in behind it (nothing is left behind where it moved from).</p>
+            <div class="row small">
+              <button class="ghost small" :disabled="pw.busy" @click="pwSelectSubject">✂ Select again</button>
+              <button class="ghost small" :disabled="pw.busy" @click="pwWholePicture">Bend the whole picture instead</button>
+            </div>
+          </template>
+          <div v-else class="row small">
+            <button class="ghost" :disabled="pw.busy" @click="pwSelectSubject"
+                    title="Like putting the subject on its own layer in Photoshop: select it, then only it bends and the background behind it is filled in. Best when you move an arm, a head or something held, so no copy is left behind.">✂ Separate the subject first</button>
+            <span class="hint">only it bends; the background is filled in behind it</span>
+          </div>
+        </div>
         <div class="row small pw-row"><span class="hint">Smoothness</span>
           <div class="seg">
             <button v-for="d in [[24, 'Fewer points'], [48, 'Normal'], [80, 'More points']]" :key="'d' + d[0]" :class="{on: pw.density === d[0]}"
@@ -1604,12 +1634,23 @@
           <div class="adj-points">
             <span class="hint">◎ Control points for</span>
             <select v-model="adj.pointTarget" @change="adj.pointSel = -1; adj.pointMode = false" title="Which step the points belong to: that step then only shows around its points (like Nik Color Efex)">
-              <option v-for="t in adjPointTargets()" :key="'pto' + t.id" :value="t.id">{{ t.label }}{{ adjPointCount(t.id) ? ' · ' + adjPointCount(t.id) : '' }}</option>
+              <option v-for="t in adjPointTargets()" :key="'pto' + t.id" :value="t.id">{{ t.label }}{{ adjPointCount(t.id) ? ' · ' + adjPointCount(t.id) : '' }}{{ adjHasPaint(t.id) ? ' · painted' : '' }}</option>
             </select>
             <button class="ghost small pt-add" :class="{on: adj.pointMode}" @click="adjStartAdd"
                     title="Then click the picture where this step should show (e.g. Bloom only on a lantern or glowing eyes)">＋ Add</button>
             <button class="ghost small" :disabled="!adjPointCount()" @click="adjRemovePoint" title="Remove the selected point (or the last one)">✕ Remove</button>
-            <span class="hint">{{ adj.pointMode ? 'click the picture to place it' : adjPointCount() ? 'shows only around the points' : 'no points: the whole picture' }}</span>
+            <button class="ghost small" :class="{on: adj.paintMode === 'paint'}" @click="adjPaintToggle('paint')"
+                    title="Brush it on: paint where this step should show, any shape (soft edges). Works with points too · [ ] change the brush size">🖌 Paint</button>
+            <button class="ghost small" :class="{on: adj.paintMode === 'erase'}" :disabled="!adjHasPaint()" @click="adjPaintToggle('erase')"
+                    title="Paint over parts where it shouldn't show">🧽 Erase</button>
+            <button v-if="adjHasPaint()" class="ghost small" @click="adjClearPaint(adj.pointTarget)" title="Take away everything painted for this step">✕ Clear paint</button>
+            <span class="hint">{{ adj.paintMode ? 'paint on the picture · [ ] brush size' : adj.pointMode ? 'click the picture to place it' : adjPointCount() || adjHasPaint() ? 'shows only around the points and painted areas' : 'no points: the whole picture' }}</span>
+          </div>
+          <div v-if="adj.paintMode" class="adj-points adj-point-opts">
+            <span class="hint">🖌 Brush</span>
+            <label>Size</label><input type="range" min="0.01" max="0.5" step="0.005" v-model.number="adj.brush" title="Brush size · [ ] keys">
+            <label>Strength</label><input type="range" min="0.1" max="1" step="0.05" v-model.number="adj.brushOp" title="Lower: build it up gently with several strokes">
+            <span class="adj-val">{{ Math.round(adj.brushOp * 100) }}%</span>
           </div>
           <div v-if="adjSelPoint()" class="adj-points adj-point-opts">
             <span class="hint">Point {{ adj.pointSel + 1 }}</span>
@@ -1653,9 +1694,10 @@
                   <div v-if="adjFilters[id].toggle" class="adj-row"><label>Grain</label>
                     <div class="seg"><button :class="{on: !adj.p[adjFilters[id].toggle.k]}" @click="adj.p[adjFilters[id].toggle.k] = false">{{ adjFilters[id].toggle.off }}</button>
                       <button :class="{on: adj.p[adjFilters[id].toggle.k]}" @click="adj.p[adjFilters[id].toggle.k] = true">{{ adjFilters[id].toggle.on }}</button></div></div>
-                  <div class="adj-pt-line"><span class="hint">◎ {{ adjPointCount(id) ? adjPointCount(id) + ' control point' + (adjPointCount(id) === 1 ? '' : 's') + ': only around them' : 'whole picture' }}</span>
+                  <div class="adj-pt-line"><span class="hint">◎ {{ adjPointCount(id) || adjHasPaint(id) ? [adjPointCount(id) ? adjPointCount(id) + ' control point' + (adjPointCount(id) === 1 ? '' : 's') : '', adjHasPaint(id) ? 'painted' : ''].filter(Boolean).join(' + ') + ': only there' : 'whole picture' }}</span>
+                    <button class="link small" @click="adj.pointTarget = id; adj.pointSel = -1; adjPaintToggle('paint')" title="Brush on where this filter should show">🖌 paint it on</button>
                     <button class="link small" @click="adj.pointTarget = id; adj.pointSel = -1; adjStartAdd()" title="Click the picture where this filter should show">＋ add a point</button>
-                    <button v-if="adjPointCount(id)" class="link small" @click="adjClearPoints(id)">whole picture again</button></div>
+                    <button v-if="adjPointCount(id) || adjHasPaint(id)" class="link small" @click="adjClearPoints(id)">whole picture again</button></div>
                   <button class="link small" @click="adjResetFilter(id)">reset this filter</button>
                 </div>
               </div>
@@ -1883,6 +1925,11 @@
             <button v-for="p in enhPresets" :key="p.label" :class="{on: post.enh.denoise_strength===p.c && post.enh.controlnet_scale===p.r}"
                     @click="post.enh.denoise_strength=p.c; post.enh.controlnet_scale=p.r" :title="p.tip">{{ p.label }}</button>
           </div>
+          <label class="check" title="The enhancer is a photo model, so on its own it nudges paintings, drawings and anime towards a photo. This keeps the picture's own look: no 'render' LoRA, lighter changes, 'photo' as a negative, and the colours and light put back from your picture. Detail is still added.">
+            <input type="checkbox" v-model="post.enh.keep_style" :disabled="post.enh.instant"> 🎨 Keep the picture's style <span class="hint">paintings, drawings, anime</span></label>
+          <input v-if="post.enh.keep_style && !post.enh.instant" v-model="post.enh.style_words" class="mod-input"
+                 placeholder="style words (optional): oil painting, visible brush strokes"
+                 title="Words that describe the look, added to the picture's own prompt (e.g. watercolour, pencil sketch, anime cel shading)">
           <details class="mod-more">
             <summary>fine-tune</summary>
             <label title="How much new detail it may invent. Low = cleaner, faithful; high = more texture and changes.">Creativity <span class="mod-val">{{ post.enh.denoise_strength }}</span></label>
@@ -1961,7 +2008,7 @@
         <div id="rack-heal" class="card rack-module heal-card" :class="{'patch-pick': patchPicked('heal')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🩹</span>
             <h3>Remove objects</h3><span v-if="patchPicked('heal')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">spot healing</span></div>
-          <template v-if="!tool.healing">
+          <template v-if="!tool.healing || pw.selecting">
             <p class="mod-desc">Paint over anything you don't want (a stray object, an extra finger, text, a blemish) and it's filled in from what's around it.</p>
             <ol class="mod-steps">
               <li>Press <b>Paint</b> below</li>
@@ -1995,7 +2042,7 @@
             <div class="mod-links"><button class="link" @click="maskClear">clear paint</button> · <button class="link" @click="tool.healing = false; maskClear()">cancel</button></div>
           </template>
           <div class="mod-foot">
-            <button v-if="!tool.healing" class="primary mod-go" :disabled="!tool.source" @click="toolPaintRemove(true)">🖌 Paint</button>
+            <button v-if="!tool.healing || pw.selecting" class="primary mod-go" :disabled="!tool.source || pw.selecting" @click="toolPaintRemove(true)">🖌 Paint</button>
             <button v-else class="primary mod-go" :disabled="!mask.data || !!tool.working" @click="toolHeal">🩹 Remove</button>
             <span class="mod-plate">Healer · RM-3</span>
           </div>
@@ -2041,7 +2088,8 @@
           <div v-if="vecResult" class="vec-result">
             <img :src="fileUrl(vecResult.path)" alt="Vector result">
             <p class="mod-note">{{ vecResult.shapes }} shapes · {{ vecResult.colors }} colours · {{ Math.round(vecResult.bytes / 1024) }} KB
-              · <button class="link" @click="showInFolder(vecResult.path)">Show in Finder</button></p>
+              · <button class="link" @click="showInFolder(vecResult.path)">Show in Finder</button>
+              · <button class="link" @click="vecResult = null" title="Take the result off this panel (the SVG file stays where it was saved)">✕ clear</button></p>
           </div>
           <div class="mod-foot">
             <button class="primary mod-go" :disabled="!tool.source || !!vecJob" @click="toolVectorize">{{ vecJob ? 'Tracing…' : 'Vectorize' }}</button>
@@ -2112,8 +2160,8 @@
           </div>
           <p v-if="qnt.msg" class="mod-note">{{ qnt.msg }}</p>
         </div>
-        <div class="card rack-module merge-module" :class="{active: mergeJob}">
-          <div class="mod-head"><i class="mod-lamp" :class="{on: !!mergeJob}"></i><span class="mod-icon">🧪</span>
+        <div class="card rack-module merge-module" :class="{active: mrgJob}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!mrgJob}"></i><span class="mod-icon">🧪</span>
             <h3>Model merger</h3><span class="mod-sub">blend two models into a new one</span></div>
           <p class="mod-desc">Mixes two of your .safetensors models of the same type (SD 1.5 + SD 1.5, SDXL + SDXL) into a new model file. The models you pick aren't changed.</p>
           <label>Model A</label>
@@ -2121,7 +2169,7 @@
             <option v-for="m in mergeModels" :key="'a' + m.id" :value="m.path">{{ m.label }} · {{ familyName(m.family) }}</option></select>
           <label>Model B</label>
           <select v-model="mrg.b" title="The second model"><option value="">pick a model…</option>
-            <option v-for="m in mergeModels.filter(x => !mergeFamily || x.family === mergeFamily)" :key="'b' + m.id" :value="m.path">{{ m.label }}</option></select>
+            <option v-for="m in mergeModels.filter(x => !mrgFamily || x.family === mrgFamily)" :key="'b' + m.id" :value="m.path">{{ m.label }}</option></select>
           <div class="seg mod-seg">
             <button :class="{on: mrg.mode === 'sum'}" @click="mrg.mode = 'sum'" title="A × (1 − amount) + B × amount">Blend</button>
             <button :class="{on: mrg.mode === 'add'}" @click="mrg.mode = 'add'" title="A + (B − C) × amount: adds what B learned on top of its base model C">Add difference</button>
@@ -2129,13 +2177,13 @@
           <template v-if="mrg.mode === 'add'">
             <label>Model C <span class="hint">the base model B was made from</span></label>
             <select v-model="mrg.c"><option value="">pick a model…</option>
-              <option v-for="m in mergeModels.filter(x => !mergeFamily || x.family === mergeFamily)" :key="'c' + m.id" :value="m.path">{{ m.label }}</option></select>
+              <option v-for="m in mergeModels.filter(x => !mrgFamily || x.family === mrgFamily)" :key="'c' + m.id" :value="m.path">{{ m.label }}</option></select>
           </template>
           <label>{{ mrg.mode === 'add' ? 'How much of the difference' : 'How much of B' }} <span class="mod-val">{{ Number(mrg.m).toFixed(2) }}</span></label>
           <input type="range" min="0" max="1" step="0.05" v-model.number="mrg.m" title="0 = only A, 1 = all of B (or of the difference)">
           <input v-model="mrg.name" placeholder="name for the new model (optional)" title="The new model's file name">
           <div class="mod-foot">
-            <button class="primary mod-go" :disabled="!mrg.a || !mrg.b || (mrg.mode === 'add' && !mrg.c) || !!mergeJob" @click="runMerge">{{ mergeJob ? 'Merging…' : 'Merge' }}</button>
+            <button class="primary mod-go" :disabled="!mrg.a || !mrg.b || (mrg.mode === 'add' && !mrg.c) || !!mrgJob" @click="runMerge">{{ mrgJob ? 'Merging…' : 'Merge' }}</button>
             <span class="mod-plate">Merger · MM-7</span>
           </div>
           <p v-if="mrg.msg" class="mod-note">{{ mrg.msg }}</p>
@@ -2154,7 +2202,9 @@
             <label>Model to turn into a LoRA</label>
             <select v-model="cvt.model" title="A single-file SD 1.5 or SDXL model: .safetensors, or a DiffusionBee model (.tdict) read directly"><option value="">pick a model…</option>
               <option v-for="m in cvtModels" :key="'cv' + m.id" :value="m.path">{{ m.label }} · {{ familyName(m.family) }}</option></select>
-            <label>Its base model <span class="hint">the one it was made from</span></label>
+            <label>Its base model <span class="hint">the one it was made from</span>
+              <button class="link small-link" :disabled="!cvt.model || !!cvtJob" @click="cvtFindBase"
+                      title="Measures which of your models this one was made from, by comparing their weights (not their names). The right base matters most for a LoRA that looks like the model: with the wrong one, the LoRA holds the difference between two models instead.">🔍 Find it for me</button></label>
             <select v-model="cvt.base" title="Usually SD 1.5 (or SDXL base 1.0) as a .safetensors file. Another model works too: the LoRA then holds the difference between the two"><option value="">pick a model…</option>
               <option v-for="m in cvtModels.filter((x) => x.path !== cvt.model && (!cvtFamily() || x.family === cvtFamily()))" :key="'cb' + m.id" :value="m.path">{{ m.label }}</option></select>
             <label title="How much detail the LoRA keeps: 16 is small and light, 32 a good start, 64–128 keeps more of the model's look (bigger file)">Size (rank) <span class="mod-val">{{ cvt.rank }}</span></label>
@@ -2946,12 +2996,19 @@
           <input type="number" min="-2" max="3" step="0.05" v-model.number="it.weight" class="merge-w">
           <button class="ghost small" @click="mergeRemove(i)" title="Take it out">✕</button>
         </div>
-        <input v-model="merge.q" :placeholder="'+ add a LoRA… (search ' + mergeChoices.length + (mergeChoices.length >= 60 ? '+' : '') + ')'">
+        <div class="lora-search-row">
+          <input v-model="merge.q" class="lora-search" :placeholder="'search ' + (mergePool.length - mergeHidden) + ' LoRAs by name or #tag, then click one to add it'">
+          <button v-if="merge.q" class="ghost small" @click="merge.q = ''" title="Clear the search and show every LoRA again">✕</button>
+        </div>
         <div class="lora-list merge-list">
           <button v-for="l in mergeChoices" :key="l.name" class="lora-item" @click="mergeAdd(l)">
             <span class="l-name" :title="l.name">{{ l.name }}</span><span class="marks"></span><span class="hint">{{ l.size_mb }} MB</span>
           </button>
-          <div v-if="!mergeChoices.length" class="hint m-empty">No more {{ (mergeFamilies.find(f => f.id === mergeFamily) || {}).label || '' }} LoRAs to add.</div>
+          <div v-if="!mergeChoices.length" class="hint m-empty">
+            <template v-if="merge.q.trim()">No {{ (mergeFamilies.find(f => f.id === mergeFamily) || {}).label || '' }} LoRA matches “{{ merge.q.trim() }}”.
+              <button class="link" @click="merge.q = ''">Clear the search</button></template>
+            <template v-else-if="mergeHidden">{{ mergeHidden }} {{ mergeHidden === 1 ? 'is' : 'are' }} hidden by Hide NSFW / Hide People (Create, or Settings → Privacy).</template>
+            <template v-else>No more {{ (mergeFamilies.find(f => f.id === mergeFamily) || {}).label || '' }} LoRAs to add.</template></div>
         </div>
         <div v-if="mergeOtherCount" class="hint">{{ mergeOtherCount }} DiffusionBee LoRA file{{ mergeOtherCount === 1 ? '' : 's' }} (.tdict) can't be merged: convert them first (Tools → Convert DiffusionBee files).</div>
       </div>

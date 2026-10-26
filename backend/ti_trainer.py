@@ -61,6 +61,17 @@ def _NewWords(base, ids, init):
     return _new_words_module()(base, ids, init)
 
 
+def attach_words(te, words):
+    """Put the trainable word vectors in the text encoder. transformers 5 flattened CLIPTextModel (there's no
+    `.text_model` any more); set_input_embeddings works with both old and new versions."""
+    try:
+        te.set_input_embeddings(words)
+    except Exception:
+        (getattr(te, "text_model", te)).embeddings.token_embedding = words
+    if te.get_input_embeddings() is not words:
+        raise TIError("Couldn't attach the new word to the text encoder (unexpected transformers version).")
+
+
 def safe_name(name):
     n = re.sub(r"[^\w\-]+", "_", (name or "").strip()).strip("_-")
     return n[:48] or "my_embedding"
@@ -188,7 +199,7 @@ def train(engine, args, emit, cancel_event, out_dir):
         te.requires_grad_(False)
         base_emb = te.get_input_embeddings()
         words = _NewWords(base_emb, new_ids, base_emb.weight[new_ids].detach().float())
-        te.text_model.embeddings.token_embedding = words
+        attach_words(te, words)
         te.to(device, wdtype)
         words.vec.data = words.vec.data.to(device, torch.float32)
         te.train()
