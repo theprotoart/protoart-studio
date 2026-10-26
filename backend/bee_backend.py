@@ -2020,6 +2020,13 @@ def run_job(kind, a):
         from engine import UserError, Cancelled
         eng.unload()
         cands = [c for c in (a.get("candidates") or []) if isinstance(c, str) and os.path.isabs(c)][:80]
+        folders = [f for f in (a.get("folders") or []) if isinstance(f, str) and os.path.isabs(f)][:8]
+        if folders:  # 🔍 Scan a folder or drive: every full model in it (and its sub-folders)
+            eng.emit({"type": "status", "msg": "Looking for models in " + ", ".join(os.path.basename(f.rstrip("/")) or f for f in folders) + "…"})
+            found = lora_extract.models_in_folders(folders, family=a.get("family") or None)
+            cands = list(dict.fromkeys(cands + found))
+            if not found:
+                eng.emit({"type": "status", "msg": "No full models of this type were found there"})
         if not cands:
             raise UserError("There are no other models of this type to compare with.")
 
@@ -2032,7 +2039,7 @@ def run_job(kind, a):
             raise UserError(str(e))
         except InterruptedError:
             raise Cancelled()
-        return {"ranked": ranked}
+        return {"ranked": ranked, "verdict": lora_extract.verdict(ranked), "compared": len(cands)}
     if kind == "lora_extract":  # Tools → Convert → Model → LoRA
         import lora_extract
         from engine import UserError, Cancelled

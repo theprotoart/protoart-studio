@@ -11,6 +11,7 @@ be the model the fine-tune was made from (SD 1.5 base for most SD 1.5 models); w
 difference between those two models instead. Weights are read one at a time, so it works on an 8 GB Mac. Rank 16–64:
 higher keeps more of the model's look (bigger file).
 """
+import json
 import os
 import re
 from pathlib import Path
@@ -25,6 +26,32 @@ TE_PREFIXES = {  # checkpoint key prefix of the (first) CLIP text encoder -> koh
 # the layers a LoRA usually covers
 UNET_LAYER = re.compile(r"(attn[12]\.(to_q|to_k|to_v|to_out\.0)|ff\.net\.(0\.proj|2)|proj_in|proj_out)\.weight$")
 TE_LAYER = re.compile(r"encoder\.layers\.\d+\.(self_attn\.(q_proj|k_proj|v_proj|out_proj)|mlp\.(fc1|fc2))\.weight$")
+# and the resnet layers (LoCon): a trained person or style changes these about as much as the attention layers
+RES_LAYER = re.compile(r"(input_blocks\.\d+\.0|middle_block\.[02]|output_blocks\.\d+\.0)\.(in_layers\.2|out_layers\.3|emb_layers\.1|skip_connection)\.weight$")
+_RES_PART = {"in_layers.2": "conv1", "out_layers.3": "conv2", "emb_layers.1": "time_emb_proj", "skip_connection": "conv_shortcut"}
+
+
+def res_kohya_name(key):
+    """'model.diffusion_model.input_blocks.1.0.in_layers.2.weight' -> 'lora_unet_down_blocks_0_resnets_0_conv1'."""
+    k = key[len(UNET):-len(".weight")]
+    m = re.match(r"input_blocks\.(\d+)\.0\.(.+)$", k)
+    if m:
+        i = int(m.group(1))
+        if i == 0 or i % 3 == 0:
+            return None  # conv_in and the downsamplers
+        block = f"down_blocks.{(i - 1) // 3}.resnets.{(i - 1) % 3}"
+    else:
+        m = re.match(r"output_blocks\.(\d+)\.0\.(.+)$", k)
+        if m:
+            i = int(m.group(1))
+            block = f"up_blocks.{i // 3}.resnets.{i % 3}"
+        else:
+            m = re.match(r"middle_block\.([02])\.(.+)$", k)
+            if not m:
+                return None
+            block = f"mid_block.resnets.{int(m.group(1)) // 2}"
+    part = _RES_PART.get(m.group(2))
+    return ("lora_unet_" + f"{block}.{part}".replace(".", "_")) if part else None
 
 
 def unet_kohya_name(key):
@@ -107,7 +134,7 @@ def open_weights(path):
     raise ValueError(f"Pick .safetensors or DiffusionBee .tdict models ({Path(p).name} isn't one).")
 
 
-def extract(model, base, rank=32, name=None, text_encoder=True, emit=None, cancel_event=None):
+def extract(model, base, rank=32, name=None, text_encoder=True, emit=None, cancel_event=None, resnets=True, conv_rank=None):
     import torch
     from safetensors.torch import save_file
     emit = emit or (lambda m: None)
@@ -122,6 +149,8 @@ def extract(model, base, rank=32, name=None, text_encoder=True, emit=None, cance
             n = unet_kohya_name(k)
         elif text_encoder and TE_LAYER.search(k):
             n = te_kohya_name(k)
+        elif resnets and k.startswith(UNET) and RES_LAYER.search(k):
+            n = res_kohya_name(k)
         else:
             continue
         if n and k in keys_b:
@@ -130,7 +159,7 @@ def extract(model, base, rank=32, name=None, text_encoder=True, emit=None, cance
         raise ValueError("These don't look like SD 1.5 / SDXL checkpoints (.safetensors or DiffusionBee .tdict files), or they aren't "
                          "the same type. Both must be SD 1.5, or both SDXL.")
     unet_a = sum(1 for k in fa.keys() if k.startswith(UNET) and UNET_LAYER.search(k))
-    if sum(1 for k, _ in targets if k.startswith(UNET)) < 0.9 * unet_a:
+    if sum(1 for k, _ in targets if k.startswith(UNET) and UNET_LAYER.search(k)) < 0.9 * unet_a:
         raise ValueError("These two models aren't the same type (SD 1.5 goes with SD 1.5, SDXL with SDXL).")
     stem = Path(model).stem
     if str(model).lower().endswith(".tdict"):
@@ -157,18 +186,17 @@ def extract(model, base, rank=32, name=None, text_encoder=True, emit=None, cance
         diff = a - b
         del a, b
         conv = diff.dim() == 4
+        kshape = tuple(diff.shape[1:]) if conv else None  # (in, kh, kw) of a conv layer
         if conv:
-            if diff.shape[2:] != (1, 1):
-                continue
-            diff = diff[:, :, 0, 0]
+            diff = diff.reshape(diff.shape[0], -1)  # a 3x3 conv (resnets, LoCon): out x (in·3·3)
         if diff.abs().max() < 1e-6:
             same += 1
             continue
-        up, down = _low_rank(diff, rank)
+        up, down = _low_rank(diff, (conv_rank or rank) if (conv and kshape[1:] != (1, 1)) else rank)
         e_all += _low_rank.energy[0]
         e_kept += _low_rank.energy[1]
-        if conv:
-            up, down = up[:, :, None, None], down[:, :, None, None]
+        if conv:  # down: a conv with the layer's own kernel, up: a 1x1 conv (kohya / LyCORIS LoCon layout)
+            up, down = up[:, :, None, None], down.reshape(down.shape[0], *kshape)
         r = down.shape[0]
         sd[f"{kn}.lora_up.weight"] = up.contiguous().half()
         sd[f"{kn}.lora_down.weight"] = down.contiguous().half()
@@ -194,6 +222,7 @@ def extract(model, base, rank=32, name=None, text_encoder=True, emit=None, cance
     covered_pct = round(100 * e_all / (e_all + e_other), 1) if (e_all + e_other) else 100.0
     fam = "sdxl" if any(k.startswith("conditioner.") for k in fa.keys()) else "sd15"
     meta = {"ss_network_module": "networks.lora", "ss_network_dim": str(rank), "ss_network_alpha": str(rank),
+            **({"ss_network_args": json.dumps({"conv_dim": str(conv_rank or rank), "conv_alpha": str(conv_rank or rank)})} if resnets else {}),
             "ss_base_model_version": "sdxl_base_v1-0" if fam == "sdxl" else "sd_v1",
             "protoart_extracted_from": Path(model).name, "protoart_base": Path(base).name}
     save_file(sd, str(out), metadata=meta)
@@ -251,3 +280,56 @@ def find_base(model, candidates, progress=None, cancelled=None):
             out.append({"path": c, "change": round(ch, 5)})
     out.sort(key=lambda r: r["change"])
     return out
+
+
+def models_in_folders(folders, family=None, limit=300):
+    """Full models (not LoRAs) in folders and their sub-folders, e.g. a whole external drive: .safetensors
+    checkpoints and DiffusionBee .tdict models. family: keep only "sd15" / "sdxl" ones."""
+    import model_hub
+    import tdict_reader
+    out, seen = [], set()
+    for d in folders:
+        root = Path(d)
+        if not root.is_dir():
+            continue
+        try:
+            files = sorted(root.rglob("*.safetensors"))
+        except OSError:
+            files = []
+        for f in files:
+            if len(out) >= limit:
+                return out
+            if f.name.startswith("._") or str(f) in seen:
+                continue
+            try:
+                if f.stat().st_size < 1_500_000_000:  # LoRAs, embeddings, VAEs: not full models
+                    continue
+                info = model_hub.inspect_local(f)
+            except Exception:
+                continue
+            if family and info.get("family") != family:
+                continue
+            seen.add(str(f))
+            out.append(str(f))
+        try:
+            for t in tdict_reader.scan([str(root)], recursive=True):
+                if t.get("kind") == "checkpoint" and (not family or t.get("family") == family) and t["file"] not in seen:
+                    seen.add(t["file"])
+                    out.append(t["file"])
+        except Exception:
+            pass
+    return out[:limit]
+
+
+def verdict(ranked):
+    """What the ranking means. "match": the closest is clearly the base (a model is about 1.4x further from a
+    sister than from their shared base). "sisters": several are about equally close: they and this model were
+    made from the same base, which isn't among them. "none": nothing is close."""
+    if not ranked:
+        return "none"
+    best = ranked[0]["change"]
+    if best >= 0.12:
+        return "none"
+    if len(ranked) == 1 or ranked[1]["change"] >= best * 1.3:
+        return "match"
+    return "sisters"

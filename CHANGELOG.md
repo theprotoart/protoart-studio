@@ -13,6 +13,11 @@
   colour and light back
 - Edit with words and Inpaint: `color_match.match_to_original` corrects the redraw's broad light/colour to the
   original around the painted area (normalised-convolution blur of the difference) before compositing
+- Convert → LoRA: resnet layers too (LoCon: in_layers / out_layers 3×3 convs, skip connections, time embedding;
+  `res_kohya_name`, conv down with the layer's kernel + 1×1 up). Measured on a person model vs its closest base:
+  covered 44 % → 95 %, overall kept ~28 % → ~57 % at rank 64; loads through diffusers (80 resnet layers attached).
+  Person → size 64. 🔍 Find it can scan folders / drives (`models_in_folders`) and says match / sisters / none
+  (`verdict`: a model is ~1.4× further from a sister than from their shared base)
 - Convert → LoRA: **🔍 Find it** (`lora_base_find` job, `lora_extract.find_base`: relative weight difference over ~80
   sampled weights, .safetensors or .tdict); extraction reports `kept_pct` and `covered_pct`, and the UI warns when the
   base looks wrong

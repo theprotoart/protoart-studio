@@ -2243,3 +2243,8 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .cmp-split-frame .cmp-top img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .compare-tools .cmp-mode button { padding: 3px 10px; }
 .cmp-split-view figcaption { display: block; }
+/* Convert → LoRA: 🔍 Find it results */
+.cvt-found { display: grid; gap: 2px; margin: 4px 0 8px; }
+.cvt-found-row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 8px; font-size: 12px; text-align: left; border-radius: 4px; }
+.cvt-found-row.on { box-shadow: inset 0 0 0 1px var(--amber, #ffae2b); }
+.cvt-found-row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -517,7 +517,8 @@ const protoartApp = createApp({
               "<b>🖌 Paint where a filter shows</b> (Tools → 🎚 Adjust): next to the control points, <b>🖌 Paint</b> brushes on exactly where a step shows (any shape, soft edges; <b>Strength</b> builds it up gently) and <b>🧽 Erase</b> takes it away. Use it on its own or with points, e.g. Bloom only along a sword.",
               "<b>🎨 Keep the picture's style</b> (Tools → Enhance): the enhancer is a photo model, so on its own it nudges paintings, drawings and anime towards a photo. Switch this on and it adds detail in the picture's own look: no 'render' LoRA, lighter changes, 'photo' as a negative, your optional style words (“oil painting, visible brush strokes”), and the colours and light put back from your picture.",
               "<b>Edit with words and Inpaint no longer lighten the painted area</b>: the new part's light and colour are matched to the picture around it before it's put back, so there's no lighter patch or halo.",
-              "<b>🔍 Find it for me</b> (Convert → LoRA → Its base model): measures which of your models (DiffusionBee's too) the model was really made from, by comparing their weights. The wrong base is the main reason a LoRA doesn't look like the person. After making the LoRA, the app also says how much of the model's change it kept.",
+              "<b>🔍 Find it for me</b> (Convert → LoRA → Its base model): measures which of your models (DiffusionBee's too) the model was really made from, by comparing their weights. <b>· scan a folder or drive…</b> compares every model on a drive or in a folder too. It says whether it found a <b>close fit</b>, only <b>sister models</b> (made from the same original, which is missing: using one mixes its style into the LoRA), or nothing close. The wrong base is the main reason a LoRA doesn't look like the person.",
+              "<b>LoRAs made from models now keep about twice as much</b>: Convert → LoRA also takes in the model's resnet layers (where about half of a trained person or style lives), not just the attention layers. Measured on a person model: from ~28% to ~57% of its change kept at size 64. Choosing <b>Person</b> under What is it? sets size 64. Files are bigger (about 150 MB at 64).",
               "<b>🔍 Zoom</b> on the picture in Tools (also while adjusting, puppet-warping or painting) and in Image to image (the preview, and the picture you paint on): pinch, or ⌘ / ⌥ + scroll, zooms around the pointer; two-finger scroll, a drag (where dragging isn't used for something else) or <b>Space + drag</b> moves around. The small <b>− % + Fit 1:1</b> buttons sit in the corner of the picture.",
               "<b>↔ Split in the Library's compare</b>: select two pictures, press Compare, then <b>↔ Split</b>: one picture over the other with a line you drag across to see the difference, like Tools' Split view. With more than two, pick which two go left and right. Zoom works the same way.",
               "<b>Brush size keys</b>: <b>[ ]</b> or <b>− +</b> wherever you paint (Inpaint, Remove, protect areas in the patchbay, the Puppet subject, Adjust's brush).",
@@ -1136,7 +1137,7 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "New in 1.4.2: if something doesn't work", items: [
-              "<b>A LoRA made with Convert → LoRA doesn't look like the person</b>: almost always the base model isn't the one the model was made from (another version of epiCRealism, DiffusionBee's own SD 1.5…). Press <b>🔍 Find it for me</b> next to Its base model: it measures which of your models is closest. If it says none of them looks like the base, add the model named on its Civitai page (often the plain SD 1.5 v1-5-pruned-emaonly). A bigger size (rank 64 or 128) keeps more of the likeness too.",
+              "<b>A LoRA made with Convert → LoRA doesn't look like the person</b>: almost always the base model isn't the one the model was made from (another version of epiCRealism, DiffusionBee's own SD 1.5…). Press <b>🔍 Find it for me</b> next to Its base model: it measures which of your models is closest; <b>· scan a folder or drive…</b> looks on an external drive too. “Sister models” means several are about equally close: they were all made from the same original, which isn't there yet (often the plain SD 1.5 v1-5-pruned-emaonly, or DiffusionBee's default model); add it and scan again. A bigger size (64 or 128) keeps more of the likeness.",
               "<b>Puppet warp's subject has a halo or leftover edge</b>: select a little past the subject's outline (Brush, or ＋ Add with the Lasso), then ✓ Use this subject again. The fill covers a few pixels more than the selection for this reason.",
               "<b>Enhance still looks a bit photographic</b>: switch on 🎨 Keep the picture's style, add a few style words (watercolour, pencil, anime cel shading), and pick the Subtle look.",
               "<b>Embedding training says it couldn't attach the new word</b>: the app's text-model library is a version it doesn't know yet. Send the Backend log (Settings) so it can be fixed." ] },
@@ -6241,25 +6242,41 @@ const protoartApp = createApp({
       return (this.cvtModels.find((m) => m.path === this.cvt.model) || {}).family || "";
     },
     // 🔍 Find it: which of your models of this type the model was made from (measured, not guessed by name)
-    async cvtFindBase() {
+    async cvtFindBase(scan = false) {
       const c = this.cvt, fam = this.cvtFamily();
       if (!c.model) return (this.error = "Pick the model to turn into a LoRA first.");
+      let folders = [];
+      if (scan) {  // 🔍 Scan a folder or drive: e.g. an external drive with models the app doesn't list
+        const picked = await window.bee.pickFolder({ title: "Pick a folder or a whole drive with models in it", button: "Scan it", multi: true });
+        folders = (Array.isArray(picked) ? picked : [picked]).filter(Boolean);
+        if (!folders.length) return;
+      }
       const cands = this.cvtModels.filter((m) => m.path !== c.model && (!fam || m.family === fam)).map((m) => m.path);
-      c.msg = `Comparing it with your ${cands.length} other ${this.familyName(fam) || ""} models (about ${Math.max(1, Math.round(cands.length * 2 / 60))} min)…`;
-      const r = await this.runJob("lora_base_find", { model: c.model, candidates: cands });
+      c.msg = folders.length ? `Looking for ${this.familyName(fam) || ""} models in ${folders.map((f) => f.split("/").filter(Boolean).pop() || f).join(", ")} and comparing them (a few seconds each)…`
+        : `Comparing it with your ${cands.length} other ${this.familyName(fam) || ""} models (about ${Math.max(1, Math.round(cands.length * 6 / 60))} min)…`;
+      c.found = null;
+      const r = await this.runJob("lora_base_find", { model: c.model, candidates: cands, folders, family: fam || null });
       if (!r) { c.msg = ""; return; }
-      c.found = { model: c.model, ranked: r.ranked || [] };
-      const best = c.found.ranked[0], next = c.found.ranked[1];
-      if (!best) { c.msg = "None of your models could be compared with it."; return; }
-      c.base = best.path;
+      const ranked = r.ranked || [];
+      for (const x of ranked) {  // models found on a drive: add them to the base list
+        if (!this.cvtModels.some((m) => m.path === x.path))
+          c.extra.push({ id: "found:" + x.path, path: x.path, label: x.path.split("/").pop().replace(/\.(safetensors|tdict)$/i, "") + " (found)", family: fam || "sd15" });
+      }
+      c.found = { model: c.model, ranked: ranked.slice(0, 6), verdict: r.verdict, compared: r.compared };
+      const best = ranked[0], next = ranked[1];
+      if (!best) { c.msg = "None of the models could be compared with it."; return; }
       const name = (p) => (this.cvtModels.find((m) => m.path === p) || {}).label || p.split("/").pop();
-      const pct = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + "%";
-      const clear = !next || next.change > best.change * 1.6;
-      c.msg = best.change < 0.12 && clear
-        ? `✓ Base found: ${name(best.path)} (only ${pct(best.change)} different; the next closest is ${next ? pct(next.change) : "—"}).`
-        : best.change < 0.12
-          ? `Closest: ${name(best.path)} (${pct(best.change)}), but ${name(next.path)} is close too (${pct(next.change)}): check which one it was made from.`
-          : `⚠ None of your models looks like its base: the closest, ${name(best.path)}, is ${pct(best.change)} different. The LoRA would hold the difference between the two models, not the person or style. Add the model it was made from (often the plain SD 1.5 v1-5-pruned-emaonly, or the model named on its Civitai page) and try again.`;
+      const pct = (x) => (x * 100).toFixed(x < 0.1 ? 2 : 0) + "%";
+      if (r.verdict === "match") {
+        c.base = best.path;
+        c.msg = `✓ Close fit: ${name(best.path)} is its base (only ${pct(best.change)} different${next ? "; the next closest is " + pct(next.change) : ""}).`;
+      } else if (r.verdict === "sisters") {
+        c.base = "";
+        c.msg = `⚠ No close fit yet: ${name(best.path)}${next ? " and " + name(next.path) : ""} are about equally close (${pct(best.change)}, ${next ? pct(next.change) : ""}), so they're “sister” models made from the same original, which isn't here. ` +
+          "Using a sister as the base mixes its style into the LoRA. Find the original: 🔍 Scan a folder or drive where it might be, or add the plain SD 1.5 model (v1-5-pruned-emaonly) or DiffusionBee's default model.";
+      } else {
+        c.msg = `⚠ None of the ${r.compared} models looks like its base: the closest, ${name(best.path)}, is ${pct(best.change)} different. Scan another folder or drive, or add the model named on its Civitai page.`;
+      }
     },
     async runLoraExtract() {  // Tools → Convert → LoRA
       const c = this.cvt;
@@ -6345,6 +6362,13 @@ const protoartApp = createApp({
           this.cvt.to = "lora";
           for (const m of known) this.cvtSetFile(m.path);
         }
+      }
+    },
+    cvtSetKind(k) {  // a person's likeness needs more detail kept: Person goes up to size 64 (if it was smaller)
+      this.cvt.kind = k;
+      if (k === "people" && this.cvt.rank < 64) {
+        this.cvt.rank = 64;
+        this.status = "Size set to 64 for a person: a likeness needs more detail kept (128 keeps even more)";
       }
     },
     // put a file in the LoRA maker: the model first, then its base

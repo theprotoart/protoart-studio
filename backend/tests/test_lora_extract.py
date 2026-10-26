@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # test_tdict's writer
 import lora_extract as L
 
 
@@ -84,6 +85,44 @@ class ExtractTests(unittest.TestCase):
         n = "lora_unet_down_blocks_0_attentions_0_transformer_blocks_0_attn1_to_q"
         rebuilt = sd[n + ".lora_up.weight"].float() @ sd[n + ".lora_down.weight"].float()
         self.assertLess((rebuilt - delta).abs().max().item(), 0.03)
+
+    def test_resnet_names(self):
+        pre = "model.diffusion_model."
+        self.assertEqual(L.res_kohya_name(pre + "input_blocks.1.0.in_layers.2.weight"), "lora_unet_down_blocks_0_resnets_0_conv1")
+        self.assertEqual(L.res_kohya_name(pre + "input_blocks.5.0.skip_connection.weight"), "lora_unet_down_blocks_1_resnets_1_conv_shortcut")
+        self.assertEqual(L.res_kohya_name(pre + "middle_block.2.out_layers.3.weight"), "lora_unet_mid_block_resnets_1_conv2")
+        self.assertEqual(L.res_kohya_name(pre + "output_blocks.7.0.emb_layers.1.weight"), "lora_unet_up_blocks_2_resnets_1_time_emb_proj")
+        self.assertIsNone(L.res_kohya_name(pre + "input_blocks.3.0.op.weight"))
+
+    def test_resnet_convs_are_kept(self):
+        try:
+            import torch
+            from safetensors.torch import save_file, load_file
+        except Exception:
+            self.skipTest("torch / safetensors not installed")
+        torch.manual_seed(3)
+        k = "model.diffusion_model.input_blocks.1.0.in_layers.2.weight"
+        ka = "model.diffusion_model.input_blocks.1.1.transformer_blocks.0.attn1.to_q.weight"
+        base = {k: torch.randn(32, 16, 3, 3), ka: torch.randn(64, 64)}
+        delta = (torch.randn(32, 4) @ torch.randn(4, 16 * 9) * 0.1).reshape(32, 16, 3, 3)  # a rank-4 change
+        tuned = {k: base[k] + delta, ka: base[ka] + torch.randn(64, 2) @ torch.randn(2, 64) * 0.1}
+        with tempfile.TemporaryDirectory() as d:
+            save_file(base, os.path.join(d, "base.safetensors"))
+            save_file(tuned, os.path.join(d, "tuned.safetensors"))
+            old = L.paths.LORAS_DIR
+            L.paths.LORAS_DIR = Path(d) / "loras"
+            try:
+                r = L.extract(os.path.join(d, "tuned.safetensors"), os.path.join(d, "base.safetensors"), rank=8)
+                sd = load_file(r["path"])
+            finally:
+                L.paths.LORAS_DIR = old
+        n = "lora_unet_down_blocks_0_resnets_0_conv1"
+        down, up = sd[n + ".lora_down.weight"].float(), sd[n + ".lora_up.weight"].float()
+        self.assertEqual(tuple(down.shape[1:]), (16, 3, 3))
+        self.assertEqual(tuple(up.shape[2:]), (1, 1))
+        rebuilt = (up[:, :, 0, 0] @ down.reshape(down.shape[0], -1)).reshape(32, 16, 3, 3)
+        self.assertLess((rebuilt - delta).abs().max().item(), 0.03)
+        self.assertGreater(r["covered_pct"], 99)
 
     def test_a_tdict_lora_is_refused_kindly(self):
         try:

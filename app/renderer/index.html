@@ -2214,9 +2214,18 @@
               <option v-for="m in cvtModels" :key="'cv' + m.id" :value="m.path">{{ m.label }} · {{ familyName(m.family) }}</option></select>
             <label>Its base model <span class="hint">the one it was made from</span>
               <button class="link small-link" :disabled="!cvt.model || !!cvtJob" @click="cvtFindBase"
-                      title="Measures which of your models this one was made from, by comparing their weights (not their names). The right base matters most for a LoRA that looks like the model: with the wrong one, the LoRA holds the difference between two models instead.">🔍 Find it for me</button></label>
+                      title="Measures which of your models this one was made from, by comparing their weights (not their names). The right base matters most for a LoRA that looks like the model: with the wrong one, the LoRA holds the difference between two models instead.">🔍 Find it for me</button>
+              <button class="link small-link" :disabled="!cvt.model || !!cvtJob" @click="cvtFindBase(true)"
+                      title="Pick a folder or a whole external drive: every full model in it (and its sub-folders, DiffusionBee files too) is compared with this one, and the closest fit is shown">· scan a folder or drive…</button></label>
             <select v-model="cvt.base" title="Usually SD 1.5 (or SDXL base 1.0) as a .safetensors file. Another model works too: the LoRA then holds the difference between the two"><option value="">pick a model…</option>
               <option v-for="m in cvtModels.filter((x) => x.path !== cvt.model && (!cvtFamily() || x.family === cvtFamily()))" :key="'cb' + m.id" :value="m.path">{{ m.label }}</option></select>
+            <div v-if="cvt.found && cvt.found.model === cvt.model && cvt.found.ranked.length" class="cvt-found">
+              <div class="hint">Closest of {{ cvt.found.compared }} · smaller is closer · <b>{{ {match: 'close fit found', sisters: 'only sister models: the original is missing', none: 'no close fit'}[cvt.found.verdict] }}</b></div>
+              <button v-for="(x, i) in cvt.found.ranked" :key="'fd' + i" class="cvt-found-row" :class="{on: cvt.base === x.path}" @click="cvt.base = x.path"
+                      :title="x.path + ' · click to use it as the base'">
+                <span>{{ (cvtModels.find((m) => m.path === x.path) || {}).label || x.path.split('/').pop() }}</span>
+                <span class="hint">{{ (x.change * 100).toFixed(x.change < 0.1 ? 2 : 0) }}%</span></button>
+            </div>
             <label title="How much detail the LoRA keeps: 16 is small and light, 32 a good start, 64–128 keeps more of the model's look (bigger file)">Size (rank) <span class="mod-val">{{ cvt.rank }}</span></label>
             <div class="seg mod-seg">
               <button v-for="r in [16, 32, 64, 128]" :key="'rk' + r" :class="{on: cvt.rank === r}" @click="cvt.rank = r"
@@ -2225,7 +2234,7 @@
             <label title="Tags the new LoRA as it's made, so the LoRA lists' filters find it straight away (you can change it later)">What is it?</label>
             <div class="seg mod-seg">
               <button v-for="k in [['style', 'Style', 'A look or art style: tagged 🏷 style'], ['people', 'Person', 'A real person: tagged ● People (hidden when Hide People is on)'], ['character', 'Character', 'A made-up character, creature or object: tagged 🏷 character'], ['', 'Not sure', 'No tag: you can tag it later in the LoRA list']]"
-                      :key="'ck' + k[0]" :class="{on: cvt.kind === k[0]}" @click="cvt.kind = k[0]" :title="k[2]">{{ k[1] }}</button>
+                      :key="'ck' + k[0]" :class="{on: cvt.kind === k[0]}" @click="cvtSetKind(k[0])" :title="k[2]">{{ k[1] }}</button>
             </div>
             <label class="check" title="Also take what the model's text encoder learned (how it reads prompts and trigger words)"><input type="checkbox" v-model="cvt.te"> Include the text encoder</label>
             <input v-model="cvt.name" class="mod-input" placeholder="name for the LoRA (optional)">
