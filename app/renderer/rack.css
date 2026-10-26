@@ -2223,3 +2223,23 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 /* 🖌 Adjust: painting where a step shows */
 .adj-overlay.painting { cursor: crosshair; }
 .adj-paint-view { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+/* 🔍 zoom on Tools' and Image to image's pictures */
+.zoom-frame { position: relative; overflow: hidden; }
+.zoom-layer { width: 100%; display: flex; align-items: center; justify-content: center; will-change: transform; }
+.zoom-frame.zoomed { cursor: grab; }
+.zoom-frame.panning, .zoom-frame.panning * { cursor: grab !important; }
+.zoom-fig { overflow: hidden; }
+.zoom-pill { position: absolute; top: 8px; right: 8px; z-index: 6; display: flex; align-items: center; gap: 2px; padding: 3px;
+  border-radius: 6px; background: rgba(10, 10, 12, .72); box-shadow: 0 2px 8px rgba(0, 0, 0, .5); opacity: .35; transition: opacity .15s; }
+.zoom-frame:hover .zoom-pill, .zoom-frame.zoomed .zoom-pill { opacity: 1; }
+.zoom-pill button { min-width: 26px; height: 22px; padding: 0 6px; font-size: 12px; line-height: 1; border-radius: 4px; }
+.zoom-pill span { min-width: 42px; text-align: center; font-size: 11px; color: #e8dcc0; font-variant-numeric: tabular-nums; }
+/* Library → Compare → ↔ Split */
+.cmp-split-view { grid-template-columns: minmax(0, 1fr); }
+.cmp-split-frame { position: relative; cursor: ew-resize; }
+.cmp-split-frame.zoomed { cursor: ew-resize; }
+.cmp-split-frame > img { width: 100%; max-height: 78vh; object-fit: contain; display: block; }
+.cmp-split-frame .cmp-top { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.cmp-split-frame .cmp-top img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.compare-tools .cmp-mode button { padding: 3px 10px; }
+.cmp-split-view figcaption { display: block; }

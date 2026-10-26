@@ -470,6 +470,9 @@ const protoartApp = createApp({
              batch: ["current"], batchEnhance: false, batchOrder: "enhance_first" },
       adjPresets: [],   // your saved Adjust presets: [{name, set}]
       // 🪡 Puppet warp (Tools): pins [{x, y, tx, ty}] in 0..1 from the top left (x, y = where you put it, tx, ty = now)
+      // 🔍 zoom on the pictures you work on: Tools' picture, Image to image's preview and the picture you paint on there
+      zoom: { tools: { z: 1, x: 0, y: 0 }, i2i: { z: 1, x: 0, y: 0 }, i2iSrc: { z: 1, x: 0, y: 0 } },
+      zoomSpace: false,      // Space held: drag to move around (like Photoshop)
       pw: { open: false, rec: null, pins: [], sel: -1, density: 48, busy: false, msg: "", error: "", original: false,
             ovl: null, size: null,
             selecting: false, subject: null },  // ✂ subject: {bg} once separated; selecting: choosing it with the selection tools
@@ -487,7 +490,7 @@ const protoartApp = createApp({
       helpOpen: "",
       helpQ: "",
       compareView: null,
-      cmp: { z: 1, x: 0, y: 0, drag: null },  // ⇆ Compare: one zoom and position for every picture  // Library → ⇆ Compare side by side: the selected pictures  // How to → search the manual
+      cmp: { z: 1, x: 0, y: 0, drag: null, mode: "side", split: 0.5, a: 0, b: 1 },  // mode: side by side, or ↔ split (a over b)  // ⇆ Compare: one zoom and position for every picture  // Library → ⇆ Compare side by side: the selected pictures  // How to → search the manual
       preloading: "",     // model being loaded in the background (kept out of the visible queue)
       readyModel: "",     // model known to be loaded and waiting
       content: { checker_installed: false, checker_mb: 340, total: 0, nsfw: 0, unchecked: 0, faces_unchecked: 0, scanning: false, msg: "" },
@@ -515,6 +518,8 @@ const protoartApp = createApp({
               "<b>🎨 Keep the picture's style</b> (Tools → Enhance): the enhancer is a photo model, so on its own it nudges paintings, drawings and anime towards a photo. Switch this on and it adds detail in the picture's own look: no 'render' LoRA, lighter changes, 'photo' as a negative, your optional style words (“oil painting, visible brush strokes”), and the colours and light put back from your picture.",
               "<b>Edit with words and Inpaint no longer lighten the painted area</b>: the new part's light and colour are matched to the picture around it before it's put back, so there's no lighter patch or halo.",
               "<b>🔍 Find it for me</b> (Convert → LoRA → Its base model): measures which of your models (DiffusionBee's too) the model was really made from, by comparing their weights. The wrong base is the main reason a LoRA doesn't look like the person. After making the LoRA, the app also says how much of the model's change it kept.",
+              "<b>🔍 Zoom</b> on the picture in Tools (also while adjusting, puppet-warping or painting) and in Image to image (the preview, and the picture you paint on): pinch, or ⌘ / ⌥ + scroll, zooms around the pointer; two-finger scroll, a drag (where dragging isn't used for something else) or <b>Space + drag</b> moves around. The small <b>− % + Fit 1:1</b> buttons sit in the corner of the picture.",
+              "<b>↔ Split in the Library's compare</b>: select two pictures, press Compare, then <b>↔ Split</b>: one picture over the other with a line you drag across to see the difference, like Tools' Split view. With more than two, pick which two go left and right. Zoom works the same way.",
               "<b>Brush size keys</b>: <b>[ ]</b> or <b>− +</b> wherever you paint (Inpaint, Remove, protect areas in the patchbay, the Puppet subject, Adjust's brush).",
               "<b>Fixes</b>: Train → Merge LoRAs listed no LoRAs for any model type; the embedding trainer stopped with “'CLIPTextModel' object has no attribute 'text_model'”; a selection made in Image to image showed up in Tools; Vectorize's result can now be cleared (✕ clear); in the Library's side-by-side compare, the selection bar no longer covers the pictures." ] },
             { h: "1.4.1: Keep a model on this Mac, DiffusionBee model → LoRA in one step, drag and drop in Convert, LoRA filters in Image to image, Newest first", items: [
@@ -916,6 +921,7 @@ const protoartApp = createApp({
               "Each model downloads once, the first time you use it (RestoreFormer ~280 MB, CodeFormer ~360 MB), and is checked against a pinned SHA-256. CodeFormer's licence allows <b>non-commercial use only</b>.",
               "Tick both in <b>Run on this image</b> to enhance first, then restore faces, as one finished picture." ] },
             { h: "🪡 Puppet warp (like Photoshop's)", items: [
+              "<b>🔍 Zoom in</b> to place pins precisely: pinch or ⌘ + scroll over the picture; Space + drag moves around.",
               "<b>✂ Separate the subject first</b> to bend only the subject: select it (⬚ Object: drag a box around it; Brush, Lasso or Polygon to fix the edge; [ ] change the brush size), press <b>✓ Use this subject</b>, and what was behind it is filled in. Pin and drag as usual: the background stays still. <b>Bend the whole picture instead</b> goes back.",
               "Tools → <b>🪡 Puppet warp</b> (under the picture), or <b>🪡 Puppet warp the result</b> after a tool has run. The picture on the left becomes the live preview.",
               "<b>Click</b> the picture to put a pin. Pins hold their spot. <b>Drag</b> a pin and the picture bends around it, while the other pins stay put: pin the shoulder and hips, then drag the hand.",
@@ -2441,7 +2447,8 @@ const protoartApp = createApp({
         im.src = this.fileUrl(v);
       },
     },
-    "tool.source"() { this.tool.healing = false; },  // a new picture in Tools: stop painting on the old one
+    "tool.source"() { this.tool.healing = false; this.zoomReset("tools"); },
+    "form.init_image"() { this.zoomReset("i2iSrc"); this.zoomReset("i2i"); },  // a new picture in Tools: stop painting on the old one
     train: { deep: true, handler(v) {
       const { items, result, lossHistory, dirty, ...keep } = v;
       saveJSON("protoart.train", keep);
@@ -2456,6 +2463,18 @@ const protoartApp = createApp({
     window.ProtoTips?.setEnabled(this.opts.tooltips !== false);
     window.addEventListener("keydown", (e) => this.adjKey(e));  // Adjust: \ flips Edited / Original
     window.addEventListener("keydown", (e) => this.selKey(e));
+    // Space held over Tools / Image to image: drag to move around a zoomed picture
+    window.addEventListener("keydown", (e) => {
+      if (e.key !== " " || e.repeat || !["tools", "i2i"].includes(this.tab)) return;
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.tagName === "BUTTON" || t.isContentEditable)) return;
+      const k = this.tab === "tools" ? "tools" : "i2i";
+      if (this.zoom[k].z <= 1 && this.zoom.i2iSrc.z <= 1) return;
+      e.preventDefault();
+      this.zoomSpace = true;
+    });
+    window.addEventListener("keyup", (e) => { if (e.key === " ") this.zoomSpace = false; });
+    window.addEventListener("blur", () => { this.zoomSpace = false; });
     window.addEventListener("keydown", (e) => { if (e.key === "Escape" && this.ctx) this.ctx = null; });  // right-click menu
     window.addEventListener("keydown", (e) => {  // a picture's details: ← → step through the pictures, Esc closes
       if (!this.detail || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || "")) return;
@@ -4675,11 +4694,29 @@ const protoartApp = createApp({
     cmpReset() {
       Object.assign(this.cmp, { z: 1, x: 0, y: 0 });
     },
+    // ↔ Split: one picture over the other, a line you drag across (like Tools' Split view)
+    cmpSplitDown(e) {
+      const f = e.currentTarget, r = f.getBoundingClientRect(), c = this.cmp;
+      const lineX = r.left + c.split * r.width;
+      if (c.z > 1 && Math.abs(e.clientX - lineX) > 28) return this.cmpDown(e);  // zoomed: drag away from the line moves around
+      e.preventDefault();
+      const set = (ev) => { c.split = Math.min(1, Math.max(0, (ev.clientX - r.left) / Math.max(1, r.width))); };
+      set(e);
+      const up = () => { removeEventListener("pointermove", set); removeEventListener("pointerup", up); };
+      addEventListener("pointermove", set);
+      addEventListener("pointerup", up);
+    },
+    cmpSetMode(m) {
+      this.cmp.mode = m;
+      if (m === "split") Object.assign(this.cmp, { split: 0.5, a: 0, b: Math.min(1, (this.compareView || []).length - 1) });
+      this.$nextTick(() => this.cmpClamp());
+    },
     openCompareView() {
       this.cmpReset();
       const ids = this.selected.slice(0, 6);
       const byId = new Map(this.libShown.map((r) => [r.id, r]));
       this.compareView = ids.map((id) => byId.get(id)).filter(Boolean);
+      Object.assign(this.cmp, { mode: this.compareView.length === 2 ? this.cmp.mode : "side", a: 0, b: 1, split: 0.5 });
       if (this.selected.length > 6) this.status = "Showing the first 6 selected pictures";
     },
     openHelpAt(h) {  // a search result → open its section and scroll to it
@@ -5137,14 +5174,97 @@ const protoartApp = createApp({
     brushAt(e) {  // the ring follows the pointer (in the painting area's own coordinates)
       const cv = this.$refs.maskCanvas;
       if (!cv) return;
-      const r = cv.getBoundingClientRect();
-      this.brush = { show: true, x: e.clientX - r.left, y: e.clientY - r.top };
+      const r = cv.getBoundingClientRect(), z = this.zoom[this.tab === "tools" ? "tools" : "i2iSrc"].z || 1;
+      this.brush = { show: true, x: (e.clientX - r.left) / z, y: (e.clientY - r.top) / z };
+    },
+    brushRingPx() {  // the ring sits inside the zoomed picture: keep it the brush's size on screen
+      return this.mask.size / (this.zoom[this.tab === "tools" ? "tools" : "i2iSrc"].z || 1);
+    },
+    // -------------------------------------------------------------- 🔍 zoom (Tools, Image to image)
+    zoomFrame(k) {
+      return document.querySelector({ tools: ".tool-drop", i2i: ".i2i-stage", i2iSrc: ".i2i-zoom-src" }[k]);
+    },
+    zoomStyle(k) {
+      const s = this.zoom[k];
+      return s.z === 1 && !s.x && !s.y ? {} : { transform: `translate(${s.x}px, ${s.y}px) scale(${s.z})`, transformOrigin: "50% 50%" };
+    },
+    zoomClamp(k) {  // don't let the picture slide out of its frame
+      const s = this.zoom[k], f = this.zoomFrame(k);
+      if (!f || s.z <= 1) { Object.assign(s, { x: 0, y: 0 }); return; }
+      const mx = (f.clientWidth * (s.z - 1)) / 2, my = (f.clientHeight * (s.z - 1)) / 2;
+      s.x = Math.max(-mx, Math.min(mx, s.x));
+      s.y = Math.max(-my, Math.min(my, s.y));
+    },
+    zoomTo(k, z, px = 0, py = 0) {  // px, py: the point to keep still, from the frame's centre
+      const s = this.zoom[k], nz = Math.max(1, Math.min(16, z));
+      s.x = px - ((px - s.x) * nz) / s.z;
+      s.y = py - ((py - s.y) * nz) / s.z;
+      s.z = nz;
+      this.zoomClamp(k);
+      this.zoomAfter(k);
+    },
+    zoomBy(k, f) {
+      this.zoomTo(k, this.zoom[k].z * f);
+    },
+    zoomReset(k) {
+      Object.assign(this.zoom[k], { z: 1, x: 0, y: 0 });
+      this.zoomAfter(k);
+    },
+    zoomAfter(k) {  // overlays (pins, control points) follow
+      if (k === "tools") this.$nextTick(() => { if (this.adj.open) this.adjPlaceOverlay(); if (this.pw.open) this.pwPlaceOverlay(); });
+    },
+    zoomOneToOne(k) {  // the zoom that shows the picture's real pixels
+      const f = this.zoomFrame(k), el = f && (f.querySelector("canvas.adjust-canvas") || f.querySelector("img"));
+      if (!el) return 2;
+      const natural = el.naturalWidth || (this.adj.open && this.adj.size ? this.adj.size[0] : 0) || (this.pw.open && this.pw.size ? this.pw.size[0] : 0) || el.width;
+      const shown = el.getBoundingClientRect().width / (this.zoom[k].z || 1);
+      return Math.max(1, natural / Math.max(1, shown));
+    },
+    zoomWheel(k, e) {  // pinch or ⌘ / ⌥ + scroll: zoom around the pointer · two-finger scroll when zoomed: move around
+      const s = this.zoom[k], f = this.zoomFrame(k);
+      if (!f) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        e.preventDefault();
+        const r = f.getBoundingClientRect(), kk = e.ctrlKey ? 0.01 : 0.0025;
+        this.zoomTo(k, s.z * Math.exp(-e.deltaY * kk), e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2);
+      } else if (s.z > 1) {
+        e.preventDefault();
+        s.x -= e.deltaX; s.y -= e.deltaY;
+        this.zoomClamp(k);
+        this.zoomAfter(k);
+      }
+    },
+    zoomPanFree(k) {  // views where a plain drag isn't used for anything else: dragging moves the zoomed picture
+      if (k === "i2i") return true;
+      if (k === "tools") return !this.adj.open && !this.pw.open && !this.tool.healing && !(this.tool.latest && this.tool.view === "split");
+      return false;
+    },
+    zoomPanDown(k, e) {  // Space + drag (or the middle button, or a plain drag where nothing else uses it): move around
+      const s = this.zoom[k];
+      if (!(e.button === 1 || this.zoomSpace || (e.button === 0 && s.z > 1 && this.zoomPanFree(k)))) return;
+      if (s.z <= 1 && e.button !== 1 && !this.zoomSpace) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const sx = e.clientX - s.x, sy = e.clientY - s.y, x0 = e.clientX, y0 = e.clientY;
+      this._zoomPanned = 0;
+      const move = (ev) => {
+        s.x = ev.clientX - sx; s.y = ev.clientY - sy;
+        if (Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) > 3) this._zoomPanned = Date.now();
+        this.zoomClamp(k);
+        this.zoomAfter(k);
+      };
+      const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); };
+      addEventListener("pointermove", move);
+      addEventListener("pointerup", up);
+    },
+    zoomJustPanned() {  // a drag to move around isn't also a click (open the file picker, open the details…)
+      return !!this._zoomPanned && Date.now() - this._zoomPanned < 400;
     },
     brushPreview() {  // moving the size slider shows the ring in the middle of the picture for a moment
       const cv = this.$refs.maskCanvas;
       if (!cv) return;
-      const r = cv.getBoundingClientRect();
-      this.brush = { show: true, x: r.width / 2, y: r.height / 2 };
+      const r = cv.getBoundingClientRect(), z = this.zoom[this.tab === "tools" ? "tools" : "i2iSrc"].z || 1;
+      this.brush = { show: true, x: r.width / 2 / z, y: r.height / 2 / z };
       clearTimeout(this._brushT);
       this._brushT = setTimeout(() => { if (!this.mask.painting) this.brush.show = false; }, 900);
     },
@@ -7500,8 +7620,8 @@ const protoartApp = createApp({
     pwPlaceOverlay() {
       const c = this.$refs.pwCanvas, wrap = c && c.parentElement;
       if (!c || !wrap) return;
-      const a = c.getBoundingClientRect(), b = wrap.getBoundingClientRect();
-      const ovl = [a.left - b.left, a.top - b.top, a.width, a.height].map((v) => Math.round(v));
+      const a = c.getBoundingClientRect(), b = wrap.getBoundingClientRect(), z = this.zoom.tools.z || 1;
+      const ovl = [a.left - b.left, a.top - b.top, a.width, a.height].map((v) => Math.round(v / z));
       if (!this.pw.ovl || this.pw.ovl.join() !== ovl.join()) this.pw.ovl = ovl;
     },
     pwXY(e) {
@@ -7611,8 +7731,8 @@ const protoartApp = createApp({
     adjPlaceOverlay() {  // the control-point layer sits exactly over the preview picture
       const c = this.$refs.adjCanvas, wrap = c && c.parentElement;
       if (!c || !wrap) return;
-      const a = c.getBoundingClientRect(), b = wrap.getBoundingClientRect();
-      const ovl = [a.left - b.left, a.top - b.top, a.width, a.height].map((v) => Math.round(v));
+      const a = c.getBoundingClientRect(), b = wrap.getBoundingClientRect(), z = this.zoom.tools.z || 1;  // zoomed: measured on screen
+      const ovl = [a.left - b.left, a.top - b.top, a.width, a.height].map((v) => Math.round(v / z));
       if (!this.adj.ovl || this.adj.ovl.join() !== ovl.join()) this.adj.ovl = ovl;
     },
     adjDefault(k) {

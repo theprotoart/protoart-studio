@@ -1411,8 +1411,17 @@
   <!-- ============================ TOOLS ============================ -->
   <main v-if="tab==='tools'" class="tools">
     <section class="tool-source">
-      <div class="tool-drop" :class="{over: tool.dragOver}" @dragover.prevent="tool.dragOver=true"
-           @dragleave="tool.dragOver=false" @drop.prevent="toolDrop" @click="$refs.toolPick.click()">
+      <div class="tool-drop zoom-frame" :class="{over: tool.dragOver, zoomed: zoom.tools.z > 1, panning: zoomSpace}" @dragover.prevent="tool.dragOver=true"
+           @dragleave="tool.dragOver=false" @drop.prevent="toolDrop" @click="zoomJustPanned() || $refs.toolPick.click()"
+           @wheel="zoomWheel('tools', $event)" @pointerdown.capture="zoomPanDown('tools', $event)">
+        <div v-if="tool.source" class="zoom-pill" @click.stop @pointerdown.stop @mousedown.stop>
+          <button @click="zoomBy('tools', 1 / 1.5)" :disabled="zoom.tools.z <= 1" title="Zoom out">−</button>
+          <span title="Pinch, or ⌘ / ⌥ + scroll, to zoom around the pointer · two-finger scroll or Space + drag to move around">{{ Math.round(zoom.tools.z * 100) }}%</span>
+          <button @click="zoomBy('tools', 1.5)" :disabled="zoom.tools.z >= 16" title="Zoom in">+</button>
+          <button @click="zoomReset('tools')" :disabled="zoom.tools.z === 1" title="Fit the whole picture">Fit</button>
+          <button @click="zoomTo('tools', zoomOneToOne('tools'))" title="Actual pixels">1:1</button>
+        </div>
+        <div class="zoom-layer" :style="zoomStyle('tools')">
         <div v-if="adj.open" class="adjust-canvas-wrap" :class="{splitting: adj.view === 'split'}" @click.stop @mousedown="adjSplitDrag">
             <canvas ref="adjCanvas" class="adjust-canvas"></canvas>
             <!-- ◎ control points: the selected step's points (others faint); click to add in adding mode, drag to move -->
@@ -1449,7 +1458,7 @@
           <canvas ref="selCanvas" class="sel-canvas"></canvas>
           <span v-if="objFinding" class="stage-busy">Finding the object…</span>
           <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
-             :style="{left: brush.x + 'px', top: brush.y + 'px', width: mask.size + 'px', height: mask.size + 'px'}"></i>
+             :style="{left: brush.x + 'px', top: brush.y + 'px', width: brushRingPx() + 'px', height: brushRingPx() + 'px'}"></i>
         </div>
         <div v-else-if="tool.source && tool.working && opts.previews !== false && livePreview" class="tool-live" @click.stop>
           <img :src="livePreview.src" alt=""><span class="cmp-tag left">● live preview</span>
@@ -1472,6 +1481,7 @@
         </div>
         <img v-else-if="tool.source" :src="fileUrl(tool.source.path)" @load="onToolImgLoad">
         <div v-else class="tool-empty">Drop any image here<br><span class="hint">or click to choose a file · or use “Enhance” on a library image</span></div>
+        </div>
       </div>
       <input ref="toolPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="toolPicked">
       <div v-if="adj.open" class="adjust-viewbar">
@@ -2345,6 +2355,16 @@
         </div>
         <div v-else-if="['inpaint', 'remove', 'edit'].includes(form.i2i_mode)" class="i2i-src mask-editor" :class="{over: startDragOver}"
              @dragover.prevent="startDragOver=true" @dragleave="startDragOver=false" @drop.prevent="onStartDrop" title="Drop another picture here to replace this one">
+          <div class="i2i-zoom-src zoom-frame" :class="{zoomed: zoom.i2iSrc.z > 1, panning: zoomSpace}"
+               @wheel="zoomWheel('i2iSrc', $event)" @pointerdown.capture="zoomPanDown('i2iSrc', $event)">
+            <div class="zoom-pill" @click.stop @pointerdown.stop @mousedown.stop>
+              <button @click="zoomBy('i2iSrc', 1 / 1.5)" :disabled="zoom.i2iSrc.z <= 1" title="Zoom out">−</button>
+              <span title="Pinch, or ⌘ / ⌥ + scroll, to zoom around the pointer · two-finger scroll or Space + drag to move around">{{ Math.round(zoom.i2iSrc.z * 100) }}%</span>
+              <button @click="zoomBy('i2iSrc', 1.5)" :disabled="zoom.i2iSrc.z >= 16" title="Zoom in">+</button>
+              <button @click="zoomReset('i2iSrc')" :disabled="zoom.i2iSrc.z === 1" title="Fit the whole picture">Fit</button>
+              <button @click="zoomTo('i2iSrc', zoomOneToOne('i2iSrc'))" title="Actual pixels">1:1</button>
+            </div>
+          <div class="zoom-layer" :style="zoomStyle('i2iSrc')">
           <div class="mask-stage">
             <img :src="fileUrl(form.init_image)" @load="initMaskCanvas" ref="maskImg" draggable="false">
             <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove($event); brushAt($event)" @pointerup="maskUp"
@@ -2352,7 +2372,9 @@
           <canvas ref="selCanvas" class="sel-canvas"></canvas>
           <span v-if="objFinding" class="stage-busy">Finding the object…</span>
             <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
-               :style="{left: brush.x + 'px', top: brush.y + 'px', width: mask.size + 'px', height: mask.size + 'px'}"></i>
+               :style="{left: brush.x + 'px', top: brush.y + 'px', width: brushRingPx() + 'px', height: brushRingPx() + 'px'}"></i>
+          </div>
+          </div>
           </div>
           <button class="link" @click="form.init_image = ''; controlMap = null">remove</button>
         </div>
@@ -2862,18 +2884,26 @@
                   title="Take the results off this screen (they stay in the Library)">✕ Clear results</button>
         </div>
         <div v-if="i2iRunning" class="bar"><div :style="{width: progressPct + '%'}"></div></div>
-        <div class="i2i-stage" :class="{split: i2iCompare && i2iLatest && form.init_image && !i2iRunning}">
+        <div class="i2i-stage zoom-frame" :class="{split: i2iCompare && i2iLatest && form.init_image && !i2iRunning, zoomed: zoom.i2i.z > 1, panning: zoomSpace}"
+             @wheel="zoomWheel('i2i', $event)" @pointerdown.capture="zoomPanDown('i2i', $event)">
+          <div v-if="!i2iRunning && (i2iLatest || form.init_image)" class="zoom-pill" @click.stop @pointerdown.stop @mousedown.stop>
+            <button @click="zoomBy('i2i', 1 / 1.5)" :disabled="zoom.i2i.z <= 1" title="Zoom out">−</button>
+            <span title="Pinch, or ⌘ / ⌥ + scroll, to zoom around the pointer (both pictures together) · two-finger scroll or drag to move around">{{ Math.round(zoom.i2i.z * 100) }}%</span>
+            <button @click="zoomBy('i2i', 1.5)" :disabled="zoom.i2i.z >= 16" title="Zoom in">+</button>
+            <button @click="zoomReset('i2i')" :disabled="zoom.i2i.z === 1" title="Fit the whole picture">Fit</button>
+            <button @click="zoomTo('i2i', zoomOneToOne('i2i'))" title="Actual pixels">1:1</button>
+          </div>
           <template v-if="i2iRunning">
             <figure v-if="opts.previews && livePreview && livePreview.job === runningJob.id">
               <img :src="livePreview.src"><figcaption><span class="live-dot"></span> live preview</figcaption></figure>
             <figure v-else class="waiting"><div class="spinner"></div><figcaption>{{ status }}</figcaption></figure>
           </template>
           <template v-else-if="i2iLatest">
-            <figure v-if="i2iCompare && form.init_image"><img :src="fileUrl(form.init_image)"><figcaption>original</figcaption></figure>
-            <figure @click="openDetail(i2iLatest)" :class="{covered: covered(i2iLatest)}"><img :src="fileUrl(i2iLatest.path)" title="Open full size"><span v-if="covered(i2iLatest)" class="nsfw-cover">NSFW · hidden</span>
+            <figure v-if="i2iCompare && form.init_image" class="zoom-fig"><img :src="fileUrl(form.init_image)" :style="zoomStyle('i2i')"><figcaption>original</figcaption></figure>
+            <figure class="zoom-fig" @click="zoomJustPanned() || zoom.i2i.z > 1 || openDetail(i2iLatest)" :class="{covered: covered(i2iLatest)}"><img :src="fileUrl(i2iLatest.path)" :style="zoomStyle('i2i')" :title="zoom.i2i.z > 1 ? 'Drag to move around' : 'Open full size'"><span v-if="covered(i2iLatest)" class="nsfw-cover">NSFW · hidden</span>
               <figcaption>result · {{ i2iLatest.width }}×{{ i2iLatest.height }}<template v-if="i2iLatest.settings && i2iLatest.settings.seconds"> · {{ formatDuration(i2iLatest.settings.seconds) }}</template></figcaption></figure>
           </template>
-          <figure v-else-if="form.init_image"><img :src="fileUrl(form.init_image)"><figcaption>your picture · the result will appear here</figcaption></figure>
+          <figure v-else-if="form.init_image" class="zoom-fig"><img :src="fileUrl(form.init_image)" :style="zoomStyle('i2i')"><figcaption>your picture · the result will appear here</figcaption></figure>
           <figure v-else class="waiting"><figcaption>Add a picture on the left to start.</figcaption></figure>
         </div>
         <div v-if="i2iLatest && !i2iRunning" class="row">
@@ -3889,11 +3919,35 @@
       <button class="ghost small" @click="cmpZoomBy(1.5)" :disabled="cmp.z >= 16" title="Zoom in">＋</button>
       <button class="ghost small" @click="cmpReset" :disabled="cmp.z === 1" title="Fit the whole picture">Fit</button>
       <button class="ghost small" @click="cmpZoomTo(cmpOneToOne())" title="Actual pixels">1:1</button>
-      <span class="hint">Scroll or pinch over a picture to zoom, drag to look around · all pictures move together</span>
+      <div class="seg cmp-mode">
+        <button :class="{on: cmp.mode === 'side'}" @click="cmpSetMode('side')" title="The pictures next to each other">Side by side</button>
+        <button :class="{on: cmp.mode === 'split'}" @click="cmpSetMode('split')" title="One picture over the other: drag the line across to see the difference (like Tools' Split view)">↔ Split</button>
+      </div>
+      <template v-if="cmp.mode === 'split' && compareView.length > 2">
+        <select v-model.number="cmp.a" title="The picture on the left of the line"><option v-for="(r, i) in compareView" :key="'ca' + i" :value="i" :disabled="i === cmp.b">left: {{ i + 1 }} · seed {{ r.seed }}</option></select>
+        <select v-model.number="cmp.b" title="The picture on the right of the line"><option v-for="(r, i) in compareView" :key="'cb' + i" :value="i" :disabled="i === cmp.a">right: {{ i + 1 }} · seed {{ r.seed }}</option></select>
+      </template>
+      <span class="hint">{{ cmp.mode === 'split' ? 'Drag the line across to see the difference · scroll or pinch to zoom' : 'Scroll or pinch over a picture to zoom, drag to look around · all pictures move together' }}</span>
       <span class="spacer"></span>
       <button class="compare-close" @click="compareView = null">✕ Close</button>
     </div>
-    <div class="compare-view" :style="{gridTemplateColumns: 'repeat(' + Math.min(compareView.length, compareView.length > 4 ? 3 : compareView.length) + ', minmax(0, 1fr))'}">
+    <div v-if="cmp.mode === 'split' && compareView[cmp.a] && compareView[cmp.b]" class="compare-view cmp-split-view">
+      <figure>
+        <div class="cmp-frame cmp-split-frame" :class="{zoomed: cmp.z > 1, panning: !!cmp.drag}" @wheel.prevent="cmpWheel" @pointerdown="cmpSplitDown"
+             @dblclick="cmp.z > 1 ? cmpReset() : cmpZoomBy(2.5, $event)">
+          <img :src="fileUrl(compareView[cmp.b].path)" draggable="false" :style="{transform: 'translate(' + cmp.x + 'px,' + cmp.y + 'px) scale(' + cmp.z + ')'}">
+          <div class="cmp-top" :style="{clipPath: 'inset(0 ' + ((1 - cmp.split) * 100) + '% 0 0)'}">
+            <img :src="fileUrl(compareView[cmp.a].path)" draggable="false" :style="{transform: 'translate(' + cmp.x + 'px,' + cmp.y + 'px) scale(' + cmp.z + ')'}">
+          </div>
+          <i class="cmp-line" :style="{left: (cmp.split * 100) + '%'}"><b></b></i>
+          <span class="cmp-tag left">{{ cmp.a + 1 }} · seed {{ compareView[cmp.a].seed }}</span>
+          <span class="cmp-tag right">{{ cmp.b + 1 }} · seed {{ compareView[cmp.b].seed }}</span>
+        </div>
+        <figcaption><b>Left:</b> {{ modelLabel(compareView[cmp.a].model) }} · {{ compareView[cmp.a].width }}×{{ compareView[cmp.a].height }}<template v-if="compareView[cmp.a].steps"> · {{ compareView[cmp.a].steps }} steps</template>
+          · <b>Right:</b> {{ modelLabel(compareView[cmp.b].model) }} · {{ compareView[cmp.b].width }}×{{ compareView[cmp.b].height }}<template v-if="compareView[cmp.b].steps"> · {{ compareView[cmp.b].steps }} steps</template></figcaption>
+      </figure>
+    </div>
+    <div v-else class="compare-view" :style="{gridTemplateColumns: 'repeat(' + Math.min(compareView.length, compareView.length > 4 ? 3 : compareView.length) + ', minmax(0, 1fr))'}">
       <figure v-for="r in compareView" :key="r.id">
         <div class="cmp-frame" :class="{zoomed: cmp.z > 1, panning: !!cmp.drag}" @wheel.prevent="cmpWheel" @pointerdown="cmpDown" @dblclick="cmp.z > 1 ? cmpReset() : cmpZoomBy(2.5, $event)">
           <img :src="fileUrl(r.path)" draggable="false" :style="{transform: 'translate(' + cmp.x + 'px,' + cmp.y + 'px) scale(' + cmp.z + ')'}">

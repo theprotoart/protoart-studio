@@ -17,6 +17,9 @@
   sampled weights, .safetensors or .tdict); extraction reports `kept_pct` and `covered_pct`, and the UI warns when the
   base looks wrong
 - [ ] / − + change the brush size wherever you paint
+- 🔍 Zoom on Tools' picture (all its views) and Image to image's preview and painting picture (`zoom.{tools,i2i,i2iSrc}`,
+  pinch / ⌘ / ⌥ + scroll, two-finger scroll, Space + drag; overlays and the brush ring account for the zoom)
+- Library → Compare → ↔ Split: two pictures under one draggable line (picks which two with more than two), with zoom
 - Fixes: Merge LoRAs listed nothing (a second `mergeFamily` computed property, from the model merger, replaced it;
   also `mergeJob`), now `mrgFamily` / `mrgJob`; embedding training with transformers 5 (`attach_words` via
   `set_input_embeddings`); a selection belongs to one tab (`mask.tab`, `maskIsFor`); Vectorize ✕ clear; the Library
