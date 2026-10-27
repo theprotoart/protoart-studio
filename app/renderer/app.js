@@ -74,8 +74,24 @@ function defaultPost() {  // Tools settings on a fresh install
            keep_style: false, style_words: "" },  // 🎨 keep the picture's own look (painting, anime…) instead of turning photographic
     vec: { colors: 8, detail: "medium", smooth: true },   // ✒️ Vectorize
     det: { lora: "", weight: 0.8, strength: 0.35, steps: 20 },  // 🔎 Detail with a LoRA (patchbay module)
+    // ✂ Cut out: threshold / softness on the model's matte, grow (+) or shrink (−) in px, then the clean-ups
+    cut: { threshold: 0.5, softness: 0.1, grow: 0, bg: "transparent", color: "#ffffff", clean: true, fix_edges: true, crop: false },
+    // 📄 Paper cut-out: border width (% of the shorter side), its paper, torn-ness, shadow, print look, background
+    paper: { edge: 2, edge_colour: "white", rough: 0.5, shadow: 0.6, print_as: "photo", background: "transparent" },
   };
 }
+// each Tools module's own starting settings (its ↺ reset button); the big ↺ Reset Tools settings does them all
+const TOOL_PARTS = {
+  enhance: { post: ["enh", "do_enhance"] }, faces: { post: ["face_strength", "face_model", "face_fidelity", "do_faces"] },
+  depth: { post: ["depth"] }, vector: { post: ["vec"] }, detail: { post: ["det"] }, cutout: { post: ["cut"] }, paper: { post: ["paper"] },
+  heal: {}, tiled: {}, quant: {}, merge: {}, convert: {},
+};
+const TOOL_STATE_DEFAULTS = {
+  tup: () => ({ scale: 2, strength: 0.25, steps: 24, prompt: "" }),
+  qnt: () => ({ model: "", bits: 8, msg: "" }),
+  mrg: () => ({ a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" }),
+  cvt: () => ({ to: "copy", model: "", base: "", rank: 32, te: true, name: "", msg: "", extra: [], kind: "", found: null }),
+};
 
 function defaultForm() {
   return { model: "sdxl", prompt: "", negative_prompt: "", width: 1024, height: 1024, steps: 30, cfg: 6,
@@ -120,7 +136,7 @@ const SAMPLER_PICKS = {
   flux: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
   flux2: { fast: ["flow_euler"], quality: [] },
 };
-const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}];
+const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}, {"model": "BiRefNet lite (✂ Cut out, 👤 Subject, 📄 Paper cut-out)", "licence": "MIT", "note": ""}];
 const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677" };
 const I2I_KINDS = ["img2img", "healed", "word_edit", "inpaint", "outpaint", "controlnet", "faceswap"];  // pictures made in Image to image
 // Tools → Tiled upscale presets (size, how much new detail, steps)
@@ -213,6 +229,7 @@ let adjFrame = 0;
 let adjPaint = {};                       // 🖌 step id -> canvas of where it was painted to show (white = shows)
 let pwEngine = null;                    // 🪡 Puppet warp's WebGL engine (outside Vue too)
 let pwFrame = 0;
+let cutCache = null;                     // ✂ Cut out: the matte and the picture at preview size (outside Vue: big arrays)
 // Adjust panel: Camera Raw-style sliders (Light, Color, Presence) and the Color Efex-style filter stack
 const ADJ_SECTIONS = [
   { id: "light", label: "Light", tip: "Like Camera Raw's Light panel. Double-click a slider to reset it.", sliders: [
@@ -248,10 +265,57 @@ const ADJ_FILTERS = {
     { k: "blTransition", label: "Transition", min: 0, max: 1, tip: "How much of the picture glows: low = only the brightest highlights, high = the mid-tones too" },
     { k: "blSize", label: "Size", min: 0, max: 1, tip: "How far the light spreads" },
     { k: "blBurn", label: "Burn", min: 0, max: 1, tip: "Pushes the glow brighter, towards blown-out light" }] },
+  blur: { label: "Blur", on: "blurOn", tip: "Softens the picture. Paint it on (🖌 paint it on) to blur only the background, a face's skin or the edges, like a shallow depth of field.", sliders: [
+    { k: "bzSize", label: "Amount", min: 0, max: 1, tip: "How far the blur spreads" },
+    { k: "bzMix", label: "Strength", min: 0, max: 1, tip: "How much of the blur shows" }],
+    seg: { k: "bzKind", label: "Kind", options: [[0, "Blur"], [1, "Soft focus"]] } },
   grain: { label: "Film Grain", on: "grainOn", tip: "Photographic grain. Usually best last in the stack.", sliders: [
     { k: "grainAmount", label: "Intensity", min: 0, max: 1 }, { k: "grainSize", label: "Grain size", min: 0, max: 1 },
     { k: "grainSoftness", label: "Softness", min: 0, max: 1 }], toggle: { k: "grainColor", off: "Mono", on: "Color" } },
 };
+// 🗺 Regions → Templates: ready-made layouts with example prompts to edit (the main prompt sets the scene)
+const REGION_TEMPLATES = [
+  { id: "beforeafter", icon: "◧", label: "Before / after", shape: "wide", layout: "cols", ratios: "1,1",
+    tip: "Two halves of the same subject: before on the left, after on the right (a makeover, a renovation, a restoration)",
+    main: "split-screen before and after comparison, same person, same pose, same framing, thin white dividing line down the middle, photo",
+    prompts: ["before: tired woman, messy hair, no makeup, plain grey t-shirt, dull lighting", "after: same woman, styled glossy hair, natural makeup, elegant black dress, bright studio lighting, smiling"] },
+  { id: "daynight", icon: "◐", label: "Day / night", shape: "wide", layout: "cols", ratios: "1,1",
+    tip: "The same place by day and by night, side by side",
+    main: "split view of the same city street, left half daytime, right half night, photo",
+    prompts: ["sunny daytime, blue sky, people walking, warm sunlight", "night, glowing neon signs, wet street reflections, dark blue sky"] },
+  { id: "duo", icon: "👥", label: "Two characters", shape: "wide", layout: "cols", ratios: "1,1",
+    tip: "Two different people or characters side by side, each with their own look",
+    main: "two people standing side by side in a park, full body, photo",
+    prompts: ["a young woman with red curly hair, green jacket, jeans", "an older man with a grey beard, navy suit, holding a hat"] },
+  { id: "faceoff", icon: "⚔", label: "Face-off", shape: "wide", layout: "cols", ratios: "1,1",
+    tip: "Hero and villain facing each other",
+    main: "epic confrontation, two figures facing each other, dramatic lighting, stormy sky",
+    prompts: ["a knight in shining silver armour holding a sword, facing right", "a dark sorcerer in a black hooded robe with glowing purple eyes, facing left"] },
+  { id: "hero", icon: "🧍", label: "Character in a scene", shape: "wide", layout: "cols", ratios: "1,2,1",
+    tip: "The character in the middle, the setting on both sides",
+    main: "a cinematic wide shot, autumn forest path, golden hour",
+    prompts: ["tall autumn trees with orange leaves", "a girl in a yellow raincoat walking towards the viewer, full body", "a wooden fence and fallen leaves"] },
+  { id: "comic", icon: "▥", label: "3-panel comic", shape: "wide", layout: "cols", ratios: "1,1,1",
+    tip: "A short story in three panels, left to right",
+    main: "comic strip, three panels, clean line art, flat colours",
+    prompts: ["panel 1: a cat looking at a fishbowl", "panel 2: the cat reaching a paw into the bowl", "panel 3: the cat soaking wet, annoyed, the fish laughing"] },
+  { id: "skyland", icon: "⬒", label: "Sky and land", shape: "wide", layout: "rows", ratios: "2,3",
+    tip: "A sky on top, a landscape below",
+    main: "a wide landscape photograph",
+    prompts: ["dramatic sunset sky with pink and orange clouds", "rolling green hills with a small white farmhouse and a winding road"] },
+  { id: "seasons", icon: "▦", label: "Four seasons", shape: "wide", layout: "cols", ratios: "1,1,1,1",
+    tip: "The same tree in spring, summer, autumn and winter",
+    main: "the same lone oak tree on a hill, four seasons side by side, landscape photo",
+    prompts: ["spring, pink blossoms, fresh green grass", "summer, lush green leaves, bright blue sky", "autumn, orange and red leaves, misty", "winter, bare branches, snow, pale sky"] },
+  { id: "group", icon: "⊞", label: "Two above, one below", shape: "square", layout: "grid", ratios: "1,1;1",
+    tip: "Two subjects on top and a wide one below (a poster, a family portrait, a product line-up)",
+    main: "a poster layout, clean background, studio lighting",
+    prompts: ["a red sports car", "a blue motorbike", "a long open road through the desert at sunset"] },
+  { id: "product", icon: "▤", label: "Product on a table", shape: "tall", layout: "rows", ratios: "1,2",
+    tip: "A background above, the product on a table below",
+    main: "product photography, soft natural light, shallow depth of field",
+    prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
+];
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -353,6 +417,7 @@ const protoartApp = createApp({
         { id: "poly", icon: "⬠", label: "Polygon", tip: "Polygonal lasso: click the corners for straight edges; click the first point or double-click to close (P)" },
         { id: "wand", icon: "🪄", label: "Wand", tip: "Magic wand: click a colour to pick the connected area of similar colour (W)" },
         { id: "object", icon: "⬚", label: "Object", tip: "Object selection: drag a box around something and its outline is found (O)" },
+        { id: "subject", icon: "👤", label: "Subject", tip: "Select subject: finds the people, animals or main thing in the picture by itself, like Photoshop's Select Subject (S). ~224 MB download the first time" },
       ],
       brush: { show: false, x: 0, y: 0 },
       objFinding: false,   // object selection is working out the outline
@@ -387,7 +452,7 @@ const protoartApp = createApp({
       detLoraQ: "",
       gmenu: null,
       regionBusy: -1, regionUndo: {},
-      regionPlanText: "", regionPlanBusy: false, regionPlanUndo: null,  // 🗺 ✨ Plan the layout from one sentence  // 🗺 ✨ enhance an area's prompt      // right-click menus for models, LoRAs, the queue and folders (pictures have their own)
+      regionPlanText: "", regionPlanBusy: false, regionPlanUndo: null, REGION_TEMPLATES,  // 🗺 ✨ Plan the layout from one sentence  // 🗺 ✨ enhance an area's prompt      // right-click menus for models, LoRAs, the queue and folders (pictures have their own)
       i2iSuggesting: false,  // Image to image → 💡 suggest from the picture     // Tools → Detail with a LoRA: search box      // the job that stopped for a missing first-time download (⬇ Download it now)
       dlBusy: false,
       session: [],
@@ -416,6 +481,9 @@ const protoartApp = createApp({
       promptIoMsg: "",
       qnt: { model: "", bits: 8, msg: "" },  // Tools → Smaller copy
       tup: { scale: 2, strength: 0.25, steps: 24, prompt: "" },  // Tools → Tiled upscale
+      cut: { open: false, busy: false, msg: "", path: "", w: 0, h: 0, view: "result", rev: 0 },  // ✂ Cut out's live preview
+      paperJob: false,
+      i2iInpaintPick: "",    // Image to image → Inpaint: the inpainting model you picked ('' = the first that fits)
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
       cvt: { to: "copy", model: "", base: "", rank: 32, te: true, name: "", msg: "", extra: [], kind: "", found: null },  // found: {model, ranked} from 🔍 Find it  // extra: DiffusionBee files dropped or sent from the list  // Tools → Convert into (LoRA…)
       chain: { steps: loadJSON("protoart.chain", []).map((x) => ({ lora: "", lora_weight: 1, extra: "", ...x, result: "", q: "" })),
@@ -474,7 +542,8 @@ const protoartApp = createApp({
       zoom: { tools: { z: 1, x: 0, y: 0 }, i2i: { z: 1, x: 0, y: 0 }, i2iSrc: { z: 1, x: 0, y: 0 } },
       zoomSpace: false,      // Space held: drag to move around (like Photoshop)
       pw: { open: false, rec: null, pins: [], sel: -1, density: 48, busy: false, msg: "", error: "", original: false,
-            ovl: null, size: null,
+            ovl: null, size: null, mode: "rigid", expand: 0, feather: 3, showMesh: true, showBg: true, whole: false,
+            hist: [], fut: [],
             selecting: false, subject: null },  // ✂ subject: {bg} once separated; selecting: choosing it with the selection tools
       // Library → Batch edit & export (PhotoMill-style) with Press compression
       bx: { open: false, ids: [], adjust: "", format: "same", quality: 90, compress: "balanced", dpi: 72, keep_meta: false,
@@ -512,6 +581,21 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.5.0: Cut out and Paper cut-out, Puppet warp in clear steps with a mesh and joints, own settings for each point, Blur, templates, training presets", items: [
+              "<b>✂ Cut out</b> (Tools): removes the background behind people, animals (dogs, cats, horses…) and objects. Drop a picture on the left or pick one from the Library, press <b>✂ Cut out</b>, then refine it live: <b>Threshold</b> (lower keeps more hair and fur), <b>Edge softness</b>, <b>Grow / shrink</b> (shrink takes away a halo), a background (None = a see-through PNG, White, Black or a colour), <b>Result / Mask</b> view, <b>Clean up small bits</b>, <b>Fix edge colours</b> and <b>Crop to the subject</b>. <b>💾 Save</b> adds it to the Library. Its model (BiRefNet, MIT licence, ~224 MB) downloads the first time, then works offline.",
+              "<b>🪡 Puppet warp it</b> (in Cut out): opens Puppet warp with that subject already on its own layer: bend it with pins and it's put back into its scene, with what was behind it filled in.",
+              "<b>📄 Paper cut-out</b> (Tools): the subject as a torn paper sticker: border width, White / Cream / Kraft / Black paper, how torn the edge is, the shadow, Photo / Poster / Mono print, and None / Paper / Picture / White behind it.",
+              "<b>👤 Subject</b>, a new selection tool everywhere you paint (key S): finds the people, animals or main thing by itself, like Photoshop's Select Subject.",
+              "<b>🪡 Puppet warp in three clear steps</b>: <b>1 Choose what bends</b> (✂ Just the subject, found for you, or ▢ The whole picture), <b>2 Pin and bend</b>, <b>3 Blend it back in and save</b>. The step you're on lights up.",
+              "<b>Puppet warp, like Photoshop's</b>: a <b>mesh</b> over the subject (Show mesh), <b>Mode</b> Rigid / Normal / Distort, <b>Density</b> Fewer / Normal / More points, <b>Expansion</b> (grow or shrink the subject's edge), <b>Show background</b> off to see only the subject while you pin, and <b>joints</b>: drag the round handle by a pin, or ⌥ + drag, to turn the part around it (bend an elbow while the shoulder and wrist stay pinned). <b>Enter</b> saves.",
+              "<b>Puppet warp: ↶ Undo / ↷ Redo</b> (⌘Z / ⇧⌘Z) for every pin change, <b>Delete</b> takes out the chosen pin, and a <b>Feather</b> slider so the subject's edge blends in. The filled-in background now blends softly into the picture, so no outline is left where the subject was.",
+              "<b>🎚 Adjust: own settings for each point and brush stroke</b>: choose a point and press <b>⚙ Own settings for this point</b>, or <b>＋ New paint layer with its own settings</b> while painting. Its sliders change only that point or those strokes: a strong Bloom on the lantern, a soft one on the sky.",
+              "<b>🎚 Adjust: Blur</b> filter: Blur or Soft focus, Amount and Strength. Paint it on to blur only the background or the edges.",
+              "<b>↺ on every Tools module</b> resets just that module; <b>↺ Reset Tools settings</b> at the top now resets every module in the Tools window (undo puts them back).",
+              "<b>Inpaint picks the right models</b>: in Image to image → Inpaint, your inpainting models are listed first and the others are greyed out (when you have one). Pick one to use it.",
+              "<b>Train: ★ Recommended</b> settings for a person, an object, a style or a concept, on SD 1.5, SDXL, <b>Pony / Illustrious</b> and <b>ERNIE Turbo on the ⚡ fast engine</b> (steps, learning rate, rank, layers, size and mirroring). Pony / Illustrious and the ERNIE fast engine have their own groups in the model list.",
+              "<b>🗺 Regions → Templates</b> (Create): Before / after, Day / night, Two characters, Face-off, Character in a scene, 3-panel comic, Sky and land, Four seasons, Two above one below, Product on a table: the areas, example prompts and a size that fits, ready to edit.",
+              "Fixes: [ ] changed the brush size but showed the ring in the middle of the picture: it now stays under the pointer. Holding <b>Space</b> moves a zoomed picture around while you select or paint (the button you clicked last no longer takes the key). The Convert module's list no longer spills out of its column. Tips on Puppet warp's buttons." ] },
             { h: "1.4.2: Puppet warp with a separate subject, paint where a filter shows, Enhance that keeps the style, and fixes", items: [
               "<b>🪡 Puppet warp: ✂ Separate the subject first</b> (like putting it on its own layer in Photoshop): select the subject with ⬚ Object (drag a box around it), Brush, Lasso or Polygon and press <b>✓ Use this subject</b>. What was behind it is filled in (Smart fill), and only the subject bends: raise an arm or move a lantern and no copy of it is left behind. <b>Bend the whole picture instead</b> goes back.",
               "<b>🖌 Paint where a filter shows</b> (Tools → 🎚 Adjust): next to the control points, <b>🖌 Paint</b> brushes on exactly where a step shows (any shape, soft edges; <b>Strength</b> builds it up gently) and <b>🧽 Erase</b> takes it away. Use it on its own or with points, e.g. Bloom only along a sword.",
@@ -725,6 +809,8 @@ const protoartApp = createApp({
           ] },
         { id: "create", go: "create", icon: "✨", title: "Create", summary: "Make images from a text prompt",
           sections: [
+            { h: "🗺 Regions: templates", items: [
+              "Create → 🗺 Regions → <b>Templates</b>: Before / after, Day / night, Two characters, Face-off, Character in a scene, 3-panel comic, Sky and land, Four seasons, Two above one below and Product on a table. Each sets the areas, example prompts for each area and the main prompt (if yours is empty), and a size that fits. Edit the words, then Generate. ↩ puts back what you had." ] },
             { h: "Prompt tools", items: [
               "Under the prompt, one row of keys: <b>✨ Enhance</b> (rewrite the prompt with more detail now, or every time you Generate), <b>📒 Saved</b> (prompts you kept), <b>🖼 From image</b> (turn a picture into a prompt; or drop a picture on the prompt box), <b>🎲 Random</b> (a random prompt: a woman, a man, two people, a landscape or an animal), <b>{ } Wildcards</b> and <b>📋 List</b>. Each opens its own panel underneath; click it again to close it.",
               "<b>🎲 New random prompt every time I press Generate</b> (in Random's panel): each picture gets a fresh random prompt. <b>New random mix</b> under LoRAs does the same for LoRAs (every LoRA in the list is swapped).",
@@ -847,6 +933,7 @@ const protoartApp = createApp({
               "<b>🩹 Remove</b>: paint over what you want gone and press 🩹 Remove; it's filled in from its surroundings (no prompt or model needed). <b>✨ Smart fill</b> handles objects, people and patterns (~208 MB download the first time); <b>⚡ Quick fill</b> is instant for dust, spots and thin lines. Cover the thing fully, a little past its edges.",
               "<b>LoRAs</b> card: add a LoRA (search the list, or #tag for your 🏷 tags), set its weight with the slider, ✕ removes it. Under the search: the order (A → Z, <b>Newest first</b>, biggest…) and the kind list (<b>● People</b> / <b>Not People</b>, .safetensors, Pony…); <b>★</b> shows only favourites. They're the same LoRAs and the same filters as in Create (both tabs share the model); trigger words and 🎲 Random LoRAs are in Create." ] },
             { h: "🖌 Inpaint", items: [
+              "<b>Inpainting models first</b>: when you have an inpainting model (e.g. a file like dreamshaper_8Inpainting), the model list at the top shows them under 🎯 Inpainting models while you're in Inpaint, and greys out the others. Pick one to use it; its LoRAs follow its type. Switch off <b>🖌 Paint with an inpainting model</b> in Settings to inpaint with any model.",
               "<b>Selection tools</b> (everywhere you paint over a picture): <b>🖌 Brush</b>, <b>🧽 Erase</b>, <b>➰ Lasso</b> (draw around an area; it fills when you let go), <b>⬠ Polygon</b> (click the corners; click the first point, double-click or press Return to close), <b>🪄 Wand</b> (click a colour; the tolerance slider sets how similar), <b>⬚ Object</b> (drag a box around something and its outline is found). <b>＋ Add / － Subtract</b>, or hold ⌥ Option to subtract. Keys: B E L P W O; Esc cancels.",
               "<b>Brush size</b>: a ring the size of the brush follows the pointer (dashed when erasing); moving the size slider shows it on the picture, and the metal well next to the slider shows the size.",
               "Choose <b>Inpaint</b>, paint over what you want to change (Paint / Erase, brush size, invert, clear), and describe what should be there.",
@@ -922,13 +1009,21 @@ const protoartApp = createApp({
               "Each model downloads once, the first time you use it (RestoreFormer ~280 MB, CodeFormer ~360 MB), and is checked against a pinned SHA-256. CodeFormer's licence allows <b>non-commercial use only</b>.",
               "Tick both in <b>Run on this image</b> to enhance first, then restore faces, as one finished picture." ] },
             { h: "🪡 Puppet warp (like Photoshop's)", items: [
-              "<b>🔍 Zoom in</b> to place pins precisely: pinch or ⌘ + scroll over the picture; Space + drag moves around.",
-              "<b>✂ Separate the subject first</b> to bend only the subject: select it (⬚ Object: drag a box around it; Brush, Lasso or Polygon to fix the edge; [ ] change the brush size), press <b>✓ Use this subject</b>, and what was behind it is filled in. Pin and drag as usual: the background stays still. <b>Bend the whole picture instead</b> goes back.",
-              "Tools → <b>🪡 Puppet warp</b> (under the picture), or <b>🪡 Puppet warp the result</b> after a tool has run. The picture on the left becomes the live preview.",
-              "<b>Click</b> the picture to put a pin. Pins hold their spot. <b>Drag</b> a pin and the picture bends around it, while the other pins stay put: pin the shoulder and hips, then drag the hand.",
-              "<b>⌥-click</b> or <b>double-click</b> a pin (or ✕ Remove pin) to take it out; ↺ Remove all starts again; hold <b>◐ Hold for the original</b> to compare. <b>Smoothness</b>: More points gives smoother bends.",
-              "<b>💾 Save the warped copy</b> adds it to the Library (the original stays). Bending stretches pixels a little: <b>Save &amp; send to Image to image</b> and redraw it lightly (0.2–0.35 change) with your model." ] },
+              "Tools → <b>🪡 Puppet warp</b> (under the picture), <b>🪡 Puppet warp the result</b> after a tool has run, or <b>🪡 Puppet warp it</b> in ✂ Cut out. The picture on the left becomes the live preview. It works in three steps; the one you're on lights up.",
+              "<b>1 · Choose what bends.</b> <b>✂ Just the subject</b> (best for people and animals): the subject is found for you (👤 Subject); fix the edge with 🖌 Brush / 🧽 Erase, or drag a box with ⬚ Object, then <b>✓ Use this subject</b>. It goes on its own layer and what was behind it is filled in (Smart fill), so nothing is left behind when it moves. <b>▢ The whole picture</b> bends everything (landscapes, small nudges).",
+              "<b>2 · Pin and bend.</b> Click to put pins on what must stay still (head, shoulder, hips, wrist). Click the joint to move (the elbow) and drag it: the pinned parts hold. <b>Pivot</b>: drag the round handle beside the chosen pin, or <b>⌥ + drag</b> near it, to turn the part around that joint; <b>Rotate</b> sets the angle exactly, <b>auto</b> lets it turn by itself.",
+              "<b>Mode</b>: <b>Rigid</b> keeps shapes (arms, legs, bodies), <b>Normal</b> lets parts grow or shrink a little, <b>Distort</b> is stretchy (cloth, hair, smoke). <b>Density</b>: More points gives smoother, more precise bends (good for big pictures). <b>Expansion</b> grows or shrinks the subject's edge (shrink 1–3 px takes away a halo). <b>Show mesh</b> shows the triangles the picture bends on; untick <b>Show background</b> to see only the subject while you pin.",
+              "<b>↶ Undo / ↷ Redo</b> (⌘Z / ⇧⌘Z) for every pin change; <b>Delete</b>, ⌥-click or double-click takes a pin out; ↺ Remove all starts again; hold <b>◐ Hold for the original</b> to compare. 🔍 Zoom in (pinch or ⌘ + scroll) to place pins precisely; hold Space and drag to move around.",
+              "<b>3 · Blend it back in and save.</b> <b>Feather</b> softens the subject's edge so it melts into the scene. <b>💾 Save the warped copy</b> (or <b>Enter</b>) adds it to the Library; the original stays. Bending stretches pixels a little: <b>Save &amp; send to Image to image</b> and redraw it lightly (0.2–0.35 change) with your model." ] },
+            { h: "✂ Cut out and 📄 Paper cut-out", items: [
+              "<b>✂ Cut out</b> removes the background: people, animals (dogs, cats, horses, birds…) and objects. Drop a picture on the left of Tools (or pick one from the Library) and press <b>✂ Cut out</b>. The first time it downloads its model (BiRefNet, MIT licence, ~224 MB); after that it works offline, in a few seconds.",
+              "Refine it live on the left: <b>Threshold</b> (lower keeps more: hair, whiskers, a tail; higher drops faint bits of background), <b>Edge softness</b> (0 = a hard sticker edge), <b>Grow / shrink</b> (−1 to −3 px takes away a thin halo). <b>Mask</b> shows white = kept, black = gone, which makes the edge easy to judge.",
+              "<b>Background</b>: None makes a see-through PNG (saved as PNG even when your pictures are JPEG); or White, Black or a colour. <b>Clean up small bits</b> drops specks of background, <b>Fix edge colours</b> takes the edge's colours from inside the subject so no fringe is left, <b>Crop to the subject</b> trims the empty space. <b>💾 Save</b> adds it to the Library.",
+              "<b>🪡 Puppet warp it</b> opens the picture in Puppet warp with the subject already separated: bend it and it goes back into its scene.",
+              "<b>📄 Paper cut-out</b> makes the subject a torn paper sticker: <b>Border</b> width, the <b>Paper</b> (White, Cream, Kraft, Black), <b>Torn edge</b> (0 = cut with scissors), <b>Shadow</b>, <b>Print</b> (Photo, Poster = flatter colours, Mono) and what's behind it (None = see-through, Paper, its own Picture, White). It uses Cut out's model and Threshold." ] },
             { h: "🎚 Adjust: light, colour and filters", items: [
+              "<b>⚙ Own settings for each point or brush stroke</b>: choose a point and press <b>⚙ Own settings for this point</b>; while painting, <b>＋ New paint layer with its own settings</b>. The box that opens has that step's sliders, and they change only that point or those strokes (double-click a slider to match the step's own value). Each one is listed under ◎ Control points for as “· own settings 1, 2…”; ✕ remove takes it out. With own-settings layers, the step's own sliders show only at its own points and paint.",
+              "<b>Blur</b> (a filter): <b>Blur</b> or <b>Soft focus</b> (a glowy, dreamy softness), Amount and Strength. 🖌 paint it on to blur just the background, like a shallow depth of field.",
               "<b>🖌 Paint where it shows</b>: pick the step under ◎ Control points for, press <b>🖌 Paint</b> and brush over the picture (an amber tint shows what you painted; [ ] change the size, <b>Strength</b> builds it up gently). <b>🧽 Erase</b> takes it away, <b>✕ Clear paint</b> removes it all. Painted areas and points work together; presets don't store them.",
               "<b>◎ Control points</b>: under <b>◎ Control points for</b>, pick Light, Color &amp; Presence or a filter that's on, press <b>＋ Add</b>, then click the picture. That step now shows only around its points (full strength in the middle, softly fading at the edge), like Nik Color Efex. Drag a point to move it; <b>Size</b> and <b>Opacity</b> are under the bar; <b>✕ Remove</b> takes out the selected point. A filter's settings also show its points (＋ add a point, whole picture again). Points belong to this picture: presets and Last used keep only the sliders.",
               "Edits a picture the way Lightroom / Camera Raw and Nik Color Efex do, live on the Mac's graphics chip. It works in the <b>Tools</b> tab: press <b>🎚 Adjust the original</b> (or <b>Adjust the result</b> after enhancing) under the picture; <b>🎚 Adjust</b> in the Library's picture details and in Image to image brings the picture to Tools for you.",
@@ -996,6 +1091,8 @@ const protoartApp = createApp({
               "Describe what is <i>not</i> the thing you're teaching; the trigger word stands for what is." ] },
             { h: "Training", items: [
               "<b>Pick your pictures</b> with <i>Choose a folder of images…</i> (2 · Training images); <b>✕ Clear</b> forgets them so you can start again with another folder. Nothing in the folder is changed or deleted (if you edited captions without saving, it asks first).",
+              "<b>★ Recommended</b> (the default) sets steps, learning rate, rank, layers, size and mirroring for what you're training (1 · What: person, object, style, concept) and the model: people and objects learn at 0.0001 with ~80–100 steps a picture and no mirroring for faces; styles learn more gently (0.00005) with rank 32 and all layers. It updates when you change either. <b>Quick / Standard / Thorough</b> set only steps, learning rate and rank.",
+              "<b>Pony / Illustrious</b> (SDXL models that read tags) have their own group in the model list: caption with <b>Tags</b> and leave score_9 and the like out of the captions. <b>ERNIE Turbo · ⚡ fast engine</b> trains a LoRA on the 4-bit model, so it runs on smaller Macs (on 8 GB: 512 px, rank 8, and close other apps).",
               "<b>Quick / Standard / Thorough</b> set steps, learning rate and rank. Standard is about 100 steps per image.",
               "Watch the progress, time left and the loss chart (it should drift down and level off). <b>Stop</b> keeps the progress so far.",
               "SD 1.5 suits 8 GB Macs. <b>SDXL and Pony / Illustrious / NoobAI</b> can be trained too: pick the built-in SDXL (it trains on the full-precision SDXL Base, a 7 GB download if it isn't on your Mac yet) or any full SDXL checkpoint you've added. Under 16 GB it works but is very slow (often many hours); train at 768 to lighten it. LoRAs trained on a Pony model are labelled Pony automatically. ERNIE can be trained on the <b>⚡ fast-engine ERNIE</b> (it learns a LoRA on top of the 4-bit model, with low-memory settings): it suits 16 GB+ Macs and is experimental on 8 GB, where it may run out of memory or take many hours. The full-precision ERNIE needs 32 GB+.",
@@ -1136,6 +1233,13 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "New in 1.5.0: if something doesn't work", items: [
+              "<b>Cut out (or 👤 Subject) says it can't download</b>: its model (~224 MB) downloads once from Hugging Face. Turn off Strict offline mode in Settings → Privacy for the download, then it works offline.",
+              "<b>Cut out keeps a bit of background or loses hair</b>: lower the <b>Threshold</b> to keep more (hair, fur), raise it to drop background; shrink the edge 1–3 px for a halo; look at <b>Mask</b> to judge it. For a busy background, a small brush fix in Puppet warp's selection helps.",
+              "<b>Puppet warp: a part twists too much</b>: switch to <b>Rigid</b>, add a pin either side of the joint, or set the chosen pin's <b>Rotate</b> (or press auto). <b>A thin outline shows around the subject</b>: shrink <b>Expansion</b> 1–3 px and raise <b>Feather</b>.",
+              "<b>Adjust: an own-settings point does nothing</b>: its sliders start as a copy of the step's; change them in the ⚙ box under it. Points and paint still decide where it shows.",
+              "<b>Inpaint: my model is greyed out</b>: you have an inpainting model, so Inpaint uses it. Switch off <b>🖌 Paint with an inpainting model</b> in Settings to inpaint with any SD 1.5 / SDXL model.",
+              "<b>Space doesn't move the picture</b>: zoom in first (Space only moves a zoomed picture), and point at the picture." ] },
             { h: "New in 1.4.2: if something doesn't work", items: [
               "<b>A LoRA made with Convert → LoRA doesn't look like the person</b>: almost always the base model isn't the one the model was made from (another version of epiCRealism, DiffusionBee's own SD 1.5…). Press <b>🔍 Find it for me</b> next to Its base model: it measures which of your models is closest; <b>· scan a folder or drive…</b> looks on an external drive too. “Sister models” means several are about equally close: they were all made from the same original, which isn't there yet (often the plain SD 1.5 v1-5-pruned-emaonly, or DiffusionBee's default model); add it and scan again. A bigger size (64 or 128) keeps more of the likeness.",
               "<b>Puppet warp's subject has a halo or leftover edge</b>: select a little past the subject's outline (Brush, or ＋ Add with the Lasso), then ✓ Use this subject again. The fill covers a few pixels more than the selection for this reason.",
@@ -1350,7 +1454,7 @@ const protoartApp = createApp({
       localErr: "",
       localOk: "",  // "Model imported" note after Add from your Mac
       train: Object.assign({ model: "", folder: "", items: [], capMode: "tags", name: "", trigger: "", format: "kohya", kind: "character",
-                             precision: "fp16", save_every: 0, preset: "standard", steps: 1000, lr: 0.0001, rank: 16,
+                             precision: "fp16", save_every: 0, preset: "recommended", steps: 1000, lr: 0.0001, rank: 16,
                              resolution: 512, targets: "attention", flip: true, train_text_encoder: false,
                              dirty: false, result: null, lossHistory: [], secPerStep: null, spsBy: {},
                              mode: "lora", emb: { name: "", init: "", kind: "object", vectors: 2, steps: 1500, save_every: 0 } },
@@ -1618,7 +1722,8 @@ const protoartApp = createApp({
       // Image to image → Inpaint / Expand with an SD 1.5 (or SDXL) model: an inpainting checkpoint of the same type,
       // when you have one, does the painting (it's made for filling in; Create never uses it). Off: your own model.
       if (this.opts.use_inpaint_model === false) return null;
-      return this.models.find((m) => m.inpaint && m.family === this.family && this.isInstalled(m) && this.safeModel(m)) || null;
+      const picked = this.models.find((m) => m.id === this.i2iInpaintPick && m.inpaint && m.family === this.family && this.isInstalled(m));
+      return picked || this.models.find((m) => m.inpaint && m.family === this.family && this.isInstalled(m) && this.safeModel(m)) || null;
     },
     inpaintModels() {
       return this.models.filter((m) => m.inpaint && this.isInstalled(m));
@@ -1730,8 +1835,10 @@ const protoartApp = createApp({
       const by = (f) => this.models.filter((m) => f(m) && this.safeModel(m) && !(hasFull && m.id === "sdxl_int8"));
       return [
         { name: "SD 1.5", models: by((m) => m.family === "sd15") },
-        { name: "SDXL", models: by((m) => m.family === "sdxl") },
-        { name: "ERNIE", models: by((m) => m.family === "ernie") },
+        { name: "Pony / Illustrious (SDXL, tag prompts)", models: by((m) => m.family === "sdxl" && ["pony", "illustrious", "noobai", "animagine"].includes(m.flavor)) },
+        { name: "SDXL", models: by((m) => m.family === "sdxl" && !["pony", "illustrious", "noobai", "animagine"].includes(m.flavor)) },
+        { name: "ERNIE · ⚡ fast engine (4-bit: trains on smaller Macs)", models: by((m) => m.family === "ernie" && m.engine === "mlx") },
+        { name: "ERNIE (full precision: 32 GB+)", models: by((m) => m.family === "ernie" && m.engine !== "mlx") },
         { name: "Other", models: by((m) => !["sd15", "sdxl", "ernie"].includes(m.family)) },
       ].filter((g) => g.models.length);
     },
@@ -1818,10 +1925,40 @@ const protoartApp = createApp({
     trainCaptioned() {
       return this.train.items.filter((i) => (i.caption || "").trim()).length;
     },
+    trainFlavor() {  // Pony / Illustrious / … (SDXL models built for tags)
+      const m = this.models.find((x) => x.id === this.train.model);
+      return (m && m.flavor) || "";
+    },
+    // ★ Recommended: settings that suit what you're training (person, object, style, concept) and the base model
+    // (SD 1.5, SDXL, Pony / Illustrious, ERNIE on the fast engine), on this Mac. The usual community starting points:
+    // people and objects ~1e-4 with ~80–100 steps a picture; styles a gentler 5e-5 with more layers and rank.
+    trainRecommended() {
+      const n = this.train.items.length || 15, fam = this.trainFamily, kind = this.train.kind || "character";
+      const ram = this.sys.ram_gb || 0, fast = this.trainFastErnie, tagged = ["pony", "illustrious", "noobai", "animagine"].includes(this.trainFlavor);
+      const per = { character: 100, object: 80, style: 60, concept: 80 }[kind] || 100;
+      const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Math.round(v / 50) * 50));
+      let steps = clamp(n * per, kind === "style" ? 1000 : 600, kind === "style" ? 3000 : 2000);
+      let lr = kind === "style" ? 0.00005 : 0.0001;
+      let rank = kind === "style" ? 32 : 16;
+      const targets = kind === "style" || kind === "concept" ? "full" : "attention";
+      const flip = kind !== "character";  // a face isn't the same mirrored (a parting, a scar, a logo)
+      let te = fam === "sd15" && kind !== "style";
+      let res = { sd15: 512, sdxl: ram && ram < 16 ? 768 : 1024, ernie: 768 }[fam] || 512;
+      if (fast) { rank = ram && ram < 16 ? 8 : 16; res = ram && ram < 16 ? 512 : 768; steps = Math.min(steps, 1500); te = false; }
+      if (fam === "sdxl") { te = false; if (kind === "style") steps = Math.min(steps, 2500); }
+      const famName = fast ? "ERNIE ⚡ fast engine" : tagged ? this.flavorName(this.trainFlavor) : { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE" }[fam] || fam;
+      const kindName = (this.trainKinds.find((k) => k.id === kind) || {}).label || kind;
+      return { id: "recommended", label: "★ Recommended", steps, lr, rank, targets, flip, train_text_encoder: te, resolution: res,
+               capMode: tagged ? "tags" : undefined,
+               tip: `Best starting point for ${kindName} on ${famName}: ${steps} steps, learning rate ${lr}, rank ${rank}, ${targets === "full" ? "all layers" : "attention layers"}, ${res} px` +
+                    `${flip ? ", mirrored copies" : ", no mirroring (keeps a face's own sides)"}${te ? ", text encoder too" : ""}` +
+                    (tagged ? ". Pony / Illustrious learn from tags: caption with Tags, and don't put score_9 etc. in the captions" : "") };
+    },
     trainPresets() {
       const n = this.train.items.length || 15;
       const base = Math.min(2000, Math.max(400, Math.round(n * 100 / 10) * 10));
       return [
+        this.trainRecommended,
         { id: "quick", label: "Quick", steps: Math.round(base * 0.5 / 50) * 50, lr: 0.0002, rank: 8, tip: "Fast test run" },
         { id: "standard", label: "Standard", steps: base, lr: 0.0001, rank: 16, tip: "Good default (~100 steps per image)" },
         { id: "thorough", label: "Thorough", steps: Math.min(4000, base * 2), lr: 0.0001, rank: 32, tip: "More detail, takes twice as long" },
@@ -2019,8 +2156,22 @@ const protoartApp = createApp({
       const done = (this.now - this.tool.working.started) / 1000;
       return Math.min(97, Math.round((done / (done + e.remaining)) * 100));
     },
+    i2iInpaintOnly() {  // Inpaint mode with inpainting models installed: only they are offered (the rest greyed out)
+      return this.form.i2i_mode === "inpaint" && this.opts.use_inpaint_model !== false &&
+        this.installedModels.some((m) => m.inpaint && ["sd15", "sdxl"].includes(m.family) && this.safeModel(m));
+    },
     i2iModelGroups() {
       const ok = (m) => (m.family === "sd15" || m.family === "sdxl") && m.engine !== "mlx";
+      if (this.i2iInpaintOnly) {
+        const ins = this.sortModels(this.installedModels.filter((m) => m.inpaint && ok(m) && this.safeModel(m)));
+        const rest = (fam) => this.sortModels(this.installedModels.filter((m) => m.family === fam && !m.inpaint))
+          .map((m) => ({ ...m, i2iOk: false, why: " — not an inpainting model" }));
+        return [
+          { name: "🎯 Inpainting models · made for filling in what you paint", models: ins.map((m) => ({ ...m, i2iOk: true })) },
+          { name: "SD 1.5 · used with Change it, ControlNet…", models: rest("sd15") },
+          { name: "SDXL / Pony · used with Change it, ControlNet…", models: rest("sdxl") },
+        ].filter((g) => g.models.length);
+      }
       const mark = (list) => list.map((m) => ({ ...m, i2iOk: ok(m) }));
       return [
         { name: "SD 1.5 · image to image, inpaint, ControlNet (built-in + yours), image prompt (IP-Adapter)", models: mark(this.sortModels(this.installedModels.filter((m) => m.family === "sd15" && !m.inpaint))) },
@@ -2431,6 +2582,9 @@ const protoartApp = createApp({
     "adj.p": { deep: true, handler() { this.adjRender(); } },
     "pw.pins": { deep: true, handler() { this.pwRender(); } },
     "pw.original"() { this.pwRender(); },
+    "pw.showMesh"() { this.pwRender(); },
+    "post.cut": { deep: true, handler() { if (this.cut.open) this.cutRender(); } },
+    "cut.view"() { this.cutRender(); },
     "adj.before"() { this.adjRender(); },
     "adj.view"() { this.adjRender(); },
     "adj.split"() { this.adjRender(); },
@@ -2448,7 +2602,9 @@ const protoartApp = createApp({
         im.src = this.fileUrl(v);
       },
     },
-    "tool.source"() { this.tool.healing = false; this.zoomReset("tools"); },
+    "tool.source"() { this.tool.healing = false; this.zoomReset("tools"); if (this.cut.open) this.closeCutout(); },
+    "train.kind"() { if (this.train.preset === "recommended") this.applyTrainPreset(this.trainRecommended); },
+    "train.model"() { if (this.train.preset === "recommended") this.applyTrainPreset(this.trainRecommended); },
     "form.init_image"() { this.zoomReset("i2iSrc"); this.zoomReset("i2i"); },  // a new picture in Tools: stop painting on the old one
     train: { deep: true, handler(v) {
       const { items, result, lossHistory, dirty, ...keep } = v;
@@ -2464,17 +2620,27 @@ const protoartApp = createApp({
     window.ProtoTips?.setEnabled(this.opts.tooltips !== false);
     window.addEventListener("keydown", (e) => this.adjKey(e));  // Adjust: \ flips Edited / Original
     window.addEventListener("keydown", (e) => this.selKey(e));
+    window.addEventListener("keydown", (e) => this.pwKey(e));  // Puppet warp: ⌘Z, Enter, Delete
     // Space held over Tools / Image to image: drag to move around a zoomed picture
     window.addEventListener("keydown", (e) => {
       if (e.key !== " " || e.repeat || !["tools", "i2i"].includes(this.tab)) return;
       const t = e.target;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.tagName === "BUTTON" || t.isContentEditable)) return;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
       const k = this.tab === "tools" ? "tools" : "i2i";
       if (this.zoom[k].z <= 1 && this.zoom.i2iSrc.z <= 1) return;
+      // a button that was just clicked (Brush, Add…) keeps the keyboard: Space would press it again, so let go of it
+      if (t && t.tagName === "BUTTON") t.blur();
       e.preventDefault();
       this.zoomSpace = true;
+      this.brush.show = false;  // the hand, not the brush ring, while moving around
     });
-    window.addEventListener("keyup", (e) => { if (e.key === " ") this.zoomSpace = false; });
+    window.addEventListener("keyup", (e) => {
+      if (e.key !== " " || !this.zoomSpace) return;
+      e.preventDefault();
+      this.zoomSpace = false;
+      const p = this._brushPtr;  // back to painting: the ring comes back under the pointer
+      if (p) this.$nextTick(() => this.brushAt({ clientX: p.x, clientY: p.y }));
+    });
     window.addEventListener("blur", () => { this.zoomSpace = false; });
     window.addEventListener("keydown", (e) => { if (e.key === "Escape" && this.ctx) this.ctx = null; });  // right-click menu
     window.addEventListener("keydown", (e) => {  // a picture's details: ← → step through the pictures, Esc closes
@@ -3279,17 +3445,39 @@ const protoartApp = createApp({
       this.status = "Create is reset: prompts and LoRAs cleared" + (freed && freed.unloaded ? ", model taken out of memory" : "") +
         ", everything back to the start, sections folded";
     },
-    resetTools() {
-      this.toolsUndo = JSON.parse(JSON.stringify(this.post));
+    resetTools() {  // every module's settings in the Tools window, all at once (pictures and presets aren't touched)
+      const keep = { tup: this.tup, qnt: this.qnt, mrg: this.mrg, cvt: this.cvt, heal: this.form.heal_method,
+                     pw: { mode: this.pw.mode, density: this.pw.density, showMesh: this.pw.showMesh, expand: this.pw.expand, feather: this.pw.feather, showBg: this.pw.showBg } };
+      this.toolsUndo = JSON.parse(JSON.stringify({ post: this.post, ...keep }));
       this.toolsUndoCables = this.patch.running ? null : JSON.parse(JSON.stringify(this.patch.cables || []));
       this.post = defaultPost();
+      for (const k of Object.keys(TOOL_STATE_DEFAULTS)) if (!(k === "qnt" && this.quantJob) && !(k === "mrg" && this.mrgJob) && !(k === "cvt" && this.cvtJob)) this[k] = TOOL_STATE_DEFAULTS[k]();
+      this.form.heal_method = "lama";
+      if (this.pw.open) this.pwResetSettings(); else Object.assign(this.pw, { mode: "rigid", density: 48, showMesh: true, showBg: true });
+      if (this.adj.open && this.adj.p && window.ProtoAdjust) this.adjResetAll?.();
+      if (this.cut.open) this.cutRender();
       this.vecResult = null;
       if (!this.patch.running) this.patchReset("clear");  // the patchbay's cables come out too
-      this.status = "Tools settings reset and patchbay cables pulled out · undo puts them back";
+      this.status = "Every Tools setting is back to the start and the patchbay cables are pulled out · undo puts them back";
+    },
+    resetToolPart(id) {  // a module's own ↺: only its settings
+      const d = defaultPost(), part = TOOL_PARTS[id] || {};
+      for (const k of part.post || []) this.post[k] = d[k];
+      if (id === "heal") this.form.heal_method = "lama";
+      if (id === "tiled") this.tup = TOOL_STATE_DEFAULTS.tup();
+      if (id === "quant" && !this.quantJob) this.qnt = TOOL_STATE_DEFAULTS.qnt();
+      if (id === "merge" && !this.mrgJob) this.mrg = TOOL_STATE_DEFAULTS.mrg();
+      if (id === "convert" && !this.cvtJob) this.cvt = TOOL_STATE_DEFAULTS.cvt();
+      if (id === "cutout" && this.cut.open) this.cutRender();
+      this.status = "That module's settings are back to the start";
     },
     undoResetTools() {
       if (!this.toolsUndo) return;
-      this.post = this.toolsUndo;
+      const u = this.toolsUndo;
+      this.post = u.post || u;
+      for (const k of ["tup", "qnt", "mrg", "cvt"]) if (u[k]) this[k] = u[k];
+      if (u.heal) this.form.heal_method = u.heal;
+      if (u.pw) { Object.assign(this.pw, u.pw); if (this.pw.open) this.pwReload(); }
       if (this.toolsUndoCables && !this.patch.running) { this.patch.cables = this.toolsUndoCables; this.patchSave(); }
       this.toolsUndo = null;
       this.toolsUndoCables = null;
@@ -3841,6 +4029,7 @@ const protoartApp = createApp({
     // -------------------------------------------------------------- tools tab
     openInTools(r) {
       if (this.pw.open) this.closePuppet();
+      if (this.cut.open) this.closeCutout();
       this.tool.source = { path: r.path, image_id: r.id, width: r.width, height: r.height,
                            label: `Library image #${r.id}` };
       this.tool.latest = null;
@@ -4059,6 +4248,7 @@ const protoartApp = createApp({
       if (on) {
         if (this.adj.open) this.closeAdjust();
         if (this.pw.open) this.closePuppet();
+      if (this.cut.open) this.closeCutout();
         this.mask.data = this.patch.protect && this.patch.protect.for === this.tool.source.path ? this.patch.protect.data : null;
         this.mask.for = this.tool.source.path;
         this.mask.tab = "tools";
@@ -4954,6 +5144,7 @@ const protoartApp = createApp({
       }
     },
     setMaskTool(id) {
+      if (id === "subject") return this.selAutoSubject(this.mask.subtract);  // a one-click action, not a brush
       this.mask.tool = id;
       this.mask.erase = id === "erase";
       this.sel = null;
@@ -4992,7 +5183,7 @@ const protoartApp = createApp({
         this.status = `Brush size ${this.mask.size}`;
         return;
       }
-      const map = { b: "brush", e: "erase", l: "lasso", p: "poly", w: "wand", o: "object" };
+      const map = { b: "brush", e: "erase", l: "lasso", p: "poly", w: "wand", o: "object", s: "subject" };
       const id = map[(e.key || "").toLowerCase()];
       if (id) this.setMaskTool(id);
     },
@@ -5098,6 +5289,30 @@ const protoartApp = createApp({
       ctx.globalCompositeOperation = "source-over";
       this.maskSave();
     },
+    async selAutoSubject(sub) {  // 👤 Subject: the people / animals / main thing, found by the Cut out model
+      const cv = this.$refs.maskCanvas;
+      if (!cv || this.objFinding) return;
+      this.status = "Finding the subject…";
+      this.objFinding = true;
+      this.error = "";
+      try {
+        const r = await call("cutout", { mode: "mask", path: this.maskTarget(), width: cv.width, height: cv.height });
+        if (!r || !r.mask) throw new Error(this.error || "no answer");
+        if (!r.found) { this.status = "No clear subject found: drag a box with ⬚ Object, or paint it with the brush"; return; }
+        const img = new Image();
+        await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = r.mask; });
+        const cv2 = this.$refs.maskCanvas || cv, tmp = document.createElement("canvas");
+        tmp.width = cv2.width; tmp.height = cv2.height;
+        tmp.getContext("2d").drawImage(img, 0, 0, cv2.width, cv2.height);
+        this.selStamp(tmp.getContext("2d").getImageData(0, 0, cv2.width, cv2.height), sub);
+        if (this.mask.tool === "subject") this.mask.tool = "brush";
+        this.status = "Subject selected: fix the edge with 🖌 Brush / 🧽 Erase (or ＋ Add / － Subtract) if needed";
+      } catch (e) {
+        this.error = "Select subject failed: " + (e.message || e);
+      } finally {
+        this.objFinding = false;
+      }
+    },
     async objectSelect(x, y, w, h, sub) {  // object selection: the outline of the thing inside the box (OpenCV GrabCut)
       const cv = this.$refs.maskCanvas;
       this.status = "Finding the object…";
@@ -5176,7 +5391,9 @@ const protoartApp = createApp({
       const cv = this.$refs.maskCanvas;
       if (!cv) return;
       const r = cv.getBoundingClientRect(), z = this.zoom[this.tab === "tools" ? "tools" : "i2iSrc"].z || 1;
-      this.brush = { show: true, x: (e.clientX - r.left) / z, y: (e.clientY - r.top) / z };
+      this._brushPtr = { x: e.clientX, y: e.clientY, t: Date.now() };
+      clearTimeout(this._brushT);
+      this.brush = { show: !this.zoomSpace, x: (e.clientX - r.left) / z, y: (e.clientY - r.top) / z };
     },
     brushRingPx() {  // the ring sits inside the zoomed picture: keep it the brush's size on screen
       return this.mask.size / (this.zoom[this.tab === "tools" ? "tools" : "i2iSrc"].z || 1);
@@ -5261,12 +5478,17 @@ const protoartApp = createApp({
     zoomJustPanned() {  // a drag to move around isn't also a click (open the file picker, open the details…)
       return !!this._zoomPanned && Date.now() - this._zoomPanned < 400;
     },
-    brushPreview() {  // moving the size slider shows the ring in the middle of the picture for a moment
+    brushPreview() {  // a new brush size: the ring shows at the pointer (or, from the slider, in the middle for a moment)
       const cv = this.$refs.maskCanvas;
       if (!cv) return;
+      clearTimeout(this._brushT);
+      const p = this._brushPtr;
+      if (p && Date.now() - p.t < 60000) {  // the pointer is over the picture: leave the ring where it is, just resized
+        const r = cv.getBoundingClientRect();
+        if (p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom) { this.brushAt({ clientX: p.x, clientY: p.y }); return; }
+      }
       const r = cv.getBoundingClientRect(), z = this.zoom[this.tab === "tools" ? "tools" : "i2iSrc"].z || 1;
       this.brush = { show: true, x: r.width / 2 / z, y: r.height / 2 / z };
-      clearTimeout(this._brushT);
       this._brushT = setTimeout(() => { if (!this.mask.painting) this.brush.show = false; }, 900);
     },
     loraKindOf(l) {
@@ -5312,6 +5534,116 @@ const protoartApp = createApp({
       if (on && this.adj.open) this.closeAdjust();
       this.tool.healing = !!on;
       if (on) this.status = "Paint over what you want gone on the picture, then press 🩹 Remove";
+    },
+    // ✂ Cut out: the model's matte comes back once; the threshold / softness / grow sliders then work on it live,
+    // in the window (cutRefine mirrors backend/postprocess/cutout.py refine), and Save makes the file in the engine
+    async toolCutout() {
+      const s = this.tool.source;
+      if (!s) return;
+      if (this.adj.open) this.closeAdjust();
+      if (this.pw.open) this.closePuppet();
+      if (this.cut.open) this.closeCutout();
+      this.tool.healing = false;
+      Object.assign(this.cut, { open: true, busy: true, msg: "Finding the subject (the first time downloads the model, ~224 MB)…", path: s.path, view: "result" });
+      try {
+        const r = await this.runJob("cutout", { ...this.toolArgs(), mode: "matte" });
+        if (!r || !r.matte) throw new Error(this.error || "it didn't finish");
+        const [mb, ib] = await Promise.all([this.readImageBytes(r.matte), this.readImageBytes(s.path)]);
+        const [mi, ii] = await Promise.all([createImageBitmap(new Blob([mb])), createImageBitmap(new Blob([ib]))]);
+        const k = Math.min(1, 1200 / Math.max(ii.width, ii.height)), w = Math.max(1, Math.round(ii.width * k)), h = Math.max(1, Math.round(ii.height * k));
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        const ctx = c.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(ii, 0, 0, w, h);
+        const rgb = ctx.getImageData(0, 0, w, h);
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(mi, 0, 0, w, h);
+        const md = ctx.getImageData(0, 0, w, h).data, m = new Uint8Array(w * h);
+        for (let i = 0; i < m.length; i++) m[i] = md[i * 4];
+        cutCache = { m, rgb, w, h, k, full: [ii.width, ii.height] };
+        Object.assign(this.cut, { w, h, busy: false, msg: r.found ? "" : "No clear subject found: try a lower threshold" });
+        await this.$nextTick();
+        this.cutRender();
+      } catch (e) {
+        this.cut.busy = false;
+        this.cut.msg = "";
+        this.cut.open = false;
+        this.error = "Cut out failed: " + (e.message || e);
+      }
+    },
+    closeCutout() { this.cut.open = false; cutCache = null; },
+    cutAlpha() {  // threshold + softness (smoothstep), then grow / shrink (a square window), like the engine
+      const c = cutCache, o = this.post.cut;
+      if (!c) return null;
+      const t = Math.min(0.99, Math.max(0.01, o.threshold)), sft = Math.max(0, o.softness), lo = t - sft / 2, hi = t + sft / 2;
+      let a = new Uint8ClampedArray(c.m.length);
+      for (let i = 0; i < a.length; i++) {
+        const v = c.m[i] / 255;
+        let x;
+        if (hi - lo < 1e-3) x = v >= t ? 1 : 0;
+        else { x = Math.min(1, Math.max(0, (v - lo) / (hi - lo))); x = x * x * (3 - 2 * x); }
+        a[i] = Math.round(x * 255);
+      }
+      const g = Math.round(o.grow * c.k);
+      if (g) a = window.ProtoPuppet.grow(a, c.w, c.h, g);
+      return a;
+    },
+    cutRender() {
+      cancelAnimationFrame(this._cutF);
+      this._cutF = requestAnimationFrame(() => {
+        const cv = this.$refs.cutCanvas, c = cutCache;
+        if (!cv || !c) return;
+        cv.width = c.w; cv.height = c.h;
+        const a = this.cutAlpha(), out = new ImageData(c.w, c.h), d = out.data, src = c.rgb.data, o = this.post.cut;
+        const col = o.bg === "transparent" ? null : (o.bg === "white" ? [255, 255, 255] : o.bg === "black" ? [0, 0, 0]
+          : [1, 3, 5].map((i) => parseInt((o.color || "#ffffff").slice(i, i + 2), 16) || 0));
+        for (let i = 0; i < a.length; i++) {
+          const j = i * 4, al = a[i] / 255;
+          if (this.cut.view === "mask") { d[j] = d[j + 1] = d[j + 2] = a[i]; d[j + 3] = 255; continue; }
+          if (col) { for (let q = 0; q < 3; q++) d[j + q] = src[j + q] * al + col[q] * (1 - al); d[j + 3] = 255; }
+          else { d[j] = src[j]; d[j + 1] = src[j + 1]; d[j + 2] = src[j + 2]; d[j + 3] = a[i]; }
+        }
+        cv.getContext("2d").putImageData(out, 0, 0);
+      });
+    },
+    cutBg(b) { this.post.cut.bg = b; this.cutRender(); },
+    async cutSave() {
+      const s = this.tool.source, o = this.post.cut;
+      if (!s) return;
+      this.tool.working = { label: "Saving the cut-out", started: Date.now() };
+      try {
+        const rec = await this.runJob("cutout", { ...this.toolArgs(), mode: "save", threshold: o.threshold, softness: o.softness, grow: o.grow,
+          clean: o.clean, fix_edges: o.fix_edges, crop: o.crop,
+          background: o.bg === "transparent" ? "transparent" : o.bg === "white" ? "#ffffff" : o.bg === "black" ? "#000000" : o.color });
+        if (rec) { this.tool.latest = rec; this.afterPost(rec); this.closeCutout(); this.status = "Cut-out saved to the Library" + (o.bg === "transparent" ? " (a see-through PNG)" : ""); }
+      } finally { this.tool.working = null; }
+    },
+    cutSelectionDataUrl() {  // the refined cut-out as a selection (for 🪡 Puppet warp's subject)
+      const c = cutCache, a = this.cutAlpha();
+      if (!c || !a) return null;
+      const cv = document.createElement("canvas");
+      cv.width = c.w; cv.height = c.h;
+      const img = new ImageData(c.w, c.h);
+      for (let i = 0; i < a.length; i++) { const j = i * 4; img.data[j] = 255; img.data[j + 1] = 64; img.data[j + 2] = 129; img.data[j + 3] = a[i] >= 128 ? 255 : 0; }
+      cv.getContext("2d").putImageData(img, 0, 0);
+      return cv.toDataURL("image/png");
+    },
+    async cutToPuppet() {  // move the subject with pins and put it back into its scene
+      const s = this.tool.source, data = this.cutSelectionDataUrl();
+      if (!s || !data) return;
+      this.closeCutout();
+      await this.openPuppet({ path: s.path, id: s.image_id ?? null }, data);
+    },
+    async toolPaper() {
+      const s = this.tool.source, o = this.post.paper;
+      if (!s || this.paperJob) return;
+      this.paperJob = true;
+      this.tool.working = { label: "Making the paper cut-out", started: Date.now() };
+      this.tool.latest = null;
+      try {
+        const rec = await this.runJob("papercut", { ...this.toolArgs(), ...o, threshold: this.post.cut.threshold });
+        if (rec) { this.tool.latest = rec; this.afterPost(rec); }
+      } finally { this.tool.working = null; this.paperJob = false; }
     },
     async toolHeal() {
       const s = this.tool.source;
@@ -5475,7 +5807,7 @@ const protoartApp = createApp({
         const r = await call("train_scan", { folder: this.train.folder });
         this.train.items = r.items;
         this.train.dirty = false;
-        if (applyPreset) this.applyTrainPreset(this.trainPresets.find((p) => p.id === this.train.preset) || this.trainPresets[1]);
+        if (applyPreset) this.applyTrainPreset(this.trainPresets.find((p) => p.id === this.train.preset) || this.trainPresets[0]);
       } catch (e) {
         this.train.items = [];
         this.error = e.message;
@@ -5635,6 +5967,10 @@ const protoartApp = createApp({
     },
     applyTrainPreset(p) {
       Object.assign(this.train, { preset: p.id, steps: p.steps, lr: p.lr, rank: p.rank });
+      if (p.id === "recommended") {  // the rest of what suits this kind of LoRA
+        for (const k of ["targets", "flip", "train_text_encoder", "resolution"]) if (p[k] !== undefined) this.train[k] = p[k];
+        if (p.capMode) this.train.capMode = p.capMode;
+      }
     },
     async trainSaveCaptions() {
       const n = await call("train_captions_save", { items: this.train.items.map(({ path, caption }) => ({ path, caption })) });
@@ -6177,11 +6513,24 @@ const protoartApp = createApp({
           ": check them (✨ on an area adds detail), then Generate. ↩ puts things back.";
       } finally { this.regionPlanBusy = false; }
     },
+    useRegionTemplate(t) {  // 🗺 a ready-made layout: the areas, example prompts to edit, a picture shape that fits
+      this.regionPlanUndo = { regions: JSON.parse(JSON.stringify(this.form.regions)), prompt: this.form.prompt, size: [this.form.width, this.form.height] };
+      const r = this.form.regions;
+      Object.assign(r, { on: true, layout: t.layout, ratios: t.ratios, prompts: [...t.prompts] });
+      if (!this.form.prompt.trim() || this.REGION_TEMPLATES.some((x) => x.main === this.form.prompt.trim())) this.form.prompt = t.main;
+      const big = ["sdxl", "flux", "flux2", "ernie", "anima"].includes(this.family);
+      const sizes = { wide: big ? [1216, 832] : [768, 512], tall: big ? [832, 1216] : [512, 768], square: big ? [1024, 1024] : [512, 512] };
+      if (t.layout === "cols" && t.prompts.length >= 3) sizes.wide = big ? [1344, 768] : [896, 512];
+      const [w, h] = sizes[t.shape] || sizes.square;
+      this.form.width = w; this.form.height = h;
+      this.status = `${t.label}: areas, example prompts and a ${w} × ${h} size are set · edit the words · ↩ puts it back`;
+    },
     undoRegionPlan() {
       const u = this.regionPlanUndo;
       if (!u) return;
       this.form.regions = u.regions;
       this.form.prompt = u.prompt;
+      if (u.size) [this.form.width, this.form.height] = u.size;
       this.regionPlanUndo = null;
       this.status = "Areas and main prompt put back";
     },
@@ -6765,7 +7114,22 @@ const protoartApp = createApp({
         this.controlTypes = await call("control_types").catch(() => this.controlTypes);
       }
     },
+    i2iModelValue() {  // what the Image to image model list shows as picked
+      if (this.i2iUsesKlein) return "flux2_klein_mlx_q4";
+      if (this.i2iInpaintOnly) return (this.inpaintModel || {}).id || "";
+      return this.form.model;
+    },
     pickI2iModel(id) {  // Image to image's model list: FLUX.2 Klein means ✨ Edit with words (or Expand with its LoRA)
+      const m = this.models.find((x) => x.id === id);
+      if (m && m.inpaint) {  // 🎯 an inpainting model: it does the painted part; the LoRAs follow its type
+        this.i2iInpaintPick = id;
+        if (m.family !== this.family) {
+          const same = this.sortModels(this.installedModels.filter((x) => x.family === m.family && !x.inpaint && x.engine !== "mlx"))[0];
+          if (same) this.selectModel(same.id);
+        }
+        this.status = m.label + " will fill in what you paint";
+        return;
+      }
       if (id === "flux2_klein_mlx_q4") {
         if (this.form.i2i_mode === "outpaint") { this.form.outpaint_engine = "klein"; return; }
         return this.setI2iMode("edit");
@@ -7139,7 +7503,8 @@ const protoartApp = createApp({
       return { generated: "Original", img2img: "Image-to-image", faces: "Face-restored", enhanced: "Enhanced",
                depth: "Depth map", inpaint: "Inpainted", outpaint: "Expanded", grid: "Comparison grid",
                edited: "Edited", healed: "Objects removed", word_edit: "Edited with words", faceswap: "Face swap",
-               chain: "Model chain", tiled: "Tiled upscale", animation: "Animation", layer: "Layer" }[kind] || kind;
+               chain: "Model chain", tiled: "Tiled upscale", animation: "Animation", layer: "Layer", cutout: "Cut out",
+               papercut: "Paper cut-out" }[kind] || kind;
     },
     depthModelInfo(id) {
       return this.depthModels.find((d) => d.id === id) || this.depthModels[0];
@@ -7497,6 +7862,7 @@ const protoartApp = createApp({
     // Adjust lives in the Tools tab: the picture on the left becomes the live preview, the controls are a card on the right.
     async openAdjust(r, keepSettings = false) {
       if (this.pw.open) this.closePuppet();
+      if (this.cut.open) this.closeCutout();
       if (!r || !r.path) return;
       if (!window.ProtoAdjust) { this.error = "Adjust didn't load: quit and reopen the app."; return; }
       if (this.tab !== "tools" || !this.tool.source) {
@@ -7529,11 +7895,11 @@ const protoartApp = createApp({
       this.adj.busy = false;
     },
     // -------------------------------------------------------------- 🪡 Puppet warp (Tools)
-    async openPuppet(r) {
+    async openPuppet(r, subjectMask) {
       if (!window.ProtoPuppet) { this.error = "Puppet warp didn't load: quit and reopen the app."; return; }
       if (this.adj.open) this.closeAdjust();
       Object.assign(this.pw, { open: true, rec: r, pins: [], sel: -1, busy: true, msg: "Loading the picture…", error: "", original: false, ovl: null,
-                               selecting: false, subject: null });
+                               selecting: false, subject: null, whole: false, hist: [], fut: [] });
       try {
         const bmp = await createImageBitmap(new Blob([await this.readImageBytes(r.path)]));
         await this.$nextTick();
@@ -7542,32 +7908,44 @@ const protoartApp = createApp({
         if (pwEngine) pwEngine.destroy();
         pwEngine = new window.ProtoPuppet.PuppetEngine(canvas);
         pwEngine.setDensity(this.pw.density);
+        pwEngine.setMode(this.pw.mode);
         await pwEngine.setImage(bmp, 1600);
         this.pw.size = [bmp.width, bmp.height];
+        this.pwEdgeDefaults();
         this.pw.msg = "";
         this.pwRender();
         this.$nextTick(() => document.getElementById("puppet-card")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+        if (subjectMask) { this.pw.busy = false; await this.pwUseSubject(subjectMask); }  // from ✂ Cut out: already separated
       } catch (e) {
         this.pw.error = "Couldn't open the picture for Puppet warp: " + (e.message || e);
       }
       this.pw.busy = false;
+    },
+    pwEdgeDefaults() {  // a soft edge that suits the picture's size (about 3 px on a 768 px picture)
+      const m = Math.max(...(this.pw.size || [768, 768]));
+      this.pw.feather = Math.max(1, Math.round(m / 256));
+      this.pw.expand = -Math.max(1, Math.round(m / 768));
     },
     closePuppet() {
       if (this.pw.selecting) { this.pw.selecting = false; this.tool.healing = false; }
       this.pw.subject = null;
       this.pw.open = false;
       this.pw.pins = [];
+      this.pw.hist = []; this.pw.fut = [];
       if (pwEngine) { pwEngine.destroy(); pwEngine = null; }
     },
-    // ✂ Subject: choose it with the selection tools (⬚ Object is quickest), then only it bends; what was behind it
-    // is filled in (Smart fill), so moving an arm or a lantern doesn't leave a copy of it behind
+    // Step 1 · ✂ Subject: choose it with the selection tools (👤 Subject finds it by itself, ⬚ Object from a box),
+    // then only it bends; what was behind it is filled in (Smart fill), so moving an arm or a lantern doesn't leave a
+    // copy of it behind
     pwSelectSubject() {
       if (!this.pw.rec || this.pw.busy) return;
       this.pw.selecting = true;
       this.mask.data = null;
-      this.mask.tool = "object";
+      this.mask.tool = "brush";
+      this.mask.erase = false;
       this.tool.healing = true;  // the picture on the left with the selection tools
-      this.status = "Select the subject: ⬚ Object (drag a box around it) is quickest; Brush, Lasso or Polygon to fix the edge. Then ✓ Use this subject";
+      this.status = "Select the subject: 👤 Subject finds the person or animal by itself; ⬚ Object from a box; Brush or Lasso fix the edge. Then ✓ Use this subject";
+      this.$nextTick(() => setTimeout(() => this.selAutoSubject(), 250));
     },
     pwCancelSelect() {
       this.pw.selecting = false;
@@ -7582,54 +7960,70 @@ const protoartApp = createApp({
       if (pwEngine) pwEngine.destroy();
       pwEngine = new window.ProtoPuppet.PuppetEngine(canvas);
       pwEngine.setDensity(this.pw.density);
+      pwEngine.setMode(this.pw.mode);
+      pwEngine.edge = { expand: this.pw.expand, feather: this.pw.feather };
+      pwEngine.hideBg = !this.pw.showBg;
       await pwEngine.setImage(await createImageBitmap(new Blob([await this.readImageBytes(r.path)])), 1600);
       if (sub) await pwEngine.setSubject(sub.matte, sub.bgBitmap);
       this.pw.pins = pins;
       this.pwRender();
     },
-    async pwUseSubject() {
+    async pwUseSubject(given) {
       const r = this.pw.rec;
-      if (!this.maskIsFor("tools", r.path)) return (this.error = "Select the subject first (⬚ Object: drag a box around it).");
-      const data = this.mask.data;
+      const data = typeof given === "string" ? given : this.maskIsFor("tools", r.path) ? this.mask.data : null;
+      if (!data) return (this.error = "Select the subject first (👤 Subject, or ⬚ Object: drag a box around it).");
       this.pw.selecting = false;
       this.tool.healing = false;
       this.pw.busy = true;
-      this.pw.msg = "Filling in what's behind the subject…";
+      this.pw.msg = "Step 1 · filling in what's behind the subject…";
       try {
         const res = await this.runJob("heal", { init_image: r.path, mask: data, method: "lama", grow: 10, temp: true });
         if (!res || !res.path) throw new Error(this.error || "the fill didn't finish");
-        const bgBitmap = await createImageBitmap(new Blob([await this.readImageBytes(res.path)]));
-        // the subject's mask at the picture's size, with a slightly soft edge
+        const healed = await createImageBitmap(new Blob([await this.readImageBytes(res.path)]));
         const img = new Image();
         await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = data; });
         const [w, h] = this.pw.size;
-        const c = document.createElement("canvas");
-        c.width = w; c.height = h;
-        const ctx = c.getContext("2d");
-        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, w, h);
-        ctx.filter = `blur(${Math.max(1, Math.round(Math.max(w, h) / 900))}px)`;
-        // painted pixels -> white (the mask PNG is coloured paint on transparent)
+        // the subject's mask at the picture's size (painted or see-through pixels -> white)
         const m = document.createElement("canvas");
         m.width = w; m.height = h;
-        const mc = m.getContext("2d");
+        const mc = m.getContext("2d", { willReadFrequently: true });
         mc.drawImage(img, 0, 0, w, h);
         const d = mc.getImageData(0, 0, w, h), px = d.data;
-        for (let i = 0; i < px.length; i += 4) { const a = px[i + 3] > 32 ? 255 : 0; px[i] = px[i + 1] = px[i + 2] = a; px[i + 3] = 255; }
+        for (let i = 0; i < px.length; i += 4) { const a = px[i + 3]; px[i] = px[i + 1] = px[i + 2] = a; px[i + 3] = 255; }
         mc.putImageData(d, 0, 0);
-        ctx.drawImage(m, 0, 0);
-        const matte = await createImageBitmap(c);
+        const matte = await createImageBitmap(m);
+        // the filled-in background, blended into the untouched picture with a soft edge, so the fill's border
+        // doesn't show as an outline where the subject used to be
+        const grown = window.ProtoPuppet.shapeMatte(m, w, h, Math.round(Math.max(w, h) / 60), Math.max(4, Math.round(Math.max(w, h) / 120)));
+        const bg = document.createElement("canvas");
+        bg.width = w; bg.height = h;
+        const bc = bg.getContext("2d");
+        const orig = await createImageBitmap(new Blob([await this.readImageBytes(r.path)]));
+        bc.drawImage(orig, 0, 0, w, h);
+        const fill = document.createElement("canvas");
+        fill.width = w; fill.height = h;
+        const fc = fill.getContext("2d", { willReadFrequently: true });
+        fc.drawImage(healed, 0, 0, w, h);
+        const fd = fc.getImageData(0, 0, w, h), gd = grown.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, w, h);
+        for (let i = 0; i < fd.data.length; i += 4) fd.data[i + 3] = gd.data[i];
+        fc.putImageData(fd, 0, 0);
+        bc.drawImage(fill, 0, 0);
+        const bgBitmap = await createImageBitmap(bg);
         this.pw.subject = { matte, bgBitmap, bg: res.path };
+        this.pw.whole = false;
+        this.pwSnap();
         this.pw.pins = [];
         await this.pwReload();
-        this.status = "Subject separated: pin and bend it; the background stays put and is filled in behind it";
+        this.status = "Step 2 · put pins on the subject: on what should stay still, then drag the one that should move";
       } catch (e) {
         this.pw.error = "Couldn't separate the subject: " + (e.message || e);
       }
       this.pw.busy = false;
       this.pw.msg = "";
     },
-    async pwWholePicture() {  // back to bending the whole picture
+    async pwWholePicture() {  // bend the whole picture (no subject layer)
       this.pw.subject = null;
+      this.pw.whole = true;
       if (pwEngine) await pwEngine.setSubject(null, null);
       this.pwRender();
     },
@@ -7639,7 +8033,40 @@ const protoartApp = createApp({
       pwFrame = requestAnimationFrame(() => {
         try { pwEngine.render(this.pw.pins, this.pw.original); } catch (e) { this.pw.error = e.message; }
         this.pwPlaceOverlay();
+        this.$nextTick(() => this.pwDrawMesh());
       });
+    },
+    pwDrawMesh() {  // Show mesh: the bent grid over the subject (or the whole picture), like Photoshop
+      const c = this.$refs.pwMesh;
+      if (!c || !this.pw.ovl) return;
+      const z = this.zoom.tools.z || 1, dpr = window.devicePixelRatio || 1, k = dpr * Math.min(4, z);
+      const W = Math.round(this.pw.ovl[2] * k), H = Math.round(this.pw.ovl[3] * k);
+      if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0, 0, W, H);
+      if (!this.pw.showMesh || this.pw.original || !pwEngine) return;
+      const m = pwEngine.mesh(this.pw.pins);
+      if (!m) return;
+      const n = m.n, st = n > 56 ? 2 : 1, P = m.pts, at = (i, j) => [P[(j * (n + 1) + i) * 2] * W, P[(j * (n + 1) + i) * 2 + 1] * H];
+      const inBlock = (i, j) => {
+        if (!m.cells) return true;
+        for (let y = j; y < Math.min(n, j + st); y++) for (let x = i; x < Math.min(n, i + st); x++) if (m.cells[y * n + x]) return true;
+        return false;
+      };
+      ctx.beginPath();
+      for (let j = 0; j < n; j += st) for (let i = 0; i < n; i += st) {
+        if (!inBlock(i, j)) continue;
+        const i2 = Math.min(n, i + st), j2 = Math.min(n, j + st);
+        const a = at(i, j), b = at(i2, j), cc = at(i2, j2), d = at(i, j2);
+        ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(cc[0], cc[1]); ctx.lineTo(d[0], d[1]); ctx.lineTo(a[0], a[1]);
+        ctx.lineTo(cc[0], cc[1]);  // the diagonal: the mesh is made of triangles
+      }
+      ctx.lineWidth = 0.7 * dpr;
+      ctx.strokeStyle = "rgba(20, 20, 20, 0.45)";
+      ctx.stroke();
+      ctx.lineWidth = 0.45 * dpr;
+      ctx.strokeStyle = "rgba(235, 235, 235, 0.7)";
+      ctx.stroke();
     },
     pwPlaceOverlay() {
       const c = this.$refs.pwCanvas, wrap = c && c.parentElement;
@@ -7653,35 +8080,115 @@ const protoartApp = createApp({
       return [Math.min(1, Math.max(0, (e.clientX - r.left) / Math.max(1, r.width))),
               Math.min(1, Math.max(0, (e.clientY - r.top) / Math.max(1, r.height)))];
     },
+    // ↶ Undo / ↷ Redo: every pin change (add, move, turn, remove) can be taken back
+    pwSnap() {
+      this.pw.hist.push(JSON.stringify(this.pw.pins));
+      if (this.pw.hist.length > 200) this.pw.hist.shift();
+      this.pw.fut = [];
+    },
+    pwUndo() {
+      if (!this.pw.hist.length) return;
+      this.pw.fut.push(JSON.stringify(this.pw.pins));
+      this.pw.pins = JSON.parse(this.pw.hist.pop());
+      this.pw.sel = Math.min(this.pw.sel, this.pw.pins.length - 1);
+      this.status = "Undone";
+    },
+    pwRedo() {
+      if (!this.pw.fut.length) return;
+      this.pw.hist.push(JSON.stringify(this.pw.pins));
+      this.pw.pins = JSON.parse(this.pw.fut.pop());
+      this.pw.sel = Math.min(this.pw.sel, this.pw.pins.length - 1);
+      this.status = "Redone";
+    },
+    pwKey(e) {  // ⌘Z / ⇧⌘Z undo / redo · Enter / Return saves · Delete takes the chosen pin out · Esc lets go of it
+      if (!this.pw.open || this.pw.selecting || this.tab !== "tools") return;
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      const k = (e.key || "").toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && k === "z") { e.preventDefault(); return e.shiftKey ? this.pwRedo() : this.pwUndo(); }
+      if ((e.metaKey || e.ctrlKey) && k === "y") { e.preventDefault(); return this.pwRedo(); }
+      if (e.metaKey || e.ctrlKey) return;
+      if (k === "enter" && t && t.tagName === "BUTTON") return;  // Enter on a button presses that button
+      if (k === "enter") { e.preventDefault(); if (this.pwMoved() && !this.pw.busy) this.pwSave(); return; }
+      if ((k === "delete" || k === "backspace") && this.pw.sel >= 0) { e.preventDefault(); return this.pwRemovePin(this.pw.sel); }
+      if (k === "escape") this.pw.sel = -1;
+    },
     pwStageDown(e) {  // click the picture: a new pin there (it holds that spot until you drag it)
+      if (e.button !== 0) return;
       if (this.pw.pins.length >= 40) { this.status = "That's the most pins (40): remove one first"; return; }
+      if (!this.pw.subject && !this.pw.whole) this.pw.whole = true;  // pins before step 1: the whole picture bends
       const [x, y] = this.pwXY(e);
       const [ox, oy] = this.pwUnwarp(x, y);  // the spot of the original picture that's under the click now
-      this.pw.pins = [...this.pw.pins, { x: ox, y: oy, tx: x, ty: y }];
+      this.pwSnap();
+      this.pw.pins = [...this.pw.pins, { x: ox, y: oy, tx: x, ty: y, rot: null }];
       this.pw.sel = this.pw.pins.length - 1;
-      this.pwPinDown(e, this.pw.sel);
+      this.pwPinDown(e, this.pw.sel, true);
     },
     pwUnwarp(x, y) {  // where a point of the bent picture came from (the pins swapped round: close enough)
       const pins = this.pw.pins;
       if (!pins.length) return [x, y];
       const [w, h] = this.pw.size || [1, 1];
-      return window.ProtoPuppet.mlsRigid(x, y, pins.map((k) => [k.tx, k.ty]), pins.map((k) => [k.x, k.y]), w / h);
+      const P = window.ProtoPuppet, [p, q] = P.controls(pins, w / h);
+      return P.mls(x, y, q.map((v, i) => [v[0], v[1], p[i][2]]), p, w / h, this.pw.mode);
     },
-    pwPinDown(e, i) {
-      if (e.altKey) { this.pwRemovePin(i); return; }  // ⌥-click a pin: take it out
+    pwPinDown(e, i, fresh) {  // drag: move the pin · ⌥ + drag: turn the picture around it · ⌥-click: take it out
       this.pw.sel = i;
+      if (!fresh) this.pwSnap();
+      const [x0, y0] = this.pwXY(e), pin0 = { ...this.pw.pins[i] };
+      const turning = e.altKey;
+      let moved = false;
+      const r = this.$refs.pwOverlay.getBoundingClientRect(), asp = r.width / Math.max(1, r.height);
+      const a0 = Math.atan2(y0 - pin0.ty, (x0 - pin0.tx) * asp);
       const move = (ev) => {
         const [x, y] = this.pwXY(ev);
-        this.pw.pins = this.pw.pins.map((k, n) => (n === i ? { ...k, tx: x, ty: y } : k));
+        if (Math.abs(x - x0) * r.width + Math.abs(y - y0) * r.height > 3) moved = true;
+        if (!moved) return;
+        if (turning) {
+          const a = Math.atan2(y - pin0.ty, (x - pin0.tx) * asp);
+          this.pwSetRot(i, (pin0.rot || 0) + a - a0, true);
+        } else this.pw.pins = this.pw.pins.map((k, n) => (n === i ? { ...k, tx: x, ty: y } : k));
       };
+      const up = () => {
+        window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+        if (turning && !moved && !fresh) { this.pw.hist.pop(); this.pwRemovePin(i); }  // ⌥-click: out
+        else if (!moved && !fresh) this.pw.hist.pop();  // just picked it: nothing to undo
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    },
+    pwRotDown(e, i) {  // the turn handle beside the chosen pin: drag it round
+      e.preventDefault();
+      this.pwSnap();
+      const pin0 = { ...this.pw.pins[i] }, r = this.$refs.pwOverlay.getBoundingClientRect();
+      const cx = r.left + pin0.tx * r.width, cy = r.top + pin0.ty * r.height;
+      const a0 = Math.atan2(e.clientY - cy, e.clientX - cx);
+      const move = (ev) => this.pwSetRot(i, (pin0.rot || 0) + Math.atan2(ev.clientY - cy, ev.clientX - cx) - a0, true);
       const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
     },
+    pwSetRot(i, rad, live) {  // rad: radians, or null = turn freely with the bend (Photoshop's "Auto")
+      if (!live) this.pwSnap();
+      let v = rad == null ? null : Math.atan2(Math.sin(rad), Math.cos(rad));
+      if (v != null && Math.abs(v) < 0.002) v = 0;
+      this.pw.pins = this.pw.pins.map((k, n) => (n === i ? { ...k, rot: v } : k));
+    },
+    pwRotDeg(k) { return k && k.rot != null ? Math.round((k.rot * 180) / Math.PI) : 0; },
+    pwRotHandle(k) {  // where the turn handle sits: on a ring around the pin, at the pin's angle
+      const a = (k.rot || 0) - Math.PI / 2, R = 34 / (this.zoom.tools.z || 1);
+      return { left: `calc(${k.tx * 100}% + ${Math.cos(a) * R}px)`, top: `calc(${k.ty * 100}% + ${Math.sin(a) * R}px)` };
+    },
     pwRemovePin(i) {
       const n = i != null && i >= 0 ? i : this.pw.sel >= 0 ? this.pw.sel : this.pw.pins.length - 1;
       if (n < 0) return;
+      this.pwSnap();
       this.pw.pins = this.pw.pins.filter((_k, k) => k !== n);
+      this.pw.sel = -1;
+    },
+    pwRemoveAll() {
+      if (!this.pw.pins.length) return;
+      this.pwSnap();
+      this.pw.pins = [];
       this.pw.sel = -1;
     },
     pwPinStyle(k) {
@@ -7691,8 +8198,33 @@ const protoartApp = createApp({
       this.pw.density = n;
       if (pwEngine) { pwEngine.setDensity(n); this.pwRender(); }
     },
+    pwSetMode(m) {
+      this.pw.mode = m;
+      if (pwEngine) { pwEngine.setMode(m); this.pwRender(); }
+    },
+    pwSetEdge() {  // Expansion / Feather moved
+      clearTimeout(this._pwEdgeT);
+      this._pwEdgeT = setTimeout(() => { if (pwEngine) { pwEngine.setEdge(this.pw.expand, this.pw.feather); this.pwRender(); } }, 60);
+    },
+    pwSetShowBg(v) {
+      this.pw.showBg = v;
+      if (pwEngine) { pwEngine.hideBg = !v; this.pwRender(); }
+    },
+    pwResetSettings() {
+      Object.assign(this.pw, { mode: "rigid", density: 48, showMesh: true });
+      this.pwEdgeDefaults();
+      this.pwSetShowBg(true);
+      if (pwEngine) { pwEngine.setMode("rigid"); pwEngine.setDensity(48); pwEngine.setEdge(this.pw.expand, this.pw.feather); }
+      this.pwRender();
+    },
+    pwStep() {  // which of the three steps is next (for the lit numbers)
+      if (this.pw.selecting) return 1;
+      if (!this.pw.subject && !this.pw.whole) return 1;
+      if (!this.pwMoved()) return 2;
+      return 3;
+    },
     pwMoved() {
-      return this.pw.pins.some((k) => Math.abs(k.x - k.tx) > 1e-4 || Math.abs(k.y - k.ty) > 1e-4);
+      return this.pw.pins.some((k) => Math.abs(k.x - k.tx) > 1e-4 || Math.abs(k.y - k.ty) > 1e-4 || (k.rot != null && Math.abs(k.rot) > 1e-3));
     },
     async pwSave(then) {
       if (!pwEngine || !this.pwMoved()) return;
@@ -7704,7 +8236,8 @@ const protoartApp = createApp({
         const blob = await pwEngine.exportPNG(this.pw.pins);
         const bytes = new Uint8Array(await blob.arrayBuffer());
         const args = { image_id: r.id ?? null, path: r.path, editor: "Puppet warp",
-                       adjust: { pins: JSON.parse(JSON.stringify(this.pw.pins)), density: this.pw.density, subject: !!this.pw.subject } };
+                       adjust: { pins: JSON.parse(JSON.stringify(this.pw.pins)), density: this.pw.density, mode: this.pw.mode,
+                                 subject: !!this.pw.subject, expand: this.pw.subject ? this.pw.expand : 0, feather: this.pw.subject ? this.pw.feather : 0 } };
         try {
           if (!window.bee.writeAdjusted) throw new Error("No handler registered");
           args.file = await window.bee.writeAdjusted(bytes);
@@ -7804,13 +8337,17 @@ const protoartApp = createApp({
       return Object.keys(d).every((k) => k === "order" || this.adj.p[k] === d[k]);
     },
     adjResetAll() {
+      for (const k of Object.keys(adjPaint)) if (k.includes("~")) { delete adjPaint[k]; if (adjEngine) adjEngine.setPaint(k, null); }
       this.adj.p = window.ProtoAdjust.defaults();
       this.adj.pointSel = -1; this.adj.pointMode = false;
       this.adj.openFilter = "";
     },
     // ◎ Control points (like Nik Color Efex): a step (Light/Color/Presence, or one filter) shows only around its points
-    adjKeepPoints() {  // looks and presets change the sliders, not where you put points
-      return this.adj.p && this.adj.p.points ? { points: this.adj.p.points } : {};
+    adjKeepPoints() {  // looks and presets change the sliders, not where you put points (or their own-settings layers)
+      const p = this.adj.p || {}, out = {};
+      if (p.points) out.points = p.points;
+      if (p.layers) out.layers = p.layers;
+      return out;
     },
     adjPointTargets() {
       const t = [{ id: "base", label: "Light, Color & Presence" }];
@@ -7818,7 +8355,70 @@ const protoartApp = createApp({
         const f = ADJ_FILTERS[id];
         if (f && this.adj.p[f.on]) t.push({ id, label: f.label });
       }
+      // ⚙ points and painted strokes with their own settings: each is its own target
+      const layers = (this.adj.p && this.adj.p.layers) || {};
+      for (const step of [...t]) (layers[step.id] || []).forEach((l, n) => t.push({ id: l.key, label: `${step.label} · own settings ${n + 1}`, parent: step.id }));
       return t;
+    },
+    // ⚙ Own settings: a point (or a painted stroke layer) runs its step again with its own slider values
+    adjLayer(key) {
+      const layers = (this.adj.p && this.adj.p.layers) || {};
+      for (const [step, list] of Object.entries(layers)) {
+        const l = (list || []).find((x) => x.key === key);
+        if (l) return { step, layer: l };
+      }
+      return null;
+    },
+    adjStepSliders(step) {  // the sliders a step has (Light/Color/Presence, or one filter's)
+      if (step === "base") return ADJ_SECTIONS.flatMap((sec) => sec.sliders);
+      const f = ADJ_FILTERS[step];
+      return f ? [...f.sliders, ...(f.seg ? [{ k: f.seg.k, label: f.seg.label, min: 0, max: f.seg.options.length - 1, step: 1 }] : [])] : [];
+    },
+    adjNewLayer(step, points) {
+      const own = {};
+      for (const sl of this.adjStepSliders(step)) own[sl.k] = this.adj.p[sl.k];
+      const key = `${step}~${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+      const layers = { ...(this.adj.p.layers || {}) };
+      layers[step] = [...(layers[step] || []), { key, own }];
+      this.adj.p = { ...this.adj.p, layers };
+      if (points && points.length) this.adjSetPoints(key, points);
+      return key;
+    },
+    adjMakeOwn() {  // the chosen point gets its own settings (it leaves the step's shared points)
+      const step = this.adj.pointTarget, q = this.adjSelPoint();
+      if (!q || this.adjLayer(step)) return;
+      this.adjSetPoints(step, this.adjPoints(step).filter((_x, n) => n !== this.adj.pointSel));
+      const key = this.adjNewLayer(step, [{ ...q }]);
+      this.adj.pointTarget = key;
+      this.adj.pointSel = 0;
+      this.status = "This point has its own settings now: the sliders under it change only this point";
+    },
+    adjNewPaintLayer() {  // a new set of brush strokes with their own settings
+      const cur = this.adj.pointTarget, l = this.adjLayer(cur), step = l ? l.step : cur;
+      const key = this.adjNewLayer(step, []);
+      this.adj.pointTarget = key;
+      this.adj.pointSel = -1;
+      if (this.adj.paintMode !== "paint") this.adjPaintToggle("paint");
+      this.status = "New paint layer with its own settings: paint where it should show, then set its sliders";
+    },
+    adjOwnSet(key, k, v) {
+      const hit = this.adjLayer(key);
+      if (!hit) return;
+      const layers = { ...this.adj.p.layers };
+      layers[hit.step] = layers[hit.step].map((x) => (x.key === key ? { ...x, own: { ...x.own, [k]: Number(v) } } : x));
+      this.adj.p = { ...this.adj.p, layers };
+    },
+    adjRemoveLayer(key) {
+      const hit = this.adjLayer(key);
+      if (!hit) return;
+      const layers = { ...this.adj.p.layers };
+      layers[hit.step] = layers[hit.step].filter((x) => x.key !== key);
+      if (!layers[hit.step].length) delete layers[hit.step];
+      this.adjSetPoints(key, []);
+      this.adjClearPaint(key);
+      this.adj.p = { ...this.adj.p, layers };
+      this.adj.pointTarget = hit.step;
+      this.adj.pointSel = -1;
     },
     adjPoints(target) {
       return ((this.adj.p && this.adj.p.points) || {})[target || this.adj.pointTarget] || [];

@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.5.0
+
+- ✂ **Cut out** (Tools; `cutout` job, `postprocess/cutout.py`): BiRefNet lite (MIT, onnx-community/BiRefNet_lite-ONNX,
+  pinned revision, ~224 MB, ONNX Runtime on the CPU). Modes: `matte` (a working PNG the window refines live:
+  threshold / softness smoothstep, grow / shrink square max / min window, mirrored by `cutAlpha`), `mask` (a selection),
+  `save` (clean small bits, edge colours from inside the subject, crop, transparent PNG or a colour). The matte is
+  cached for the last two pictures. `_save` keeps RGBA pictures as PNG. Runs in the side lane like Remove
+- 👤 **Subject** selection tool (key S) everywhere you paint, from the same model
+- 📄 **Paper cut-out** (`papercut` job, `postprocess/papercut.py`): torn-paper sticker from the cut-out (distance-field
+  border with fractal-noise wobble and a fibrous rim, paper grain, shadow, Photo / Poster (k-means) / Mono print,
+  None / Paper / Picture / colour background)
+- 🪡 **Puppet warp** reworked: three lit steps (choose what bends → pin and bend → blend and save); mesh overlay
+  (`PuppetEngine.mesh`, only over the subject); modes Rigid / Normal / Distort (MLS rigid / similarity / affine);
+  Density; Expansion and Feather (`shapeMatte`); Show background; joints (a pin's `rot` adds four helper control points
+  that turn with it; turn handle, ⌥ + drag, Rotate slider, auto); ↶ / ↷ undo history (⌘Z, ⇧⌘Z), Enter saves, Delete
+  removes; the filled background is blended in with a soft grown mask (no outline where the subject was); opens from
+  Cut out with the subject already separated; tooltips on every button
+- 🎚 Adjust: **own settings per point or painted layer** (`p.layers[step] = [{key, own}]`; the step runs again with
+  `own` and is blended in by that layer's points / paint); **Blur** filter (Blur / Soft focus)
+- Tools: a ↺ reset on every module (`resetToolPart`); ↺ Reset Tools settings resets every module (Tiled upscale,
+  Smaller copy, Merger, Convert, Remove method, Puppet warp and Adjust too), with undo
+- Image to image → Inpaint: inpainting models listed first, the others greyed out (`i2iInpaintOnly`, `i2iInpaintPick`)
+- Train: ★ Recommended preset by kind and model (`trainRecommended`); Pony / Illustrious and ERNIE ⚡ fast engine
+  groups; learning rate 0.00003
+- Create → 🗺 Regions → Templates (`REGION_TEMPLATES`): ten layouts with example prompts and a fitting size
+- Fixes: [ ] showed the brush ring in the middle of the picture (it now stays under the pointer); Space didn't pan
+  while a button had the keyboard; Convert's base list overflowed its column (`min-width: 0` on rack modules)
+
 ## 1.4.2
 
 - Puppet warp: **✂ Separate the subject** (`pwSelectSubject` / `pwUseSubject`): the selection tools pick the subject;

@@ -66,6 +66,7 @@ when you first use them, and each comes with its own licence that you accept by 
 | RestoreFormer weights (via GFPGAN releases) | see the GFPGAN repository |
 | CodeFormer weights (CodeFormer v0.1.0 release) | S-Lab License 1.0 (**non-commercial**) |
 | LaMa inpainting ([Carve/LaMa-ONNX](https://huggingface.co/Carve/LaMa-ONNX), `lama_fp32.onnx`; original [advimman/lama](https://github.com/advimman/lama), Samsung AI Center), used by 🩹 Remove | Apache-2.0 |
+| BiRefNet lite ([onnx-community/BiRefNet_lite-ONNX](https://huggingface.co/onnx-community/BiRefNet_lite-ONNX), `onnx/model.onnx`, pinned revision; original [ZhengPeng7/BiRefNet](https://github.com/ZhengPeng7/BiRefNet)), used by ✂ Cut out, 👤 Subject and 📄 Paper cut-out | MIT |
 | ControlNet 1.1 (lllyasviel: canny, depth, lineart, scribble, soft edge, openpose, tile) | CreativeML OpenRAIL-M |
 | LCM-LoRA SD 1.5 / SDXL (latent-consistency, ⚡ fast mode) | CreativeML OpenRAIL++-M |
 | RT-DETR (PekingU/rtdetr_r50vd_coco_o365, person detector for pose) | Apache-2.0 |

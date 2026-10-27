@@ -169,7 +169,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -281,6 +281,10 @@ def job_label(cmd, a):
         return "Make a LoRA from " + os.path.basename(str(a.get("model") or ""))
     if cmd == "ckpt_convert":
         return "Convert " + os.path.basename(str(a.get("path") or "")) + " to .safetensors"
+    if cmd == "papercut":
+        return "Paper cut-out"
+    if cmd == "cutout":
+        return {"mask": "Find the subject", "matte": "Cut out · find the subject"}.get(a.get("mode"), "Cut out · save")
     if cmd == "heal":
         return "Remove (spot heal)" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
     if cmd == "vae_get":
@@ -1809,7 +1813,7 @@ def reader():
 
 # Tools jobs that run on the processor (not the graphics chip) and take seconds: while a picture is being made they
 # run beside it instead of waiting in the queue (Remove with smart fill uses LaMa on the CPU; quick fill is OpenCV).
-SIDE_LANE = ("heal",)
+SIDE_LANE = ("heal", "cutout", "papercut")
 
 
 def run_side(mid, cmd, a):
@@ -1820,6 +1824,10 @@ def run_side(mid, cmd, a):
         eng = engine()
         if cmd == "heal":
             data = eng.heal(a, emit=side_emit)
+        elif cmd == "cutout":
+            data = eng.cutout(a, emit=side_emit)
+        elif cmd == "papercut":
+            data = eng.papercut(a, emit=side_emit)
         else:
             raise KeyError(cmd)
         emit({"type": "result", "id": mid, "data": data})
@@ -1986,6 +1994,10 @@ def run_job(kind, a):
         return eng.control_preview(a)
     if kind == "heal":
         return eng.heal(a)
+    if kind == "cutout":
+        return eng.cutout(a)
+    if kind == "papercut":
+        return eng.papercut(a)
     if kind == "vectorize":
         return eng.vectorize(a)
     if kind == "edit_words":

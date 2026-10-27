@@ -7,8 +7,10 @@
   "use strict";
 
   // Where a point of the picture moves to, given the pins: rest positions p (where you put them) and targets q
-  // (where you dragged them). Rigid: parts bend and turn but don't stretch or squash.
-  function mlsRigid(vx, vy, p, q, aspect) {
+  // (where you dragged them). "Moving least squares" (Schaefer, McPhail & Warren, 2006), three kinds, like
+  // Photoshop's modes: "rigid" (parts bend and turn but don't stretch: arms, legs), "normal" (they may also grow or
+  // shrink evenly) and "distort" (stretchy: they may stretch and slant too).
+  function mls(vx, vy, p, q, aspect, mode) {
     const n = p.length;
     if (!n) return [vx, vy];
     // distances in a square space, so a round area of influence stays round on a wide picture
@@ -18,7 +20,7 @@
       const dx = (p[i][0] - vx) * aspect, dy = p[i][1] - vy;
       const d2 = dx * dx + dy * dy;
       if (d2 < 1e-12) return [q[i][0], q[i][1]];
-      w[i] = 1 / d2;
+      w[i] = (p[i][2] || 1) / d2;
       sw += w[i];
       px += w[i] * p[i][0] * aspect; py += w[i] * p[i][1];
       qx += w[i] * q[i][0] * aspect; qy += w[i] * q[i][1];
@@ -26,7 +28,22 @@
     px /= sw; py /= sw; qx /= sw; qy /= sw;
     if (n === 1) return [vx + (qx - px) / aspect, vy + (qy - py)];  // one pin: the whole picture moves with it
     const vxa = vx * aspect - px, vya = vy - py;
-    let fx = 0, fy = 0;
+    if (mode === "distort") {  // affine: v̂ (Σ w p̂ᵀp̂)⁻¹ Σ w p̂ᵀq̂
+      let a = 0, b = 0, d = 0, m00 = 0, m01 = 0, m10 = 0, m11 = 0;
+      for (let i = 0; i < n; i++) {
+        const phx = p[i][0] * aspect - px, phy = p[i][1] - py, qhx = q[i][0] * aspect - qx, qhy = q[i][1] - qy;
+        a += w[i] * phx * phx; b += w[i] * phx * phy; d += w[i] * phy * phy;
+        m00 += w[i] * phx * qhx; m01 += w[i] * phx * qhy; m10 += w[i] * phy * qhx; m11 += w[i] * phy * qhy;
+      }
+      const det = a * d - b * b;
+      if (Math.abs(det) > 1e-12 * Math.max(1e-12, a * d)) {
+        const ia = d / det, ib = -b / det, id = a / det;   // inverse of [[a b][b d]]
+        const ux = vxa * ia + vya * ib, uy = vxa * ib + vya * id;
+        return [(ux * m00 + uy * m10 + qx) / aspect, ux * m01 + uy * m11 + qy];
+      }
+      mode = "normal";  // all the pins on one line: no way to know the slant, fall back
+    }
+    let fx = 0, fy = 0, mu = 0;
     for (let i = 0; i < n; i++) {
       const phx = p[i][0] * aspect - px, phy = p[i][1] - py;
       const qhx = q[i][0] * aspect - qx, qhy = q[i][1] - qy;
@@ -34,11 +51,80 @@
       const a = phx * vxa + phy * vya, b = phx * vya - phy * vxa;
       fx += w[i] * (qhx * a - qhy * b);
       fy += w[i] * (qhx * b + qhy * a);
+      mu += w[i] * (phx * phx + phy * phy);
     }
+    if (mode === "normal") return [(fx / mu + qx) / aspect, fy / mu + qy];
     const len = Math.hypot(fx, fy), dist = Math.hypot(vxa, vya);
     if (len < 1e-12) return [vx + (qx - px) / aspect, vy + (qy - py)];
     return [(dist * fx / len + qx) / aspect, dist * fy / len + qy];
   }
+  function mlsRigid(vx, vy, p, q, aspect) { return mls(vx, vy, p, q, aspect, "rigid"); }
+
+  // The pins as control points. A pin you turned (its `rot`, in radians) also gets four close helper points around
+  // it that turn with it, so the part around it pivots there like a joint (Photoshop: ⌥-drag near a pin).
+  const SAT = 0.035;  // how far the helper points sit from the pin (part of the picture's height)
+  function controls(pins, aspect) {
+    const p = [], q = [];
+    for (const k of pins) {
+      p.push([k.x, k.y, 1]); q.push([k.tx, k.ty]);
+      if (k.rot == null || !isFinite(k.rot)) continue;
+      const c = Math.cos(k.rot), s = Math.sin(k.rot);
+      for (const [dx, dy] of [[SAT, 0], [-SAT, 0], [0, SAT], [0, -SAT]]) {
+        p.push([k.x + dx / aspect, k.y + dy, 0.6]);
+        q.push([k.tx + (dx * c - dy * s) / aspect, k.ty + (dx * s + dy * c)]);
+      }
+    }
+    return [p, q];
+  }
+
+  // ✂ The subject's edge: grow or shrink it (Expansion, in pixels) and soften it (Feather, in pixels).
+  // `matte`: a bitmap/canvas, white = the subject. Returns a canvas of size w x h.
+  function shapeMatte(matte, w, h, expand, feather) {
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(matte, 0, 0, w, h);
+    const e = Math.round(expand || 0);
+    if (e) {
+      const d = ctx.getImageData(0, 0, w, h), px = d.data, a = new Uint8ClampedArray(w * h);
+      for (let i = 0; i < a.length; i++) a[i] = px[i * 4];
+      const out = e > 0 ? growMax(a, w, h, e) : growMin(a, w, h, -e);
+      for (let i = 0; i < a.length; i++) { px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = out[i]; px[i * 4 + 3] = 255; }
+      ctx.putImageData(d, 0, 0);
+    }
+    const f = Math.max(0, feather || 0);
+    if (f > 0.3) {
+      const c2 = document.createElement("canvas");
+      c2.width = w; c2.height = h;
+      const x2 = c2.getContext("2d");
+      x2.fillStyle = "#000"; x2.fillRect(0, 0, w, h);
+      x2.filter = `blur(${f / 2}px)`;  // a gaussian whose spread is half the feather: the edge fades over ~the feather
+      x2.drawImage(c, 0, 0);
+      return c2;
+    }
+    return c;
+  }
+  // a round brush's worth of growing (max) or shrinking (min): rows then columns, each a sliding window
+  function slide(a, w, h, r, pick, horiz) {
+    const out = new Uint8ClampedArray(a.length), len = horiz ? w : h, lines = horiz ? h : w;
+    const at = horiz ? (l, i) => l * w + i : (l, i) => i * w + l;
+    const dq = new Int32Array(len);
+    for (let l = 0; l < lines; l++) {
+      let head = 0, tail = 0;
+      for (let i = 0, j = 0; i < len; i++) {
+        for (; j < len && j <= i + r; j++) {
+          const v = a[at(l, j)];
+          while (tail > head && !pick(a[at(l, dq[tail - 1])], v)) tail--;
+          dq[tail++] = j;
+        }
+        while (dq[head] < i - r) head++;
+        out[at(l, i)] = a[at(l, dq[head])];
+      }
+    }
+    return out;
+  }
+  const growMax = (a, w, h, r) => slide(slide(a, w, h, r, (x, y) => x > y, true), w, h, r, (x, y) => x > y, false);
+  const growMin = (a, w, h, r) => slide(slide(a, w, h, r, (x, y) => x < y, true), w, h, r, (x, y) => x < y, false);
 
   const VS = `#version 300 es
 in vec2 pos; in vec2 tc; out vec2 uv; uniform bool flipY;
@@ -75,6 +161,43 @@ void main() { o = vec4(texture(img, uv).rgb, useMatte ? texture(matte, uv).r : a
       this.quadBuf = gl.createBuffer();
       this.maxSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
       this.grid = 48;
+      this.mode = "rigid";
+      this.edge = { expand: 0, feather: 0 };  // the subject's edge, in pixels of the full-size picture
+      this.hideBg = false;
+    }
+
+    setMode(m) { this.mode = ["rigid", "normal", "distort"].includes(m) ? m : "rigid"; }
+
+    // the subject's mask at the preview's size, shaped (grown / shrunk, feathered), as a texture
+    _shapePreview() {
+      const gl = this.gl;
+      if (this.matteTex) { gl.deleteTexture(this.matteTex); this.matteTex = null; }
+      this.cellIn = null;
+      if (!this.matteFull) return;
+      const pw = this.canvas.width, ph = this.canvas.height, k = pw / this.full.width;
+      const shaped = shapeMatte(this.matteFull, pw, ph, this.edge.expand * k, this.edge.feather * k);
+      this.matteTex = this._upload(shaped);
+      this._cells(shaped);
+    }
+
+    // which squares of the grid the subject covers (the mesh is shown, like Photoshop's, only over the subject)
+    _cells(shaped) {
+      const n = this.grid, c = document.createElement("canvas");
+      c.width = n * 2; c.height = n * 2;
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(shaped, 0, 0, n * 2, n * 2);
+      const px = ctx.getImageData(0, 0, n * 2, n * 2).data, cin = new Uint8Array(n * n);
+      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+        let m = 0;
+        for (let y = 0; y < 2; y++) for (let x = 0; x < 2; x++) m = Math.max(m, px[((j * 2 + y) * n * 2 + i * 2 + x) * 4]);
+        cin[j * n + i] = m > 40 ? 1 : 0;
+      }
+      this.cellIn = cin;
+    }
+
+    setEdge(expand, feather) {
+      this.edge = { expand: +expand || 0, feather: +feather || 0 };
+      this._shapePreview();
     }
 
     // ✂ Subject: `matte` = a canvas/bitmap (white = the subject), `background` = the picture with the subject filled
@@ -84,12 +207,13 @@ void main() { o = vec4(texture(img, uv).rgb, useMatte ? texture(matte, uv).r : a
       for (const k of ["matteTex", "bgTex"]) if (this[k]) { gl.deleteTexture(this[k]); this[k] = null; }
       this.matteFull = matte || null;
       this.bgFull = background || null;
-      if (!matte || !background) return;
+      this.cellIn = null;
+      if (!matte || !background) { this.matteFull = this.bgFull = null; return; }
       const pw = this.canvas.width, ph = this.canvas.height;
       const small = async (b) => (b.width === pw && b.height === ph ? b
         : await window.createImageBitmap(b, { resizeWidth: pw, resizeHeight: ph, resizeQuality: "high" }));
-      this.matteTex = this._upload(await small(matte));
       this.bgTex = this._upload(await small(background));
+      this._shapePreview();
     }
 
     async setImage(bitmap, previewMax = 1600) {
@@ -136,14 +260,21 @@ void main() { o = vec4(texture(img, uv).rgb, useMatte ? texture(matte, uv).r : a
     setDensity(n) {
       this.grid = Math.max(8, Math.min(96, n | 0));
       if (this.tex) this._mesh();
+      if (this.matteFull) this._shapePreview();
+    }
+
+    // the bent mesh, to draw over the picture: points (0..1) on the (grid+1)² grid, and which squares to show
+    mesh(pins) {
+      if (!this.rest) return null;
+      return { n: this.grid, pts: this._deformed(pins, this.canvas.width, this.canvas.height), cells: this.cellIn };
     }
 
     // pins: [{x, y, tx, ty}] in 0..1 (x, y = where you put it; tx, ty = where it is now)
     _deformed(pins, w, h) {
-      const p = pins.map((k) => [k.x, k.y]), q = pins.map((k) => [k.tx, k.ty]);
-      const out = new Float32Array(this.rest.length), aspect = w / h;
+      const aspect = w / h, [p, q] = controls(pins, aspect), mode = this.mode;
+      const out = new Float32Array(this.rest.length);
       for (let i = 0; i < this.rest.length; i += 2) {
-        const [x, y] = mlsRigid(this.rest[i], this.rest[i + 1], p, q, aspect);
+        const [x, y] = mls(this.rest[i], this.rest[i + 1], p, q, aspect, mode);
         out[i] = x; out[i + 1] = y;
       }
       return out;
@@ -174,7 +305,10 @@ void main() { o = vec4(texture(img, uv).rgb, useMatte ? texture(matte, uv).r : a
       gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
       gl.enableVertexAttribArray(1);
       gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      if (sub && sub.hideBg && !showOriginal) {  // the background switched off: only the subject, on see-through
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+      } else gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       if (showOriginal) return;
       if (sub) {  // the subject on top, cut out by its mask (soft edge) and bent with the pins
         gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -198,7 +332,7 @@ void main() { o = vec4(texture(img, uv).rgb, useMatte ? texture(matte, uv).r : a
     render(pins, showOriginal = false) {
       if (!this.tex) return;
       this._draw(this.tex, pins, this.canvas.width, this.canvas.height, null, true, showOriginal,
-                 this.matteTex ? { matte: this.matteTex, bg: this.bgTex } : null);
+                 this.matteTex ? { matte: this.matteTex, bg: this.bgTex, hideBg: this.hideBg } : null);
     }
 
     // the full-size picture, warped -> PNG Blob
@@ -211,7 +345,8 @@ void main() { o = vec4(texture(img, uv).rgb, useMatte ? texture(matte, uv).r : a
       if (this.matteFull && this.bgFull) {  // the subject's mask and the filled background, at full size
         const fit = async (b) => (b.width === full.width && b.height === full.height ? b
           : await window.createImageBitmap(b, { resizeWidth: full.width, resizeHeight: full.height, resizeQuality: "high" }));
-        layers = { matte: this._upload(await fit(this.matteFull)), bg: this._upload(await fit(this.bgFull)) };
+        const shaped = shapeMatte(this.matteFull, full.width, full.height, this.edge.expand, this.edge.feather);
+        layers = { matte: this._upload(shaped), bg: this._upload(await fit(this.bgFull)) };
       }
       const t = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, t);
@@ -244,5 +379,6 @@ void main() { o = vec4(texture(img, uv).rgb, useMatte ? texture(matte, uv).r : a
     }
   }
 
-  window.ProtoPuppet = { PuppetEngine, mlsRigid };
+  window.ProtoPuppet = { PuppetEngine, mlsRigid, mls, controls, shapeMatte,
+    grow: (a, w, h, r) => (r > 0 ? growMax(a, w, h, r) : r < 0 ? growMin(a, w, h, -r) : a) };
 })();

@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  const FILTER_ORDER = ["extract", "dark", "bleach", "glow", "bloom", "grain"];
+  const FILTER_ORDER = ["extract", "dark", "bleach", "glow", "bloom", "blur", "grain"];
 
   function defaults() {
     return {
@@ -20,6 +20,7 @@
       bleachOn: false, bbBrightness: 0, bbSaturation: 0, bbContrast: 0, bbLocalContrast: 0,
       glowOn: false, ggGlow: 0.5, ggSaturation: 0, ggWarmth: 0,
       bloomOn: false, blAmount: 0.6, blTransition: 0.4, blSize: 0.4, blBurn: 0,
+      blurOn: false, bzSize: 0.3, bzMix: 1, bzKind: 0,
       grainOn: false, grainAmount: 0.5, grainSize: 0.3, grainSoftness: 0.3, grainColor: false,
       order: FILTER_ORDER.slice(),
     };
@@ -57,7 +58,8 @@
     return Object.keys(d).every((k) => k === "order" || p[k] === d[k]);
   }
   function anyOn(p) {
-    return !isDefault(Object.assign({}, p, { order: FILTER_ORDER }));
+    const own = Object.values((p && p.layers) || {}).some((list) => (list || []).some((l) => l && l.own && Object.keys(l.own).length));
+    return own || !isDefault(Object.assign({}, p, { order: FILTER_ORDER }));
   }
 
   // ------------------------------------------------------------------ shaders
@@ -79,6 +81,13 @@ vec3 colorControls(vec3 c, float contrast, float sat, float bright) {
 `;
   const FS = {
     copy: `void main() { o = texture(img, uv); }`,
+    // Blur: the blurred picture mixed in (amount); "soft focus" screens it over so it glows instead of smearing
+    blurMix: `uniform sampler2D blurred; uniform float amount; uniform bool soft;
+void main() {
+  vec3 c = texture(img, uv).rgb, b = texture(blurred, uv).rgb;
+  vec3 t = soft ? mix(c, 1.0 - (1.0 - c) * (1.0 - b), 0.6) * 0.5 + b * 0.5 : b;
+  o = vec4(mix(c, t, amount), 1.0);
+}`,
     // 4-tap box downsample (the first step of a big blur)
     down: `uniform vec2 texel;
 void main() {
@@ -444,19 +453,47 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
 
       // ◎ a step with control points only shows around its points: keep the picture from before it, then blend
       const pointsFor = (id) => ((p.points || {})[id] || []).filter((q) => q && q.op > 0 && q.r > 0).slice(0, 16);
-      const begin = (id) => (pointsFor(id).length || this.paint[id] ? this._step(cur, "copy", {}) : null);
-      const end = (id, before) => {
-        if (!before) return;
-        const pts = pointsFor(id), arr = new Float32Array(64);
+      const masked = (key) => pointsFor(key).length || this.paint[key];
+      // blend `cur` (the step's result) into `before` only where `key`'s points and paint are
+      const blendIn = (key, before) => {
+        const pts = pointsFor(key), arr = new Float32Array(64);
         pts.forEach((q, i) => arr.set([q.x, q.y, q.r, q.op], i * 4));
         const long = Math.max(cur.w, cur.h);
-        const paint = this.paint[id];
+        const paint = this.paint[key];
         swap(this._step(cur, "pointMask", { pts: arr, n: pts.length, scale: [cur.w / long, cur.h / long], hasPaint: !!paint },
                         { orig: before, paint: paint || this.blank }));
-        this._release(before);
       };
-      const baseBefore = begin("base");
+      // a step, with its points / paint, and its layers: points or painted strokes with their own settings
+      // (p.layers[id] = [{key, own}]: the step is run again with `own` on top and shows only there)
+      const withLayers = (id, run) => {
+        const layers = ((p.layers || {})[id] || []).filter((l) => l && l.key && masked(l.key));
+        if (!layers.length) {
+          const before = masked(id) ? this._step(cur, "copy", {}) : null;
+          run(p);
+          if (before) { blendIn(id, before); this._release(before); }
+          return;
+        }
+        const input = this._step(cur, "copy", {});
+        if (masked(id)) { run(p); blendIn(id, input); }  // with layers, the step's own settings show only at its points
+        for (const l of layers) {
+          const acc = cur;
+          cur = this._step(input, "copy", {});
+          run({ ...p, ...(l.own || {}) });
+          const done = cur;
+          cur = acc;
+          const mixed = this._step(done, "pointMask", (() => {
+            const pts = pointsFor(l.key), arr = new Float32Array(64);
+            pts.forEach((q, i) => arr.set([q.x, q.y, q.r, q.op], i * 4));
+            const long = Math.max(done.w, done.h);
+            return { pts: arr, n: pts.length, scale: [done.w / long, done.h / long], hasPaint: !!this.paint[l.key] };
+          })(), { orig: acc, paint: this.paint[l.key] || this.blank });
+          this._release(done);
+          swap(mixed);
+        }
+        this._release(input);
+      };
 
+      const runBase = (p) => {
       // 1. Light and Color
       const recovery = p.shadows > 0 || p.highlights < 0;
       const curve = p.shadows < 0 || p.highlights > 0 || p.whites !== 0 || p.blacks !== 0;
@@ -483,13 +520,11 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
       if (p.clarity) swap(this._local(cur, 30 * unit, 0.9 * p.clarity, true));
       if (p.sharpen > 0) swap(this._local(cur, 0.9 * unit, 1.6 * p.sharpen));
       if (p.vignette) swap(this._step(cur, "vignette", { amount: p.vignette, aspect: cur.w / cur.h }));
-
-      end("base", baseBefore);
+      };
+      withLayers("base", runBase);
 
       // 3. Filters, in the stacked order
-      for (const id of fullOrder(p.order)) {
-        const on = { extract: p.extractOn, dark: p.darkOn, bleach: p.bleachOn, glow: p.glowOn, bloom: p.bloomOn, grain: p.grainOn }[id];
-        const before = on ? begin(id) : null;
+      const runFilter = (id, p) => {
         if (id === "extract" && p.extractOn) {
           const r = [2, 5, 14][Math.min(2, Math.max(0, p.deRadius | 0))] * unit;
           const bl = this._blur(cur, 12 * unit);
@@ -521,13 +556,20 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
           this._release(pick);
           swap(this._step(cur, "bloom", { amount: p.blAmount, burn: Math.min(1, Math.max(0, p.blBurn)) }, { near, far }));
           this._release(near, far);
+        } else if (id === "blur" && p.blurOn && p.bzMix > 0) {
+          const bl = this._blur(cur, (0.5 + 40 * Math.pow(Math.min(1, Math.max(0, p.bzSize)), 1.6)) * unit);
+          swap(this._step(cur, "blurMix", { amount: Math.min(1, Math.max(0, p.bzMix)), soft: (p.bzKind | 0) === 1 }, { blurred: bl }));
+          this._release(bl);
         } else if (id === "grain" && p.grainOn) {
           const g = this._grainTexture(cur.w, cur.h, p);
           swap(this._step(cur, "grain", { amount: 0.7 * p.grainAmount, colorGrain: !!p.grainColor }, { noise: g.blurred || g.tex }));
           this._release(g.blurred);
           this.gl.deleteTexture(g.tex.t);
         }
-        end(id, before);
+      };
+      for (const id of fullOrder(p.order)) {
+        const on = { extract: p.extractOn, dark: p.darkOn, bleach: p.bleachOn, glow: p.glowOn, bloom: p.bloomOn, blur: p.blurOn, grain: p.grainOn }[id];
+        if (on) withLayers(id, (P) => runFilter(id, P));
       }
       return cur;
     }

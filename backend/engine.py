@@ -3172,6 +3172,125 @@ class Engine:
             raise UserError(f"That file isn't a {what} Protoart Studio can read.")
         return src, image
 
+    _cut_cache = {}  # picture path + its time -> the matte (the last two pictures), so refining doesn't rerun the model
+
+    def _cut_matte(self, src, image, emit):
+        import net
+        import postprocess.cutout as cut
+        key = (src["path"], os.path.getmtime(src["path"]) if os.path.exists(src["path"]) else 0, image.size)
+        if key in self._cut_cache:
+            return self._cut_cache[key]
+        if not cut.downloaded():
+            if net.strict:
+                raise UserError(f"Cut out needs a one-time download of its model (BiRefNet, ~{cut.MB} MB), and Strict "
+                                "offline mode is on. Turn it off in Settings → Privacy.")
+            emit({"type": "status", "msg": f"Downloading the Cut out model (BiRefNet, ~{cut.MB} MB, first time only)…"})
+            net.set_online(True)
+            try:
+                sess = cut.session(download=True)
+            finally:
+                net.set_online(False)
+        else:
+            sess = cut.session(download=False)
+        emit({"type": "status", "msg": "Finding the subject…"})
+        m = cut.matte(image, sess)
+        if len(self._cut_cache) >= 2:
+            self._cut_cache.pop(next(iter(self._cut_cache)))
+        self._cut_cache[key] = m
+        return m
+
+    def cutout(self, args, emit=None):
+        """✂ Cut out (remove the background). args["mode"]:
+        "matte": the model's matte as a working PNG (the window refines it live) -> {matte, width, height}
+        "mask":  the subject as a selection for the painting area (👤 Subject tool) -> {mask, found}
+        "save":  the refined cut-out saved to the Library (see-through PNG, or on a colour) -> the record"""
+        import base64
+        import numpy as np
+        from PIL import Image
+        import postprocess.cutout as cut
+        emit = emit or self.emit
+        src, image = self._source_picture(args)
+        image = image.convert("RGB")
+        mode = args.get("mode") or "save"
+        started = time.time()
+        emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
+        m = self._cut_matte(src, image, emit)
+        emit({"type": "progress", "image": 1, "images": 1, "step": 1, "steps": 1})
+        if mode == "mask":
+            png = cut.selection_png(m, args.get("width") or image.width, args.get("height") or image.height)
+            return {"mask": "data:image/png;base64," + base64.b64encode(png).decode(), "found": bool((m > 0.5).any())}
+        if mode == "matte":
+            tmp = paths.HOME / "tmp"
+            tmp.mkdir(parents=True, exist_ok=True)
+            for old in tmp.glob("cutout_matte_*.png"):
+                try:
+                    if time.time() - old.stat().st_mtime > 86400:
+                        old.unlink()
+                except OSError:
+                    pass
+            p = tmp / f"cutout_matte_{os.getpid()}_{int(time.time() * 1000)}.png"
+            Image.fromarray(np.clip(m * 255 + 0.5, 0, 255).astype(np.uint8), "L").save(p)
+            return {"matte": str(p), "width": image.width, "height": image.height, "found": bool((m > 0.5).any())}
+        opts = {k: args.get(k) for k in ("threshold", "softness", "grow")}
+        alpha = cut.refine(m, threshold=float(opts["threshold"] if opts["threshold"] is not None else 0.5),
+                           softness=float(opts["softness"] if opts["softness"] is not None else 0.1),
+                           grow=int(opts["grow"] or 0))
+        if args.get("clean", True) is not False:
+            alpha = cut.clean_bits(alpha)
+        if not (alpha > 0.02).any():
+            raise UserError("Nothing is left with these settings: lower the threshold, or grow the edge.")
+        out = cut.compose(image, alpha, args.get("background"), fix_edges=args.get("fix_edges", True) is not False)
+        if args.get("crop"):  # trim the see-through border around the subject
+            ys, xs = np.nonzero(alpha > 0.02)
+            pad = max(4, round(max(image.size) * 0.01))
+            box = (max(0, xs.min() - pad), max(0, ys.min() - pad), min(image.width, xs.max() + 1 + pad), min(image.height, ys.max() + 1 + pad))
+            out = out.crop(box)
+        settings = dict(src.get("settings") or {})
+        settings.update({k: src.get(k) for k in ("prompt", "negative_prompt", "model", "sampler", "steps", "cfg", "seed")})
+        settings["loras"] = src.get("loras") or []
+        settings.update(width=out.width, height=out.height, seconds=round(time.time() - started, 1),
+                        cutout={**opts, "background": args.get("background") or "transparent", "crop": bool(args.get("crop"))})
+        path = self._save(out, settings, suffix="cutout")
+        record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="cutout")
+        record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
+        emit({"type": "image", "record": record})
+        return record
+
+    def papercut(self, args, emit=None):
+        """📄 Paper cut-out: the subject as a torn-paper sticker (border, shadow, print look, background)."""
+        import postprocess.cutout as cut
+        import postprocess.papercut as paper
+        emit = emit or self.emit
+        src, image = self._source_picture(args)
+        image = image.convert("RGB")
+        started = time.time()
+        emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 2})
+        m = self._cut_matte(src, image, emit)
+        emit({"type": "status", "msg": "Cutting it out of paper…"})
+        emit({"type": "progress", "image": 1, "images": 1, "step": 1, "steps": 2})
+        alpha = cut.refine(m, threshold=float(args.get("threshold") or 0.5), softness=0.08, grow=0)
+        alpha = cut.clean_bits(alpha)
+        opts = {"edge": float(args.get("edge") if args.get("edge") is not None else 2.0),
+                "edge_colour": args.get("edge_colour") or "white",
+                "rough": float(args.get("rough") if args.get("rough") is not None else 0.5),
+                "shadow": float(args.get("shadow") if args.get("shadow") is not None else 0.6),
+                "print_as": args.get("print_as") or "photo",
+                "background": args.get("background") or "transparent"}
+        try:
+            out = paper.make(image, alpha, **opts, seed=int(args.get("seed") or 7))
+        except ValueError as e:
+            raise UserError(str(e))
+        emit({"type": "progress", "image": 1, "images": 1, "step": 2, "steps": 2})
+        settings = dict(src.get("settings") or {})
+        settings.update({k: src.get(k) for k in ("prompt", "negative_prompt", "model", "sampler", "steps", "cfg", "seed")})
+        settings["loras"] = src.get("loras") or []
+        settings.update(width=out.width, height=out.height, seconds=round(time.time() - started, 1), papercut=opts)
+        path = self._save(out, settings, suffix="papercut")
+        record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="papercut")
+        record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
+        emit({"type": "image", "record": record})
+        return record
+
     def heal(self, args, emit=None):
         """🩹 Remove: fill the painted area from its surroundings (LaMa, or OpenCV's quick fill)."""
         import detailer
@@ -3794,6 +3913,8 @@ class Engine:
         day.mkdir(parents=True, exist_ok=True)
         tail = f"_{suffix}" if suffix else ""
         fmt, quality = self.output_format
+        if image.mode in ("RGBA", "LA"):  # see-through pictures (✂ Cut out) are always PNG: JPEG has no transparency
+            fmt = "png"
         ext = "jpg" if fmt == "jpeg" else "png"
         path = day / f"{datetime.now().strftime('%H%M%S')}_{_slug(settings.get('prompt', ''))}_{settings.get('seed', 0)}{tail}.{ext}"
         n = 2

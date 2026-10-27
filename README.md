@@ -29,16 +29,16 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   presets, 📒 saved prompts, wildcards, a random-prompt generator that writes tags or sentences to suit the model, negative
   prompt ✨ suggest / 🎲 random matched to the model, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop, and
   🔬 compare grids picked with keys, 🎲 small change (variation seed), 📒 saved prompts with export / import, ✨ enhance and 🔄 contrast prompts, and your own default sampler / steps / guidance per
-  model and default weight per LoRA, 🗺 regional prompts (✨ plan the layout from one sentence), A1111-style prompt editing, 🧱 seamless tiling
+  model and default weight per LoRA, 🗺 regional prompts (✨ plan the layout from one sentence, or start from a template: before / after, day / night, face-off, comic…), A1111-style prompt editing, 🧱 seamless tiling
   clips, and 📥 settings from A1111 / ComfyUI / InvokeAI pictures or .json
 - **Image to image:** ✨ Edit with words (FLUX.2 Klein: describe a change; paint to limit it; add reference pictures),
-  change / inpaint / expand (any picture, with FLUX.2 Klein + an outpaint LoRA) / 🩹 remove, selection tools (brush, lasso, polygon lasso, magic wand, object selection),
+  change / inpaint (your inpainting models offered first) / expand (any picture, with FLUX.2 Klein + an outpaint LoRA) / 🩹 remove, selection tools (brush, lasso, polygon lasso, magic wand, object selection, 👤 select subject),
   ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile, and your own SD 1.5 and SDXL ControlNets), image prompt
   (IP-Adapter), face detailer, CodeFormer presets, ControlNet Union ProMax for SDXL, 🔁 face swap (non-commercial,
   consent required), and a 🔗 model chain (SD 1.5 → SDXL → FLUX / ERNIE)
 - **Tools** (rack modules): Finegrain enhance & upscale, face restoration (CodeFormer or RestoreFormer), 🩹 remove objects
   (paint right in Tools; smart or quick fill), ✒️ vectorize to SVG, image → prompt (Qwen3.5 vision model, Florence-2 or
-  WD tagger), depth maps, 🎚 Adjust (Lightroom / Color Efex-style with ◎ control points and 🖌 painted areas, plus a Procreate-style Bloom), 🪡 Puppet warp (with ✂ a separate subject, the background filled in behind it), DiffusionBee file conversion, Original / Result /
+  WD tagger), depth maps, ✂ cut out (background removal for people, animals and objects, with live threshold / softness / grow and see-through PNGs), 📄 paper cut-out (torn-paper stickers), 🎚 Adjust (Lightroom / Color Efex-style with ◎ control points and 🖌 painted areas, each with its own settings if you like, a Procreate-style Bloom and Blur), 🪡 Puppet warp (Photoshop-style: three steps, a mesh, Rigid / Normal / Distort, density, expansion, joints you can turn, undo; ✂ a separate subject with the background filled in behind it and a feathered edge), a ↺ reset on every module, DiffusionBee file conversion, Original / Result /
   Split / Side-by-side views, and a 🔌 patchbay to run Remove, Faces, Enhance, Depth, Vectorize and 🔎 Detail (with a LoRA)
   in any order with cables (modules can be moved, added twice or taken off; each copy has its own settings; 🛡 paint areas
   it must not change; live preview), 🧩 tiled upscale (MultiDiffusion), 🗜 smaller 8 / 6 / 4-bit model copies, 🧪 model
@@ -46,7 +46,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 - **Right-click menus everywhere:** models (incl. ⟲ Reconnect… for a moved or missing file, and 💾 Keep a copy on this Mac for a model on an external drive, so it loads in seconds), LoRAs, the queue, your folders, pictures and text boxes
 - **Library:** right-click menu; search by prompt, seed, model or LoRA; drag to select many; ⇆ compare side by side with linked zoom; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
   first); batch edit & export; 🗜 compress to the smallest file that still looks the same
-- **Train:** LoRA training (SD 1.5 / SDXL; ERNIE on 32 GB+ Macs), embedding training (SD 1.5), square crop / keep-whole
+- **Train:** LoRA training (SD 1.5, SDXL incl. Pony / Illustrious, ERNIE Turbo on the ⚡ fast engine; full ERNIE on 32 GB+ Macs) with ★ recommended settings for people, objects, styles and concepts, embedding training (SD 1.5), square crop / keep-whole
   framing, and merging LoRAs of the same type into one
 - **Models tab:** download models, add your own files or folders (removals locked and confirmed), Civitai downloads of
   LoRAs, checkpoints, embeddings, VAEs and SD 1.5 / SDXL ControlNets, Hugging Face downloads (sign-in keys kept only on your
@@ -139,7 +139,7 @@ first time you use them, or you supply your own files. **Every model has its own
 allow commercial use, for example:
 
 - SD 1.5, Juggernaut Reborn, ControlNet 1.1: CreativeML OpenRAIL-M · SDXL: CreativeML OpenRAIL++-M
-- ERNIE-Image, FLUX.1 [schnell], IP-Adapter, Qwen2.5, WD tagger, Depth Anything V2 Small, Qwen3.5 4B: Apache-2.0 · Florence-2: MIT · mlx-vlm: MIT
+- ERNIE-Image, FLUX.1 [schnell], IP-Adapter, Qwen2.5, WD tagger, Depth Anything V2 Small, Qwen3.5 4B, LaMa: Apache-2.0 · Florence-2, BiRefNet (Cut out): MIT · mlx-vlm: MIT
 - Xinsir ControlNet Union ProMax: Apache-2.0
 - **Non-commercial:** the enhancer's 4x-UltraSharp upscaler (CC BY-NC-SA 4.0), Depth Anything V2 Base / Large
   (CC BY-NC 4.0), Anima / Anima Turbo (CircleStone Labs Non-Commercial; pictures may be used commercially), the face

@@ -89,13 +89,13 @@
       <div v-else-if="tab==='i2i'" class="slot-model">
         <span class="eng slot-label">Model</span>
         <div class="slot-row">
-        <select title="The model Image to image uses: FLUX.2 Klein for Edit with words and Expand, or an SD 1.5 / SDXL model for the other modes" :value="i2iUsesKlein ? 'flux2_klein_mlx_q4' : form.model" @change="pickI2iModel($event.target.value)">
+        <select title="The model Image to image uses: FLUX.2 Klein for Edit with words and Expand, or an SD 1.5 / SDXL model for the other modes" :value="i2iModelValue()" @change="pickI2iModel($event.target.value)">
           <optgroup v-if="editModel()" label="FLUX.2 · ✨ Edit with words (uses More pictures instead of image prompt / ControlNet)">
-            <option value="flux2_klein_mlx_q4">FLUX.2 Klein 4B · {{ form.i2i_mode === 'outpaint' ? '↔ Expand with the outpaint LoRA' : '✨ Edit with words' }}{{ editModel().cached ? '' : ' · ' + Math.round(editModel().download_gb) + ' GB download' }}</option>
+            <option value="flux2_klein_mlx_q4" :disabled="form.i2i_mode === 'inpaint'">FLUX.2 Klein 4B · {{ form.i2i_mode === 'inpaint' ? '— not an inpainting model' : form.i2i_mode === 'outpaint' ? '↔ Expand with the outpaint LoRA' : '✨ Edit with words' }}{{ editModel().cached ? '' : ' · ' + Math.round(editModel().download_gb) + ' GB download' }}</option>
           </optgroup>
           <optgroup v-for="g in i2iModelGroups" :key="g.name" :label="g.name">
             <option v-for="m in g.models" :key="m.id" :value="m.id" :disabled="!m.i2iOk">
-              {{ m.label }}{{ m.people ? ' ●' : '' }}{{ m.nsfw ? ' ⚑' : '' }}{{ m.i2iOk ? (m.cached ? '' : ' · ' + Math.round(m.download_gb) + ' GB download') : ' — not for image to image' }}</option>
+              {{ m.label }}{{ m.people ? ' ●' : '' }}{{ m.nsfw ? ' ⚑' : '' }}{{ m.i2iOk ? (m.cached ? '' : ' · ' + Math.round(m.download_gb) + ' GB download') : (m.why || ' — not for image to image') }}</option>
           </optgroup>
         </select>
           <select class="model-sort small" :value="opts.model_sort || ''" @change="setModelSort($event.target.value)" title="Sort the model list (★ favourites stay first)">
@@ -576,6 +576,10 @@
         <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">a different prompt for each part of the picture</span><span v-if="cfShut('regions')" class="cfold-sum">{{ cfSummary('regions') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <label class="check"><input type="checkbox" v-model="form.regions.on"> Use regional prompts
           <span class="hint">· each area draws its own prompt; the main prompt above sets the scene around them</span></label>
+        <div class="reg-templates">
+          <span class="hint">Templates</span>
+          <button v-for="t in REGION_TEMPLATES" :key="'rt' + t.id" class="ghost small" @click="useRegionTemplate(t)" :title="t.tip + ' · sets the areas, example prompts to edit and a size that fits (↩ puts it back)'">{{ t.icon }} {{ t.label }}</button>
+        </div>
         <div class="row small reg-plan">
           <input v-model="regionPlanText" class="grow" @keydown.enter.prevent="planRegions"
                  placeholder="Describe the picture: “a knight on the left fighting a dragon on the right, stormy sky” (empty: the main prompt)"
@@ -1443,20 +1447,31 @@
           <canvas ref="pwCanvas" class="adjust-canvas"></canvas>
           <!-- 🪡 pins: click the picture to add one, drag a pin to bend, ⌥-click a pin to take it out -->
           <div v-if="pw.ovl && !pw.original" ref="pwOverlay" class="adj-overlay pw-overlay"
-               :style="{left: pw.ovl[0] + 'px', top: pw.ovl[1] + 'px', width: pw.ovl[2] + 'px', height: pw.ovl[3] + 'px'}"
+               :style="{left: pw.ovl[0] + 'px', top: pw.ovl[1] + 'px', width: pw.ovl[2] + 'px', height: pw.ovl[3] + 'px', '--iz': 1 / (zoom.tools.z || 1)}"
                @pointerdown="pwStageDown">
-            <i v-for="(k, i) in pw.pins" :key="'pin' + i" class="pw-pin" :class="{sel: i === pw.sel}" :style="pwPinStyle(k)"
-               @pointerdown.stop="pwPinDown($event, i)" @dblclick.stop="pwRemovePin(i)" title="Drag to bend · ⌥-click or double-click to remove"></i>
+            <canvas ref="pwMesh" class="pw-mesh"></canvas>
+            <i v-for="(k, i) in pw.pins" :key="'pin' + i" class="pw-pin" :class="{sel: i === pw.sel, turned: k.rot != null}" :style="pwPinStyle(k)"
+               @pointerdown.stop="pwPinDown($event, i)" @dblclick.stop="pwRemovePin(i)" title="Drag to bend · ⌥ + drag to turn around it · ⌥-click or double-click to remove"></i>
+            <template v-if="pw.sel >= 0 && pw.pins[pw.sel]">
+              <i class="pw-rot-ring" :style="pwPinStyle(pw.pins[pw.sel])"></i>
+              <i class="pw-rot-knob" :style="pwRotHandle(pw.pins[pw.sel])" @pointerdown.stop="pwRotDown($event, pw.sel)"
+                 title="Drag round to turn the part around this pin, like a joint"></i>
+            </template>
           </div>
           <span class="adjust-badge">{{ pw.original ? 'ORIGINAL' : pw.subject ? 'PUPPET WARP · SUBJECT ONLY' : 'PUPPET WARP' }}</span>
           <span v-if="pw.busy || pw.msg" class="adjust-badge busy">{{ pw.msg || 'Working…' }}</span>
+        </div>
+        <div v-else-if="cut.open && !tool.healing" class="adjust-canvas-wrap cut-wrap" @click.stop>
+          <canvas v-show="!cut.busy" ref="cutCanvas" class="adjust-canvas"></canvas>
+          <span class="adjust-badge">{{ cut.view === 'mask' ? 'CUT OUT · MASK' : 'CUT OUT' }}</span>
+          <span v-if="cut.busy || cut.msg" class="adjust-badge busy">{{ cut.msg || 'Working…' }}</span>
         </div>
         <div v-else-if="tool.source && tool.healing" class="mask-stage tool-mask" @click.stop @dragover.stop>
           <img :src="fileUrl(maskTarget())" @load="initMaskCanvas" ref="maskImg" draggable="false">
           <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove($event); brushAt($event)" @pointerup="maskUp"
                   @pointerleave="maskUp(); brush.show = false" :style="{cursor: ['brush', 'erase'].includes(mask.tool || 'brush') ? 'none' : 'crosshair'}" @dblclick="selFinishPoly"></canvas>
           <canvas ref="selCanvas" class="sel-canvas"></canvas>
-          <span v-if="objFinding" class="stage-busy">Finding the object…</span>
+          <span v-if="objFinding" class="stage-busy">Finding the outline…</span>
           <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
              :style="{left: brush.x + 'px', top: brush.y + 'px', width: brushRingPx() + 'px', height: brushRingPx() + 'px'}"></i>
         </div>
@@ -1561,64 +1576,109 @@
                 :title="patch.on ? 'Hide the patchbay (your cables are kept)' : 'Show the patchbay: wire the tools together with cables to run them one after another, in the order you choose'">
           <i class="patch-lamp"></i><span class="patch-lever"><b></b></span><span>PATCHBAY</span></button>
         <span class="grow"></span>
-        <button class="ghost small" @click="resetTools" title="Enhance, Restore faces and Depth back to their starting settings. Your Adjust presets, export presets and pictures aren't touched.">↺ Reset Tools settings</button>
+        <button class="ghost small" @click="resetTools" title="Every module in the Tools window back to its starting settings (Enhance, Faces, Depth, Remove, Cut out, Paper, Vectorize, Detail, Tiled upscale, Smaller copy, Merger, Convert, Puppet warp, Adjust's sliders) and the patchbay cables out. Each module's own ↺ resets just that one. Your presets and pictures aren't touched; undo puts it all back.">↺ Reset Tools settings</button>
         <button v-if="toolsUndo" class="link small" @click="undoResetTools">undo</button>
       </div>
       <div v-if="pw.open" id="puppet-card" class="card adjust-card puppet-card">
-        <h3>🪡 Puppet warp <span class="hint">pins and bends, like Photoshop · live preview on the left · saved as a copy</span></h3>
+        <h3>🪡 Puppet warp <span class="hint">pins and bends, like Photoshop · live preview on the left · saved as a copy · ⌘Z undo · Enter saves</span>
+          <span class="grow"></span>
+          <button class="link small" @click="pwResetSettings" title="Mode, mesh, expansion, feather and the switches back to their starting values (your pins stay)">↺ reset</button></h3>
         <div v-if="pw.error" class="error-box">{{ pw.error }}</div>
-        <ol class="pw-steps">
-          <li><b>Pin what should stay</b>: click the picture to put a pin (e.g. on the shoulder, the hips, the feet).</li>
-          <li><b>Drag a pin to bend</b>: put one on the hand or head and drag it; the picture bends around the pins.</li>
-          <li><b>Take a pin out</b>: ⌥-click or double-click it, or press ✕ Remove pin.</li>
-        </ol>
-        <div class="row small pw-row">
-          <span class="hint">{{ pw.pins.length }} pin{{ pw.pins.length === 1 ? '' : 's' }}</span>
-          <button class="ghost small" :disabled="!pw.pins.length" @click="pwRemovePin()">✕ Remove pin</button>
-          <button class="ghost small" :disabled="!pw.pins.length" @click="pw.pins = []; pw.sel = -1">↺ Remove all</button>
-          <button class="ghost small" @mousedown="pw.original = true" @mouseup="pw.original = false" @mouseleave="pw.original = false"
-                  title="Hold to see the picture as it was">◐ Hold for the original</button>
-        </div>
-        <div class="pw-subject">
+
+        <!-- 1 · what bends -->
+        <div class="pw-step" :class="{now: pwStep() === 1, done: pwStep() > 1}">
+          <div class="pw-step-h"><b class="pw-num">1</b> <b>Choose what bends</b>
+            <span v-if="pw.subject" class="hint">✓ the subject is on its own layer; the background behind it is filled in</span>
+            <span v-else-if="pw.whole" class="hint">✓ the whole picture</span></div>
           <template v-if="pw.selecting">
-            <p class="mod-desc mod-live">← Select the subject on the picture: <b>⬚ Object</b> (drag a box around it) is quickest; Brush, Lasso or Polygon fix the edge.</p>
+            <p class="mod-desc mod-live">← Select the subject on the picture. <b>👤 Subject</b> finds people and animals by itself;
+              <b>⬚ Object</b>: drag a box around it; <b>🖌 Brush</b> / <b>🧽 Erase</b> fix the edge.</p>
             <div class="sel-tools" role="toolbar" aria-label="Selection tools">
               <button v-for="t in SEL_TOOLS" :key="'pws' + t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
             </div>
             <div class="sel-opts">
-              <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the selection (or hold ⌥ Option)">－ Subtract</button></div>
-              <span class="hint">brush {{ mask.size }} · [ ] to change</span>
+              <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the selection">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the selection (or hold ⌥ Option)">－ Subtract</button></div>
+              <span class="hint">brush {{ mask.size }} · [ ] to change · hold Space to move around when zoomed</span>
             </div>
             <div class="row small">
-              <button class="primary" :disabled="!mask.data" @click="pwUseSubject" title="Only the subject bends; what was behind it is filled in (Smart fill, ~208 MB the first time)">✓ Use this subject</button>
-              <button class="link" @click="maskClear">clear</button>
-              <button class="ghost small" @click="pwCancelSelect">Cancel</button>
-            </div>
-          </template>
-          <template v-else-if="pw.subject">
-            <p class="hint">✂ <b>Subject only</b>: the pins bend the subject; the background stays still and is filled in behind it (nothing is left behind where it moved from).</p>
-            <div class="row small">
-              <button class="ghost small" :disabled="pw.busy" @click="pwSelectSubject">✂ Select again</button>
-              <button class="ghost small" :disabled="pw.busy" @click="pwWholePicture">Bend the whole picture instead</button>
+              <button class="primary" :disabled="!mask.data" @click="pwUseSubject()" title="Puts the subject on its own layer: only it bends, and what was behind it is filled in (Smart fill, ~208 MB the first time)">✓ Use this subject</button>
+              <button class="link" @click="maskClear" title="Empty the selection and start again">clear</button>
+              <button class="ghost small" @click="pwCancelSelect" title="Stop selecting and go back to the pins">Cancel</button>
             </div>
           </template>
           <div v-else class="row small">
-            <button class="ghost" :disabled="pw.busy" @click="pwSelectSubject"
-                    title="Like putting the subject on its own layer in Photoshop: select it, then only it bends and the background behind it is filled in. Best when you move an arm, a head or something held, so no copy is left behind.">✂ Separate the subject first</button>
-            <span class="hint">only it bends; the background is filled in behind it</span>
+            <button :class="{primary: !pw.subject && !pw.whole, on: !!pw.subject}" :disabled="pw.busy" @click="pwSelectSubject"
+                    :title="pw.subject ? 'Select the subject again (the pins stay)' : 'Best for people and animals: the subject goes on its own layer, only it bends, and the background behind it is filled in, so no copy of an arm or a lantern is left behind'">✂ {{ pw.subject ? 'Select the subject again' : 'Just the subject (person, animal, object)' }}</button>
+            <button class="ghost" :class="{on: pw.whole && !pw.subject}" :disabled="pw.busy" @click="pwWholePicture"
+                    title="Bend the whole picture, background and all (quickest; good for landscapes, buildings and small nudges)">▢ The whole picture</button>
           </div>
         </div>
-        <div class="row small pw-row"><span class="hint">Smoothness</span>
-          <div class="seg">
-            <button v-for="d in [[24, 'Fewer points'], [48, 'Normal'], [80, 'More points']]" :key="'d' + d[0]" :class="{on: pw.density === d[0]}"
-                    @click="pwSetDensity(d[0])" :title="d[0] > 48 ? 'Smoother bends, a little slower' : d[0] < 48 ? 'Faster, a little stiffer' : 'A good balance'">{{ d[1] }}</button>
-          </div></div>
-        <p class="hint">Tip: one pin moves the whole picture. Put two or three pins where it should stay still before you bend something.
-          Bending stretches the picture a little: <b>Save &amp; send to Image to image</b> lets your model redraw it lightly (0.2–0.35 change).</p>
-        <div class="row">
-          <button class="primary" :disabled="!pwMoved() || pw.busy" @click="pwSave()">💾 Save the warped copy</button>
-          <button :disabled="!pwMoved() || pw.busy" @click="pwSave('i2i')" title="Save it, then open it in Image to image for a light redraw that smooths the bent parts">Save &amp; send to Image to image</button>
-          <button class="ghost" @click="closePuppet">✕ Close</button>
+
+        <!-- 2 · pins -->
+        <div class="pw-step" :class="{now: pwStep() === 2, done: pwStep() > 2, off: pw.selecting}">
+          <div class="pw-step-h"><b class="pw-num">2</b> <b>Pin and bend</b>
+            <span class="hint">{{ pw.pins.length }} pin{{ pw.pins.length === 1 ? '' : 's' }}</span></div>
+          <ol class="pw-steps">
+            <li><b>Anchor</b>: click to put pins on what must stay still (e.g. head, shoulder, hips, wrist).</li>
+            <li><b>Bend</b>: click the joint to move (e.g. the elbow) and drag it; the pinned parts hold.</li>
+            <li><b>Pivot</b>: drag the round handle by the chosen pin, or <b>⌥ + drag</b> near it, to turn the part around that joint.</li>
+          </ol>
+          <div class="row small pw-row">
+            <button class="ghost small" :disabled="!pw.hist.length" @click="pwUndo" title="Take back the last pin change (⌘Z)">↶ Undo</button>
+            <button class="ghost small" :disabled="!pw.fut.length" @click="pwRedo" title="Put it back again (⇧⌘Z)">↷ Redo</button>
+            <button class="ghost small" :disabled="!pw.pins.length" @click="pwRemovePin()" title="Take out the chosen pin (or the last one) · also ⌥-click, double-click or Delete">✕ Remove pin</button>
+            <button class="ghost small" :disabled="!pw.pins.length" @click="pwRemoveAll" title="Take out every pin (⌘Z brings them back)">↺ Remove all</button>
+            <button class="ghost small" @pointerdown="pw.original = true" @pointerup="pw.original = false" @pointerleave="pw.original = false"
+                    title="Hold to see the picture as it was">◐ Hold for the original</button>
+          </div>
+          <div class="pw-grid">
+            <span class="hint">Mode</span>
+            <div class="seg">
+              <button v-for="m in [['rigid', 'Rigid', 'Stiff: parts bend and turn but keep their shape. Best for arms, legs and bodies'], ['normal', 'Normal', 'In between: parts may grow or shrink a little as they bend'], ['distort', 'Distort', 'Stretchy, like rubber: parts stretch and slant. Good for cloth, hair, smoke, tails']]"
+                      :key="m[0]" :class="{on: pw.mode === m[0]}" @click="pwSetMode(m[0])" :title="m[2]">{{ m[1] }}</button>
+            </div>
+            <span class="hint">Density</span>
+            <div class="seg">
+              <button v-for="d in [[24, 'Fewer points', 'A looser mesh: faster, a little stiffer'], [48, 'Normal', 'A good balance'], [80, 'More points', 'A finer mesh: smoother bends and more precise near the pins, a little slower; good for big pictures']]" :key="'d' + d[0]" :class="{on: pw.density === d[0]}"
+                      @click="pwSetDensity(d[0])" :title="d[2]">{{ d[1] }}</button>
+            </div>
+            <template v-if="pw.subject">
+              <span class="hint" title="Grow (+) or shrink (−) the subject's edge. Shrink takes away a thin halo of the old background">Expansion</span>
+              <div class="pw-slider"><input type="range" min="-20" max="20" step="1" v-model.number="pw.expand" @input="pwSetEdge"
+                     title="Grow (+) or shrink (−) the subject's edge, in pixels. A little shrink takes away a halo of the old background"><b>{{ pw.expand > 0 ? '+' : '' }}{{ pw.expand }} px</b></div>
+            </template>
+          </div>
+          <div class="row small pw-row">
+            <label class="check" title="Show the triangle mesh the picture bends on (untick to see only the pins)"><input type="checkbox" v-model="pw.showMesh"> Show mesh</label>
+            <label v-if="pw.subject" class="check" title="Untick to hide the background and see only the subject while you place pins (it's still saved with the background)"><input type="checkbox" :checked="pw.showBg" @change="pwSetShowBg($event.target.checked)"> Show background</label>
+          </div>
+          <div v-if="pw.sel >= 0 && pw.pins[pw.sel]" class="pw-pin-box">
+            <span class="hint">Chosen pin {{ pw.sel + 1 }} · Rotate</span>
+            <input type="range" min="-180" max="180" step="1" :value="pwRotDeg(pw.pins[pw.sel])"
+                   @pointerdown="pwSnap" @input="pwSetRot(pw.sel, $event.target.value * Math.PI / 180, true)"
+                   title="Turn the part around this pin (a joint), in degrees">
+            <b>{{ pw.pins[pw.sel].rot == null ? 'auto' : pwRotDeg(pw.pins[pw.sel]) + '°' }}</b>
+            <button class="link small" :disabled="pw.pins[pw.sel].rot == null" @click="pwSetRot(pw.sel, null)"
+                    title="Auto: the part turns by itself as you bend (like Photoshop's Auto rotate)">auto</button>
+            <button class="link small" @click="pwRemovePin(pw.sel)" title="Take this pin out (Delete)">remove</button>
+          </div>
+        </div>
+
+        <!-- 3 · blend -->
+        <div class="pw-step" :class="{now: pwStep() === 3, off: pw.selecting}">
+          <div class="pw-step-h"><b class="pw-num">3</b> <b>Blend it back in and save</b></div>
+          <div v-if="pw.subject" class="pw-grid">
+            <span class="hint" title="How soft the subject's edge is, so it blends into the scene without a hard outline">Feather</span>
+            <div class="pw-slider"><input type="range" min="0" max="40" step="1" v-model.number="pw.feather" @input="pwSetEdge"
+                   title="Soften the subject's edge so it blends into the background, in pixels"><b>{{ pw.feather }} px</b></div>
+          </div>
+          <p class="hint">Bending stretches the picture a little. <b>Save &amp; send to Image to image</b> lets your model redraw it lightly
+            (0.2–0.35 change) so the bent parts and the edge melt into the scene.</p>
+          <div class="row">
+            <button class="primary" :disabled="!pwMoved() || pw.busy" @click="pwSave()" title="Save the bent picture as a new copy in the Library (Enter). The original isn't changed">💾 Save the warped copy</button>
+            <button :disabled="!pwMoved() || pw.busy" @click="pwSave('i2i')" title="Save it, then open it in Image to image for a light redraw that smooths the bent parts and the edge">Save &amp; send to Image to image</button>
+            <button class="ghost" @click="closePuppet" title="Close Puppet warp without saving">✕ Close</button>
+          </div>
         </div>
       </div>
       <div v-if="adj.open" id="adjust-card" class="card adjust-card">
@@ -1667,6 +1727,25 @@
             <label>Size</label><input type="range" min="0.02" max="0.6" step="0.01" :value="adjSelPoint().r" @input="adjPointSet('r', $event.target.value)">
             <label>Opacity</label><input type="range" min="0" max="1" step="0.05" :value="adjSelPoint().op" @input="adjPointSet('op', $event.target.value)">
             <span class="adj-val">{{ Math.round(adjSelPoint().op * 100) }}%</span>
+            <button v-if="!adjLayer(adj.pointTarget)" class="ghost small" @click="adjMakeOwn"
+                    title="Give this point its own settings: its own Bloom (or Exposure, Contrast…) values, separate from the other points">⚙ Own settings for this point</button>
+          </div>
+          <div v-if="adj.paintMode === 'paint'" class="adj-points">
+            <button class="ghost small" @click="adjNewPaintLayer" title="Start a new set of brush strokes with their own settings (e.g. a strong Bloom on the lantern, a soft one on the sky)">＋ New paint layer with its own settings</button>
+          </div>
+          <div v-if="adjLayer(adj.pointTarget)" class="adj-own-box">
+            <div class="adj-pt-line"><b>⚙ {{ (adjPointTargets().find((t) => t.id === adj.pointTarget) || {}).label }}</b>
+              <span class="hint">these sliders change only this {{ adjPointCount() ? 'point' : 'painted layer' }}</span>
+              <button class="link small" @click="adjPaintToggle('paint')" title="Paint where these settings should show">🖌 paint</button>
+              <button class="link small" @click="adjStartAdd" title="Click the picture to add a point with these settings">＋ point</button>
+              <button class="link small" @click="adjRemoveLayer(adj.pointTarget)" title="Take this layer out (its points and paint go too)">✕ remove</button></div>
+            <div v-for="sl in adjStepSliders(adjLayer(adj.pointTarget).step)" :key="'own' + sl.k" class="adj-row" :title="sl.tip">
+              <label>{{ sl.label }}</label>
+              <input type="range" v-bind="adjSlider(sl)" :value="adjLayer(adj.pointTarget).layer.own[sl.k]"
+                     @input="adjOwnSet(adj.pointTarget, sl.k, $event.target.value)"
+                     @dblclick="adjOwnSet(adj.pointTarget, sl.k, adj.p[sl.k])" title="Double-click: the same as the step's own setting">
+              <span class="adj-val">{{ Number(adjLayer(adj.pointTarget).layer.own[sl.k] ?? 0).toFixed(2) }}</span>
+            </div>
           </div>
           <div class="adjust-cols">
             <div>
@@ -1920,7 +1999,7 @@
 
         <div id="rack-enhance" class="card rack-module enh-module" :class="{active: post.do_enhance, 'patch-pick': patchPicked('enhance')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">✨</span>
-            <h3>Enhance</h3><span v-if="patchPicked('enhance')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">sharper &amp; bigger · Finegrain</span></div>
+            <h3>Enhance</h3><button class="mod-reset" @click.stop="resetToolPart('enhance')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span v-if="patchPicked('enhance')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">sharper &amp; bigger · Finegrain</span></div>
           <label>Upscale</label>
           <div class="seg mod-seg">
             <button v-for="u in [1, 2, 3, 4]" :key="u" :class="{on: post.enh.upscale_factor === u}" @click="post.enh.upscale_factor = u"
@@ -1968,7 +2047,7 @@
 
         <div id="rack-faces" class="card rack-module" :class="{active: post.do_faces, 'patch-pick': patchPicked('faces')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🙂</span>
-            <h3>Restore faces</h3><span v-if="patchPicked('faces')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">{{ post.face_model === 'restoreformer' ? 'RestoreFormer' : 'CodeFormer' }}</span></div>
+            <h3>Restore faces</h3><button class="mod-reset" @click.stop="resetToolPart('faces')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span v-if="patchPicked('faces')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">{{ post.face_model === 'restoreformer' ? 'RestoreFormer' : 'CodeFormer' }}</span></div>
           <p class="mod-desc">Repairs blurry or distorted faces and eyes.</p>
           <label>Model</label>
           <div class="seg mod-seg" @click.stop>
@@ -1996,7 +2075,7 @@
 
         <div id="rack-depth" class="card rack-module depth-card" :class="{'patch-pick': patchPicked('depth')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🌊</span>
-            <h3>Depth map</h3><span v-if="patchPicked('depth')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">Depth Anything V2</span></div>
+            <h3>Depth map</h3><button class="mod-reset" @click.stop="resetToolPart('depth')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span v-if="patchPicked('depth')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">Depth Anything V2</span></div>
           <p class="mod-desc" title="Use it as a ControlNet depth map in Image to image (keeps the 3-D layout while changing everything else), or for editing and 3-D work.">Near things bright, far things dark. For ControlNet and 3-D work.</p>
           <label>Model</label>
           <div class="seg mod-seg">
@@ -2017,7 +2096,7 @@
 
         <div id="rack-heal" class="card rack-module heal-card" :class="{'patch-pick': patchPicked('heal')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🩹</span>
-            <h3>Remove objects</h3><span v-if="patchPicked('heal')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">spot healing</span></div>
+            <h3>Remove objects</h3><button class="mod-reset" @click.stop="resetToolPart('heal')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span v-if="patchPicked('heal')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">spot healing</span></div>
           <template v-if="!tool.healing || pw.selecting">
             <p class="mod-desc">Paint over anything you don't want (a stray object, an extra finger, text, a blemish) and it's filled in from what's around it.</p>
             <ol class="mod-steps">
@@ -2058,9 +2137,74 @@
           </div>
         </div>
 
+        <div id="rack-cutout" class="card rack-module cut-card" :class="{active: cut.open}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">✂</span>
+            <h3>Cut out</h3><button class="mod-reset" @click.stop="resetToolPart('cutout')" title="This module's settings back to the start">↺</button><span class="mod-sub">remove the background</span></div>
+          <p class="mod-desc" title="BiRefNet finds the people, animals (dogs, cats, horses…) and things in front, and the rest becomes see-through. Drop a picture on the left, or pick one from the Library. ~224 MB download the first time, then offline">People, animals or objects on a see-through background: PNGs, stickers, Puppet warp.</p>
+          <template v-if="cut.open && !cut.busy">
+            <label title="Where the subject starts: lower keeps more (hair, whiskers, a tail); higher drops faint bits of background">Threshold <span class="mod-val">{{ Number(post.cut.threshold).toFixed(2) }}</span></label>
+            <input type="range" min="0.05" max="0.95" step="0.01" v-model.number="post.cut.threshold" title="Lower keeps more (hair, fur, a tail); higher drops faint bits of background">
+            <label title="How gradual the edge is: 0 is a hard cut (like a sticker); higher is softer (hair, fur)">Edge softness <span class="mod-val">{{ Number(post.cut.softness).toFixed(2) }}</span></label>
+            <input type="range" min="0" max="0.6" step="0.01" v-model.number="post.cut.softness" title="0 = a hard edge; higher = softer (hair and fur)">
+            <label title="Grow (+) or shrink (−) the edge, in pixels: shrink takes away a halo of the old background">Grow / shrink <span class="mod-val">{{ post.cut.grow > 0 ? '+' : '' }}{{ post.cut.grow }} px</span></label>
+            <input type="range" min="-20" max="20" step="1" v-model.number="post.cut.grow" title="Shrink a little (−1 to −3) if a thin line of the old background shows">
+            <label>Background</label>
+            <div class="seg mod-seg">
+              <button v-for="b in [['transparent', 'None', 'See-through (a PNG)'], ['white', 'White', 'On white'], ['black', 'Black', 'On black'], ['color', 'Colour', 'On a colour of your choice']]" :key="'cb' + b[0]"
+                      :class="{on: post.cut.bg === b[0]}" @click="cutBg(b[0])" :title="b[2]">{{ b[1] }}</button>
+            </div>
+            <input v-if="post.cut.bg === 'color'" type="color" v-model="post.cut.color" title="The background colour">
+            <div class="seg mod-seg">
+              <button :class="{on: cut.view === 'result'}" @click="cut.view = 'result'" title="Show the cut-out">Result</button>
+              <button :class="{on: cut.view === 'mask'}" @click="cut.view = 'mask'" title="Show the mask: white = kept, black = gone (easier to judge the edge)">Mask</button>
+            </div>
+            <label class="check" title="Drop small separate specks of background that were picked up"><input type="checkbox" v-model="post.cut.clean"> Clean up small bits</label>
+            <label class="check" title="Take the edge's colours from inside the subject, so no fringe of the old background is left around it"><input type="checkbox" v-model="post.cut.fix_edges"> Fix edge colours</label>
+            <label class="check" title="Trim the empty space around the subject"><input type="checkbox" v-model="post.cut.crop"> Crop to the subject</label>
+            <div class="mod-links"><button class="link" @click="cutToPuppet" title="Open the picture in Puppet warp with this subject already on its own layer: bend it with pins and it's put back into its scene">🪡 Puppet warp it</button>
+              · <button class="link" @click="closeCutout" title="Close the cut-out preview">close</button></div>
+          </template>
+          <div class="mod-foot">
+            <button v-if="!cut.open" class="primary mod-go" :disabled="!tool.source || cut.busy" @click="toolCutout">✂ Cut out</button>
+            <button v-else class="primary mod-go" :disabled="cut.busy || !!tool.working" @click="cutSave" title="Save the cut-out to the Library (a see-through PNG when the background is None)">💾 Save</button>
+            <span class="mod-plate">Cutter · CO-1</span>
+          </div>
+        </div>
+
+        <div id="rack-paper" class="card rack-module paper-card" :class="{active: paperJob}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">📄</span>
+            <h3>Paper cut-out</h3><button class="mod-reset" @click.stop="resetToolPart('paper')" title="This module's settings back to the start">↺</button><span class="mod-sub">torn-paper sticker</span></div>
+          <p class="mod-desc" title="The subject is found with Cut out's model, then cut out of paper: a torn border, a soft shadow, printed as a photo, a poster or in black and white">The subject as a torn paper sticker with a shadow.</p>
+          <label title="How wide the paper border around the subject is">Border <span class="mod-val">{{ Number(post.paper.edge).toFixed(1) }}%</span></label>
+          <input type="range" min="0.3" max="8" step="0.1" v-model.number="post.paper.edge" title="The paper border's width (part of the picture's shorter side)">
+          <label>Paper</label>
+          <div class="seg mod-seg">
+            <button v-for="c in [['white', 'White'], ['cream', 'Cream'], ['kraft', 'Kraft'], ['black', 'Black']]" :key="'pe' + c[0]" :class="{on: post.paper.edge_colour === c[0]}"
+                    @click="post.paper.edge_colour = c[0]" :title="'A ' + c[1].toLowerCase() + ' paper border'">{{ c[1] }}</button>
+          </div>
+          <label title="How torn the border's edge looks: 0 is a clean cut, 1 is roughly torn">Torn edge <span class="mod-val">{{ Number(post.paper.rough).toFixed(2) }}</span></label>
+          <input type="range" min="0" max="1" step="0.05" v-model.number="post.paper.rough" title="0 = cut with scissors · 1 = roughly torn by hand">
+          <label>Shadow <span class="mod-val">{{ Number(post.paper.shadow).toFixed(2) }}</span></label>
+          <input type="range" min="0" max="1" step="0.05" v-model.number="post.paper.shadow" title="How deep the sticker's shadow is">
+          <label>Print</label>
+          <div class="seg mod-seg">
+            <button v-for="c in [['photo', 'Photo', 'The picture as it is'], ['poster', 'Poster', 'Fewer, flatter colours, like a printed poster'], ['mono', 'Mono', 'Black and white']]" :key="'pp' + c[0]"
+                    :class="{on: post.paper.print_as === c[0]}" @click="post.paper.print_as = c[0]" :title="c[2]">{{ c[1] }}</button>
+          </div>
+          <label>Background</label>
+          <div class="seg mod-seg">
+            <button v-for="c in [['transparent', 'None', 'See-through PNG (the shadow stays)'], ['paper', 'Paper', 'On a sheet of paper'], ['picture', 'Picture', 'Stuck onto its own picture'], ['#ffffff', 'White', 'On white']]" :key="'pb' + c[0]"
+                    :class="{on: post.paper.background === c[0]}" @click="post.paper.background = c[0]" :title="c[2]">{{ c[1] }}</button>
+          </div>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!tool.source || paperJob" @click="toolPaper">{{ paperJob ? 'Cutting…' : '📄 Make it' }}</button>
+            <span class="mod-plate">Paper press · PC-2</span>
+          </div>
+        </div>
+
         <div id="rack-detail" class="card rack-module detail-card" :class="{'patch-pick': patchPicked('detail')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🔎</span>
-            <h3>Detail with a LoRA</h3><span v-if="patchPicked('detail')" class="mod-editing">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">patchbay · {{ currentModel ? currentModel.label : 'pick a model in Create' }}</span></div>
+            <h3>Detail with a LoRA</h3><button class="mod-reset" @click.stop="resetToolPart('detail')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span v-if="patchPicked('detail')" class="mod-editing">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">patchbay · {{ currentModel ? currentModel.label : 'pick a model in Create' }}</span></div>
           <p class="mod-desc">A light redraw with the model picked in Create and one LoRA (an “add detail” LoRA, a style…): sharper skin, fabric and texture, same picture. Runs as the patchbay's DETAIL module.</p>
           <label>LoRA <span class="hint">{{ detLoras().length }} of {{ compatibleLoras.length }}</span></label>
           <input v-model="detLoraQ" class="mod-input" type="search" placeholder="🔍 Search LoRAs (name or trigger word)…" title="Type part of a LoRA's name or trigger word to narrow the list">
@@ -2081,7 +2225,7 @@
 
         <div id="rack-vector" class="card rack-module vec-card" :class="{'patch-pick': patchPicked('vector')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">✒️</span>
-            <h3>Vectorize</h3><span v-if="patchPicked('vector')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">picture → SVG</span></div>
+            <h3>Vectorize</h3><button class="mod-reset" @click.stop="resetToolPart('vector')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span v-if="patchPicked('vector')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">picture → SVG</span></div>
           <p class="mod-desc" title="The SVG scales to any size without blur and opens in Illustrator, Affinity, Inkscape, Figma or Cricut. Photos become a poster-like look.">Flat colour shapes for logos, icons, stickers and cut files.</p>
           <label>Colours <span class="mod-val">{{ post.vec.colors }}</span></label>
           <input type="range" min="2" max="24" step="1" v-model.number="post.vec.colors" title="Fewer = simpler, bolder shapes">
@@ -2128,7 +2272,7 @@
         </div>
         <div class="card rack-module tiled-module" :class="{active: !!tiledJob}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🧩</span>
-            <h3>Tiled upscale</h3><span class="mod-sub">MultiDiffusion · {{ currentModel && ['sd15', 'sdxl'].includes(family) ? currentModel.label : 'needs an SD 1.5 / SDXL model in Create' }}</span></div>
+            <h3>Tiled upscale</h3><button class="mod-reset" @click.stop="resetToolPart('tiled')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span class="mod-sub">MultiDiffusion · {{ currentModel && ['sd15', 'sdxl'].includes(family) ? currentModel.label : 'needs an SD 1.5 / SDXL model in Create' }}</span></div>
           <p class="mod-desc" title="The picture is enlarged, then the Create model redraws it lightly in overlapping tiles, averaged at every step so there are no seams. It uses a short detail prompt, not Create's (each tile would redraw that whole scene).">Enlarges the picture and lets your Create model add real detail, tile by tile, with no seams.</p>
           <label>Preset</label>
           <div class="seg mod-seg tup-presets">
@@ -2153,7 +2297,7 @@
         </div>
         <div class="card rack-module quant-module" :class="{active: !!quantJob}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!quantJob}"></i><span class="mod-icon">🗜</span>
-            <h3>Smaller copy</h3><span class="mod-sub">quantize a model · 8 / 6 / 4-bit</span></div>
+            <h3>Smaller copy</h3><button class="mod-reset" @click.stop="resetToolPart('quant')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span class="mod-sub">quantize a model · 8 / 6 / 4-bit</span></div>
           <p class="mod-desc" title="The model's UNet (most of its size) is stored with fewer bits (SDNQ). It needs less memory, so big models fit an 8 GB Mac better and other apps stay quicker. It isn't faster per step. The original model isn't changed.">Makes a new, smaller copy of an SD 1.5 or SDXL model that needs less memory. The original stays as it is.</p>
           <label>Model</label>
           <select v-model="qnt.model" title="The model to make a smaller copy of"><option value="">pick a model…</option>
@@ -2172,7 +2316,7 @@
         </div>
         <div class="card rack-module merge-module" :class="{active: mrgJob}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!mrgJob}"></i><span class="mod-icon">🧪</span>
-            <h3>Model merger</h3><span class="mod-sub">blend two models into a new one</span></div>
+            <h3>Model merger</h3><button class="mod-reset" @click.stop="resetToolPart('merge')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span class="mod-sub">blend two models into a new one</span></div>
           <p class="mod-desc">Mixes two of your .safetensors models of the same type (SD 1.5 + SD 1.5, SDXL + SDXL) into a new model file. The models you pick aren't changed.</p>
           <label>Model A</label>
           <select v-model="mrg.a" title="The first model (its VAE is kept)"><option value="">pick a model…</option>
@@ -2201,7 +2345,7 @@
         <div class="card rack-module convert-module" :class="{active: !!conv.items, over: conv.over}" @dragover.prevent="conv.over = true" @dragleave="conv.over = false" @drop.prevent="convertDrop"
              title="Drop DiffusionBee files (.tdict) or folders, an old .ckpt model, or a .safetensors model here">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!conv.items}"></i><span class="mod-icon">🔁</span>
-            <h3>Convert</h3><span class="mod-sub">{{ cvt.to === 'lora' ? 'model → LoRA' : 'DiffusionBee → .safetensors' }}</span></div>
+            <h3>Convert</h3><button class="mod-reset" @click.stop="resetToolPart('convert')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span class="mod-sub">{{ cvt.to === 'lora' ? 'model → LoRA' : 'DiffusionBee → .safetensors' }}</span></div>
           <label>Convert into</label>
           <div class="seg mod-seg">
             <button :class="{on: cvt.to === 'copy'}" @click="cvt.to = 'copy'" title="A standard .safetensors copy of a DiffusionBee file or an old .ckpt, for other apps">Copy</button>
@@ -2379,7 +2523,7 @@
             <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove($event); brushAt($event)" @pointerup="maskUp"
                     @pointerleave="maskUp(); brush.show = false" :style="{cursor: ['brush', 'erase'].includes(mask.tool || 'brush') ? 'none' : 'crosshair'}" @dblclick="selFinishPoly"></canvas>
           <canvas ref="selCanvas" class="sel-canvas"></canvas>
-          <span v-if="objFinding" class="stage-busy">Finding the object…</span>
+          <span v-if="objFinding" class="stage-busy">Finding the outline…</span>
             <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
                :style="{left: brush.x + 'px', top: brush.y + 'px', width: brushRingPx() + 'px', height: brushRingPx() + 'px'}"></i>
           </div>
@@ -3101,7 +3245,7 @@
         <div class="grid2">
           <div><label>Steps</label><input title="Training steps: more learns more but takes longer and can over-learn (Standard ≈ 100 per image)" type="number" min="50" max="10000" step="50" v-model.number="train.steps"></div>
           <div><label>Learning rate</label>
-            <select title="Learning rate: how big each learning step is. Standard suits most; gentle for styles, fast for quick tests" v-model.number="train.lr"><option :value="0.00005">0.00005 (gentle)</option><option :value="0.0001">0.0001 (standard)</option><option :value="0.0002">0.0002 (fast)</option></select></div>
+            <select title="Learning rate: how big each learning step is. Standard suits most; gentle for styles, fast for quick tests" v-model.number="train.lr"><option :value="0.00003">0.00003 (very gentle)</option><option :value="0.00005">0.00005 (gentle · styles)</option><option :value="0.0001">0.0001 (standard · people, objects)</option><option :value="0.0002">0.0002 (fast)</option></select></div>
           <div><label>Rank <span class="hint">detail capacity</span></label>
             <select title="Rank: how much the LoRA can hold. Higher = more detail and a bigger file" v-model.number="train.rank"><option :value="4">4 (tiny file)</option><option :value="8">8</option><option :value="16">16 (standard)</option><option :value="32">32 (more detail)</option></select></div>
           <div><label>Resolution</label>
