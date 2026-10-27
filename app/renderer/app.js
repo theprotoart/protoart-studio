@@ -483,7 +483,8 @@ const protoartApp = createApp({
       tup: { scale: 2, strength: 0.25, steps: 24, prompt: "" },  // Tools → Tiled upscale
       cut: { open: false, busy: false, msg: "", path: "", w: 0, h: 0, view: "result", rev: 0 },  // ✂ Cut out's live preview
       paperJob: false,
-      i2iInpaintPick: "",    // Image to image → Inpaint: the inpainting model you picked ('' = the first that fits)
+      i2iInpaintPick: "",
+      promptCardOver: false, // a picture dragged over Tools → Image → prompt    // Image to image → Inpaint: the inpainting model you picked ('' = the first that fits)
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
       cvt: { to: "copy", model: "", base: "", rank: 32, te: true, name: "", msg: "", extra: [], kind: "", found: null },  // found: {model, ranked} from 🔍 Find it  // extra: DiffusionBee files dropped or sent from the list  // Tools → Convert into (LoRA…)
       chain: { steps: loadJSON("protoart.chain", []).map((x) => ({ lora: "", lora_weight: 1, extra: "", ...x, result: "", q: "" })),
@@ -595,6 +596,7 @@ const protoartApp = createApp({
               "<b>Inpaint picks the right models</b>: in Image to image → Inpaint, your inpainting models are listed first and the others are greyed out (when you have one). Pick one to use it.",
               "<b>Train: ★ Recommended</b> settings for a person, an object, a style or a concept, on SD 1.5, SDXL, <b>Pony / Illustrious</b> and <b>ERNIE Turbo on the ⚡ fast engine</b> (steps, learning rate, rank, layers, size and mirroring). Pony / Illustrious and the ERNIE fast engine have their own groups in the model list.",
               "<b>🗺 Regions → Templates</b> (Create): Before / after, Day / night, Two characters, Face-off, Character in a scene, 3-panel comic, Sky and land, Four seasons, Two above one below, Product on a table: the areas, example prompts and a size that fits, ready to edit.",
+              "<b>📝 Image → prompt</b> (Tools): drop a picture from Finder onto the module and it's read straight away. <b>✕ Clear selection</b> in Image to image now sits on the Add / Subtract row (with ⇄ Invert in Inpaint). <b>Models tab</b>: long model names take at most two lines (point at one for the full name), the buttons line up across each row, and DiffusionBee names show spaces instead of “%20”.",
               "Fixes: [ ] changed the brush size but showed the ring in the middle of the picture: it now stays under the pointer. Holding <b>Space</b> moves a zoomed picture around while you select or paint (the button you clicked last no longer takes the key). The Convert module's list no longer spills out of its column. Tips on Puppet warp's buttons." ] },
             { h: "1.4.2: Puppet warp with a separate subject, paint where a filter shows, Enhance that keeps the style, and fixes", items: [
               "<b>🪡 Puppet warp: ✂ Separate the subject first</b> (like putting it on its own layer in Photoshop): select the subject with ⬚ Object (drag a box around it), Brush, Lasso or Polygon and press <b>✓ Use this subject</b>. What was behind it is filled in (Smart fill), and only the subject bends: raise an arm or move a lantern and no copy of it is left behind. <b>Bend the whole picture instead</b> goes back.",
@@ -4042,6 +4044,13 @@ const protoartApp = createApp({
       const file = [...(e.dataTransfer?.files || [])].find(isPicture);
       if (file) this.setToolFile(window.bee.pathForFile(file), file.name);
       else this.error = "Drop a picture (PNG, JPEG, WebP, HEIC, TIFF, AVIF, PSD, GIF, BMP or camera RAW).";
+    },
+    async promptCardDrop(e) {  // 📝 Image → prompt: a picture dropped on the module becomes the Tools picture and is read
+      this.promptCardOver = false;
+      const file = [...(e.dataTransfer?.files || [])].find(isPicture);
+      if (!file) return (this.error = "Drop a picture (PNG, JPEG, WebP, HEIC, TIFF, AVIF, PSD, GIF, BMP or camera RAW).");
+      await this.setToolFile(window.bee.pathForFile(file), file.name);
+      if (this.tool.source) this.toolToPrompt("describe");
     },
     toolPicked(e) {
       const file = e.target.files?.[0];

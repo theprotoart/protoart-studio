@@ -173,6 +173,15 @@ def total_ram_gb():
         return 0.0
 
 
+def _readable(name):
+    """A file name as people write it: DiffusionBee keeps web-style escapes from downloads ("Kim%20Jung" -> "Kim Jung")."""
+    from urllib.parse import unquote
+    try:
+        return re.sub(r"\s+", " ", unquote(str(name))).strip() or str(name)
+    except Exception:
+        return str(name)
+
+
 def free_disk_gb(path):
     p = Path(path)
     while not p.exists():
@@ -217,7 +226,7 @@ def _custom_models():
         for i in diffusionbee.checkpoints():
             inpaint = "inpaint" in i["name"].lower()
             out["tdict:" + Path(i["file"]).name] = {
-                "label": f"{i['name']} (DiffusionBee{' inpainting' if inpaint else ''})", "family": "sd15", "tdict": i["file"],
+                "label": f"{_readable(i['name'])} (DiffusionBee{' inpainting' if inpaint else ''})", "family": "sd15", "tdict": i["file"],
                 **({"inpaint": True} if inpaint else {}),
                 "download_gb": 0, "quant": None, "min_ram_gb": 8, "source": "diffusionbee",
                 "defaults": dict(MODELS["sd15"]["defaults"]),

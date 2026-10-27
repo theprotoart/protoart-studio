@@ -1318,7 +1318,7 @@
                  class="nsfw-flag" :class="{on: m.nsfw}" role="button" @click="markItem('model', m)"
                  :title="m.nsfw ? 'NSFW · click to mark it safe' : 'Click to mark as NSFW (hidden when Hide NSFW is on)'">⚑</span></span>
           </div>
-          <div class="shop-name">{{ m.label }}</div>
+          <div class="shop-name" :title="m.label">{{ m.label }}</div>
           <div class="hint">{{ modelSizeText(m) }}<template v-if="!isInstalled(m) && m.min_ram_gb"> · needs {{ m.min_ram_gb }} GB RAM</template><template v-if="m.quant"> · {{ m.quant }}</template></div>
           <div v-if="downloadJob(m)" class="shop-dl">
             <div class="bar"><div :style="{width: (jobProgress(downloadJob(m)) ?? 0) + '%'}"></div></div>
@@ -2251,10 +2251,12 @@
           </div>
         </div>
 
-        <div class="card rack-module prompt-card">
+        <div class="card rack-module prompt-card" :class="{over: promptCardOver}" @dragover.prevent="promptCardOver = true" @dragleave="promptCardOver = false" @drop.prevent="promptCardDrop"
+             title="Drop a picture here from Finder or the desktop to turn it into a prompt">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">📝</span>
             <h3>Image → prompt</h3><span class="mod-sub">reads the picture</span></div>
-          <p class="mod-desc">Writes a prompt from the picture (Qwen3.5 vision model) and puts it in Create's prompt box.</p>
+          <p class="mod-desc">Writes a prompt from the picture (Qwen3.5 vision model) and puts it in Create's prompt box. <b>Drop a picture here</b> to read it straight away.</p>
+          <div v-if="promptCardOver" class="prompt-drop-hint">Drop to describe this picture</div>
           <div v-if="tool.promptText" class="mod-readout" :title="tool.promptText">{{ tool.promptText }}</div>
           <div v-if="tool.promptText" class="prompt-out-row">
             <button class="chip" @click.stop="copyPromptText" title="Copy the prompt to the clipboard">{{ tool.promptCopied ? '✓ copied' : '⧉ Copy' }}</button>
@@ -2566,6 +2568,7 @@
             </div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
+              <span class="grow"></span><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
               <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
               <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
               <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
@@ -2576,7 +2579,6 @@
             <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
             <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
             <span class="hint">{{ mask.size }}</span>
-            <button class="link" @click="maskClear">clear</button>
           </div>
           <label>More pictures <span class="hint">optional · up to 3 · a style, an object, an outfit or a person to use</span></label>
           <div class="edit-refs">
@@ -2623,6 +2625,7 @@
             </div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
+              <span class="grow"></span><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
               <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
               <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
               <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
@@ -2633,7 +2636,6 @@
             <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
             <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
             <span class="hint">{{ mask.size }}</span>
-            <button class="link" @click="maskClear">clear</button>
           </div>
           <label>Method</label>
           <div class="seg">
@@ -2652,6 +2654,7 @@
             </div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
+              <span class="grow"></span><button class="ghost small sel-end" :disabled="!mask.data" @click="maskInvert" title="Swap painted and unpainted areas">⇄ Invert</button><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
               <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
               <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
               <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
@@ -2662,8 +2665,6 @@
             <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
             <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
             <span class="hint">{{ mask.size }}</span>
-            <button class="link" @click="maskInvert">invert</button>
-            <button class="link" @click="maskClear">clear</button>
           </div>
           <label>Change strength <span class="hint">{{ form.inpaint.strength.toFixed(2) }} · 0.7–0.9 replaces what's painted; 1.0 = start from scratch there</span></label>
           <input type="range" min="0.3" max="1" step="0.05" v-model.number="form.inpaint.strength">

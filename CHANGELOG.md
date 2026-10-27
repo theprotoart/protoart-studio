@@ -25,6 +25,9 @@
 - Train: ★ Recommended preset by kind and model (`trainRecommended`); Pony / Illustrious and ERNIE ⚡ fast engine
   groups; learning rate 0.00003
 - Create → 🗺 Regions → Templates (`REGION_TEMPLATES`): ten layouts with example prompts and a fitting size
+- Tools → Image → prompt takes a dropped picture (`promptCardDrop`); Image to image's ✕ Clear selection / ⇄ Invert
+  moved onto the Add / Subtract row; Models tab cards clamp long names to two lines and align their buttons;
+  DiffusionBee model labels are unescaped (`_readable`: "%20" → space); seven selection tools on one row
 - Fixes: [ ] showed the brush ring in the middle of the picture (it now stays under the pointer); Space didn't pan
   while a button had the keyboard; Convert's base list overflowed its column (`min-width: 0` on rack modules)
 

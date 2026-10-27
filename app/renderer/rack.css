@@ -1574,14 +1574,14 @@ button.gen-key.on { color: var(--lit-ink); border-color: var(--lit-edge);
   background: radial-gradient(ellipse at 50% 30%, var(--lit-hi) 0%, var(--lit-mid) 50%, var(--lit-lo) 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), inset 0 -2px 0 rgba(0, 0, 0, .3), 0 3px 0 #4f2b00, 0 0 14px rgba(var(--glow-rgb), .45); }
 /* painting & selection toolbar (Brush, Erase, Lasso, Polygon, Wand, Object): small square hardware keys */
-.sel-tools { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin: 6px 0 4px; }
+.sel-tools { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin: 6px 0 4px; }
 button.sel-tool {
   display: grid; justify-items: center; gap: 1px; padding: 5px 2px 4px; min-height: 42px; border-radius: 4px; border: 1px solid #050506;
   color: #ece7da; background: linear-gradient(180deg, #46484d, #2a2c30 55%, #24262a);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), inset 0 -2px 0 rgba(0, 0, 0, .5), 0 2px 0 #0b0b0c;
 }
 button.sel-tool span { font-size: 15px; line-height: 1.1; }
-button.sel-tool small { font: 600 8.5px var(--f-eng); letter-spacing: .08em; text-transform: uppercase; }
+button.sel-tool small { font: 600 8.5px var(--f-eng); letter-spacing: .05em; text-transform: uppercase; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 button.sel-tool.on { color: var(--lit-ink); border-color: var(--lit-edge);
   background: radial-gradient(ellipse at 50% 30%, var(--lit-hi), var(--lit-mid) 55%, var(--lit-lo));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 2px 0 #4f2b00, 0 0 10px rgba(var(--glow-rgb), .4); }
@@ -2289,3 +2289,17 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .cut-card input[type=color] { width: 100%; height: 26px; }
 .adj-own-box { border: 1px solid rgba(255, 196, 92, 0.45); border-radius: 8px; padding: 6px 10px; margin: 6px 0; background: rgba(255, 196, 92, 0.05); }
 .reg-templates { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; margin: 4px 0 6px; }
+/* Image to image: ✕ Clear selection (and ⇄ Invert) sit on the Add / Subtract row, at its right end */
+.sel-opts > .grow { flex: 1; order: 8; }
+.sel-opts > .sel-end { order: 9; }
+.prompt-card { position: relative; }
+.prompt-card.over { outline: 2px dashed var(--amber, #ffae2b); outline-offset: 3px; }
+.prompt-drop-hint { position: absolute; inset: 40% 10px auto; text-align: center; padding: 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.75);
+  color: var(--amber, #ffae2b); font-weight: 600; pointer-events: none; z-index: 3; }
+/* Models tab: a long model name takes at most two lines (the full name shows when you point at it), and every
+   card's buttons line up at the bottom, so the cards in a row stay aligned */
+.shop-card { display: flex; flex-direction: column; min-width: 0; }
+.shop-card .shop-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  overflow-wrap: anywhere; line-height: 1.3; min-height: 2.6em; }
+.shop-card > .row, .shop-card > .shop-dl { margin-top: auto; padding-top: 4px; }
+.shop-card .row > button { white-space: nowrap; }
