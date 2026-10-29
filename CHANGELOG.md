@@ -10,6 +10,9 @@
   (`blend_area`, with room for a contact shadow) redrawn; the rest is the original. Saved as kind `combined`
 - 💡 Match the scene's light (`compose.match_light`): LAB mean / contrast transfer towards the scene (or the area
   around where it's placed), the subject's own colours and shading kept, strength slider
+- Models that need more memory than the Mac has (`enough_ram` false) are greyed out and can't be picked or downloaded
+  (`ramBlocked`: Create list, Image to image and chain selects, start-up preload, Models tab), unless Settings →
+  Load anyway (`force_load`); a saved model that's too big is swapped for one that fits. MOSS-Image docs: 16 GB
 - 📷 Camera angle (mode `camera`): orbit card (CSS 3-D) with drag / scroll, top-down and side dials, sliders and
   preset lists; snapped to the 8 × 4 × 3 multi-angle naming (`camWords`) and sent to `edit_words` as a plain-words
   Klein prompt (`camPrompt`, identity kept) with `camera` recorded in the settings; 🔄 All 8 views queues a turnaround

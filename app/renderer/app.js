@@ -621,13 +621,14 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.0: 🧩 Combine pictures by asking, 💡 match the scene's light, 📷 camera angles, 🧅 peel layers", items: [
+              "<b>Greyed out = not available on this Mac</b>: models that need more memory than your Mac has are greyed out in Create, Image to image, the model chain and the Models tab, marked “not available: needs N GB RAM”, and can't be picked or downloaded. (Settings → Options → <b>Load anyway</b> still lets you try them.)",
               "<b>📷 Camera angle</b> (Image to image): see the same picture from another angle. Drag the card to turn the camera around the subject and over or under it, scroll to go nearer or further, or pick from the lists (8 directions, 4 heights, 3 distances). <b>🔄 All 8 views</b> makes a whole turnaround sheet in one go. Uses FLUX.2 Klein.",
               "<b>🧩 Combine</b> (Image to image): put a character, a pet or an object from another picture into a scene just by asking, e.g. “add her sitting on the bench, waving”. The picture at the top is the scene; add up to 3 pictures under <b>Add to the scene</b>. <b>✨ Let it decide</b> puts them where they fit; <b>✋ I'll place it</b> lets you drag and size each one on the scene, and then only the area around it is blended in (the rest of the scene stays exactly the same). Uses FLUX.2 Klein, like ✨ Edit with words.",
               "<b>✂ Cut it out first</b> (Combine, on by default): the character is lifted out of its picture with ✂ Cut out's model, so its old background doesn't come along.",
               "<b>💡 Match the scene's light</b> (Combine, on by default): before it goes in, the character's brightness, contrast and colour are moved towards the scene's (around where you put it), with a <b>How much</b> slider. Klein then adds the shadows.",
               "<b>🧅 Peel layers</b> (Image to image): select or paint a part (👤 Subject and ⬚ Object find it for you), press <b>🧅 Peel off</b>, and it goes onto its own layer while what was behind it is filled in. Each peel takes a few seconds; repeat for the next part. Rename, hide or reorder the layers, ↶ undo the last peel, then <b>💾 Save layers</b>: a layered Photoshop file (.psd) that opens in Photoshop, Procreate, Affinity, Krita, GIMP and Photopea, plus each layer in the Library." ] },
             { h: "1.5.1: MOSS-Image, an Images fader, problem pictures in Train, undo in Adjust", items: [
-              "<b>MOSS-Image</b> (Create's model list, new MOSS-Image group): a model made for <b>lettering and layouts</b>: signs, posters, book covers, labels and infographics with the words spelled right. <b>Turbo</b> (15 passes) or <b>best quality</b> (50 steps). It runs on the Mac's graphics chip in its own engine, installed the first time with its model (~13 GB). It's big: on an 8 GB Mac expect several minutes a picture or more, and close other apps. Text to image only, no LoRAs yet. Apache-2.0.",
+              "<b>MOSS-Image</b> (Create's model list, new MOSS-Image group): a model made for <b>lettering and layouts</b>: signs, posters, book covers, labels and infographics with the words spelled right. <b>Turbo</b> (15 passes) or <b>best quality</b> (50 steps). It runs on the Mac's graphics chip in its own engine, installed the first time with its model (~13 GB). It's big: it needs a Mac with 16 GB of memory or more (on 8 GB Macs it's greyed out; Settings → Options → Load anyway lets you try it, expect several minutes a picture or more). Text to image only, no LoRAs yet. Apache-2.0.",
               "<b>Images fader</b> (Create): the number of images is now a studio fader, like a mixing desk's: slide it, scroll on it, or click a number on its scale. Every other slider got the same fader look: a ridged cap and a printed scale.",
               "<b>Train: pictures to check</b> are outlined in red with what's wrong (too small, no caption, a very short caption, a file that won't show); <b>Show only these</b> lists just them, and clicking “no caption” jumps to its caption box.",
               "<b>Train: honest time estimates</b>: the time shown is a rough guess until the first steps have run (then it's measured on your Mac). ERNIE on the fast engine is measured on its own now, and a training that would take more than 4 hours says so first, with ways to make it shorter. ★ Recommended uses far fewer steps for ERNIE on smaller Macs.",
@@ -1326,11 +1327,12 @@ const protoartApp = createApp({
               "<b>The character's face or clothes came out different</b>: use a clearer, bigger picture of it, keep ✂ Cut it out first on, place it bigger (a tiny character loses detail), and try another seed.",
               "<b>The character looks pasted on</b>: keep 💡 Match the scene's light on and raise <b>How much</b>; in the prompt say where the light comes from (“lit by the lantern on her right”).",
               "<b>Combine or Peel says it can't download</b>: Cut out (~224 MB) and Smart fill (~208 MB) download once. Turn off Strict offline mode in Settings → Privacy for the download.",
+              "<b>A model is greyed out</b>: this Mac doesn't have the memory it needs (its card says how much). Pick one that isn't greyed out; Settings → Options → Load anyway lets you try it anyway, but it may be very slow or stop part-way.",
               "<b>📷 Camera angle barely turned</b>: Klein sometimes keeps the original angle; try another seed, or a bigger change (a side view instead of a quarter view). <b>The character changed when seen from the back</b>: the back is invented; add details in the prompt (“long braid down her back”).",
               "<b>Peel left an outline behind</b>: select a little past the edge (Grow the selection, or paint over it), or turn on ✂ Follow the edge exactly. <b>The .psd won't open</b>: it's a standard 8-bit RGB Photoshop file; a very big picture with many layers can be several hundred MB." ] },
             { h: "New in 1.5.1: if something doesn't work", items: [
               "<b>Training says it will take 16 hours</b>: on an 8 GB Mac that's about right for ERNIE (each step works through a very big model, and memory spills onto the disk). Use ★ Recommended (fewer steps for ERNIE), or train on an SD 1.5 model, which takes minutes to a few hours. The estimate becomes a measurement after the first steps.",
-              "<b>MOSS-Image is very slow or the Mac stalls</b>: it's a big model; on 8 GB, close other apps (web browsers especially), use Medium (768) size and Turbo, and make one picture at a time. <b>“MOSS-Image isn't on this Mac yet”</b> with Strict offline on: turn it off for the one-time download (~13 GB).",
+              "<b>MOSS-Image is very slow or the Mac stalls</b>: it's a big model that needs 16 GB; close other apps (web browsers especially), use Medium (768) size and Turbo, and make one picture at a time. On an 8 GB Mac it's greyed out unless Load anyway is on. <b>“MOSS-Image isn't on this Mac yet”</b> with Strict offline on: turn it off for the one-time download (~13 GB).",
               "<b>MOSS-Image misspells a word</b>: put the exact words in quotes and say where they go (“at the top, in large letters”); shorter text works best. Try another seed." ] },
             { h: "New in 1.5.0: if something doesn't work", items: [
               "<b>Cut out (or 👤 Subject) says it can't download</b>: its model (~224 MB) downloads once from Hugging Face. Turn off Strict offline mode in Settings → Privacy for the download, then it works offline.",
@@ -2918,8 +2920,8 @@ const protoartApp = createApp({
           await this.onModelChange();
         }
         this.defaultApplied = true;
-        if (!this.currentModel) {
-          // saved model no longer exists: pick one that fits and apply ITS defaults (size, steps, CFG)
+        if (!this.currentModel || this.ramBlocked(this.currentModel)) {
+          // saved model no longer exists (or is too big for this Mac): pick one that fits and apply ITS defaults (size, steps, CFG)
           this.form.model = (this.models.find((m) => m.enough_ram) || this.models[0]).id;
           await this.onModelChange();
         } else if (this.currentModel.family === "sd15" && Math.max(this.form.width, this.form.height) > 768) {
@@ -4084,6 +4086,7 @@ const protoartApp = createApp({
       return this.queue.find((j) => j.cmd === "model_download" && j.model === m.id);
     },
     async downloadModel(m) {
+      if (this.ramBlocked(m)) return (this.error = this.ramBlockText(m));
       if (this.downloadJob(m)) return;
       this.status = `Downloading ${m.label}…`;
       const res = await this.runJob("model_download", { model: m.id });
@@ -4098,8 +4101,17 @@ const protoartApp = createApp({
       this.tab = "create";
       if (!this.isInstalled(m)) this.status = `${m.label} selected · it downloads (${Math.round(m.download_gb)} GB) the first time you press Generate`;
     },
+    // a model this Mac doesn't have the memory for: greyed out and can't be picked (unless Settings → Load anyway)
+    ramBlocked(m) {
+      return !!m && m.enough_ram === false && !this.opts.force_load;
+    },
+    ramBlockText(m) {
+      return `Not available on this Mac: ${m.label} needs ${m.min_ram_gb} GB of memory and this Mac has ${this.sys.ram_gb || "less"} GB. ` +
+        "(Settings → Options → “Load anyway” lets you try it, but it may be very slow or stop part-way.)";
+    },
     selectModel(id) {
       if (this.form.model === id) return;
+      if (this.ramBlocked(this.models.find((m) => m.id === id))) return;
       this.form.model = id;
       this.onModelChange();
     },

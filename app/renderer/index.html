@@ -94,8 +94,8 @@
             <option value="flux2_klein_mlx_q4" :disabled="form.i2i_mode === 'inpaint'">FLUX.2 Klein 4B · {{ form.i2i_mode === 'inpaint' ? '— not an inpainting model' : form.i2i_mode === 'outpaint' ? '↔ Expand with the outpaint LoRA' : '✨ Edit with words' }}{{ editModel().cached ? '' : ' · ' + Math.round(editModel().download_gb) + ' GB download' }}</option>
           </optgroup>
           <optgroup v-for="g in i2iModelGroups" :key="g.name" :label="g.name">
-            <option v-for="m in g.models" :key="m.id" :value="m.id" :disabled="!m.i2iOk">
-              {{ m.label }}{{ m.people ? ' ●' : '' }}{{ m.nsfw ? ' ⚑' : '' }}{{ m.i2iOk ? (m.cached ? '' : ' · ' + Math.round(m.download_gb) + ' GB download') : (m.why || ' — not for image to image') }}</option>
+            <option v-for="m in g.models" :key="m.id" :value="m.id" :disabled="!m.i2iOk || ramBlocked(m)">
+              {{ m.label }}{{ m.people ? ' ●' : '' }}{{ m.nsfw ? ' ⚑' : '' }}{{ ramBlocked(m) ? ' — needs ' + m.min_ram_gb + ' GB RAM' : m.i2iOk ? (m.cached ? '' : ' · ' + Math.round(m.download_gb) + ' GB download') : (m.why || ' — not for image to image') }}</option>
           </optgroup>
         </select>
           <select class="model-sort small" :value="opts.model_sort || ''" @change="setModelSort($event.target.value)" title="Sort the model list (★ favourites stay first)">
@@ -293,8 +293,9 @@
           </select>
         </div>
         <div class="model-list">
-          <button v-for="m in filteredModels" :key="m.id" class="model-item"
-                  :class="{on: m.id===form.model, warn: !m.enough_ram, missing: m.missing}" @click="selectModel(m.id)" @contextmenu.prevent="menuModel($event, m)">
+          <button v-for="m in filteredModels" :key="m.id" class="model-item" :aria-disabled="ramBlocked(m)"
+                  :class="{on: m.id===form.model, warn: !m.enough_ram, unavail: ramBlocked(m), missing: m.missing}" @click="!ramBlocked(m) && selectModel(m.id)" @contextmenu.prevent="menuModel($event, m)"
+                  :title="ramBlocked(m) ? ramBlockText(m) : ''">
             <span class="m-row"><span class="m-name" :title="m.label">{{ m.label }}</span><span class="marks">
               <span class="fav-star" :class="{on: isFav(m)}" role="button" :aria-label="isFav(m) ? 'Favourite: click to remove' : 'Add to favourites'" @click.stop="toggleFav(m)"
                     :title="isFav(m) ? '★ Favourite · click to remove (favourites are listed first; ★ Favorites shows only them)' : 'Click to add to your favourites'">★</span><i
@@ -302,7 +303,7 @@
                   :title="m.people ? 'Tagged People (made of real people) · click to untag' : 'Click to tag as People: made of real people (hidden when Hide People is on)'"></i><span
                   class="nsfw-flag" :class="{on: m.nsfw}" role="button" :aria-label="m.nsfw ? 'Marked NSFW' : 'Mark as NSFW'" @click.stop="markItem('model', m)"
                   :title="m.nsfw ? 'NSFW (' + (m.nsfw_mark ? 'you marked it' : 'from its name') + ') · click to mark it safe' : 'Click to mark as NSFW (hidden when Hide NSFW is on)'">⚑</span></span></span>
-            <span class="m-meta">{{ familyName(m.family) }}<template v-if="m.flavor"> · {{ flavorName(m.flavor) }}</template> · {{ modelSizeText(m) }}<template v-if="!m.enough_ram"> · needs {{ m.min_ram_gb }} GB RAM</template><template v-if="m.missing"> · <b class="warn-text">⚠ file not found: right-click → Reconnect</b></template></span>
+            <span class="m-meta">{{ familyName(m.family) }}<template v-if="m.flavor"> · {{ flavorName(m.flavor) }}</template> · {{ modelSizeText(m) }}<template v-if="!m.enough_ram"> · <b class="unavail-text">{{ ramBlocked(m) ? 'not available: ' : '' }}needs {{ m.min_ram_gb }} GB RAM</b></template><template v-if="m.missing"> · <b class="warn-text">⚠ file not found: right-click → Reconnect</b></template></span>
           </button>
           <div v-if="!filteredModels.length" class="hint m-empty">No models match.</div>
         </div>
@@ -1301,7 +1302,7 @@
     <section v-for="g in shopModels" :key="g.id" class="shop-group mpanel" :class="{open: !shopShut(g.id)}">
       <h3 @click="shopFoldToggle(g.id)"><i class="led" :class="{on: !shopShut(g.id)}"></i>{{ g.title }} <span class="hint">· {{ g.models.length }} · {{ g.hint }}</span></h3>
       <div v-if="!shopShut(g.id)" class="shop-grid">
-        <div v-for="m in g.models" :key="m.id" class="card shop-card" :class="{current: m.id === form.model, missing: m.missing}" @contextmenu.prevent="menuModel($event, m)">
+        <div v-for="m in g.models" :key="m.id" class="card shop-card" :class="{current: m.id === form.model, missing: m.missing, unavail: ramBlocked(m)}" :title="ramBlocked(m) ? ramBlockText(m) : ''" @contextmenu.prevent="menuModel($event, m)">
           <div class="shop-top">
             <i class="led" :class="isInstalled(m) ? 'green on' : m.enough_ram ? 'on' : 'red on'"></i>
             <span class="chip static">{{ familyName(m.family) }}</span>
@@ -1319,7 +1320,7 @@
                  :title="m.nsfw ? 'NSFW · click to mark it safe' : 'Click to mark as NSFW (hidden when Hide NSFW is on)'">⚑</span></span>
           </div>
           <div class="shop-name" :title="m.label">{{ m.label }}</div>
-          <div class="hint">{{ modelSizeText(m) }}<template v-if="!isInstalled(m) && m.min_ram_gb"> · needs {{ m.min_ram_gb }} GB RAM</template><template v-if="m.quant"> · {{ m.quant }}</template></div>
+          <div class="hint">{{ modelSizeText(m) }}<template v-if="ramBlocked(m)"> · <b class="unavail-text">not available on this Mac: needs {{ m.min_ram_gb }} GB RAM</b></template><template v-else-if="!isInstalled(m) && m.min_ram_gb"> · needs {{ m.min_ram_gb }} GB RAM</template><template v-if="m.quant"> · {{ m.quant }}</template></div>
           <div v-if="downloadJob(m)" class="shop-dl">
             <div class="bar"><div :style="{width: (jobProgress(downloadJob(m)) ?? 0) + '%'}"></div></div>
             <span class="hint">{{ downloadJob(m).state === 'running' ? 'Downloading · ' + etaText(downloadJob(m)) : 'Waiting in the queue' }}</span>
@@ -1328,17 +1329,17 @@
           </div>
           <div v-else class="row">
             <template v-if="isInstalled(m)">
-              <button class="primary" @click="useModel(m)">Use in Create</button>
-              <button class="ghost" :class="{on: m.id === opts.default_model}" @click="setDefaultModel(m)"
+              <button class="primary" :disabled="ramBlocked(m)" @click="useModel(m)" :title="ramBlocked(m) ? ramBlockText(m) : ''">Use in Create</button>
+              <button class="ghost" :class="{on: m.id === opts.default_model}" :disabled="ramBlocked(m) && m.id !== opts.default_model" @click="setDefaultModel(m)"
                       :title="m.id === opts.default_model ? 'Click to stop using it as the default' : 'Create starts with this model every time the app opens (and gets it ready in the background)'">{{ m.id === opts.default_model ? '✓ Default' : 'Make default' }}</button>
               <button :class="modelDel === m.id ? 'danger' : 'danger-outline'" @click="deleteModel(m)"
                       :title="isOwnModel(m) ? 'Moves the file to the macOS Trash (you can put it back from there)' : 'Deletes the downloaded files from this Mac; it downloads again if you use it later'">
                 {{ modelDel === m.id ? (isOwnModel(m) ? 'Click again: move to Trash' : 'Click again to delete') : (isOwnModel(m) ? '🗑 Move to Trash' : '🗑 Delete') }}</button>
             </template>
             <template v-else>
-              <button :class="m.enough_ram ? 'primary' : ''" @click="downloadModel(m)"
+              <button :class="m.enough_ram ? 'primary' : ''" :disabled="ramBlocked(m)" @click="downloadModel(m)"
                       :title="'Download now (' + m.download_gb + ' GB) so it is ready offline' + (m.enough_ram ? '' : ', even though this Mac may not have enough memory to run it')">⤓ Download {{ m.download_gb < 10 ? Number(m.download_gb).toFixed(1).replace(/\.0$/, '') : Math.round(m.download_gb) }} GB</button>
-              <button class="ghost" @click="useModel(m)" :title="m.enough_ram ? 'Pick it now; it downloads the first time you press Generate' : 'Needs Settings → Load anyway to try on this Mac'">{{ m.enough_ram ? 'Use' : 'Try anyway' }}</button>
+              <button class="ghost" :disabled="ramBlocked(m)" @click="useModel(m)" :title="ramBlocked(m) ? ramBlockText(m) : m.enough_ram ? 'Pick it now; it downloads the first time you press Generate' : 'Load anyway is on in Settings: it may be very slow or stop on this Mac'">{{ m.enough_ram ? 'Use' : 'Try anyway' }}</button>
             </template>
           </div>
         </div>
@@ -2965,7 +2966,7 @@
                 <i class="mod-lamp" :class="{on: chain.at === k}"></i>
                 <span class="chain-n">{{ k + 1 }}</span>
                 <select v-model="st.model" @change="chainModelChanged(st)" title="The model for this step">
-                  <option v-for="m in chainModels()" :key="m.id" :value="m.id">{{ m.label }}</option>
+                  <option v-for="m in chainModels()" :key="m.id" :value="m.id" :disabled="ramBlocked(m)">{{ m.label }}{{ ramBlocked(m) ? ' — needs ' + m.min_ram_gb + ' GB RAM' : '' }}</option>
                 </select>
                 <button class="ghost small" :disabled="k === 0 || chain.running" @click="chainMove(k, -1)" title="Move this step earlier">↑</button>
                 <button class="ghost small" :disabled="k === chain.steps.length - 1 || chain.running" @click="chainMove(k, 1)" title="Move this step later">↓</button>
@@ -3943,7 +3944,7 @@
       <select title="Which model to load in the background when the app opens, so the first picture starts sooner" v-model="opts.preload_start" @change="saveOpts" style="width:auto">
         <option value="">nothing (load on Generate)</option>
         <option value="last">{{ opts.default_model ? 'my default model' : 'the model I used last' }}</option>
-        <option v-for="m in installedModels" :key="m.id" :value="m.id">{{ m.label }}</option>
+        <option v-for="m in installedModels" :key="m.id" :value="m.id" :disabled="ramBlocked(m)">{{ m.label }}{{ ramBlocked(m) ? ' — needs ' + m.min_ram_gb + ' GB RAM' : '' }}</option>
       </select>
     </div>
     <label class="check"><input type="checkbox" v-model="opts.preload_on_pick" @change="saveOpts">
@@ -4012,6 +4013,7 @@
       <button class="link" @click="resetSlowWarnings" title="Show again the warnings you switched off with “Don't warn me about this again”">show the warnings I switched off again</button></div>
     <label class="check"><input type="checkbox" v-model="opts.force_load" @change="saveOpts">
       Load anyway when a model needs more memory than this Mac has</label>
+    <div class="hint">Off (recommended): models that need more memory than this {{ sys.ram_gb || '?' }} GB Mac has are greyed out and can't be picked or downloaded. On: they can be tried, but may be very slow or stop part-way.</div>
     </section>
     <section class="set-sec" id="privacy-section">
     <h2>Privacy</h2>

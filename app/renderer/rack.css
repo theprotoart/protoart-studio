@@ -2405,3 +2405,10 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .cam-dial text { fill: #888; font: 8px system-ui, sans-serif; }
 .cam-now { text-align: center; margin-bottom: 4px; }
 .cam-pick { margin-left: 8px; font-size: 11px; }
+
+/* models this Mac doesn't have the memory for: greyed out and can't be picked */
+.model-item.unavail, .shop-card.unavail { opacity: .45; filter: grayscale(1); }
+.model-item.unavail { cursor: not-allowed; }
+.model-item.unavail.on { opacity: .7; }
+.unavail-text { color: #e07a6a; font-weight: 600; }
+button:disabled { cursor: not-allowed; }
