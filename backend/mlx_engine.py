@@ -61,6 +61,8 @@ class MlxEngine:
         self.proc = None
         self.q = queue.Queue()
         self.err_tail = ""
+        self.python = PY                          # a subclass (MOSS-Image) runs its own worker in its own Python
+        self.worker_script = HERE / "mlx_worker.py"
 
     # ------------------------------------------------------------- install
     def install(self):
@@ -107,7 +109,7 @@ class MlxEngine:
             return
         self.q = queue.Queue()
         env = dict(os.environ, PYTHONUNBUFFERED="1")
-        self.proc = subprocess.Popen([str(PY), str(HERE / "mlx_worker.py")], stdin=subprocess.PIPE,
+        self.proc = subprocess.Popen([str(self.python), str(self.worker_script)], stdin=subprocess.PIPE,
                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                      cwd=str(HERE), env=env, bufsize=1)
         proc = self.proc

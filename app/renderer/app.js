@@ -136,7 +136,7 @@ const SAMPLER_PICKS = {
   flux: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
   flux2: { fast: ["flow_euler"], quality: [] },
 };
-const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}, {"model": "BiRefNet lite (✂ Cut out, 👤 Subject, 📄 Paper cut-out)", "licence": "MIT", "note": ""}];
+const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}, {"model": "BiRefNet lite (✂ Cut out, 👤 Subject, 📄 Paper cut-out)", "licence": "MIT", "note": ""}, {"model": "MOSS-Image (OpenMOSS; MLX weights by VisualInference, turbo adapters by VisualInference and nynxz)", "licence": "Apache-2.0", "note": "runs with moss-image-mlx (Apache-2.0); text encoder Qwen3.5-9B and FLUX.2 small VAE (Apache-2.0)"}];
 const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677" };
 const I2I_KINDS = ["img2img", "healed", "word_edit", "inpaint", "outpaint", "controlnet", "faceswap"];  // pictures made in Image to image
 // Tools → Tiled upscale presets (size, how much new detail, steps)
@@ -147,7 +147,7 @@ const TILED_PRESETS = [
   { id: "print", label: "Print", tip: "3× for printing; slow on 8 GB Macs", set: { scale: 3, strength: 0.25, steps: 24 } },
   { id: "quick", label: "Quick", tip: "1.5× with few steps: a fast check", set: { scale: 1.5, strength: 0.25, steps: 12 } },
 ];
-const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "Klein 4B", anima: "Anima", sd2: "SD 2" };  // FLUX.2 [klein] 4B: named by the model, so its LoRAs and models match
+const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "Klein 4B", anima: "Anima", sd2: "SD 2", moss: "MOSS-Image" };  // FLUX.2 [klein] 4B: named by the model, so its LoRAs and models match
 const OPTS_KEY = "beestudio.opts";
 const PERF_KEY = "protoart.perf";
 // Tools → Patchbay: the back of the rack. Each module has an IN and an OUT jack; a cable from one module's OUT to the
@@ -220,7 +220,7 @@ const FORM_KEY = "beestudio.lastForm";
 const DIRECT_EXT = ["png", "jpg", "jpeg", "jpe", "jfif", "webp", "gif", "bmp"];
 const PICTURE_EXT = DIRECT_EXT.concat(["heic", "heif", "hif", "avif", "tif", "tiff", "psd", "jp2", "j2k", "jpx", "tga", "ico", "icns",
   "exr", "hdr", "dng", "cr2", "cr3", "crw", "nef", "nrw", "arw", "srf", "sr2", "raf", "orf", "rw2", "pef", "srw", "x3f", "3fr",
-  "erf", "kdc", "mrw", "raw", "rwl", "iiq"]);
+  "erf", "kdc", "mrw", "raw", "rwl", "iiq", "procreate"]);
 const extOf = (name) => String(name || "").split(".").pop().toLowerCase();
 const isPicture = (f) => !!f && ((f.type || "").startsWith("image/") || PICTURE_EXT.includes(extOf(f.name)));
 const ADJ_KEY = "protoart.adjustLast";  // the last Adjust settings you saved ("Last used")
@@ -487,6 +487,7 @@ const protoartApp = createApp({
       paperJob: false,
       i2iInpaintPick: "",
       promptCardOver: false,
+      procreateJob: false,   // 🗂 reading a Procreate file's layers
       trainLongAsk: false,   // Train: "this will take many hours" shown before starting // a picture dragged over Tools → Image → prompt    // Image to image → Inpaint: the inpainting model you picked ('' = the first that fits)
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
       cvt: { to: "copy", model: "", base: "", rank: 32, te: true, name: "", msg: "", extra: [], kind: "", found: null },  // found: {model, ranked} from 🔍 Find it  // extra: DiffusionBee files dropped or sent from the list  // Tools → Convert into (LoRA…)
@@ -587,6 +588,16 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.5.1: MOSS-Image, an Images fader, problem pictures in Train, undo in Adjust", items: [
+              "<b>MOSS-Image</b> (Create's model list, new MOSS-Image group): a model made for <b>lettering and layouts</b>: signs, posters, book covers, labels and infographics with the words spelled right. <b>Turbo</b> (15 passes) or <b>best quality</b> (50 steps). It runs on the Mac's graphics chip in its own engine, installed the first time with its model (~13 GB). It's big: on an 8 GB Mac expect several minutes a picture or more, and close other apps. Text to image only, no LoRAs yet. Apache-2.0.",
+              "<b>Images fader</b> (Create): the number of images is now a studio fader, like a mixing desk's: slide it, scroll on it, or click a number on its scale. Every other slider got the same fader look: a ridged cap and a printed scale.",
+              "<b>Train: pictures to check</b> are outlined in red with what's wrong (too small, no caption, a very short caption, a file that won't show); <b>Show only these</b> lists just them, and clicking “no caption” jumps to its caption box.",
+              "<b>Train: honest time estimates</b>: the time shown is a rough guess until the first steps have run (then it's measured on your Mac). ERNIE on the fast engine is measured on its own now, and a training that would take more than 4 hours says so first, with ways to make it shorter. ★ Recommended uses far fewer steps for ERNIE on smaller Macs.",
+              "<b>Adjust: ↶ Undo / ↷ Redo</b> (⌘Z / ⇧⌘Z) for brush strokes, Clear paint, sliders, looks, filters and points. A <b>brush ring</b> shows the brush's size on the picture: under the pointer while you paint, and while you move the Size slider or press [ ].",
+              "<b>Paper cut-out: Threshold and Grow / shrink</b>, the same settings as ✂ Cut out, with <b>👁 preview the outline</b> to see them live.",
+              "<b>🎨 Procreate files</b>: drop a <b>.procreate</b> file anywhere a picture goes (Tools, Image to image, an image prompt…) and its finished picture opens, in the right colours. In Tools, <b>🗂 Bring in its layers</b> saves every layer to the Library as its own see-through PNG, top layer first, with its name, opacity and blend mode noted. The file itself is only read.",
+              "<b>🗂 Split into layers</b> (Tools → ✂ Cut out): two pictures in the Library: the subject on see-through, and the background with the subject filled in, ready to rearrange in Procreate or Photoshop.",
+              "<b>🔒 Lock the filter order</b> (Adjust → Filters): keep an arrangement you like: every picture, look, preset and reset then uses it until you unlock it." ] },
             { h: "1.5.0: Cut out and Paper cut-out, Puppet warp in clear steps with a mesh and joints, own settings for each point, Blur, templates, training presets", items: [
               "<b>✂ Cut out</b> (Tools): removes the background behind people, animals (dogs, cats, horses…) and objects. Drop a picture on the left or pick one from the Library, press <b>✂ Cut out</b>, then refine it live: <b>Threshold</b> (lower keeps more hair and fur), <b>Edge softness</b>, <b>Grow / shrink</b> (shrink takes away a halo), a background (None = a see-through PNG, White, Black or a colour), <b>Result / Mask</b> view, <b>Clean up small bits</b>, <b>Fix edge colours</b> and <b>Crop to the subject</b>. <b>💾 Save</b> adds it to the Library. Its model (BiRefNet, MIT licence, ~224 MB) downloads the first time, then works offline.",
               "<b>🪡 Puppet warp it</b> (in Cut out): opens Puppet warp with that subject already on its own layer: bend it with pins and it's put back into its scene, with what was behind it filled in.",
@@ -816,6 +827,10 @@ const protoartApp = createApp({
           ] },
         { id: "create", go: "create", icon: "✨", title: "Create", summary: "Make images from a text prompt",
           sections: [
+            { h: "MOSS-Image: lettering, posters and layouts", items: [
+              "Pick <b>MOSS-Image · Turbo</b> (or <b>best quality</b>, slower) in the model list. Write the words you want in the picture in quotes: <i>a vintage travel poster of Lisbon, the title “LISBOA” in large cream letters at the top, a yellow tram below</i>. It spells them, in English and Chinese, and keeps a layout (title, picture, small print).",
+              "The first time it downloads its model (~13 GB) and installs its own engine (~1 GB); after that it works offline. Each picture loads the model's parts one at a time, so it fits in less memory, but it's slow on an 8 GB Mac (several minutes or more): Medium (768) size helps. The same prompt again is quicker (its reading of the prompt is kept).",
+              "It makes new pictures from a prompt: no Image to image, LoRAs or regions yet. 🎲 Random prompt writes sentences for it. Licence: Apache-2.0." ] },
             { h: "🗺 Regions: templates", items: [
               "Create → 🗺 Regions → <b>Templates</b>: Before / after, Day / night, Two characters, Face-off, Character in a scene, 3-panel comic, Sky and land, Four seasons, Two above one below and Product on a table. Each sets the areas, example prompts for each area and the main prompt (if yours is empty), and a size that fits. Edit the words, then Generate. ↩ puts back what you had." ] },
             { h: "Prompt tools", items: [
@@ -1022,13 +1037,20 @@ const protoartApp = createApp({
               "<b>Mode</b>: <b>Rigid</b> keeps shapes (arms, legs, bodies), <b>Normal</b> lets parts grow or shrink a little, <b>Distort</b> is stretchy (cloth, hair, smoke). <b>Density</b>: More points gives smoother, more precise bends (good for big pictures). <b>Expansion</b> grows or shrinks the subject's edge (shrink 1–3 px takes away a halo). <b>Show mesh</b> shows the triangles the picture bends on; untick <b>Show background</b> to see only the subject while you pin.",
               "<b>↶ Undo / ↷ Redo</b> (⌘Z / ⇧⌘Z) for every pin change; <b>Delete</b>, ⌥-click or double-click takes a pin out; ↺ Remove all starts again; hold <b>◐ Hold for the original</b> to compare. 🔍 Zoom in (pinch or ⌘ + scroll) to place pins precisely; hold Space and drag to move around.",
               "<b>3 · Blend it back in and save.</b> <b>Feather</b> softens the subject's edge so it melts into the scene. <b>💾 Save the warped copy</b> (or <b>Enter</b>) adds it to the Library; the original stays. Bending stretches pixels a little: <b>Save &amp; send to Image to image</b> and redraw it lightly (0.2–0.35 change) with your model." ] },
+            { h: "🎨 Procreate files", items: [
+              "Drop a <b>.procreate</b> file onto Tools (or Image to image, or anywhere a picture goes): the finished picture opens, with Procreate's colours (Display P3) turned into the usual sRGB. It's read from inside the file; nothing in it changes.",
+              "<b>🗂 Bring in its layers</b> (under the picture in Tools): every layer with something on it is saved to the Library as a see-through PNG the size of the canvas, top layer first, plus the finished picture. Each one notes its layer name, opacity, blend mode and whether it was clipped; hidden layers are left out. A big canvas with many layers takes a minute or so." ] },
             { h: "✂ Cut out and 📄 Paper cut-out", items: [
+              "<b>🗂 Split into layers</b> (in Cut out, after ✂ Cut out): saves the subject on see-through and the background with the subject filled in (Smart fill), as two pictures in the Library, to rearrange in Procreate, Photoshop or Puppet warp.",
               "<b>✂ Cut out</b> removes the background: people, animals (dogs, cats, horses, birds…) and objects. Drop a picture on the left of Tools (or pick one from the Library) and press <b>✂ Cut out</b>. The first time it downloads its model (BiRefNet, MIT licence, ~224 MB); after that it works offline, in a few seconds.",
               "Refine it live on the left: <b>Threshold</b> (lower keeps more: hair, whiskers, a tail; higher drops faint bits of background), <b>Edge softness</b> (0 = a hard sticker edge), <b>Grow / shrink</b> (−1 to −3 px takes away a thin halo). <b>Mask</b> shows white = kept, black = gone, which makes the edge easy to judge.",
               "<b>Background</b>: None makes a see-through PNG (saved as PNG even when your pictures are JPEG); or White, Black or a colour. <b>Clean up small bits</b> drops specks of background, <b>Fix edge colours</b> takes the edge's colours from inside the subject so no fringe is left, <b>Crop to the subject</b> trims the empty space. <b>💾 Save</b> adds it to the Library.",
               "<b>🪡 Puppet warp it</b> opens the picture in Puppet warp with the subject already separated: bend it and it goes back into its scene.",
+              "<b>📄 Paper cut-out</b> has its own <b>Threshold</b> and <b>Grow / shrink</b> (shared with Cut out): <b>👁 preview the outline</b> shows the result of those settings live on the left before you press 📄 Make it.",
               "<b>📄 Paper cut-out</b> makes the subject a torn paper sticker: <b>Border</b> width, the <b>Paper</b> (White, Cream, Kraft, Black), <b>Torn edge</b> (0 = cut with scissors), <b>Shadow</b>, <b>Print</b> (Photo, Poster = flatter colours, Mono) and what's behind it (None = see-through, Paper, its own Picture, White). It uses Cut out's model and Threshold." ] },
             { h: "🎚 Adjust: light, colour and filters", items: [
+              "<b>🔒 Lock this order</b> (next to Filters): once the filters are in an order you like, lock it: every picture, look, preset and ↺ reset keeps that order, and ▲ ▼ are off until you press 🔒 again.",
+              "<b>↶ Undo / ↷ Redo</b> (⌘Z / ⇧⌘Z, or the buttons at the top of Adjust): each brush stroke, Clear paint, slider move, look, filter and point can be taken back. While you paint, a <b>ring</b> shows the brush size under the pointer; it also shows while you move the Size slider or press [ ].",
               "<b>⚙ Own settings for each point or brush stroke</b>: choose a point and press <b>⚙ Own settings for this point</b>; while painting, <b>＋ New paint layer with its own settings</b>. The box that opens has that step's sliders, and they change only that point or those strokes (double-click a slider to match the step's own value). Each one is listed under ◎ Control points for as “· own settings 1, 2…”; ✕ remove takes it out. With own-settings layers, the step's own sliders show only at its own points and paint.",
               "<b>Blur</b> (a filter): <b>Blur</b> or <b>Soft focus</b> (a glowy, dreamy softness), Amount and Strength. 🖌 paint it on to blur just the background, like a shallow depth of field.",
               "<b>🖌 Paint where it shows</b>: pick the step under ◎ Control points for, press <b>🖌 Paint</b> and brush over the picture (an amber tint shows what you painted; [ ] change the size, <b>Strength</b> builds it up gently). <b>🧽 Erase</b> takes it away, <b>✕ Clear paint</b> removes it all. Painted areas and points work together; presets don't store them.",
@@ -1098,6 +1120,8 @@ const protoartApp = createApp({
               "Describe what is <i>not</i> the thing you're teaching; the trigger word stands for what is." ] },
             { h: "Training", items: [
               "<b>Pick your pictures</b> with <i>Choose a folder of images…</i> (2 · Training images); <b>✕ Clear</b> forgets them so you can start again with another folder. Nothing in the folder is changed or deleted (if you edited captions without saving, it asks first).",
+              "<b>Pictures to check</b> are outlined in red in Square framing, with a label: <b>small</b> (it will train soft: use a bigger version or leave it out with ✕), <b>no caption</b> or <b>short caption</b> (click it to jump to its caption), <b>can't show</b>. Tick <b>Show only these</b> to see just them.",
+              "<b>How long it takes</b>: the estimate is a rough guess until the first steps run, then it's measured on your Mac (and kept for next time, per model type). A training that would take more than 4 hours asks first and suggests shorter settings. On an 8 GB Mac, SD 1.5 trains in minutes to a few hours; SDXL and ERNIE can take most of a day.",
               "<b>★ Recommended</b> (the default) sets steps, learning rate, rank, layers, size and mirroring for what you're training (1 · What: person, object, style, concept) and the model: people and objects learn at 0.0001 with ~80–100 steps a picture and no mirroring for faces; styles learn more gently (0.00005) with rank 32 and all layers. It updates when you change either. <b>Quick / Standard / Thorough</b> set only steps, learning rate and rank.",
               "<b>Pony / Illustrious</b> (SDXL models that read tags) have their own group in the model list: caption with <b>Tags</b> and leave score_9 and the like out of the captions. <b>ERNIE Turbo · ⚡ fast engine</b> trains a LoRA on the 4-bit model, so it runs on smaller Macs (on 8 GB: 512 px, rank 8, and close other apps).",
               "<b>Quick / Standard / Thorough</b> set steps, learning rate and rank. Standard is about 100 steps per image.",
@@ -1240,6 +1264,10 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "New in 1.5.1: if something doesn't work", items: [
+              "<b>Training says it will take 16 hours</b>: on an 8 GB Mac that's about right for ERNIE (each step works through a very big model, and memory spills onto the disk). Use ★ Recommended (fewer steps for ERNIE), or train on an SD 1.5 model, which takes minutes to a few hours. The estimate becomes a measurement after the first steps.",
+              "<b>MOSS-Image is very slow or the Mac stalls</b>: it's a big model; on 8 GB, close other apps (web browsers especially), use Medium (768) size and Turbo, and make one picture at a time. <b>“MOSS-Image isn't on this Mac yet”</b> with Strict offline on: turn it off for the one-time download (~13 GB).",
+              "<b>MOSS-Image misspells a word</b>: put the exact words in quotes and say where they go (“at the top, in large letters”); shorter text works best. Try another seed." ] },
             { h: "New in 1.5.0: if something doesn't work", items: [
               "<b>Cut out (or 👤 Subject) says it can't download</b>: its model (~224 MB) downloads once from Hugging Face. Turn off Strict offline mode in Settings → Privacy for the download, then it works offline.",
               "<b>Cut out keeps a bit of background or loses hair</b>: lower the <b>Threshold</b> to keep more (hair, fur), raise it to drop background; shrink the edge 1–3 px for a halo; look at <b>Mask</b> to judge it. For a busy background, a small brush fix in Puppet warp's selection helps.",
@@ -1681,6 +1709,7 @@ const protoartApp = createApp({
         { id: "flux", label: "FLUX", count: count((m) => m.family === "flux") },
         { id: "ernie", label: "ERNIE", count: count((m) => m.family === "ernie") },
         { id: "anima", label: "Anima", count: count((m) => m.family === "anima") },
+        { id: "moss", label: "MOSS", count: count((m) => m.family === "moss") },
         { id: "sdxl", label: "SDXL", count: count((m) => m.family === "sdxl") },
         { id: "sd15", label: "SD 1.5", count: count((m) => m.family === "sd15") },
         ...Object.entries(FLAVOR_LABEL).map(([k, label]) => ({ id: "fl:" + k, label, count: count((m) => m.flavor === k) })),
@@ -1756,7 +1785,8 @@ const protoartApp = createApp({
         { name: "FLUX.1", models: this.models.filter((m) => m.family === "flux") },
         { name: "ERNIE-Image", models: this.models.filter((m) => m.family === "ernie") },
         { name: "Anima (anime)", models: this.models.filter((m) => m.family === "anima") },
-        { name: "Stable Diffusion", models: this.models.filter((m) => !["ernie", "flux", "flux2", "anima"].includes(m.family) && !m.id.includes(":")) },
+        { name: "MOSS-Image (lettering, posters, layouts)", models: this.models.filter((m) => m.family === "moss") },
+        { name: "Stable Diffusion", models: this.models.filter((m) => !["ernie", "flux", "flux2", "anima", "moss"].includes(m.family) && !m.id.includes(":")) },
         { name: "Your checkpoints", models: this.models.filter((m) => m.id.startsWith("file:")) },
         { name: "From DiffusionBee", models: this.models.filter((m) => m.id.startsWith("tdict:")) },
         { name: "Your model files", models: this.models.filter((m) => m.id.startsWith("local:")) },
@@ -2857,7 +2887,7 @@ const protoartApp = createApp({
     },
     // -------------------------------------------------------------- size / steps
     snap(v) {
-      const m = ["ernie", "flux", "flux2"].includes(this.family) ? 16 : 8;
+      const m = ["ernie", "flux", "flux2", "moss"].includes(this.family) ? 16 : 8;
       return Math.min(2048, Math.max(256, Math.round(v / m) * m));
     },
     setSide(side, raw, final) {
@@ -3524,7 +3554,7 @@ const protoartApp = createApp({
       }
       this.form.clip_skip = this.clipSkipFor(m);
       Object.assign(this.form, { width: m.defaults.width, height: m.defaults.height, steps: m.defaults.steps, cfg: m.defaults.cfg });
-      if (["ernie", "flux", "flux2"].includes(m.family) && this.sys.ram_gb && this.sys.ram_gb < 12) {
+      if (["ernie", "flux", "flux2", "moss"].includes(m.family) && this.sys.ram_gb && this.sys.ram_gb < 12) {
         Object.assign(this.form, { width: 768, height: 768 }); // 8 GB Macs: Medium is ~2x faster than 1024
         this.status = `Size set to Medium (768) for ${FAMILY_LABEL[m.family]} on this Mac; Large (1024) takes about twice as long`;
       }
@@ -4105,7 +4135,32 @@ const protoartApp = createApp({
       this.closeAdjust();
       this.closePuppet();
       this.tool.latest = null;
-      this.tool.source = { path: usable, image_id: null, width: 0, height: 0, label: name || path.split("/").pop() };
+      this.tool.source = { path: usable, image_id: null, width: 0, height: 0, label: name || path.split("/").pop(),
+                           procreate: /\.procreate$/i.test(path) ? path : null };
+      if (this.tool.source.procreate) this.status = "Procreate file opened (the finished picture) · 🗂 Bring in its layers saves each layer to the Library";
+    },
+    async importProcreateLayers() {  // 🎨 a Procreate file's layers, each as a see-through PNG in the Library
+      const src = this.tool.source && this.tool.source.procreate;
+      if (!src) return;
+      this.procreateJob = true;
+      try {
+        const r = await this.runJob("procreate_layers", { path: src });
+        if (r) this.status = `${r.layers} layer${r.layers === 1 ? "" : "s"} of “${r.name}” saved to the Library (plus the finished picture), top layer first`;
+      } finally { this.procreateJob = false; }
+    },
+    async cutSplitLayers() {  // 🗂 the subject (see-through) and the background (filled in) as two pictures
+      const s = this.tool.source, o = this.post.cut;
+      if (!s) return;
+      this.tool.working = { label: "Splitting into layers", started: Date.now() };
+      try {
+        const r = await this.runJob("cutout", { ...this.toolArgs(), mode: "layers", threshold: o.threshold, softness: o.softness, grow: o.grow });
+        if (r && r.records) {
+          this.tool.latest = r.records[0];
+          for (const rec of r.records) this.afterPost(rec);
+          this.closeCutout();
+          this.status = "Two layers saved to the Library: the subject (see-through PNG) and the background with it filled in";
+        }
+      } finally { this.tool.working = null; }
     },
     onToolImgLoad(e) {
       if (this.tool.source && !this.tool.source.width) {
@@ -7374,7 +7429,7 @@ const protoartApp = createApp({
 
     // -------------------------------------------------------------- random prompt
     naturalPrompts() {  // models that read sentences get sentence prompts from 🎲 Random prompt
-      return ["ernie", "flux", "flux2"].includes(this.family);
+      return ["ernie", "flux", "flux2", "moss"].includes(this.family);
     },
     randomPrompt() {
       if (this.naturalPrompts()) {
@@ -7929,7 +7984,7 @@ const protoartApp = createApp({
         else if (!this.tool.source) this.tool.source = { path: r.path, image_id: null, width: r.width || 0, height: r.height || 0, label: r.path.split("/").pop() };
         this.tab = "tools";
       }
-      const p = keepSettings && this.adj.p ? this.adj.p : window.ProtoAdjust.defaults();
+      const p = this.adjLockedOrder(keepSettings && this.adj.p ? this.adj.p : window.ProtoAdjust.defaults());
       if (!keepSettings) { adjPaint = {}; this.adj.paintRev++; }
       this.adjHistClear();
       this.adj.paintMode = "";
@@ -8467,13 +8522,27 @@ const protoartApp = createApp({
       else if (this.adj.pointTarget === id) { this.adj.pointTarget = "base"; this.adj.pointSel = -1; }
     },
     adjMove(id, dir) {
+      if (this.opts.adj_order_lock) { this.status = "The filter order is locked: press 🔒 to unlock it first"; return; }
       const o = this.adj.p.order.slice(), i = o.indexOf(id), j = i + dir;
       if (j < 0 || j >= o.length) return;
       [o[i], o[j]] = [o[j], o[i]];
       this.adj.p.order = o;
     },
+    // 🔒 Lock the filter order: the stack's order is kept for every picture, look, preset and reset until unlocked
+    adjLockedOrder(p) {
+      const o = this.opts.adj_order;
+      if (this.opts.adj_order_lock && Array.isArray(o) && p) p.order = window.ProtoAdjust.fullOrder(o);
+      return p;
+    },
+    adjToggleLock() {
+      const on = !this.opts.adj_order_lock;
+      this.opts.adj_order_lock = on;
+      if (on) this.opts.adj_order = this.adj.p.order.slice();
+      this.saveOpts();
+      this.status = on ? "Filter order locked: every picture, look and preset uses this order (🔓 to change it)" : "Filter order unlocked: ▲ ▼ move filters again";
+    },
     adjLook(look) {
-      this.adj.p = Object.assign(window.ProtoAdjust.withDefaults(look.set), this.adjKeepPoints());
+      this.adj.p = this.adjLockedOrder(Object.assign(window.ProtoAdjust.withDefaults(look.set), this.adjKeepPoints()));
       this.adj.openFilter = "";
     },
     adjLookOn(look) {
@@ -8482,7 +8551,7 @@ const protoartApp = createApp({
     },
     adjResetAll() {
       for (const k of Object.keys(adjPaint)) if (k.includes("~")) { delete adjPaint[k]; if (adjEngine) adjEngine.setPaint(k, null); }
-      this.adj.p = window.ProtoAdjust.defaults();
+      this.adj.p = this.adjLockedOrder(window.ProtoAdjust.defaults());
       this.adj.pointSel = -1; this.adj.pointMode = false;
       this.adj.openFilter = "";
     },
@@ -8758,7 +8827,7 @@ const protoartApp = createApp({
       }
     },
     adjApplyPreset(pr) {
-      this.adj.p = Object.assign(window.ProtoAdjust.withDefaults(JSON.parse(JSON.stringify(pr.set || {}))), this.adjKeepPoints());
+      this.adj.p = this.adjLockedOrder(Object.assign(window.ProtoAdjust.withDefaults(JSON.parse(JSON.stringify(pr.set || {}))), this.adjKeepPoints()));
       this.adj.openFilter = "";
     },
     adjPresetOn(pr) {

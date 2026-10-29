@@ -17,7 +17,7 @@ DIRECT = {".png", ".jpg", ".jpeg", ".jpe", ".jfif", ".webp", ".gif", ".bmp"}
 VIA_MACOS = {".heic", ".heif", ".hif", ".avif", ".tif", ".tiff", ".psd", ".jp2", ".j2k", ".jpx", ".tga", ".ico",
              ".icns", ".exr", ".hdr", ".dng", ".cr2", ".cr3", ".crw", ".nef", ".nrw", ".arw", ".srf", ".sr2", ".raf",
              ".orf", ".rw2", ".pef", ".srw", ".x3f", ".3fr", ".erf", ".kdc", ".mrw", ".raw", ".rwl", ".iiq"}
-SUPPORTED = DIRECT | VIA_MACOS
+SUPPORTED = DIRECT | VIA_MACOS | {".procreate"}
 MAX_BYTES = 600 * 1024 * 1024
 MAX_SIDE = 8192
 SIPS = "/usr/bin/sips"
@@ -45,6 +45,8 @@ def prepare(path):
     ext = p.suffix.lower()
     if ext in DIRECT:
         return str(p)
+    if ext == ".procreate":  # Procreate: its own flattened picture, read from inside the file
+        return _from_procreate(p)
     if ext not in VIA_MACOS:
         raise PictureError(f"{p.suffix or 'That'} files aren't pictures this app can open. "
                            "PNG, JPEG, WebP, HEIC, TIFF, AVIF, PSD, GIF, BMP and camera RAW files work.")
@@ -70,6 +72,28 @@ def prepare(path):
     finally:
         if tmp.exists():
             tmp.unlink()
+    return str(out)
+
+
+def _from_procreate(p):
+    """A .procreate file -> a PNG of the finished picture (cached like the other conversions)."""
+    import procreate
+    st = p.stat()
+    if st.st_size > MAX_BYTES * 3:
+        raise PictureError("That Procreate file is too big to open here.")
+    key = hashlib.sha256(f"{p.resolve()}|{st.st_mtime_ns}|{st.st_size}".encode()).hexdigest()[:24]
+    out = imports_dir() / f"{p.stem[:40]}_{key}.png"
+    if out.is_file() and out.stat().st_size > 0:
+        return str(out)
+    try:
+        img, _doc = procreate.flattened(str(p))
+    except procreate.ProcreateError as e:
+        raise PictureError(str(e))
+    except Exception:
+        raise PictureError(f"Couldn't read {p.name}: it may be damaged, or from a Procreate version this app doesn't know.")
+    tmp = out.with_name(out.stem + ".part.png")
+    img.save(tmp)
+    os.replace(tmp, out)
     return str(out)
 
 

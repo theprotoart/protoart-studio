@@ -162,7 +162,7 @@
         <span class="eng slot-label">Models <span class="hint">on this Mac appear in Create; the others download the first time you use them</span></span>
         <div class="slot-line">
           <div class="seg">
-            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein 4B'}, {id: 'ernie', label: 'ERNIE'}, {id: 'anima', label: 'Anima'}, {id: 'sdxl', label: 'SDXL'}, {id: 'fl:pony', label: 'Pony'}, {id: 'fl:illustrious', label: 'Illustrious'}, {id: 'fl:noobai', label: 'NoobAI'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
+            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein 4B'}, {id: 'ernie', label: 'ERNIE'}, {id: 'anima', label: 'Anima'}, {id: 'moss', label: 'MOSS'}, {id: 'sdxl', label: 'SDXL'}, {id: 'fl:pony', label: 'Pony'}, {id: 'fl:illustrious', label: 'Illustrious'}, {id: 'fl:noobai', label: 'NoobAI'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
                     :class="{on: shop.family === f.id}" @click="shop.family = f.id" :title="f.id.startsWith('fl:') ? f.label + ' models (SDXL-based, with their own prompt style and quality tags)' : ''">{{ f.label }}</button>
           </div>
           <button class="chip" :class="{on: shop.fav}" @click="shop.fav = !shop.fav" title="Show only your ★ favourite models">★ Favorites <small>{{ favModels.length }}</small></button>
@@ -361,7 +361,7 @@
           </div>
           <div class="hint">Or drop a picture on the prompt box.</div>
         </div>
-        <input ref="filePick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onFilePicked">
+        <input ref="filePick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.procreate,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onFilePicked">
         <div v-if="ptool === 'random'" class="wild-panel ptool-panel">
           <div class="gen-opts">
           <select v-model="rnd.subject" title="Subject">
@@ -567,7 +567,7 @@
         </div>
       </section>
 
-      <section v-if="['anima'].includes(family) || (['sd15', 'sdxl'].includes(family) && currentModel?.engine === 'mlx')" class="regions cfold" :class="{shut: cfShut('regions')}">
+      <section v-if="['anima', 'moss'].includes(family) || (['sd15', 'sdxl'].includes(family) && currentModel?.engine === 'mlx')" class="regions cfold" :class="{shut: cfShut('regions')}">
         <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">not with this model</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <p class="hint">Regional prompts work with SD 1.5, SDXL, FLUX.1, FLUX.2 Klein and ERNIE. {{ familyLabel }} understands positions in plain words, though:
           “on the left a woman in a red coat, in the middle a man with an umbrella, on the right a small dog”.</p>
@@ -656,7 +656,7 @@
             <button class="link" @click="form.ip_adapter.image = ''">remove</button>
           </div>
         </div>
-        <input ref="ipPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onIpPicked">
+        <input ref="ipPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.procreate,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onIpPicked">
       </section>
 
       <section class="grid2 cfold" :class="{shut: cfShut('size')}">
@@ -721,8 +721,8 @@
                      :default-value="recSteps ? recSteps[0] : (currentModel?.defaults?.steps ?? 25)"></rack-knob>
           <rack-knob v-model.number="form.cfg" :min="0" :max="30" :step="0.5" label="Guidance" title="Guidance (CFG): how strictly to follow the prompt"
                      :default-value="currentModel?.defaults?.cfg ?? 7"></rack-knob>
-          <rack-knob v-model.number="form.num_images" :min="1" :max="16" :step="1" label="Images" :size="46" title="How many images to make"
-                     :default-value="1"></rack-knob>
+          <rack-fader v-model.number="form.num_images" :min="1" :max="16" :step="1" label="Images" :marks="[1, 2, 4, 8, 12, 16]"
+                      :height="118" title="How many images to make" :default-value="1"></rack-fader>
           <div class="hint knob-hint">Turn a knob (drag or scroll), click its number to type an exact value, or double-click a knob to put it back to the default.</div>
           <div class="reset-row">
             <button class="ghost" @click="resetCreate" :disabled="!currentModel"
@@ -1499,7 +1499,7 @@
         <div v-else class="tool-empty">Drop any image here<br><span class="hint">or click to choose a file · or use “Enhance” on a library image</span></div>
         </div>
       </div>
-      <input ref="toolPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="toolPicked">
+      <input ref="toolPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.procreate,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="toolPicked">
       <div v-if="adj.open" class="adjust-viewbar">
         <span class="hint">View</span>
         <div class="seg">
@@ -1527,6 +1527,11 @@
                   :title="'Open the picture in ' + editorName()">✏️ Edit in {{ editorName() }}</button>
           <button class="ghost small" @click="closeAdjust(); closePuppet(); tool.source=null; tool.latest=null; tool.healing=false"
                   title="Take this picture out of Tools (the file itself isn't deleted)">✕ Remove picture</button>
+        </div>
+        <div v-if="tool.source.procreate" class="tool-caption-row procreate-row">
+          <span class="hint">🎨 Procreate file · showing the finished picture</span>
+          <button class="ghost small" :disabled="!!procreateJob" @click="importProcreateLayers"
+                  title="Save every layer of this Procreate file to the Library as its own see-through PNG (top layer first), with its name, opacity and blend mode noted. The .procreate file isn't changed">{{ procreateJob ? 'Reading the layers…' : '🗂 Bring in its layers' }}</button>
         </div>
       </div>
       <div v-if="tool.source && !adj.open && !pw.open" class="row adjust-open-row">
@@ -1766,14 +1771,16 @@
               </details>
             </div>
             <div>
-              <div class="adjust-sub">Filters <span class="hint">· applied top to bottom</span></div>
+              <div class="adjust-sub">Filters <span class="hint">· applied top to bottom</span>
+                <button class="ghost tiny adj-lock" :class="{on: opts.adj_order_lock}" @click="adjToggleLock"
+                        :title="opts.adj_order_lock ? 'The order is locked and kept for every picture, look and preset. Click to unlock and move filters again' : 'Lock this order: it is kept for every picture, look, preset and reset (your own arrangement)'">{{ opts.adj_order_lock ? '🔒 order locked' : '🔓 lock this order' }}</button></div>
               <div v-for="(id, i) in adj.p.order" :key="id" class="adj-filter" :class="{on: adj.p[adjFilters[id].on]}">
                 <div class="adj-filter-head" :title="adjFilters[id].tip">
                   <button class="ghost adj-fbtn" :class="{on: adj.p[adjFilters[id].on]}" @click="adjToggleFilter(id)">{{ adjFilters[id].label }}</button>
                   <button v-if="adj.p[adjFilters[id].on]" class="link small" @click="adj.openFilter = adj.openFilter === id ? '' : id">{{ adj.openFilter === id ? 'hide' : 'settings' }}</button>
                   <span class="grow"></span>
-                  <button class="ghost tiny" :disabled="i === 0" @click="adjMove(id, -1)" title="Earlier in the stack">▲</button>
-                  <button class="ghost tiny" :disabled="i === adj.p.order.length - 1" @click="adjMove(id, 1)" title="Later in the stack">▼</button>
+                  <button class="ghost tiny" :disabled="i === 0 || opts.adj_order_lock" @click="adjMove(id, -1)" :title="opts.adj_order_lock ? 'The order is locked (🔒 above)' : 'Earlier in the stack'">▲</button>
+                  <button class="ghost tiny" :disabled="i === adj.p.order.length - 1 || opts.adj_order_lock" @click="adjMove(id, 1)" :title="opts.adj_order_lock ? 'The order is locked (🔒 above)' : 'Later in the stack'">▼</button>
                 </div>
                 <div v-if="adj.openFilter === id && adj.p[adjFilters[id].on]" class="adj-filter-body">
                   <div class="hint">{{ adjFilters[id].tip }}</div>
@@ -2167,6 +2174,7 @@
             <label class="check" title="Take the edge's colours from inside the subject, so no fringe of the old background is left around it"><input type="checkbox" v-model="post.cut.fix_edges"> Fix edge colours</label>
             <label class="check" title="Trim the empty space around the subject"><input type="checkbox" v-model="post.cut.crop"> Crop to the subject</label>
             <div class="mod-links"><button class="link" @click="cutToPuppet" title="Open the picture in Puppet warp with this subject already on its own layer: bend it with pins and it's put back into its scene">🪡 Puppet warp it</button>
+              · <button class="link" :disabled="!!tool.working" @click="cutSplitLayers" title="Save two layers to the Library: the subject on see-through, and the background with the subject filled in (Smart fill). Open both in Procreate or Photoshop to rearrange them">🗂 Split into layers</button>
               · <button class="link" @click="closeCutout" title="Close the cut-out preview">close</button></div>
           </template>
           <div class="mod-foot">
@@ -2547,7 +2555,7 @@
           <img :src="fileUrl(form.init_image)" @load="onInitLoad">
           <button class="link" @click="form.init_image = ''; controlMap = null">remove</button>
         </div>
-        <input ref="startPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onStartPicked">
+        <input ref="startPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.procreate,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onStartPicked">
         <div class="seg i2i-modes">
           <button :class="{on: form.i2i_mode === 'edit'}" @click="setI2iMode('edit')" title="Describe a change in words (FLUX.2 Klein): “make the jacket red”, “add a hat”, “make it a watercolour”">✨ Edit with words</button>
           <button :class="{on: form.i2i_mode === 'change'}" @click="setI2iMode('change')" title="Change the whole picture, keep as much as you like">🔄 Change it</button>

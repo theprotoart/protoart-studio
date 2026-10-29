@@ -169,7 +169,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -283,8 +283,10 @@ def job_label(cmd, a):
         return "Convert " + os.path.basename(str(a.get("path") or "")) + " to .safetensors"
     if cmd == "papercut":
         return "Paper cut-out"
+    if cmd == "procreate_layers":
+        return "Procreate layers · " + os.path.basename(str(a.get("path") or ""))
     if cmd == "cutout":
-        return {"mask": "Find the subject", "matte": "Cut out · find the subject"}.get(a.get("mode"), "Cut out · save")
+        return {"mask": "Find the subject", "matte": "Cut out · find the subject", "layers": "Split into layers"}.get(a.get("mode"), "Cut out · save")
     if cmd == "heal":
         return "Remove (spot heal)" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
     if cmd == "vae_get":
@@ -1998,6 +2000,8 @@ def run_job(kind, a):
         return eng.cutout(a)
     if kind == "papercut":
         return eng.papercut(a)
+    if kind == "procreate_layers":
+        return eng.procreate_layers(a)
     if kind == "vectorize":
         return eng.vectorize(a)
     if kind == "edit_words":

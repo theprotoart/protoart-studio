@@ -67,6 +67,26 @@ MODELS = {
         "download_gb": 6.6, "engine_gb": 1.5, "min_ram_gb": 8,
         "defaults": {"width": 1024, "height": 1024, "steps": 8, "cfg": 1.0},
     },
+    # MOSS-Image (OpenMOSS, Apache-2.0): a 5B model made for lettering and layouts (signs, posters, covers),
+    # on the Apple GPU with moss-image-mlx in its own Python. See moss_engine.py.
+    "moss_turbo_mlx": {
+        "label": "MOSS-Image · Turbo · ⚡ lettering & posters", "family": "moss", "quant": "8-bit MLX",
+        "engine": "mlx", "moss": True, "moss_turbo": True,
+        "mlx_repo": "VisualInference/MOSS-Image-SFT-MLX-compact", "mlx_revision": "310ab44798e3711eb134c1b7d30a73083c91af58",
+        "mlx_patterns": ["*.json", "*.jinja", "LICENSE", "NOTICE", "scheduler/*", "text_encoder/*", "tokenizer/*",
+                         "transformer/*", "vae/*"],
+        "download_gb": 12.7, "engine_gb": 1.0, "min_ram_gb": 16, "license": "Apache-2.0",
+        "defaults": {"width": 1024, "height": 1024, "steps": 15, "cfg": 3.0},
+    },
+    "moss_mlx": {
+        "label": "MOSS-Image · best quality (50 steps, slow)", "family": "moss", "quant": "8-bit MLX",
+        "engine": "mlx", "moss": True,
+        "mlx_repo": "VisualInference/MOSS-Image-SFT-MLX-compact", "mlx_revision": "310ab44798e3711eb134c1b7d30a73083c91af58",
+        "mlx_patterns": ["*.json", "*.jinja", "LICENSE", "NOTICE", "scheduler/*", "text_encoder/*", "tokenizer/*",
+                         "transformer/*", "vae/*"],
+        "download_gb": 12.1, "engine_gb": 1.0, "min_ram_gb": 16, "license": "Apache-2.0",
+        "defaults": {"width": 1024, "height": 1024, "steps": 50, "cfg": 3.0},
+    },
     "ernie_turbo_int4": {
         "label": "ERNIE-Image Turbo · 4-bit (smallest)", "family": "ernie", "quant": "int4",
         "repo": "OzzyGT/ERNIE_Image_Turbo_sdnq_dynamic_int4",
@@ -171,6 +191,11 @@ def total_ram_gb():
         return round(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 2**30, 1)
     except (ValueError, OSError, AttributeError):
         return 0.0
+
+
+def _moss_sizes():
+    import moss_engine
+    return moss_engine.SIZES
 
 
 def _readable(name):
@@ -653,6 +678,7 @@ class Engine:
         self.embed_cache = {}       # ERNIE lean mode: (repo, text) -> text embedding
         self._torch = None
         self.mlx = None             # fast ERNIE engine (separate process), started on demand
+        self.moss = None            # MOSS-Image's engine (its own process), started on demand
         self.controlnets = {}       # ControlNet models by type (share the loaded SD 1.5 model)
         self.cn_pipes = {}          # (type, img2img) -> pipeline sharing the loaded model's weights
         self.depth_estimator = None
@@ -705,7 +731,8 @@ class Engine:
                                   and self._is_cached(v["repo"])),
              "enough_ram": ram == 0 or ram >= min(v["min_ram_gb"], v.get("low_memory_min_ram_gb") or 999),
              "auto_low_memory": bool(ram and v.get("low_memory_min_ram_gb") and ram < v["min_ram_gb"]),
-             "sizes": ERNIE_SIZES if v["family"] == "ernie" else None, "source": v.get("source"),
+             "sizes": ERNIE_SIZES if v["family"] == "ernie" else _moss_sizes() if v["family"] == "moss" else None,
+             "source": v.get("source"),
              "engine": v.get("engine", "torch"), "fast_mode": v["family"] in FAST_LORAS and not v.get("engine"),
              "clip_skip": recommended_clip_skip(v, k), "flavor": model_flavor(v, k),
              "path": (str(v.get("file") or v.get("tdict") or v.get("local_dir") or "") or None) if ":" in k else None,
@@ -751,6 +778,9 @@ class Engine:
         elif spec.get("engine") == "mlx":
             jobs.append(lambda: snapshot_download(spec["mlx_repo"], revision=spec.get("mlx_revision"),
                                                       allow_patterns=spec.get("mlx_patterns")))
+            if spec.get("moss_turbo"):  # MOSS-Image Turbo's two small adapters
+                import moss_engine
+                jobs.append(lambda: moss_engine.turbo_files(download=True))
         elif spec.get("gguf_file"):
             jobs.append(lambda: hf_hub_download(spec["gguf_repo"], spec["gguf_file"]))
             jobs.append(lambda: snapshot_download(spec["repo"], ignore_patterns=["transformer/*", "pe/*", "pe_tokenizer/*"]))
@@ -821,6 +851,8 @@ class Engine:
     def unload(self, keep_mlx=False):
         if not keep_mlx and self.mlx is not None:
             self.mlx.stop()  # the fast engine holds its own copy of a model in memory
+        if self.moss is not None:
+            self.moss.stop()
         self.pipe = None
         self.i2i_pipe = None
         self.inp_pipe = None
@@ -866,6 +898,9 @@ class Engine:
             return True
         if spec.get("file") or spec.get("tdict") or spec.get("local_dir"):
             return True
+        if spec.get("moss"):
+            import moss_engine
+            return bool(moss_engine.weights_dir()) and (not spec.get("moss_turbo") or bool(moss_engine.turbo_files()))
         if spec.get("engine") == "mlx":
             if spec.get("mlx_patterns"):
                 try:
@@ -1622,6 +1657,120 @@ class Engine:
         except mlx_engine.EngineError as e:
             raise UserError(str(e))
 
+    def _generate_moss(self, args, model_id, spec, prompt, negative, width, height, steps, cfg, n, seed,
+                       original_prompt, force=False):
+        """MOSS-Image (its own worker process; see moss_engine.py). Text to image only."""
+        import moss_engine
+        import net
+        from PIL import Image
+        if args.get("init_image"):
+            raise UserError("MOSS-Image makes new pictures from a prompt only: for Image to image, pick an SD 1.5 / SDXL "
+                            "model or FLUX.2 Klein (Edit with words).")
+        if args.get("loras"):
+            raise UserError("MOSS-Image can't use LoRAs in this version: take them out of the LoRA list first.")
+        need = spec.get("min_ram_gb") or 16
+        ram = total_ram_gb()
+        if ram and ram < 8 and not force:
+            raise UserError(f"{spec['label']} needs about {need} GB of memory and this Mac has {ram} GB.")
+        if ram and ram < need:
+            self.emit({"type": "status", "msg": f"Heads up: {ram:.0f} GB is tight for MOSS-Image: expect it to be slow, "
+                                                "and close other apps."})
+        # only one big model in memory at a time
+        self.unload()
+        self.enhancer = None
+        self.drop_helpers()
+        if self.moss is None:
+            self.moss = moss_engine.MossEngine(self.emit, self.cancel_event, self.pause_event)
+        try:
+            weights = moss_engine.weights_dir()
+            adapters = moss_engine.turbo_files() if spec.get("moss_turbo") else []
+            if not weights or adapters is None or not moss_engine.installed():
+                if not net.is_online():  # the backend tries again with the connection open (unless Strict offline)
+                    raise UserError("offline: MOSS-Image isn't on this Mac yet")
+                need_gb = (spec["download_gb"] if not weights else 0) + (spec.get("engine_gb", 1) if not moss_engine.installed() else 0)
+                free = free_disk_gb(_hub_dir())
+                if free < need_gb + 3:
+                    raise UserError(f"{spec['label']} needs about {need_gb:.0f} GB of downloads but only {free} GB is free.")
+            if not weights or adapters is None:
+                self.emit({"type": "status", "msg": f"Downloading MOSS-Image (first time only, ~{spec['download_gb']:.0f} GB)…"})
+                weights = moss_engine.weights_dir(download=True)
+                if spec.get("moss_turbo"):
+                    adapters = moss_engine.turbo_files(download=True)
+            if not moss_engine.installed():
+                self.moss.install()
+            if self.cancel_event.is_set():
+                raise Cancelled()
+            cache = paths.HOME / "moss-prompts"
+            cache.mkdir(parents=True, exist_ok=True)
+            self.moss.request({"cmd": "load", "dir": weights, "turbo": bool(spec.get("moss_turbo")),
+                               "adapters": adapters or [], "cache": str(cache)},
+                              on_event=lambda ev: ev.get("type") == "status" and self.emit(ev))
+            self.loaded_key = None
+            self.family = "moss"
+            out_dir = paths.HOME / "tmp"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            results = []
+            for i in range(n):
+                if self.cancel_event.is_set():
+                    raise Cancelled()
+                img_seed = (seed + i) % 2**31
+                p_i = prompt[i] if isinstance(prompt, list) else prompt
+                n_i = negative[i] if isinstance(negative, list) else negative
+                o_i = original_prompt[i] if isinstance(original_prompt, list) else original_prompt
+                out = out_dir / f"moss_{os.getpid()}_{i}.png"
+                self.emit({"type": "status", "msg": f"Generating image {i + 1} of {n} (MOSS-Image)…"})
+                started = time.time()
+
+                def on_event(ev, _i=i):
+                    if ev.get("type") == "progress":
+                        self.emit({"type": "progress", "image": _i + 1, "images": n, "step": ev["step"], "steps": ev["steps"]})
+                    elif ev.get("type") == "status":
+                        self.emit(ev)
+
+                self.skip_event.clear()
+                try:
+                    self.moss.request({"cmd": "generate", "prompt": p_i, "negative_prompt": n_i or "", "width": width,
+                                       "height": height, "steps": steps, "cfg": cfg, "seed": img_seed, "out": str(out)},
+                                      on_event=on_event, skip_event=self.skip_event)
+                except moss_engine.CancelledError:
+                    if self.skip_event.is_set() and not self.cancel_event.is_set():
+                        self.skip_event.clear()
+                        self.emit({"type": "skipped", "image": i + 1, "images": n})
+                        continue
+                    raise
+                image = Image.open(out).convert("RGB")
+                try:
+                    out.unlink()
+                except OSError:
+                    pass
+                secs = time.time() - started
+                print(f"[timing] MOSS-Image {i + 1}/{n}: {secs:.1f}s at {width}x{height} turbo={bool(spec.get('moss_turbo'))}",
+                      flush=True)
+                settings = {"model": model_id, "prompt": p_i, "negative_prompt": n_i, "width": image.width,
+                            "height": image.height, "steps": 15 if spec.get("moss_turbo") else steps, "cfg": cfg,
+                            "sampler": "flow_euler" + (" · turbo" if spec.get("moss_turbo") else ""), "seed": img_seed,
+                            "engine": "moss", "loras": [], "seconds": round(secs, 1)}
+                if o_i and o_i != p_i:
+                    settings["original_prompt"] = o_i
+                if args.get("restore_faces"):
+                    image, face_info = self._restore_faces(image, args)
+                    if face_info:
+                        settings["face_restore"] = face_info
+                path = self._save(image, settings)
+                record = self.library.add_image(path, settings, kind="generated")
+                record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
+                record = self._people_check(self._content_check(record, image), image)
+                results.append(record)
+                self.emit({"type": "image", "record": record})
+            return results
+        except moss_engine.CancelledError:
+            raise Cancelled()
+        except moss_engine.EngineError as e:
+            raise UserError(str(e))
+        finally:
+            if 0 < ram < 24 and self.moss is not None:
+                self.moss.stop()  # give the memory back to macOS between jobs on smaller Macs
+
     def _mlx_load(self, spec, lora_reqs, allow_download=True, variant=None, extra_loras=None):
         """Get a fast-engine (MLX) model ready in its worker process. Returns this Mac's RAM in GB.
         The worker keeps the model loaded; asking again for the same model and LoRAs costs nothing."""
@@ -1690,6 +1839,8 @@ class Engine:
         started = time.time()
         loras = [l for l in (args.get("loras") or []) if isinstance(l, dict) and l.get("name")]
         ram = total_ram_gb()
+        if spec.get("moss"):  # MOSS-Image loads its parts one at a time for each picture: nothing to keep ready
+            return {"skipped": "MOSS-Image loads when you make a picture"}
         try:
             if spec.get("engine") == "mlx":
                 if not mlx_engine.installed():
@@ -2339,6 +2490,9 @@ class Engine:
         if self.cancel_event.is_set():
             raise Cancelled()
 
+        if spec.get("moss"):
+            return self._generate_moss(args, model_id, spec, prompts, negatives, width, height, steps, cfg, n, seed,
+                                       originals, force=force)
         if spec.get("engine") == "mlx":
             return self._generate_mlx(args, model_id, spec, prompts, negatives, width, height, steps, cfg, n, seed,
                                       originals, force=force)
@@ -3240,6 +3394,8 @@ class Engine:
             p = tmp / f"cutout_matte_{os.getpid()}_{int(time.time() * 1000)}.png"
             Image.fromarray(np.clip(m * 255 + 0.5, 0, 255).astype(np.uint8), "L").save(p)
             return {"matte": str(p), "width": image.width, "height": image.height, "found": bool((m > 0.5).any())}
+        if mode == "layers":  # 🗂 Split into layers: the subject (see-through) and the background with it filled in
+            return self._cut_layers(src, image, m, args, emit, started)
         opts = {k: args.get(k) for k in ("threshold", "softness", "grow")}
         alpha = cut.refine(m, threshold=float(opts["threshold"] if opts["threshold"] is not None else 0.5),
                            softness=float(opts["softness"] if opts["softness"] is not None else 0.1),
@@ -3264,6 +3420,78 @@ class Engine:
         record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
         emit({"type": "image", "record": record})
         return record
+
+    def procreate_layers(self, args, emit=None):
+        """A Procreate file's layers, each as its own see-through PNG in the Library (top layer first), plus the
+        finished picture. The .procreate file is only read."""
+        import procreate
+        emit = emit or self.emit
+        path = str(args.get("path") or "")
+        if not path.lower().endswith(".procreate") or not os.path.isfile(path):
+            raise UserError("Pick a .procreate file.")
+        emit({"type": "status", "msg": "Reading the Procreate layers…"})
+        emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
+        try:
+            flat, doc = procreate.flattened(path)
+            layers, _ = procreate.layers(path, include_hidden=bool(args.get("hidden")))
+        except procreate.ProcreateError as e:
+            raise UserError(str(e))
+        records = []
+        total = len(layers) + 1
+        names = {}
+        for i, (info, img) in enumerate([(None, flat)] + layers):
+            if self.cancel_event.is_set():
+                raise Cancelled()
+            label = "flattened" if info is None else info["name"]
+            names[label] = names.get(label, 0) + 1
+            if info is not None and names[label] > 1:
+                label = f"{label} ({names[label]})"
+            settings = {"prompt": f"{doc['name']} · {label}", "width": img.width, "height": img.height, "seed": 0,
+                        "procreate": {"file": os.path.basename(path), "layer": label,
+                                      **({k: info[k] for k in ("opacity", "hidden", "clipped")} if info else {}),
+                                      **({"blend": procreate.BLEND_NAMES.get(info["blend"], str(info["blend"]))} if info else {}),
+                                      "position": i}}
+            out = self._save(img, settings, suffix="layer" if info else "procreate")
+            rec = self.library.add_image(out, settings, kind="layer" if info else "edited")
+            rec["thumb"] = str(thumbs.make(rec["id"], out, img) or "") or None
+            records.append(rec)
+            emit({"type": "image", "record": rec})
+            emit({"type": "progress", "image": 1, "images": 1, "step": i + 1, "steps": total})
+        return {"records": records, "name": doc["name"], "layers": len(layers)}
+
+    def _cut_layers(self, src, image, m, args, emit, started):
+        import net
+        import numpy as np
+        from PIL import Image, ImageFilter
+        import postprocess.cutout as cut
+        import postprocess.heal as heal
+        alpha = cut.refine(m, threshold=float(args.get("threshold") if args.get("threshold") is not None else 0.5),
+                           softness=float(args.get("softness") if args.get("softness") is not None else 0.1),
+                           grow=int(args.get("grow") or 0))
+        alpha = cut.clean_bits(alpha)
+        if not (alpha > 0.02).any():
+            raise UserError("No subject was found with these settings: lower the threshold.")
+        subject = cut.compose(image, alpha, None, fix_edges=True)
+        # the background: what was behind the subject filled in (LaMa), a little past its edge
+        mask = Image.fromarray(((alpha > 0.05) * 255).astype(np.uint8), "L").filter(
+            ImageFilter.MaxFilter(max(3, (round(max(image.size) / 128) // 2) * 2 + 1)))
+        emit({"type": "status", "msg": "Filling in the background behind the subject…"})
+        if not heal.lama_downloaded() and not net.is_online():
+            raise UserError("offline: the Smart fill model isn't on this Mac yet")
+        sess = heal.lama_session(download=not heal.lama_downloaded())
+        background = heal.heal(image, mask, method="lama", session=sess)
+        base = dict(src.get("settings") or {})
+        base.update({k: src.get(k) for k in ("prompt", "negative_prompt", "model", "sampler", "steps", "cfg", "seed")})
+        records = []
+        for label, img in (("subject", subject), ("background", background)):
+            st = dict(base, width=img.width, height=img.height, seconds=round(time.time() - started, 1),
+                      layer={"part": label, "of": os.path.basename(src["path"])})
+            out = self._save(img, st, suffix=label)
+            rec = self.library.add_image(out, st, parent_id=src.get("id"), kind="layer")
+            rec["thumb"] = str(thumbs.make(rec["id"], out, img) or "") or None
+            records.append(rec)
+            emit({"type": "image", "record": rec})
+        return {"records": records}
 
     def papercut(self, args, emit=None):
         """📄 Paper cut-out: the subject as a torn-paper sticker (border, shadow, print look, background)."""

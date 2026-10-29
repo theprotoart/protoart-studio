@@ -614,9 +614,100 @@
     },
   };
 
+  // A studio fader (like a graphic EQ's): a brushed plate with a printed scale, a slot and a ridged cap with a light
+  // line across it. Drag the cap, scroll, use the arrow keys, or click a number on the scale.
+  //   <rack-fader v-model.number="form.num_images" :min="1" :max="16" label="Images" :marks="[1, 2, 4, 8, 12, 16]"></rack-fader>
+  const RackFader = {
+    name: "RackFader",
+    props: {
+      modelValue: { type: Number, default: 0 },
+      min: { type: Number, default: 0 },
+      max: { type: Number, default: 10 },
+      step: { type: Number, default: 1 },
+      label: { type: String, default: "" },
+      marks: { type: Array, default: null },     // the numbers printed on the scale
+      height: { type: Number, default: 128 },   // travel, in px
+      title: { type: String, default: "" },
+      defaultValue: { type: Number, default: null },
+    },
+    emits: ["update:modelValue", "change"],
+    data() { return { drag: null }; },
+    computed: {
+      value() { return Number.isFinite(this.modelValue) ? clamp(this.modelValue, this.min, this.max) : this.min; },
+      frac() { return (this.value - this.min) / (this.max - this.min || 1); },
+      scale() {
+        if (this.marks) return this.marks;
+        const out = [];
+        for (let v = this.min; v <= this.max; v += Math.max(this.step, (this.max - this.min) / 6)) out.push(Math.round(v));
+        return out;
+      },
+    },
+    methods: {
+      set(v) {
+        const s = this.step || 1;
+        const n = clamp(Math.round((v - this.min) / s) * s + this.min, this.min, this.max);
+        if (n !== this.modelValue) { this.$emit("update:modelValue", n); this.$emit("change", n); }
+      },
+      at(e) {  // the value under the pointer
+        const r = this.$refs.slot.getBoundingClientRect();
+        return this.min + (1 - clamp((e.clientY - r.top) / Math.max(1, r.height), 0, 1)) * (this.max - this.min);
+      },
+      onDown(e) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        this.$refs.cap.focus();
+        this.drag = true;
+        this.set(this.at(e));
+      },
+      onMove(e) { if (this.drag) this.set(this.at(e)); },
+      onUp() { this.drag = null; },
+      onWheel(e) { e.preventDefault(); this.set(this.value + (e.deltaY < 0 ? 1 : -1) * (this.step || 1)); },
+      onKey(e) {
+        const k = e.key, s = this.step || 1;
+        let v = null;
+        if (k === "ArrowUp" || k === "ArrowRight") v = this.value + s;
+        else if (k === "ArrowDown" || k === "ArrowLeft") v = this.value - s;
+        else if (k === "Home") v = this.min;
+        else if (k === "End") v = this.max;
+        if (v !== null) { e.preventDefault(); this.set(v); }
+      },
+    },
+    render() {
+      const h = Vue.h, H = this.height, span = this.max - this.min || 1;
+      const ticks = [];
+      for (let v = this.min; v <= this.max; v += this.step || 1) {
+        const y = (1 - (v - this.min) / span) * H, major = this.scale.includes(v);
+        ticks.push(h("i", { class: ["f-tick", { major }], style: { top: y + "px" } }));
+        if (major) ticks.push(h("b", { class: ["f-num", { on: v === this.value }], style: { top: y + "px" },
+                                      onClick: () => this.set(v), title: `Set to ${v}` }, String(v)));
+      }
+      return h("div", { class: "rack-fader", style: { "--h": H + "px" }, title: this.title }, [
+        this.label ? h("div", { class: "f-label" }, this.label) : null,
+        h("div", { class: "f-plate" }, [
+          h("i", { class: "f-screw top" }), h("i", { class: "f-screw bottom" }),
+          h("div", { class: "f-scale" }, ticks),
+          h("div", { ref: "slot", class: "f-slot", onPointerdown: this.onDown, onPointermove: this.onMove,
+                     onPointerup: this.onUp, onPointercancel: this.onUp, onWheel: this.onWheel }, [
+            h("div", {
+              ref: "cap", class: ["f-cap", { moving: !!this.drag }], tabindex: 0, role: "slider",
+              "aria-label": this.label || this.title, "aria-valuemin": this.min, "aria-valuemax": this.max, "aria-valuenow": this.value,
+              title: (this.title ? this.title + "\n" : "") + "Slide it up or down, scroll, or click a number · arrow keys work too" +
+                (this.defaultValue !== null ? ` · double-click: back to ${this.defaultValue}` : ""),
+              style: { top: (1 - this.frac) * H + "px" }, onKeydown: this.onKey,
+              onDblclick: () => { if (this.defaultValue !== null) this.set(this.defaultValue); },
+            }),
+          ]),
+        ]),
+        h("div", { class: "f-read" }, String(this.value)),
+      ]);
+    },
+  };
+
   window.RackParts = {
     install(app) {
       app.component("rack-knob", RackKnob);
+      app.component("rack-fader", RackFader);
       app.component("rack-switch", RackSwitch);
       app.component("rack-vu", RackVu);
     },

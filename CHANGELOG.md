@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.5.1
+
+- **MOSS-Image** (`moss_turbo_mlx`, `moss_mlx`; family `moss`): OpenMOSS's 5B lettering / layout model through
+  moss-image-mlx (felix-ab, Apache-2.0) pinned at commit da75091 in its own venv (`~/.protoartstudio/venv-moss`,
+  installed from the commit's source archive), worker `moss_worker.py` (JSON lines, progress, cancel), engine
+  `moss_engine.py` (subclass of `MlxEngine`, which now takes `python` / `worker_script`). Weights
+  VisualInference/MOSS-Image-SFT-MLX-compact at a pinned revision; Turbo = the pinned student + destripe adapters.
+  Text to image only; low-memory staged loading; prompt embeddings cached in `moss-prompts`; the worker is stopped
+  after each job on Macs under 24 GB
+- Create: the Images control is a vertical studio fader (`rack-fader`); every range slider has a fader cap and a
+  printed scale
+- Train: problem pictures outlined with reasons (`trainIssues`: small / no caption / short caption / can't show),
+  Show only these; time estimates per speed key (`ernie_fast` separate), resolution-aware, and a warning before
+  trainings over 4 hours; ★ Recommended uses 300–600 steps for fast-engine ERNIE under 16 GB
+- Adjust: ↶ / ↷ history (`adjHist`: setting bursts and per-stroke paint snapshots), ⌘Z / ⇧⌘Z; brush ring
+- Paper cut-out: Threshold and Grow / shrink (shared with Cut out, sent as `threshold` / `grow`), outline preview
+- How to shows the app's version (`APP_VERSION`)
+- 🎨 Procreate files (`procreate.py`): keyed-archive document, LZO1X tiles (pure-Python decoder, bottom-up rows),
+  un-premultiplied, Display P3 → sRGB via the file's ICC profile; `pictures.prepare` opens a .procreate as its
+  flattened picture; `procreate_layers` job saves each visible layer as an RGBA PNG (kind `layer`)
+- Cut out → 🗂 Split into layers (`cutout` mode `layers`): subject RGBA + LaMa-filled background
+- Adjust: 🔒 lock the filter order (`opts.adj_order_lock` / `adj_order`, applied by `adjLockedOrder`)
+
 ## 1.5.0
 
 - ✂ **Cut out** (Tools; `cutout` job, `postprocess/cutout.py`): BiRefNet lite (MIT, onnx-community/BiRefNet_lite-ONNX,

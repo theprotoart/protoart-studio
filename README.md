@@ -24,7 +24,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 ## What it does
 
 - **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), Anima (anime; all-ages by default via its "safe" rating tag), ERNIE-Image, FLUX.1 Schnell, FLUX.2 Klein 4B
-  (made for 8 GB Macs) and FLUX.1 Dev (32 GB+); LoRA stacking with per-LoRA weights (sort A–Z / newest first, filter by kind or ● People, ★ favourites, in Create and Image to image),
+  (made for 8 GB Macs), FLUX.1 Dev (32 GB+) and MOSS-Image (lettering, posters and layouts; best on 16 GB+); LoRA stacking with per-LoRA weights (sort A–Z / newest first, filter by kind or ● People, ★ favourites, in Create and Image to image),
   embeddings, VAEs (Automatic picks the right one for each model; each model remembers your own pick; one-click recommended VAE), 20+ samplers with the top picks per model,
   presets, 📒 saved prompts, wildcards, a random-prompt generator that writes tags or sentences to suit the model, negative
   prompt ✨ suggest / 🎲 random matched to the model, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop, and
@@ -38,7 +38,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   consent required), and a 🔗 model chain (SD 1.5 → SDXL → FLUX / ERNIE)
 - **Tools** (rack modules): Finegrain enhance & upscale, face restoration (CodeFormer or RestoreFormer), 🩹 remove objects
   (paint right in Tools; smart or quick fill), ✒️ vectorize to SVG, image → prompt (Qwen3.5 vision model, Florence-2 or
-  WD tagger), depth maps, ✂ cut out (background removal for people, animals and objects, with live threshold / softness / grow and see-through PNGs), 📄 paper cut-out (torn-paper stickers), 🎚 Adjust (Lightroom / Color Efex-style with ◎ control points and 🖌 painted areas, each with its own settings if you like, a Procreate-style Bloom and Blur), 🪡 Puppet warp (Photoshop-style: three steps, a mesh, Rigid / Normal / Distort, density, expansion, joints you can turn, undo; ✂ a separate subject with the background filled in behind it and a feathered edge), a ↺ reset on every module, DiffusionBee file conversion, Original / Result /
+  WD tagger), depth maps, ✂ cut out (background removal for people, animals and objects, with live threshold / softness / grow and see-through PNGs, or split into subject and background layers), 🎨 Procreate files (open the finished picture or bring in every layer), 📄 paper cut-out (torn-paper stickers), 🎚 Adjust (Lightroom / Color Efex-style with ◎ control points and 🖌 painted areas, each with its own settings if you like, a Procreate-style Bloom and Blur), 🪡 Puppet warp (Photoshop-style: three steps, a mesh, Rigid / Normal / Distort, density, expansion, joints you can turn, undo; ✂ a separate subject with the background filled in behind it and a feathered edge), a ↺ reset on every module, DiffusionBee file conversion, Original / Result /
   Split / Side-by-side views, and a 🔌 patchbay to run Remove, Faces, Enhance, Depth, Vectorize and 🔎 Detail (with a LoRA)
   in any order with cables (modules can be moved, added twice or taken off; each copy has its own settings; 🛡 paint areas
   it must not change; live preview), 🧩 tiled upscale (MultiDiffusion), 🗜 smaller 8 / 6 / 4-bit model copies, 🧪 model
@@ -139,7 +139,7 @@ first time you use them, or you supply your own files. **Every model has its own
 allow commercial use, for example:
 
 - SD 1.5, Juggernaut Reborn, ControlNet 1.1: CreativeML OpenRAIL-M · SDXL: CreativeML OpenRAIL++-M
-- ERNIE-Image, FLUX.1 [schnell], IP-Adapter, Qwen2.5, WD tagger, Depth Anything V2 Small, Qwen3.5 4B, LaMa: Apache-2.0 · Florence-2, BiRefNet (Cut out): MIT · mlx-vlm: MIT
+- ERNIE-Image, MOSS-Image, FLUX.1 [schnell], IP-Adapter, Qwen2.5, WD tagger, Depth Anything V2 Small, Qwen3.5 4B, LaMa: Apache-2.0 · Florence-2, BiRefNet (Cut out): MIT · mlx-vlm: MIT
 - Xinsir ControlNet Union ProMax: Apache-2.0
 - **Non-commercial:** the enhancer's 4x-UltraSharp upscaler (CC BY-NC-SA 4.0), Depth Anything V2 Base / Large
   (CC BY-NC 4.0), Anima / Anima Turbo (CircleStone Labs Non-Commercial; pictures may be used commercially), the face
