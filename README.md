@@ -33,6 +33,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   clips, and 📥 settings from A1111 / ComfyUI / InvokeAI pictures or .json
 - **Image to image:** ✨ Edit with words (FLUX.2 Klein: describe a change; paint to limit it; add reference pictures),
   🧩 Combine (put a character from another picture into a scene by asking; let it decide where or place it yourself; 💡 match the scene's light),
+  📷 camera angle (turn the camera around the subject: drag a 3-D card, or pick from 8 directions × 4 heights × 3 distances; all 8 views as a turnaround),
   🧅 Peel layers (lift parts onto their own layers, the gap filled in; save a layered .psd),
   change / inpaint (your inpainting models offered first) / expand (any picture, with FLUX.2 Klein + an outpaint LoRA) / 🩹 remove, selection tools (brush, lasso, polygon lasso, magic wand, object selection, 👤 select subject),
   ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile, and your own SD 1.5 and SDXL ControlNets), image prompt

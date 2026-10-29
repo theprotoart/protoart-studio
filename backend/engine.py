@@ -3929,6 +3929,8 @@ class Engine:
                     "height": result.height, "steps": steps, "cfg": 1.0, "sampler": "flow_euler", "seed": seed,
                     "engine": "mlx", "loras": [], "seconds": round(secs, 1),
                     "edit": {"painted": mask is not None, "extra_pictures": len(refs)}}
+        if isinstance(args.get("camera"), dict):  # 📷 Camera angle
+            settings["camera"] = {k: args["camera"].get(k) for k in ("az", "el", "zoom", "view")}
         if combine is not None:
             settings["combine"] = {"placed": bool(combine.get("place")), "cut_out": combine.get("cutout") is not False,
                                    "match_light": combine.get("match_light") is not False}

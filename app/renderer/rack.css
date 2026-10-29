@@ -2383,3 +2383,25 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .peel-row input { flex: 1; min-width: 0; }
 .peel-row .off { opacity: .5; }
 .peel-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+
+/* 📷 Camera angle: the card that turns with the camera, and the two dials */
+.cam-rig { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.cam-stage { flex: 1; height: 190px; perspective: 520px; display: flex; align-items: center; justify-content: center; cursor: grab;
+  touch-action: none; border-radius: 4px; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 85%, rgba(255, 196, 92, .12), transparent 60%), repeating-linear-gradient(0deg, rgba(255,255,255,.04) 0 1px, transparent 1px 18px), #151515; }
+.cam-stage:active { cursor: grabbing; }
+.cam-card { position: relative; width: 120px; height: 150px; transform-style: preserve-3d; transition: transform .08s linear; }
+.cam-front, .cam-back { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 3px; backface-visibility: hidden;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .5); }
+.cam-back { transform: rotateY(180deg); background: repeating-linear-gradient(90deg, rgba(255,196,92,.35) 0 1px, transparent 1px 12px),
+  repeating-linear-gradient(0deg, rgba(255,196,92,.35) 0 1px, transparent 1px 12px), #222; }
+.cam-dial { width: 70px; height: 70px; flex: none; overflow: visible; }
+.cam-dial .ring { fill: none; stroke: #ff6fa8; stroke-width: 1.5; }
+.cam-dial:last-child .ring { stroke: #5fd4e8; }
+.cam-dial .ring.dim { opacity: .35; }
+.cam-dial .subj { fill: #555; }
+.cam-dial .ray { stroke: #ffc45c; stroke-width: 1.2; stroke-dasharray: 2 2; }
+.cam-dial .cam { fill: #ffc45c; stroke: #1c1408; stroke-width: 1; }
+.cam-dial text { fill: #888; font: 8px system-ui, sans-serif; }
+.cam-now { text-align: center; margin-bottom: 4px; }
+.cam-pick { margin-left: 8px; font-size: 11px; }

@@ -2571,6 +2571,7 @@
           <button :class="{on: form.i2i_mode === 'outpaint'}" @click="setI2iMode('outpaint')" title="Make the picture bigger and fill in the new area">↔ Expand</button>
           <button :class="{on: form.i2i_mode === 'remove'}" @click="setI2iMode('remove')" title="Paint over something and it disappears, filled in from what's around it (no prompt or model needed)">🩹 Remove</button>
           <button :class="{on: form.i2i_mode === 'combine'}" @click="setI2iMode('combine')" title="Put a character (or anything) from another picture into this scene, just by asking: “add this character sitting on the bench”. Its light is matched to the scene">🧩 Combine</button>
+          <button :class="{on: form.i2i_mode === 'camera'}" @click="setI2iMode('camera')" title="See the same picture from another angle: turn the camera around the subject, up or down, nearer or further (FLUX.2 Klein)">📷 Camera angle</button>
           <button :class="{on: form.i2i_mode === 'peel'}" @click="setI2iMode('peel')" title="Lift parts of the picture onto their own layers, one at a time (what was behind each is filled in), then save them all as a layered Photoshop file">🧅 Peel layers</button>
           <button :class="{on: form.i2i_mode === 'faceswap'}" @click="setI2iMode('faceswap')" title="Put the face from another photo onto the person in this picture (only faces you have permission to use)">🔁 Face swap</button>
         </div>
@@ -2697,6 +2698,46 @@
             </div>
             <div v-if="peel.saved" class="hint">Saved {{ peel.saved.layers }} layers. <button class="link" @click="showInFolder(peel.saved.psd)">📂 Show the .psd in Finder</button></div>
           </div>
+        </template>
+        <template v-else-if="form.i2i_mode === 'camera'">
+          <div class="hint">Turn the camera around the subject: drag the card (left / right goes around, up / down goes over or
+            under), scroll on it to move nearer or further, or use the sliders and lists. Same picture, same character, new angle.
+            Uses FLUX.2 Klein, like ✨ Edit with words.</div>
+          <div class="cam-rig">
+            <div class="cam-stage" @pointerdown="camDown" @wheel="camWheel" title="Drag to turn the camera · scroll to zoom">
+              <div class="cam-card" :style="camCardStyle()">
+                <img class="cam-front" :src="fileUrl(form.init_image)" alt="" draggable="false">
+                <i class="cam-back"></i>
+              </div>
+            </div>
+            <svg class="cam-dial" viewBox="0 0 80 80" aria-hidden="true">
+              <circle cx="40" cy="40" r="30" class="ring"/><rect x="33" y="37" width="14" height="6" class="subj"/>
+              <text x="40" y="78" text-anchor="middle">front</text>
+              <line x1="40" y1="40" :x2="camDot().x" :y2="camDot().y" class="ray"/><circle :cx="camDot().x" :cy="camDot().y" r="4.5" class="cam"/>
+            </svg>
+            <svg class="cam-dial" viewBox="0 0 80 80" aria-hidden="true">
+              <path d="M 62 62 A 44 44 0 0 0 40 23.9" class="ring"/><path d="M 62 62 A 44 44 0 0 1 56.1 84" class="ring dim"/>
+              <rect x="12" y="52" width="12" height="20" class="subj"/>
+              <line x1="18" y1="62" :x2="camDot().ex" :y2="camDot().ey" class="ray"/><circle :cx="camDot().ex" :cy="camDot().ey" r="4.5" class="cam"/>
+            </svg>
+          </div>
+          <div class="cam-now"><b>{{ camLabel() }}</b></div>
+          <label>Around <span class="hint">{{ form.cam.az }}°</span>
+            <select :value="Math.round(form.cam.az / 45) % 8 * 45" @change="camSet('az', +$event.target.value)" class="cam-pick">
+              <option v-for="(v, i) in CAM_VIEWS" :key="v" :value="i * 45">{{ v }}</option></select></label>
+          <input type="range" min="0" max="359" step="1" :value="form.cam.az" @input="camSet('az', +$event.target.value)">
+          <label>Up / down <span class="hint">{{ form.cam.el }}°</span>
+            <select :value="CAM_ELEV.reduce((b, e) => Math.abs(e.at - form.cam.el) < Math.abs(b.at - form.cam.el) ? e : b).at" @change="camSet('el', +$event.target.value)" class="cam-pick">
+              <option v-for="e in CAM_ELEV" :key="e.at" :value="e.at">{{ e.name }}</option></select></label>
+          <input type="range" min="-30" max="60" step="1" :value="form.cam.el" @input="camSet('el', +$event.target.value)">
+          <label>How close <span class="hint">{{ form.cam.zoom }}</span>
+            <select :value="CAM_DIST.reduce((b, d) => Math.abs(d.at - form.cam.zoom) < Math.abs(b.at - form.cam.zoom) ? d : b).at" @change="camSet('zoom', +$event.target.value)" class="cam-pick">
+              <option v-for="d in CAM_DIST" :key="d.at" :value="d.at">{{ d.name }}</option></select></label>
+          <input type="range" min="0" max="10" step="0.5" :value="form.cam.zoom" @input="camSet('zoom', +$event.target.value)">
+          <div class="seg"><button @click="Object.assign(form.cam, {az: 0, el: 0, zoom: 5})" title="Front view, eye level, medium shot">↺ Front</button></div>
+          <label class="check" title="Makes 8 pictures, one every 45° around the subject (at this height and distance): a character turnaround sheet. Each one takes as long as one edit">
+            <input type="checkbox" v-model="form.cam.turnaround"> 🔄 All 8 views (a turnaround)</label>
+          <div class="hint">Anything to add goes in <b>3 · Prompt</b> (optional, e.g. “she is holding the sword”). The words sent: <i>{{ camPromptText() }}</i></div>
         </template>
         <template v-else-if="form.i2i_mode === 'faceswap'">
           <div class="hint">Puts the face from another photo onto the person (or people) in this picture, then tidies it with
@@ -2964,7 +3005,7 @@
         <p v-if="!chainModels().length" class="hint">Download SD 1.5, SDXL, Anima, FLUX.1 Schnell or ERNIE in the Models tab first.</p>
       </div>
       <div v-if="form.i2i_mode !== 'change' && form.i2i_mode !== 'faceswap'" class="card hint cn-off">
-        <div>2 · ControlNet is off while {{ form.i2i_mode === 'combine' ? 'combining' : form.i2i_mode === 'peel' ? 'peeling layers' : form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'faceswap' ? 'swapping faces' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
+        <div>2 · ControlNet is off while {{ form.i2i_mode === 'camera' ? 'changing the camera angle' : form.i2i_mode === 'combine' ? 'combining' : form.i2i_mode === 'peel' ? 'peeling layers' : form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'faceswap' ? 'swapping faces' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
         <div v-if="form.i2i_mode === 'edit'" class="cn-off-tips">Edit with words already keeps the layout, and <b>More pictures</b> above lend it a style, an outfit or a face.
           To make a new picture that follows this one's <b>structure</b> instead, use ControlNet with an SD 1.5 model:
           <b>Canny</b> (outlines), <b>Depth</b> (3-D layout), <b>Line art</b> (colour a drawing), <b>OpenPose</b> (copy a pose), <b>Tile</b> (add detail)<template v-if="userControlnets.length">, or one of yours ({{ userControlnets.slice(0, 3).map((u) => u.name).join(', ') }}{{ userControlnets.length > 3 ? '…' : '' }})</template>.
@@ -3101,7 +3142,7 @@
       </div>
 
       <div class="actions" :class="{busy}">
-        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'combine' ? '🧩 Combine' + (busy ? ' (queue)' : '') : form.i2i_mode === 'peel' ? '🧅 Peel off' : form.i2i_mode === 'faceswap' ? '🔁 Swap face' + (busy ? ' (queue)' : '') : form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model' ? '↔ Expand' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
+        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'camera' ? (form.cam.turnaround ? '📷 Make 8 views' : '📷 New angle') + (busy ? ' (queue)' : '') : form.i2i_mode === 'combine' ? '🧩 Combine' + (busy ? ' (queue)' : '') : form.i2i_mode === 'peel' ? '🧅 Peel off' : form.i2i_mode === 'faceswap' ? '🔁 Swap face' + (busy ? ' (queue)' : '') : form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model' ? '↔ Expand' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
         <div v-if="busy" class="stop-group">
           <button v-if="runningJob || queue.length" class="ghost pause-btn" :class="{on: paused}" @click="togglePause"
                   :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>

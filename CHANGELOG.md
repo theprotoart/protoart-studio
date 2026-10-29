@@ -10,6 +10,9 @@
   (`blend_area`, with room for a contact shadow) redrawn; the rest is the original. Saved as kind `combined`
 - 💡 Match the scene's light (`compose.match_light`): LAB mean / contrast transfer towards the scene (or the area
   around where it's placed), the subject's own colours and shading kept, strength slider
+- 📷 Camera angle (mode `camera`): orbit card (CSS 3-D) with drag / scroll, top-down and side dials, sliders and
+  preset lists; snapped to the 8 × 4 × 3 multi-angle naming (`camWords`) and sent to `edit_words` as a plain-words
+  Klein prompt (`camPrompt`, identity kept) with `camera` recorded in the settings; 🔄 All 8 views queues a turnaround
 - 🧅 Peel layers (mode `peel`; jobs `peel`, `peel_save`, side lane): the selection lifted onto an RGBA layer
   (optionally following the Cut out matte inside it), the hole filled with LaMa, repeatable, undo / rename / hide /
   reorder; saved as a layered .psd (`compose.write_psd`: 8-bit RGB, raw channels, Unicode names, layers cropped to

@@ -297,6 +297,8 @@ def job_label(cmd, a):
         return "Peel off a layer"
     if cmd == "peel_save":
         return "Save the layers (.psd)"
+    if cmd == "edit_words" and isinstance(a.get("camera"), dict):
+        return "Camera angle · " + str(a["camera"].get("view") or "")[:48]
     if cmd == "edit_words" and isinstance(a.get("combine"), dict):
         return "Combine · " + ((a.get("prompt") or "")[:40] or "add to the scene")
     if cmd == "edit_words":

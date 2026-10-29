@@ -110,6 +110,7 @@ function defaultForm() {
     ip_adapter: { image: "", kind: "style", scale: 0.6 },
     heal_method: "lama",
     edit_refs: [],      // ✨ Edit with words: extra pictures to take a style, object or outfit from (🧩 Combine: what to add)
+    cam: { az: 0, el: 0, zoom: 5 },  // 📷 Camera angle: around (0–360°), up / down (−30–60°), how close (0–10)
     combine: { cutout: true, match_light: true, light_strength: 0.7, where: "auto", keep_scene: true, boxes: [] },  // 🧩 Combine
     i2i_mode: "change", inpaint: { strength: 0.85, blur: 4, only_masked: false },
     outpaint: { left: 0, right: 0, top: 0, bottom: 0 },
@@ -139,6 +140,32 @@ const SAMPLER_PICKS = {
 };
 const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}, {"model": "BiRefNet lite (✂ Cut out, 👤 Subject, 📄 Paper cut-out)", "licence": "MIT", "note": ""}, {"model": "MOSS-Image (OpenMOSS; MLX weights by VisualInference, turbo adapters by VisualInference and nynxz)", "licence": "Apache-2.0", "note": "runs with moss-image-mlx (Apache-2.0); text encoder Qwen3.5-9B and FLUX.2 small VAE (Apache-2.0)"}];
 const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677" };
+// 📷 Camera angle: the words for each direction (the same 8 × 4 × 3 grid multi-angle tools use)
+const CAM_VIEWS = ["front view", "front-right quarter view", "right side view", "back-right quarter view",
+                   "back view", "back-left quarter view", "left side view", "front-left quarter view"];
+const CAM_ELEV = [{ at: -30, name: "low-angle shot", say: "a low-angle shot from below, looking up" },
+                  { at: 0, name: "eye-level shot", say: "an eye-level shot" },
+                  { at: 30, name: "elevated shot", say: "an elevated shot from a little above" },
+                  { at: 60, name: "high-angle shot", say: "a high-angle shot from above, looking down" }];
+const CAM_DIST = [{ at: 1.5, name: "wide shot", say: "a wide shot showing the whole subject and its surroundings" },
+                  { at: 5, name: "medium shot", say: "a medium shot" },
+                  { at: 8.5, name: "close-up", say: "a close-up" }];
+function camWords(az, el, zoom) {
+  const a = ((Number(az) || 0) % 360 + 360) % 360;
+  const view = CAM_VIEWS[Math.round(a / 45) % 8];
+  const elev = CAM_ELEV.reduce((b, e) => (Math.abs(e.at - el) < Math.abs(b.at - el) ? e : b));
+  const dist = CAM_DIST.reduce((b, d) => (Math.abs(d.at - zoom) < Math.abs(b.at - zoom) ? d : b));
+  return { view, elev, dist, label: `${view} · ${elev.name} · ${dist.name}` };
+}
+function camPrompt(az, el, zoom, extra) {
+  const w = camWords(az, el, zoom);
+  const more = (extra || "").trim().replace(/\.$/, "");
+  return `Show the same picture from a different camera angle: the ${w.view} of the subject, ${w.elev.say}, ${w.dist.say}. ` +
+    (more ? more[0].toUpperCase() + more.slice(1) + ". " : "") +
+    "Keep the same identity, face, hair, outfit, pose, expression, proportions, colours, materials, lighting and art style; " +
+    "change only where the camera is.";
+}
+if (typeof module !== "undefined") module.exports = { camWords, camPrompt };
 const I2I_KINDS = ["img2img", "healed", "word_edit", "combined", "inpaint", "outpaint", "controlnet", "faceswap"];  // pictures made in Image to image
 // Tools → Tiled upscale presets (size, how much new detail, steps)
 const TILED_PRESETS = [
@@ -425,7 +452,7 @@ const protoartApp = createApp({
       brush: { show: false, x: 0, y: 0 },
       objFinding: false,   // object selection is working out the outline
       soundsOn: window.ProtoSound ? window.ProtoSound.enabled : true,
-      LICENCES, TILED_PRESETS, APP_VERSION,
+      LICENCES, TILED_PRESETS, APP_VERSION, CAM_VIEWS, CAM_ELEV, CAM_DIST,
       loraSort: loadJSON("protoart.loraSort", "az"),   // LoRA list order
       loraKind: "",                                      // LoRA list filter ('' = all)   // the brush-size ring that follows the pointer while painting
       initDims: null,
@@ -441,7 +468,9 @@ const protoartApp = createApp({
       form: (() => {
         const f = Object.assign(defaultForm(), loadJSON(FORM_KEY, {}));
         f.regions = { ...defaultForm().regions, ...(f.regions || {}) };
-        f.swap = { ...defaultForm().swap, ...(f.swap || {}), consent: false };  // permission is asked again each time the app opens
+        f.swap = { ...defaultForm().swap, ...(f.swap || {}), consent: false };
+        f.cam = { ...defaultForm().cam, ...(f.cam || {}) };
+        f.combine = { ...defaultForm().combine, ...(f.combine || {}) };  // permission is asked again each time the app opens
         if (!loadJSON("protoart.cfDefault", false)) {  // 1.2: CodeFormer became the default face model (once)
           f.face_model = "codeformer";
           saveJSON("protoart.cfDefault", true);
@@ -591,7 +620,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.0: 🧩 Combine pictures by asking, 💡 match the scene's light, 🧅 peel layers", items: [
+            { h: "1.6.0: 🧩 Combine pictures by asking, 💡 match the scene's light, 📷 camera angles, 🧅 peel layers", items: [
+              "<b>📷 Camera angle</b> (Image to image): see the same picture from another angle. Drag the card to turn the camera around the subject and over or under it, scroll to go nearer or further, or pick from the lists (8 directions, 4 heights, 3 distances). <b>🔄 All 8 views</b> makes a whole turnaround sheet in one go. Uses FLUX.2 Klein.",
               "<b>🧩 Combine</b> (Image to image): put a character, a pet or an object from another picture into a scene just by asking, e.g. “add her sitting on the bench, waving”. The picture at the top is the scene; add up to 3 pictures under <b>Add to the scene</b>. <b>✨ Let it decide</b> puts them where they fit; <b>✋ I'll place it</b> lets you drag and size each one on the scene, and then only the area around it is blended in (the rest of the scene stays exactly the same). Uses FLUX.2 Klein, like ✨ Edit with words.",
               "<b>✂ Cut it out first</b> (Combine, on by default): the character is lifted out of its picture with ✂ Cut out's model, so its old background doesn't come along.",
               "<b>💡 Match the scene's light</b> (Combine, on by default): before it goes in, the character's brightness, contrast and colour are moved towards the scene's (around where you put it), with a <b>How much</b> slider. Klein then adds the shadows.",
@@ -1020,6 +1050,12 @@ const protoartApp = createApp({
               "<b>✂ Cut it out of its picture first</b> (on): only the character is used, not its old background. It uses ✂ Cut out's model (~224 MB once) and takes about 15–30 s per picture on an 8 GB Mac. Turn it off for a picture that already has a plain or see-through background.",
               "<b>💡 Match the scene's light</b> (on): the character's brightness, contrast and colour are moved towards the scene's before it goes in, so a sunny photo of a person doesn't glow in a night forest. <b>How much</b>: higher takes on more of the scene's light and colour. The character keeps its own shading; Klein adds the shadows.",
               "Tips: a clear, full-body picture of the character works best; describe the size (“small, in the distance”) when it should be far away; try another seed if the pose or place isn't right. The result goes to the Library as <b>Combined</b>, linked to the scene." ] },
+            { h: "📷 Camera angle: the same picture from another side", items: [
+              "In <b>Image to image</b>, pick <b>📷 Camera angle</b>. The card shows your picture as the camera sees it: <b>drag left / right</b> to go around the subject, <b>up / down</b> to go under or over it, <b>scroll</b> to come nearer or go further. The pink ring shows where the camera is from above (front at the bottom), the blue arc how high it is.",
+              "Or use the sliders and lists: <b>Around</b> (front, front-right quarter, right side, back-right quarter, back, back-left quarter, left side, front-left quarter), <b>Up / down</b> (low-angle, eye-level, elevated, high-angle) and <b>How close</b> (wide shot, medium shot, close-up). The line under them shows which one you have; <b>↺ Front</b> goes back to the start.",
+              "Press <b>📷 New angle</b>. Anything to add goes in 3 · Prompt (“she is holding the sword”). The exact words sent to Klein are shown under the controls.",
+              "<b>🔄 All 8 views</b>: one picture every 45° around the subject, at the height and distance you set: a turnaround sheet for a character. They go into the queue one after another (each takes as long as one edit).",
+              "Tips: works best on one clear subject; the back view is invented, so the same seed and a picture showing more of the character keep it closer; small turns (a quarter view) stay closest to the original." ] },
             { h: "🧅 Peel layers: split a picture into layers", items: [
               "In <b>Image to image</b>, pick <b>🧅 Peel layers</b>. Select a part with the painting tools (<b>👤 Subject</b> finds the main subject, <b>⬚ Object</b> what you drag a box around, or paint it), then press <b>🧅 Peel off</b>.",
               "That part goes onto its own see-through layer, and what was behind it is filled in (the same Smart fill as 🩹 Remove), so the picture at the top now shows what's left. Select the next part and peel again: each peel takes a few seconds.",
@@ -1290,6 +1326,7 @@ const protoartApp = createApp({
               "<b>The character's face or clothes came out different</b>: use a clearer, bigger picture of it, keep ✂ Cut it out first on, place it bigger (a tiny character loses detail), and try another seed.",
               "<b>The character looks pasted on</b>: keep 💡 Match the scene's light on and raise <b>How much</b>; in the prompt say where the light comes from (“lit by the lantern on her right”).",
               "<b>Combine or Peel says it can't download</b>: Cut out (~224 MB) and Smart fill (~208 MB) download once. Turn off Strict offline mode in Settings → Privacy for the download.",
+              "<b>📷 Camera angle barely turned</b>: Klein sometimes keeps the original angle; try another seed, or a bigger change (a side view instead of a quarter view). <b>The character changed when seen from the back</b>: the back is invented; add details in the prompt (“long braid down her back”).",
               "<b>Peel left an outline behind</b>: select a little past the edge (Grow the selection, or paint over it), or turn on ✂ Follow the edge exactly. <b>The .psd won't open</b>: it's a standard 8-bit RGB Photoshop file; a very big picture with many layers can be several hundred MB." ] },
             { h: "New in 1.5.1: if something doesn't work", items: [
               "<b>Training says it will take 16 hours</b>: on an 8 GB Mac that's about right for ERNIE (each step works through a very big model, and memory spills onto the disk). Use ★ Recommended (fewer steps for ERNIE), or train on an SD 1.5 model, which takes minutes to a few hours. The estimate becomes a measurement after the first steps.",
@@ -7172,6 +7209,16 @@ const protoartApp = createApp({
                      keep_scene: c.keep_scene !== false, place: placed ? refs.map((_, i) => ({ ...c.boxes[i] })) : null } });
         return;
       }
+      if (f.i2i_mode === "camera") {  // 📷 the same picture from another angle, by FLUX.2 Klein
+        this.error = "";
+        const c = f.cam || {}, list = c.turnaround ? [0, 45, 90, 135, 180, 225, 270, 315].map((az) => ({ az, el: c.el, zoom: c.zoom })) : [c];
+        for (const v of list) {
+          this.runJob("edit_words", { init_image: f.init_image, prompt: camPrompt(v.az, v.el, v.zoom, f.prompt), seed: f.seed,
+                                      camera: { az: Math.round(v.az), el: Math.round(v.el), zoom: v.zoom, view: camWords(v.az, v.el, v.zoom).label } });
+          await new Promise((r) => setTimeout(r, 60));  // keeps them in order in the queue
+        }
+        return;
+      }
       if (f.i2i_mode === "peel") {  // 🧅 lift the painted part onto its own layer
         await this.peelOff();
         return;
@@ -7296,6 +7343,32 @@ const protoartApp = createApp({
     },
     editModel() {  // the model Edit with words uses
       return this.models.find((m) => m.id === "flux2_klein_mlx_q4") || null;
+    },
+    // ---------------------------------------------------------------- 📷 Camera angle
+    camLabel() { const c = this.form.cam; return camWords(c.az, c.el, c.zoom).label; },
+    camPromptText() { const c = this.form.cam; return camPrompt(c.az, c.el, c.zoom, this.form.prompt); },
+    camSet(k, v) {
+      const c = this.form.cam;
+      if (k === "az") c.az = ((Math.round(v) % 360) + 360) % 360;
+      else if (k === "el") c.el = Math.max(-30, Math.min(60, Math.round(v)));
+      else c.zoom = Math.max(0, Math.min(10, Math.round(v * 10) / 10));
+    },
+    camDown(e) {
+      e.preventDefault();
+      const c = this.form.cam, x0 = e.clientX, y0 = e.clientY, az0 = c.az, el0 = c.el;
+      const move = (ev) => { this.camSet("az", az0 - (ev.clientX - x0) * 0.6); this.camSet("el", el0 + (ev.clientY - y0) * 0.4); };
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    },
+    camWheel(e) { e.preventDefault(); this.camSet("zoom", this.form.cam.zoom - Math.sign(e.deltaY) * 0.5); },
+    camCardStyle() {
+      const c = this.form.cam, k = 0.55 + c.zoom * 0.07;
+      return { transform: `scale(${k}) rotateX(${-c.el}deg) rotateY(${-c.az}deg)` };
+    },
+    camDot() {  // the camera's place on the top-down ring and the side arc
+      const c = this.form.cam, a = (c.az * Math.PI) / 180, e = (c.el * Math.PI) / 180;
+      return { x: 40 + 30 * Math.sin(a), y: 40 + 30 * Math.cos(a), ex: 18 + 44 * Math.cos(e), ey: 62 - 44 * Math.sin(e) };
     },
     // ---------------------------------------------------------------- 🧩 Combine: where each one goes
     combineBoxesFill() {
