@@ -226,7 +226,8 @@ const isPicture = (f) => !!f && ((f.type || "").startsWith("image/") || PICTURE_
 const ADJ_KEY = "protoart.adjustLast";  // the last Adjust settings you saved ("Last used")
 let adjEngine = null;                   // the WebGL engine (kept outside Vue: not reactive)
 let adjFrame = 0;
-let adjPaint = {};                       // 🖌 step id -> canvas of where it was painted to show (white = shows)
+let adjPaint = {};
+let adjHist = [], adjFut = [];           // ↶ / ↷ Adjust steps: {kind: "p", before: JSON} or {kind: "paint", key, before: ImageData}                       // 🖌 step id -> canvas of where it was painted to show (white = shows)
 let pwEngine = null;                    // 🪡 Puppet warp's WebGL engine (outside Vue too)
 let pwFrame = 0;
 let cutCache = null;                     // ✂ Cut out: the matte and the picture at preview size (outside Vue: big arrays)
@@ -316,6 +317,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
+const APP_VERSION = "1.5.1";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -422,7 +424,7 @@ const protoartApp = createApp({
       brush: { show: false, x: 0, y: 0 },
       objFinding: false,   // object selection is working out the outline
       soundsOn: window.ProtoSound ? window.ProtoSound.enabled : true,
-      LICENCES, TILED_PRESETS,
+      LICENCES, TILED_PRESETS, APP_VERSION,
       loraSort: loadJSON("protoart.loraSort", "az"),   // LoRA list order
       loraKind: "",                                      // LoRA list filter ('' = all)   // the brush-size ring that follows the pointer while painting
       initDims: null,
@@ -484,7 +486,8 @@ const protoartApp = createApp({
       cut: { open: false, busy: false, msg: "", path: "", w: 0, h: 0, view: "result", rev: 0 },  // ✂ Cut out's live preview
       paperJob: false,
       i2iInpaintPick: "",
-      promptCardOver: false, // a picture dragged over Tools → Image → prompt    // Image to image → Inpaint: the inpainting model you picked ('' = the first that fits)
+      promptCardOver: false,
+      trainLongAsk: false,   // Train: "this will take many hours" shown before starting // a picture dragged over Tools → Image → prompt    // Image to image → Inpaint: the inpainting model you picked ('' = the first that fits)
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
       cvt: { to: "copy", model: "", base: "", rank: 32, te: true, name: "", msg: "", extra: [], kind: "", found: null },  // found: {model, ranked} from 🔍 Find it  // extra: DiffusionBee files dropped or sent from the list  // Tools → Convert into (LoRA…)
       chain: { steps: loadJSON("protoart.chain", []).map((x) => ({ lora: "", lora_weight: 1, extra: "", ...x, result: "", q: "" })),
@@ -534,6 +537,8 @@ const protoartApp = createApp({
              // and the selected point
              pointTarget: "base", pointMode: false, pointSel: -1, pointDrag: null, ovl: null,
              paintMode: "", brush: 0.08, brushOp: 1, paintRev: 0,   // 🖌 paint where a step shows ("paint" / "erase")
+             hist: 0, fut: 0,   // ↶ / ↷: how many steps can be undone / redone (the steps themselves are kept outside Vue)
+             ring: { show: false, x: 0.5, y: 0.5 },   // the brush ring over the picture while painting
              fold: {}, which: "original", view: "after", split: 0.5, presetName: "", savingPreset: false,
              // several versions at once: which settings ("current" and/or preset names), enhance too, and in which order
              batch: ["current"], batchEnhance: false, batchOrder: "enhance_first" },
@@ -1459,7 +1464,7 @@ const protoartApp = createApp({
                              precision: "fp16", save_every: 0, preset: "recommended", steps: 1000, lr: 0.0001, rank: 16,
                              resolution: 512, targets: "attention", flip: true, train_text_encoder: false,
                              dirty: false, result: null, lossHistory: [], secPerStep: null, spsBy: {},
-                             mode: "lora", emb: { name: "", init: "", kind: "object", vectors: 2, steps: 1500, save_every: 0 } },
+                             mode: "lora", onlyIssues: false, emb: { name: "", init: "", kind: "object", vectors: 2, steps: 1500, save_every: 0 } },
                            (() => { const t = loadJSON("protoart.train", {}); delete t.items; delete t.result; delete t.lossHistory; delete t.dirty; return t; })()),
       merge: { family: "", items: [], q: "", mode: "exact", rank: 32, name: "", result: null, error: "", busy: false },
       hub: { source: "", busy: false, error: "", found: null, needToken: false, token: "", tokenSet: false, msg: "" },
@@ -1886,6 +1891,15 @@ const protoartApp = createApp({
       return { label, native, train, shapes, tips, minSide, small, checked: sized.length,
                lowRam: fam !== "sd15" && ram && ram < 16 };
     },
+    trainIssueCount() {  // how many training pictures have something worth fixing
+      return this.train.items.filter((it) => it.fit !== "skip" && this.trainIssues(it).length).length;
+    },
+    trainSpeedKey() {
+      return (id) => {
+        const m = this.models.find((x) => x.id === id);
+        return m && m.family === "ernie" && m.engine === "mlx" ? "ernie_fast" : (m && m.family) || "sd15";
+      };
+    },
     trainFastErnie() {
       const m = this.models.find((x) => x.id === this.train.model);
       return !!(m && m.family === "ernie" && m.engine === "mlx");
@@ -1908,13 +1922,15 @@ const protoartApp = createApp({
                              : "SD 1.5: fastest to train. On this Mac you can also train SDXL" + (ram >= 32 ? " and ERNIE." : ".");
     },
     trainSps() {
-      // seconds per training step: measured on this Mac per model type, otherwise a rough guess
-      return (fam) => {
-        const got = (this.train.spsBy || {})[fam];
+      // seconds per training step: measured on this Mac per model type (the fast-engine ERNIE has its own),
+      // otherwise a rough guess; `key` is a family or "ernie_fast"
+      return (key) => {
+        const got = (this.train.spsBy || {})[key];
         if (got) return got;
         const ram = this.sys.ram_gb || 0;
-        if (fam === "sdxl") return ram && ram < 16 ? 25 : 6;
-        if (fam === "ernie") return ram && ram < 16 ? 40 : 10;
+        if (key === "sdxl") return ram && ram < 16 ? 25 : 6;
+        if (key === "ernie_fast") return ram && ram < 16 ? 40 : 12;
+        if (key === "ernie") return ram && ram < 16 ? 60 : 10;
         return ram && ram < 12 ? 4 : 2;
       };
     },
@@ -1946,7 +1962,10 @@ const protoartApp = createApp({
       const flip = kind !== "character";  // a face isn't the same mirrored (a parting, a scar, a logo)
       let te = fam === "sd15" && kind !== "style";
       let res = { sd15: 512, sdxl: ram && ram < 16 ? 768 : 1024, ernie: 768 }[fam] || 512;
-      if (fast) { rank = ram && ram < 16 ? 8 : 16; res = ram && ram < 16 ? 512 : 768; steps = Math.min(steps, 1500); te = false; }
+      if (fast) {  // ERNIE learns quickly; on a small Mac every step is slow, so fewer of them
+        rank = ram && ram < 16 ? 8 : 16; res = ram && ram < 16 ? 512 : 768; te = false;
+        steps = ram && ram < 16 ? clamp(n * 40, 300, 600) : Math.min(steps, 1500);
+      }
       if (fam === "sdxl") { te = false; if (kind === "style") steps = Math.min(steps, 2500); }
       const famName = fast ? "ERNIE ⚡ fast engine" : tagged ? this.flavorName(this.trainFlavor) : { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE" }[fam] || fam;
       const kindName = (this.trainKinds.find((k) => k.id === kind) || {}).label || kind;
@@ -2077,14 +2096,17 @@ const protoartApp = createApp({
     trainReady() {
       return this.train.model && this.train.items.length >= 3 && this.train.name.trim() && !this.trainProblem && !this.trainJob;
     },
+    trainSeconds() {  // how long the training set up now should take on this Mac
+      const key = this.trainSpeedKey(this.train.model), fam = this.trainFamily;
+      const measured = (this.train.spsBy || {})[key];
+      const base = fam === "sdxl" ? 1024 : fam === "ernie" ? (key === "ernie_fast" ? 512 : 768) : 512;
+      const mult = measured ? 1 : (this.train.resolution / base) ** 2 * (this.train.train_text_encoder ? 1.3 : 1);
+      return { secs: this.train.steps * this.trainSps(key) * mult, measured: !!measured };
+    },
     trainEstimate() {
       if (!this.train.items.length) return "";
-      const fam = this.trainFamily;
-      const measured = (this.train.spsBy || {})[fam];
-      const sps = this.trainSps(fam);
-      const base = fam === "sdxl" ? 1024 : fam === "ernie" ? 768 : 512;
-      const mult = measured ? 1 : (this.train.resolution / base) ** 2 * (this.train.train_text_encoder ? 1.3 : 1);
-      return `≈ ${this.formatDuration(this.train.steps * sps * mult)} on this Mac` + (measured ? "" : " (rough guess until the first run)");
+      const t = this.trainSeconds;
+      return `≈ ${this.formatDuration(t.secs)} on this Mac` + (t.measured ? " (measured on your last training of this model type)" : " (a rough guess until the first steps have run: it updates as it trains)");
     },
     trainJob() {
       return this.queue.find((j) => j.cmd === "train_lora" || j.cmd === "train_embedding");
@@ -2498,11 +2520,12 @@ const protoartApp = createApp({
           const left = j.state === "running" && this.progress && this.progress.job === j.id && this.genLeft(this.progress);
           if (left) est = elapsed + left.seconds;  // the same figure the progress line shows
         } else if (j.cmd === "train_lora" || j.cmd === "train_embedding") {
-          const sps = this.trainSps(this.models.find((x) => x.id === j.model)?.family || "sd15");
+          const key = j.cmd === "train_embedding" ? "sd15_ti" : this.trainSpeedKey(j.model);
+          const sps = this.trainSps(key);
           const pr = this.progress;
           est = (j.steps || 1000) * sps + 60;
           if (j.state === "running" && pr && pr.job === j.id) est = elapsed + (pr.steps - pr.step) * sps;
-          measured = !!(this.train.spsBy || {})[this.models.find((x) => x.id === j.model)?.family];
+          measured = !!(this.train.spsBy || {})[key];
         } else if (j.cmd === "model_download") {
           const gb = this.models.find((m) => m.id === j.model)?.download_gb || 5;
           est = gb * 1000 / 25; // ~25 MB/s until it's measured
@@ -2581,7 +2604,7 @@ const protoartApp = createApp({
       // ↺ Reset to defaults' undo link lasts until you change something after it
       if (this.resetUndo && Date.now() - (this._resetAt || 0) > 2500) this.resetUndo = null;
     } },
-    "adj.p": { deep: true, handler() { this.adjRender(); } },
+    "adj.p": { deep: true, handler() { this.adjRender(); this.adjNoteChange(); } },
     "pw.pins": { deep: true, handler() { this.pwRender(); } },
     "pw.original"() { this.pwRender(); },
     "pw.showMesh"() { this.pwRender(); },
@@ -2721,8 +2744,7 @@ const protoartApp = createApp({
       if (m.type === "train_status") {
         this.train.secPerStep = m.sec_per_step;
         const tj = this.trainJob;
-        const fam = (tj && this.models.find((x) => x.id === tj.model)?.family) || this.trainFamily;
-        const key = tj && tj.cmd === "train_embedding" ? "sd15_ti" : fam;
+        const key = tj && tj.cmd === "train_embedding" ? "sd15_ti" : this.trainSpeedKey(tj ? tj.model : this.train.model);
         this.train.spsBy = { ...(this.train.spsBy || {}), [key]: m.sec_per_step };
         if (Number.isFinite(m.loss)) this.train.lossHistory.push(m.loss); // the fast engine reports speed only
         if (this.train.lossHistory.length > 300) this.train.lossHistory.splice(0, this.train.lossHistory.length - 300);
@@ -5173,6 +5195,7 @@ const protoartApp = createApp({
         e.preventDefault();
         const up = e.key === "]" || e.key === "=" || e.key === "+";
         this.adj.brush = Math.max(0.01, Math.min(0.5, +(this.adj.brush * (up ? 1.15 : 1 / 1.15)).toFixed(3)));
+        this.adjRingPreview();
         this.status = `Brush size ${Math.round(this.adj.brush * 100)}`;
         return;
       }
@@ -5650,7 +5673,7 @@ const protoartApp = createApp({
       this.tool.working = { label: "Making the paper cut-out", started: Date.now() };
       this.tool.latest = null;
       try {
-        const rec = await this.runJob("papercut", { ...this.toolArgs(), ...o, threshold: this.post.cut.threshold });
+        const rec = await this.runJob("papercut", { ...this.toolArgs(), ...o, threshold: this.post.cut.threshold, grow: this.post.cut.grow });
         if (rec) { this.tool.latest = rec; this.afterPost(rec); }
       } finally { this.tool.working = null; this.paperJob = false; }
     },
@@ -5974,6 +5997,29 @@ const protoartApp = createApp({
         this.train.train_text_encoder = false;
       } else if (this.train.resolution > 768) this.train.resolution = 512;
     },
+    // ⚠ what's worth fixing in one training picture: too small (it trains soft), no caption, a file the window
+    // can't show, a very short caption; each with what to do
+    trainIssues(it) {
+      const out = [];
+      if (!it || it.fit === "skip") return out;
+      const min = this.trainSizeAdvice.minSide;
+      if (it.width && it.height && Math.min(it.width, it.height) < min)
+        out.push({ k: "small", short: `small · ${it.width}×${it.height}`, tip: `Smaller than ${min} px on its short side (${it.width} × ${it.height}): it will train soft. Replace it with a bigger version, or leave it out (✕).` });
+      if (this.train.mode === "lora") {
+        const cap = (it.caption || "").trim();
+        if (!cap) out.push({ k: "nocap", short: "no caption", tip: "No caption: only the trigger word describes it. Write one below (Captions), or press Caption the missing ones." });
+        else if (cap.split(/[\s,]+/).filter(Boolean).length < 3) out.push({ k: "shortcap", short: "short caption", tip: "A very short caption: describe what's in the picture besides the subject (clothes, place, light)." });
+      }
+      if (it.broken) out.push({ k: "broken", short: "can't show", tip: "This file can't be shown here (training still reads it). Check it opens in Preview." });
+      return out;
+    },
+    trainGoToCaption(it) {  // ⚠ no caption: jump to its caption box
+      const i = this.train.items.indexOf(it);
+      this.$nextTick(() => {
+        const el = document.querySelectorAll(".cap-item")[i];
+        if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.querySelector("textarea")?.focus(); }
+      });
+    },
     applyTrainPreset(p) {
       Object.assign(this.train, { preset: p.id, steps: p.steps, lr: p.lr, rank: p.rank });
       if (p.id === "recommended") {  // the rest of what suits this kind of LoRA
@@ -5994,7 +6040,10 @@ const protoartApp = createApp({
         this.status = `Captioned ${r.captioned} image${r.captioned === 1 ? "" : "s"}`;
       }
     },
-    async startTraining() {
+    async startTraining(sure) {
+      const est = this.trainSeconds;
+      if (!sure && est.secs > 4 * 3600) { this.trainLongAsk = true; return; }  // many hours: say so first
+      this.trainLongAsk = false;
       if (this.train.dirty) await this.trainSaveCaptions();
       this.train.result = null;
       this.train.lossHistory = [];
@@ -7882,6 +7931,7 @@ const protoartApp = createApp({
       }
       const p = keepSettings && this.adj.p ? this.adj.p : window.ProtoAdjust.defaults();
       if (!keepSettings) { adjPaint = {}; this.adj.paintRev++; }
+      this.adjHistClear();
       this.adj.paintMode = "";
       Object.assign(this.adj, { open: true, rec: r, p, before: false, view: "after", busy: true, msg: "Loading the picture…", error: "",
                                 size: null, which: this.tool.latest && this.tool.latest.path === r.path ? "result" : "original" });
@@ -8284,6 +8334,91 @@ const protoartApp = createApp({
     closeAdjust() {
       if (adjEngine) { adjEngine.destroy(); adjEngine = null; }
       this.adj.open = false;
+      this.adjHistClear();
+    },
+    // ↶ Undo / ↷ Redo in Adjust (⌘Z / ⇧⌘Z): slider, look, filter and point changes (a burst of changes, like
+    // dragging a slider, is one step) and each brush stroke or Clear paint
+    adjHistClear() {
+      adjHist = []; adjFut = [];
+      this._adjLastP = this.adj.p ? JSON.stringify(this.adj.p) : null;
+      clearTimeout(this._adjHistT); this._adjHistT = null;
+      this.adj.hist = 0; this.adj.fut = 0;
+    },
+    adjHistPush(entry) {
+      adjHist.push(entry);
+      if (adjHist.length > 60) adjHist.shift();
+      adjFut = [];
+      this.adj.hist = adjHist.length; this.adj.fut = 0;
+    },
+    adjNoteChange() {  // the settings changed: one undo step per burst of changes
+      if (this._adjRestoring || !this.adj.open || !this.adj.p) return;
+      const now = JSON.stringify(this.adj.p);
+      if (now === this._adjLastP) return;
+      if (!this._adjHistT) this.adjHistPush({ kind: "p", before: this._adjLastP });
+      clearTimeout(this._adjHistT);
+      this._adjHistT = setTimeout(() => { this._adjHistT = null; this._adjLastP = JSON.stringify(this.adj.p); }, 450);
+    },
+    adjPaintSnapshot(key) {  // a brush stroke is about to change `key`'s painted mask
+      const c = adjPaint[key];
+      this.adjHistPush({ kind: "paint", key, before: c ? c.getContext("2d").getImageData(0, 0, c.width, c.height) : null });
+    },
+    adjApplyEntry(e) {  // put back what `e` holds; returns the entry that undoes this
+      if (e.kind === "p") {
+        const cur = JSON.stringify(this.adj.p);
+        this._adjRestoring = true;
+        clearTimeout(this._adjHistT); this._adjHistT = null;
+        this.adj.p = JSON.parse(e.before);
+        this._adjLastP = e.before;
+        this.$nextTick(() => { this._adjRestoring = false; });
+        return { kind: "p", before: cur };
+      }
+      const c = adjPaint[e.key];
+      const back = { kind: "paint", key: e.key, before: c ? c.getContext("2d").getImageData(0, 0, c.width, c.height) : null };
+      if (e.before) {
+        const cv = this.adjPaintCanvas(e.key);
+        cv.getContext("2d").putImageData(e.before, 0, 0);
+        if (adjEngine) adjEngine.setPaint(e.key, cv);
+      } else {
+        delete adjPaint[e.key];
+        if (adjEngine) adjEngine.setPaint(e.key, null);
+      }
+      this.adj.paintRev++;
+      this.adjPaintShow();
+      this.adjRender();
+      return back;
+    },
+    adjUndo() {
+      if (this._adjHistT) { clearTimeout(this._adjHistT); this._adjHistT = null; this._adjLastP = JSON.stringify(this.adj.p); }
+      const e = adjHist.pop();
+      if (!e) return;
+      adjFut.push(this.adjApplyEntry(e));
+      this.adj.hist = adjHist.length; this.adj.fut = adjFut.length;
+      this.status = "Undone";
+    },
+    adjRedo() {
+      const e = adjFut.pop();
+      if (!e) return;
+      adjHist.push(this.adjApplyEntry(e));
+      this.adj.hist = adjHist.length; this.adj.fut = adjFut.length;
+      this.status = "Redone";
+    },
+    // 🖌 the brush ring: under the pointer while painting; in the middle for a moment when the size changes
+    adjRingMove(e) {
+      if (!this.adj.paintMode || !this.$refs.adjOverlay) { this.adj.ring.show = false; return; }
+      const [x, y] = this.adjStageXY(e);
+      this._adjRingPtr = Date.now();
+      Object.assign(this.adj.ring, { show: true, x, y });
+    },
+    adjRingPreview() {
+      clearTimeout(this._adjRingT);
+      const fresh = this._adjRingPtr && Date.now() - this._adjRingPtr < 4000;
+      if (!fresh) Object.assign(this.adj.ring, { x: 0.5, y: 0.5 });
+      this.adj.ring.show = true;
+      if (!fresh) this._adjRingT = setTimeout(() => { this.adj.ring.show = false; }, 1200);
+    },
+    adjRingStyle() {
+      const o = this.adj.ovl || [0, 0, 1, 1], d = 2 * this.adj.brush * Math.max(o[2], o[3]);
+      return { left: this.adj.ring.x * 100 + "%", top: this.adj.ring.y * 100 + "%", width: d + "px", height: d + "px", "--iz": 1 };
     },
     adjRender() {
       if (!adjEngine || !this.adj.p) return;
@@ -8508,6 +8643,7 @@ const protoartApp = createApp({
     },
     adjClearPaint(target) {
       if (!adjPaint[target]) return;
+      this.adjPaintSnapshot(target);
       delete adjPaint[target];
       if (adjEngine) adjEngine.setPaint(target, null);
       this.adj.paintRev++;
@@ -8536,7 +8672,9 @@ const protoartApp = createApp({
       ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
     },
     adjPaintDown(e) {
-      const target = this.adj.pointTarget, c = this.adjPaintCanvas(target);
+      const target = this.adj.pointTarget;
+      this.adjPaintSnapshot(target);  // ⌘Z takes this stroke back
+      const c = this.adjPaintCanvas(target);
       let [lx, ly] = this.adjStageXY(e);
       this.adjPaintDot(c, lx, ly);
       const apply = () => { adjEngine && adjEngine.setPaint(target, c); this.adj.paintRev++; this.adjPaintShow(); this.adjRender(); };
@@ -8588,8 +8726,12 @@ const protoartApp = createApp({
       window.addEventListener("mouseup", up);
     },
     adjKey(e) {
-      if (!this.adj.open || this.tab !== "tools" || e.metaKey || e.ctrlKey) return;
+      if (!this.adj.open || this.tab !== "tools") return;
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || "") && e.target.type !== "range") return;
+      const k = (e.key || "").toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && k === "z") { e.preventDefault(); return e.shiftKey ? this.adjRedo() : this.adjUndo(); }
+      if ((e.metaKey || e.ctrlKey) && k === "y") { e.preventDefault(); return this.adjRedo(); }
+      if (e.metaKey || e.ctrlKey) return;
       if (e.key === "\\") { e.preventDefault(); this.adj.view = this.adj.view === "before" ? "after" : "before"; }
     },
     // -------------------------------------------------------------- Adjust presets (yours)

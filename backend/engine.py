@@ -3277,7 +3277,7 @@ class Engine:
         m = self._cut_matte(src, image, emit)
         emit({"type": "status", "msg": "Cutting it out of paper…"})
         emit({"type": "progress", "image": 1, "images": 1, "step": 1, "steps": 2})
-        alpha = cut.refine(m, threshold=float(args.get("threshold") or 0.5), softness=0.08, grow=0)
+        alpha = cut.refine(m, threshold=float(args.get("threshold") or 0.5), softness=0.08, grow=int(args.get("grow") or 0))
         alpha = cut.clean_bits(alpha)
         opts = {"edge": float(args.get("edge") if args.get("edge") is not None else 2.0),
                 "edge_colour": args.get("edge_colour") or "white",

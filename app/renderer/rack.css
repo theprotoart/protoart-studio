@@ -344,11 +344,20 @@ input[type=range]::-webkit-slider-runnable-track {
   height: 6px; border-radius: 3px; background: #0b0b0c; box-shadow: inset 0 1px 2px #000, 0 1px 0 rgba(255, 255, 255, .65);
 }
 input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 15px; height: 25px; margin-top: -10px; border-radius: 3px; border: 1px solid #000; cursor: grab;
-  background: linear-gradient(#f1ece0, #f1ece0) 50% 50% / 100% 2px no-repeat,
-              repeating-linear-gradient(180deg, rgba(255, 255, 255, .1) 0 1px, rgba(0, 0, 0, 0) 1px 3px),
-              linear-gradient(90deg, #120c09 0%, #3c2a20 35%, #24170f 65%, #0e0806 100%);
-  box-shadow: 0 2px 3px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .2);
+  /* a studio fader cap (like a graphic EQ's): ridged charcoal metal with a light index line across its middle */
+  -webkit-appearance: none; width: 17px; height: 26px; margin-top: -10px; border-radius: 2.5px; border: 1px solid #050506; cursor: grab;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0) calc(50% - 1.5px), #0c0c0d calc(50% - 1.5px) calc(50% - 1px), #e6e3db calc(50% - 1px) calc(50% + 1px), #0c0c0d calc(50% + 1px) calc(50% + 1.5px), rgba(0, 0, 0, 0) calc(50% + 1.5px)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .13) 0 1px, rgba(0, 0, 0, .28) 1px 2px, rgba(0, 0, 0, 0) 2px 3px),
+    linear-gradient(180deg, #6a6c71 0%, #3a3b3f 18%, #26272a 55%, #17181a 100%);
+  box-shadow: 0 3px 4px rgba(0, 0, 0, .6), 0 1px 1px rgba(0, 0, 0, .8), inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 -2px 0 rgba(0, 0, 0, .45);
+}
+/* printed scale under every fader: a tick at each tenth, like the dB marks on a mixing desk */
+input[type=range] {
+  background: repeating-linear-gradient(90deg, rgba(120, 120, 120, .55) 0 1px, rgba(0, 0, 0, 0) 1px 10%) 8px 50% / calc(100% - 16px) 18px no-repeat;
+}
+[data-theme="dark"] input[type=range] {
+  background: repeating-linear-gradient(90deg, rgba(233, 229, 217, .32) 0 1px, rgba(0, 0, 0, 0) 1px 10%) 8px 50% / calc(100% - 16px) 18px no-repeat;
 }
 input[type=range]:active::-webkit-slider-thumb { cursor: grabbing; }
 input[type=range]:focus { outline: none; }
@@ -2303,3 +2312,14 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
   overflow-wrap: anywhere; line-height: 1.3; min-height: 2.6em; }
 .shop-card > .row, .shop-card > .shop-dl { margin-top: auto; padding-top: 4px; }
 .shop-card .row > button { white-space: nowrap; }
+/* Train: pictures with something to fix (too small, no caption…) */
+.frame-item.issue .frame-box, .frame-item.issue.nonsq .frame-box { box-shadow: 0 0 0 3px #e0473a, 0 0 10px rgba(224, 71, 58, .55); }
+.frame-issues { position: absolute; left: 4px; right: 4px; bottom: 4px; display: flex; flex-wrap: wrap; gap: 3px; pointer-events: auto; }
+.frame-issues b { background: rgba(160, 30, 22, .92); color: #fff; font: 600 10.5px/1.2 var(--f-ui, sans-serif); padding: 2px 5px; border-radius: 3px; cursor: help; }
+.frame-box { position: relative; }
+.cap-item.issue { outline: 2px solid #e0473a; outline-offset: 2px; border-radius: 4px; }
+.train-issue-bar { gap: 14px; align-items: center; margin: 4px 0 8px; }
+.train-long { border: 1px solid rgba(232, 154, 34, .6); background: rgba(232, 154, 34, .07); padding: 10px 14px; margin-top: 8px; }
+.adj-overlay.painting { cursor: none; }
+.adj-ring { z-index: 4; }
+.adj-undo-row { margin-bottom: -2px; }
