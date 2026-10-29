@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.6.0
+
+- 🧩 Combine (Image to image mode `combine`): the scene + up to 3 pictures to add, through `edit_words` with a
+  `combine` dict (`postprocess/compose.py`, `Engine._combine_prepare`): optional BiRefNet cut-out of each picture
+  (the reference Klein sees is the cut-out on white, cropped to it), light matching, and the prompt built by
+  `combine_prompt` (picture 1 = the scene). ✋ I'll place it: normalised boxes dragged on the scene (`place-box`,
+  `placeDown`), each cut-out fitted in its box standing on the bottom edge, pasted, and only the area around it
+  (`blend_area`, with room for a contact shadow) redrawn; the rest is the original. Saved as kind `combined`
+- 💡 Match the scene's light (`compose.match_light`): LAB mean / contrast transfer towards the scene (or the area
+  around where it's placed), the subject's own colours and shading kept, strength slider
+- 🧅 Peel layers (mode `peel`; jobs `peel`, `peel_save`, side lane): the selection lifted onto an RGBA layer
+  (optionally following the Cut out matte inside it), the hole filled with LaMa, repeatable, undo / rename / hide /
+  reorder; saved as a layered .psd (`compose.write_psd`: 8-bit RGB, raw channels, Unicode names, layers cropped to
+  their content) plus each layer in the Library (kind `layer`). Working files in `~/.protoartstudio/tmp/peel`,
+  removed after 3 days; `peel_save` only reads files from there
+
 ## 1.5.1
 
 - **MOSS-Image** (`moss_turbo_mlx`, `moss_mlx`; family `moss`): OpenMOSS's 5B lettering / layout model through

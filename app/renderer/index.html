@@ -2526,7 +2526,7 @@
              @click="$refs.startPick.click()">
           Drop a picture here <span class="hint">(or click to choose · or “Send to Image to image” on any library picture)</span>
         </div>
-        <div v-else-if="['inpaint', 'remove', 'edit'].includes(form.i2i_mode)" class="i2i-src mask-editor" :class="{over: startDragOver}"
+        <div v-else-if="['inpaint', 'remove', 'edit', 'peel', 'combine'].includes(form.i2i_mode)" class="i2i-src mask-editor" :class="{over: startDragOver}"
              @dragover.prevent="startDragOver=true" @dragleave="startDragOver=false" @drop.prevent="onStartDrop" title="Drop another picture here to replace this one">
           <div class="i2i-zoom-src zoom-frame" :class="{zoomed: zoom.i2iSrc.z > 1, panning: zoomSpace}"
                @wheel="zoomWheel('i2iSrc', $event)" @pointerdown.capture="zoomPanDown('i2iSrc', $event)">
@@ -2538,7 +2538,7 @@
               <button @click="zoomTo('i2iSrc', zoomOneToOne('i2iSrc'))" title="Actual pixels">1:1</button>
             </div>
           <div class="zoom-layer" :style="zoomStyle('i2iSrc')">
-          <div class="mask-stage">
+          <div class="mask-stage" :class="{'no-paint': form.i2i_mode === 'combine'}">
             <img :src="fileUrl(form.init_image)" @load="initMaskCanvas" ref="maskImg" draggable="false">
             <canvas ref="maskCanvas" @pointerdown="maskDown" @pointermove="maskMove($event); brushAt($event)" @pointerup="maskUp"
                     @pointerleave="maskUp(); brush.show = false" :style="{cursor: ['brush', 'erase'].includes(mask.tool || 'brush') ? 'none' : 'crosshair'}" @dblclick="selFinishPoly"></canvas>
@@ -2546,6 +2546,14 @@
           <span v-if="objFinding" class="stage-busy">Finding the outline…</span>
             <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
                :style="{left: brush.x + 'px', top: brush.y + 'px', width: brushRingPx() + 'px', height: brushRingPx() + 'px'}"></i>
+            <template v-if="form.i2i_mode === 'combine' && form.combine.where === 'place'">
+              <div v-for="(r, i) in form.edit_refs" :key="'pb' + r" class="place-box" :class="{dragging: placeDrag && placeDrag.i === i}"
+                   :style="placeBoxStyle(i)" @pointerdown="placeDown(i, $event, 'move')" @dblclick.stop="placeFlip(i)"
+                   :title="'Picture ' + (i + 2) + ': drag to move it · drag the corner to make it bigger or smaller · it stands on the bottom edge of its box · double-click to bring it to the front'">
+                <img :src="fileUrl(r)" alt="" draggable="false"><b>{{ i + 2 }}</b>
+                <i class="place-corner" @pointerdown="placeDown(i, $event, 'size')"></i>
+              </div>
+            </template>
           </div>
           </div>
           </div>
@@ -2562,6 +2570,8 @@
           <button :class="{on: form.i2i_mode === 'inpaint'}" @click="setI2iMode('inpaint')" title="Paint over a part and redraw only that part">🖌 Inpaint</button>
           <button :class="{on: form.i2i_mode === 'outpaint'}" @click="setI2iMode('outpaint')" title="Make the picture bigger and fill in the new area">↔ Expand</button>
           <button :class="{on: form.i2i_mode === 'remove'}" @click="setI2iMode('remove')" title="Paint over something and it disappears, filled in from what's around it (no prompt or model needed)">🩹 Remove</button>
+          <button :class="{on: form.i2i_mode === 'combine'}" @click="setI2iMode('combine')" title="Put a character (or anything) from another picture into this scene, just by asking: “add this character sitting on the bench”. Its light is matched to the scene">🧩 Combine</button>
+          <button :class="{on: form.i2i_mode === 'peel'}" @click="setI2iMode('peel')" title="Lift parts of the picture onto their own layers, one at a time (what was behind each is filled in), then save them all as a layered Photoshop file">🧅 Peel layers</button>
           <button :class="{on: form.i2i_mode === 'faceswap'}" @click="setI2iMode('faceswap')" title="Put the face from another photo onto the person in this picture (only faces you have permission to use)">🔁 Face swap</button>
         </div>
         <div v-if="(form.i2i_mode === 'inpaint' || (form.i2i_mode === 'outpaint' && form.outpaint_engine === 'model')) && inpaintModels.some((m) => m.family === family)" class="hint inpaint-model-note">
@@ -2610,6 +2620,83 @@
             <input ref="editRefPick" type="file" multiple accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="onEditRefPicked">
           </div>
           <div v-if="(form.edit_refs || []).length" class="hint">Refer to them in the prompt as “the second picture”, “the third picture”.</div>
+        </template>
+        <template v-else-if="form.i2i_mode === 'combine'">
+          <div class="hint">The picture above is the <b>scene</b>. Add the character (or anything else) below, then say what you
+            want in <b>3 · Prompt</b>, e.g. “sitting on the bench, waving” (or leave it empty: it's put in where it fits). Uses
+            FLUX.2 Klein, like ✨ Edit with words.</div>
+          <label>Add to the scene <span class="hint">up to 3 pictures · a person, a character, a pet, an object</span></label>
+          <div class="edit-refs">
+            <div v-for="(r, i) in form.edit_refs" :key="r" class="edit-ref">
+              <img :src="fileUrl(r)" alt=""><b class="edit-ref-n">{{ i + 2 }}</b>
+              <button class="ghost small" @click="form.edit_refs.splice(i, 1); form.combine.boxes.splice(i, 1)" title="Don't use this picture">✕</button>
+            </div>
+            <div v-if="(form.edit_refs || []).length < 3" class="start-drop edit-ref-drop" :class="{over: editRefOver}"
+                 @dragover.prevent="editRefOver = true" @dragleave="editRefOver = false" @drop.prevent="onEditRefDrop"
+                 @click="$refs.editRefPick.click()" title="The character or thing to put into the scene">+ add</div>
+            <input ref="editRefPick" type="file" multiple accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.procreate" hidden @change="onEditRefPicked">
+          </div>
+          <div v-if="(form.edit_refs || []).length > 1" class="hint">In the prompt they're “picture 2”, “picture 3”… (the numbers on them), e.g. “picture 2 sits on the bench, picture 3 stands behind her”.</div>
+          <label>Where it goes</label>
+          <div class="seg">
+            <button :class="{on: form.combine.where !== 'place'}" @click="combineSetWhere('auto')"
+                    title="Klein decides where it fits (say where in the prompt: “on the left, sitting on the steps”). The whole picture is redrawn, so the scene may change a little.">✨ Let it decide</button>
+            <button :class="{on: form.combine.where === 'place'}" @click="combineSetWhere('place')"
+                    title="Drag each one onto the scene and size it yourself; then only the area around it is blended in and the rest of the scene stays exactly as it is">✋ I'll place it</button>
+          </div>
+          <div v-if="form.combine.where === 'place'" class="hint">Drag the numbered boxes on the scene: move them, and pull the corner to resize.
+            Each one stands on the bottom edge of its box. Double-click a box to bring it to the front.
+            <label class="check" title="Only the area around what you placed is redrawn (room for its shadow included); everything else stays pixel-for-pixel the same. Off: the whole picture is redrawn">
+              <input type="checkbox" v-model="form.combine.keep_scene"> Keep the rest of the scene exactly as it is</label></div>
+          <label class="check" title="Finds the character in its picture and leaves its old background behind, so only the character is added (✂ Cut out's model, BiRefNet: ~224 MB once; about 15–30 s per picture on an 8 GB Mac)">
+            <input type="checkbox" v-model="form.combine.cutout"> ✂ Cut it out of its picture first</label>
+          <label class="check" title="Before it goes in, its brightness, contrast and colour are moved towards the scene's (around where it goes, when you place it), so it doesn't look pasted on. Klein then adds the shadows">
+            <input type="checkbox" v-model="form.combine.match_light"> 💡 Match the scene's light</label>
+          <template v-if="form.combine.match_light">
+            <label>How much <span class="hint">{{ Math.round((form.combine.light_strength ?? 0.7) * 100) }}% · higher = takes on more of the scene's light and colour</span></label>
+            <input type="range" min="0.1" max="1" step="0.05" v-model.number="form.combine.light_strength">
+          </template>
+        </template>
+        <template v-else-if="form.i2i_mode === 'peel'">
+          <div class="hint">Select or paint a part (the <b>👤 Subject</b> and <b>⬚ Object</b> tools find it for you), then press
+            <b>🧅 Peel off</b>: it goes onto its own layer and what was behind it is filled in. Repeat for the next part; each peel takes
+            a few seconds. Then <b>💾 Save layers</b>: one layered Photoshop file (.psd) plus each layer in the Library.</div>
+          <div class="mask-tools">
+            <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
+              <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
+            </div>
+            <div class="sel-opts">
+              <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
+              <span class="grow"></span><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
+              <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
+              <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
+              <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
+              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
+              <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
+            </div>
+            <span class="hint">brush</span>
+            <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
+            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
+            <span class="hint">{{ mask.size }}</span>
+          </div>
+          <label class="check" title="Uses ✂ Cut out's model to follow the exact edge of what's inside your selection (hair, fur, soft edges). Slower: about 15–30 s on an 8 GB Mac">
+            <input type="checkbox" v-model="peel.tidy"> ✂ Follow the edge exactly (hair, fur)</label>
+          <div v-if="peel.layers.length" class="peel-list">
+            <div class="hint">Layers, top first · the scene above is what's left behind them</div>
+            <div v-for="(l, i) in peel.layers" :key="l.path" class="peel-row">
+              <img :src="fileUrl(l.path)" alt="">
+              <input v-model="l.name" @change="peel.saved = null" :title="'The layer\'s name in the .psd file'">
+              <button class="ghost small" :class="{off: !l.visible}" @click="l.visible = !l.visible; peel.saved = null" :title="l.visible ? 'Shown (click to save it hidden in the .psd)' : 'Saved hidden in the .psd'">{{ l.visible ? '👁' : '◌' }}</button>
+              <button class="ghost small" :disabled="i === 0" @click="peelMove(i, -1)" title="Move up">↑</button>
+              <button class="ghost small" :disabled="i === peel.layers.length - 1" @click="peelMove(i, 1)" title="Move down">↓</button>
+            </div>
+            <div class="peel-actions">
+              <button class="ghost small" @click="peelUndo" :disabled="peel.busy" title="Put the last peeled layer back">↶ Undo last peel</button>
+              <button class="ghost small" @click="peelClear" :disabled="peel.busy" title="Forget these layers and go back to the original picture (nothing saved is deleted)">✕ Start over</button>
+              <button class="small" @click="peelSave" :disabled="peel.busy" title="A layered .psd next to your pictures (opens in Photoshop, Procreate, Affinity, Krita, GIMP, Photopea) and each layer in the Library as a see-through PNG">💾 Save layers ({{ peel.layers.length + 1 }})</button>
+            </div>
+            <div v-if="peel.saved" class="hint">Saved {{ peel.saved.layers }} layers. <button class="link" @click="showInFolder(peel.saved.psd)">📂 Show the .psd in Finder</button></div>
+          </div>
         </template>
         <template v-else-if="form.i2i_mode === 'faceswap'">
           <div class="hint">Puts the face from another photo onto the person (or people) in this picture, then tidies it with
@@ -2877,7 +2964,7 @@
         <p v-if="!chainModels().length" class="hint">Download SD 1.5, SDXL, Anima, FLUX.1 Schnell or ERNIE in the Models tab first.</p>
       </div>
       <div v-if="form.i2i_mode !== 'change' && form.i2i_mode !== 'faceswap'" class="card hint cn-off">
-        <div>2 · ControlNet is off while {{ form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'faceswap' ? 'swapping faces' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
+        <div>2 · ControlNet is off while {{ form.i2i_mode === 'combine' ? 'combining' : form.i2i_mode === 'peel' ? 'peeling layers' : form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'faceswap' ? 'swapping faces' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
         <div v-if="form.i2i_mode === 'edit'" class="cn-off-tips">Edit with words already keeps the layout, and <b>More pictures</b> above lend it a style, an outfit or a face.
           To make a new picture that follows this one's <b>structure</b> instead, use ControlNet with an SD 1.5 model:
           <b>Canny</b> (outlines), <b>Depth</b> (3-D layout), <b>Line art</b> (colour a drawing), <b>OpenPose</b> (copy a pose), <b>Tile</b> (add detail)<template v-if="userControlnets.length">, or one of yours ({{ userControlnets.slice(0, 3).map((u) => u.name).join(', ') }}{{ userControlnets.length > 3 ? '…' : '' }})</template>.
@@ -3014,7 +3101,7 @@
       </div>
 
       <div class="actions" :class="{busy}">
-        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'faceswap' ? '🔁 Swap face' + (busy ? ' (queue)' : '') : form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model' ? '↔ Expand' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
+        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'combine' ? '🧩 Combine' + (busy ? ' (queue)' : '') : form.i2i_mode === 'peel' ? '🧅 Peel off' : form.i2i_mode === 'faceswap' ? '🔁 Swap face' + (busy ? ' (queue)' : '') : form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model' ? '↔ Expand' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
         <div v-if="busy" class="stop-group">
           <button v-if="runningJob || queue.length" class="ghost pause-btn" :class="{on: paused}" @click="togglePause"
                   :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>

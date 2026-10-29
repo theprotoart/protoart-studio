@@ -3837,7 +3837,7 @@ class Engine:
         if spec is None:
             raise UserError("Edit with words needs the FLUX.2 Klein model, which isn't in this version.")
         prompt = (args.get("prompt") or "").strip()
-        if not prompt:
+        if not prompt and not isinstance(args.get("combine"), dict):
             raise UserError("Describe the change in the prompt, e.g. “make the jacket red” or “turn it into a watercolour”.")
         src, image = self._source_picture(args)
         image = image.convert("RGB")
@@ -3850,6 +3850,17 @@ class Engine:
             if not mask.getbbox():
                 mask = None
         refs = [r for r in (args.get("refs") or []) if isinstance(r, str) and r][:3]
+        combine = args.get("combine") if isinstance(args.get("combine"), dict) else None
+        ref_imgs = []
+        import pictures
+        for r in refs:
+            try:
+                from PIL import ImageOps
+                ref_imgs.append(ImageOps.exif_transpose(Image.open(pictures.prepare(r))))
+            except Exception:
+                raise UserError(f"Couldn't read the extra picture: {os.path.basename(r)}")
+        if combine is not None:  # 🧩 Combine: the scene is picture 1, the characters / things to add are the others
+            image, ref_imgs, mask, prompt = self._combine_prepare(image, refs, ref_imgs, combine, prompt)
         ram = total_ram_gb()
         side = 768 if 0 < ram < 12 else 1024
         scale = min(1.5, side / max(1.0, (image.width * image.height) ** 0.5))
@@ -3870,13 +3881,8 @@ class Engine:
             first = tmp / f"edit_src_{os.getpid()}.png"
             image.save(first)
             ref_files = [str(first)]
-            import pictures
-            for i, r in enumerate(refs):
-                try:
-                    from PIL import ImageOps
-                    im = ImageOps.exif_transpose(Image.open(pictures.prepare(r))).convert("RGB")
-                except Exception:
-                    raise UserError(f"Couldn't read the extra picture: {os.path.basename(r)}")
+            for i, im in enumerate(ref_imgs):
+                im = im.convert("RGB")
                 p = tmp / f"edit_ref_{os.getpid()}_{i}.png"
                 im.save(p)
                 ref_files.append(str(p))
@@ -3923,14 +3929,168 @@ class Engine:
                     "height": result.height, "steps": steps, "cfg": 1.0, "sampler": "flow_euler", "seed": seed,
                     "engine": "mlx", "loras": [], "seconds": round(secs, 1),
                     "edit": {"painted": mask is not None, "extra_pictures": len(refs)}}
+        if combine is not None:
+            settings["combine"] = {"placed": bool(combine.get("place")), "cut_out": combine.get("cutout") is not False,
+                                   "match_light": combine.get("match_light") is not False}
         if args.get("loras"):
             settings["loras"] = [{"name": l["name"], "weight": float(l.get("weight", 1.0))} for l in args["loras"] if isinstance(l, dict) and l.get("name")]
-        path = self._save(result, settings, suffix="wordedit")
-        record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="word_edit")
+        path = self._save(result, settings, suffix="combined" if combine is not None else "wordedit")
+        record = self.library.add_image(path, settings, parent_id=src.get("id"),
+                                        kind="combined" if combine is not None else "word_edit")
         record["thumb"] = str(thumbs.make(record["id"], path, result) or "") or None
         record = self._content_check(record, result)
         self.emit({"type": "image", "record": record})
         return record
+
+    def _combine_prepare(self, image, refs, ref_imgs, combine, prompt):
+        """🧩 Combine: the characters (or things) cut out of their pictures, their light matched to the scene, and
+        (when placed by hand) put where they go, so Klein only blends them in.
+        -> (picture 1 for Klein, the reference pictures, the area that may change or None, the prompt)"""
+        import numpy as np
+        from PIL import Image
+        import postprocess.compose as comp
+        if not ref_imgs:
+            raise UserError("Add the character (or thing) to put into the scene: drop its picture under “Add to the scene”.")
+        cutout = combine.get("cutout") is not False
+        light = combine.get("match_light") is not False
+        strength = float(combine.get("light_strength") if combine.get("light_strength") is not None else 0.7)
+        boxes = combine.get("place") if isinstance(combine.get("place"), list) else None
+        pieces, refs_out = [], []
+        for i, (path, im) in enumerate(zip(refs, ref_imgs)):
+            rgba = im.convert("RGBA")
+            if cutout:
+                self.emit({"type": "status", "msg": f"Cutting out picture {i + 2} (finding the character)…"})
+                import postprocess.cutout as cut
+                m = self._cut_matte({"path": path}, im.convert("RGB"), self.emit)
+                alpha = cut.clean_bits(cut.refine(m, threshold=0.5, softness=0.1, grow=0))
+                if (alpha > 0.05).any():
+                    rgba = cut.compose(im.convert("RGB"), alpha, None, fix_edges=True)
+            box = boxes[i] if boxes and i < len(boxes) and isinstance(boxes[i], dict) else None
+            if light:
+                region = None
+                if box:
+                    l, t, w, h = comp.fit_box(rgba.size, box, image.size)
+                    region = (l - w, t - h // 2, l + 2 * w, t + h + h // 2)  # the scene around where it goes
+                rgba = comp.match_light(rgba, image, strength, region)
+            if box:
+                pieces.append((rgba, box))
+            # the reference Klein sees: the cut-out on white, cropped to it (no old background to copy)
+            a = np.asarray(rgba.getchannel("A"), np.float32) / 255.0
+            bb = comp.subject_bbox(a) if cutout else None
+            ref = comp.on_white(rgba.crop(bb) if bb else rgba) if cutout else rgba.convert("RGB")
+            refs_out.append(ref)
+        mask = None
+        if pieces:
+            image, cover = comp.place(image, pieces)
+            if combine.get("keep_scene") is not False:
+                mask = comp.blend_area(cover)
+        prompt = comp.combine_prompt(prompt, len(refs_out), placed=bool(pieces))
+        return image, refs_out, mask, prompt
+
+    def peel(self, args, emit=None):
+        """🧅 Peel layers: the painted / selected part lifted off as its own see-through layer, and what was behind
+        it filled in (LaMa), so the next part can be peeled from what's left. Working files, not in the Library
+        until saved. -> {"layer", "background"} (paths)"""
+        import detailer
+        import net
+        import postprocess.compose as comp
+        import postprocess.heal as heal
+        emit = emit or self.emit
+        src, image = self._source_picture(args)
+        image = image.convert("RGB")
+        try:
+            mask = detailer.decode_mask(args.get("mask"), image.size)
+        except Exception:
+            raise UserError("Couldn't read the painted area.")
+        if not mask.getbbox():
+            raise UserError("Paint over or select the part to peel off first.")
+        emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 2})
+        matte = None
+        if args.get("tidy"):
+            import postprocess.cutout as cut
+            m = self._cut_matte(src, image, emit)
+            matte = cut.refine(m, threshold=0.5, softness=0.1, grow=0)
+        try:
+            layer, hole = comp.peel(image, mask, matte=matte)
+        except ValueError as e:
+            raise UserError(str(e))
+        emit({"type": "status", "msg": "Filling in what was behind it…"})
+        if args.get("fill") == "none":
+            background = image
+        else:
+            if not heal.lama_downloaded():
+                if net.strict:
+                    raise UserError("Peel layers fills in behind each layer with the LaMa model (~208 MB, a one-time "
+                                    "download), and Strict offline mode is on. Turn it off in Settings → Privacy.")
+                emit({"type": "status", "msg": f"Downloading the fill model (LaMa, ~{heal.LAMA_MB} MB, first time only)…"})
+                net.set_online(True)
+                try:
+                    sess = heal.lama_session(download=True)
+                finally:
+                    net.set_online(False)
+            else:
+                sess = heal.lama_session(download=False)
+            background = heal.heal(image, hole, method="lama", session=sess)
+        emit({"type": "progress", "image": 1, "images": 1, "step": 2, "steps": 2})
+        tmp = paths.HOME / "tmp" / "peel"
+        tmp.mkdir(parents=True, exist_ok=True)
+        for old in tmp.glob("*.png"):  # working pictures from days ago
+            try:
+                if time.time() - old.stat().st_mtime > 3 * 86400:
+                    old.unlink()
+            except OSError:
+                pass
+        stamp = f"{os.getpid()}_{int(time.time() * 1000)}"
+        lp, bp = tmp / f"layer_{stamp}.png", tmp / f"rest_{stamp}.png"
+        layer.save(lp)
+        background.save(bp)
+        return {"layer": str(lp), "background": str(bp), "width": image.width, "height": image.height}
+
+    def peel_save(self, args, emit=None):
+        """🧅 Save the peeled layers: a layered Photoshop file (.psd) next to the pictures, and each layer in the
+        Library as a see-through PNG. args: {"original", "background", "layers": [{"path", "name", "visible"}]
+        (top first)}"""
+        from PIL import Image
+        import postprocess.compose as comp
+        emit = emit or self.emit
+        src, original = self._source_picture({"init_image": args.get("original")})
+        items = [l for l in (args.get("layers") or []) if isinstance(l, dict) and l.get("path")]
+        if not items:
+            raise UserError("Peel off at least one layer first.")
+        tmp_root = (paths.HOME / "tmp" / "peel").resolve()
+
+        def working(p):
+            p = Path(p).resolve()
+            if tmp_root not in p.parents:
+                raise UserError("That layer isn't one of this app's working files.")
+            if not p.exists():
+                raise UserError("A peeled layer's working file is gone: peel it again.")
+            return Image.open(p)
+
+        size = original.size
+        bg = working(args["background"]).convert("RGBA") if args.get("background") else original.convert("RGBA")
+        stack = [("Background", bg.resize(size) if bg.size != size else bg, True)]
+        for l in reversed(items):  # bottom first in the file
+            im = working(l["path"]).convert("RGBA")
+            stack.append((str(l.get("name") or "Layer")[:120], im.resize(size) if im.size != size else im,
+                          l.get("visible") is not False))
+        base = dict(src.get("settings") or {})
+        base.update({k: src.get(k) for k in ("prompt", "negative_prompt", "model", "sampler", "steps", "cfg", "seed")})
+        records = []
+        for name, im, _vis in stack:
+            st = dict(base, width=im.width, height=im.height, layer={"part": name, "of": os.path.basename(src["path"])})
+            out = self._save(im if name != "Background" else im.convert("RGB"), st, suffix="layer")
+            rec = self.library.add_image(out, st, parent_id=src.get("id"), kind="layer")
+            rec["thumb"] = str(thumbs.make(rec["id"], out, im) or "") or None
+            records.append(rec)
+            emit({"type": "image", "record": rec})
+        psd = Path(records[0]["path"]).with_name(Path(records[0]["path"]).stem.replace("_layer", "") + "_layers.psd")
+        n = 2
+        while psd.exists():
+            psd = psd.with_name(f"{psd.stem}~{n}.psd")
+            n += 1
+        comp.write_psd(psd, size, stack)
+        return {"records": records, "psd": str(psd), "layers": len(stack)}
 
     QUANT_BITS = {8: "int8", 6: "int6", 4: "uint4"}
 

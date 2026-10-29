@@ -32,6 +32,8 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   model and default weight per LoRA, 🗺 regional prompts (✨ plan the layout from one sentence, or start from a template: before / after, day / night, face-off, comic…), A1111-style prompt editing, 🧱 seamless tiling
   clips, and 📥 settings from A1111 / ComfyUI / InvokeAI pictures or .json
 - **Image to image:** ✨ Edit with words (FLUX.2 Klein: describe a change; paint to limit it; add reference pictures),
+  🧩 Combine (put a character from another picture into a scene by asking; let it decide where or place it yourself; 💡 match the scene's light),
+  🧅 Peel layers (lift parts onto their own layers, the gap filled in; save a layered .psd),
   change / inpaint (your inpainting models offered first) / expand (any picture, with FLUX.2 Klein + an outpaint LoRA) / 🩹 remove, selection tools (brush, lasso, polygon lasso, magic wand, object selection, 👤 select subject),
   ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile, and your own SD 1.5 and SDXL ControlNets), image prompt
   (IP-Adapter), face detailer, CodeFormer presets, ControlNet Union ProMax for SDXL, 🔁 face swap (non-commercial,

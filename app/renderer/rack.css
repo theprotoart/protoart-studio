@@ -2362,3 +2362,24 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
   background: #0d0c0a; border-radius: 3px; padding: 1px 6px; box-shadow: inset 0 1px 3px #000; }
 .adjust-sub .adj-lock { margin-left: 8px; font-size: 11px; padding: 1px 7px; }
 .adjust-sub .adj-lock.on { color: var(--lit-ink, #1a1205); background: linear-gradient(#ffd27a, #e8a23a); }
+
+/* 🧩 Combine: the boxes placed on the scene; 🧅 Peel layers: the layer list */
+.mask-stage.no-paint canvas { pointer-events: none; }
+.mask-stage.no-paint .brush-ring { display: none; }
+.place-box { position: absolute; z-index: 4; cursor: move; touch-action: none; line-height: 0;
+  outline: 1.5px dashed rgba(255, 196, 92, .95); outline-offset: -1px; background: rgba(255, 196, 92, .06); }
+.place-box.dragging { outline-style: solid; }
+.place-box img { width: 100%; height: 100%; object-fit: contain; object-position: center bottom; opacity: .82; pointer-events: none; }
+.place-box b { position: absolute; left: 4px; top: 4px; line-height: 1; font: 700 11px/1 system-ui, sans-serif; padding: 3px 5px;
+  border-radius: 3px; background: rgba(255, 196, 92, .95); color: #1c1408; }
+.place-corner { position: absolute; right: -6px; bottom: -6px; width: 14px; height: 14px; border-radius: 3px; cursor: nwse-resize;
+  background: #ffc45c; box-shadow: 0 0 0 1.5px #1c1408; }
+.edit-ref-n { position: absolute; left: 3px; top: 3px; font: 700 10px/1 system-ui, sans-serif; padding: 2px 4px; border-radius: 3px;
+  background: rgba(255, 196, 92, .95); color: #1c1408; }
+.peel-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.peel-row { display: flex; align-items: center; gap: 6px; }
+.peel-row img { width: 40px; height: 40px; object-fit: contain; border-radius: 3px;
+  background: repeating-conic-gradient(#3a3a3a 0% 25%, #2a2a2a 0% 50%) 50% / 10px 10px; }
+.peel-row input { flex: 1; min-width: 0; }
+.peel-row .off { opacity: .5; }
+.peel-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }

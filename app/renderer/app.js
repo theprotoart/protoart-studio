@@ -109,7 +109,8 @@ function defaultForm() {
     face_detailer: { on: false, strength: 0.4, prompt: "" },
     ip_adapter: { image: "", kind: "style", scale: 0.6 },
     heal_method: "lama",
-    edit_refs: [],      // ✨ Edit with words: extra pictures to take a style, object or outfit from
+    edit_refs: [],      // ✨ Edit with words: extra pictures to take a style, object or outfit from (🧩 Combine: what to add)
+    combine: { cutout: true, match_light: true, light_strength: 0.7, where: "auto", keep_scene: true, boxes: [] },  // 🧩 Combine
     i2i_mode: "change", inpaint: { strength: 0.85, blur: 4, only_masked: false },
     outpaint: { left: 0, right: 0, top: 0, bottom: 0 },
     outpaint_engine: "klein" };  // ↔ Expand fills with FLUX.2 Klein + outpaint LoRA ("klein") or the model at the top ("model")
@@ -138,7 +139,7 @@ const SAMPLER_PICKS = {
 };
 const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}, {"model": "BiRefNet lite (✂ Cut out, 👤 Subject, 📄 Paper cut-out)", "licence": "MIT", "note": ""}, {"model": "MOSS-Image (OpenMOSS; MLX weights by VisualInference, turbo adapters by VisualInference and nynxz)", "licence": "Apache-2.0", "note": "runs with moss-image-mlx (Apache-2.0); text encoder Qwen3.5-9B and FLUX.2 small VAE (Apache-2.0)"}];
 const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677" };
-const I2I_KINDS = ["img2img", "healed", "word_edit", "inpaint", "outpaint", "controlnet", "faceswap"];  // pictures made in Image to image
+const I2I_KINDS = ["img2img", "healed", "word_edit", "combined", "inpaint", "outpaint", "controlnet", "faceswap"];  // pictures made in Image to image
 // Tools → Tiled upscale presets (size, how much new detail, steps)
 const TILED_PRESETS = [
   { id: "gentle", label: "Gentle", tip: "Sharper and bigger, almost no change: photos and faces", set: { scale: 2, strength: 0.2, steps: 24 } },
@@ -317,7 +318,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.5.1";  // keep in step with app/package.json
+const APP_VERSION = "1.6.0";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -428,6 +429,8 @@ const protoartApp = createApp({
       loraSort: loadJSON("protoart.loraSort", "az"),   // LoRA list order
       loraKind: "",                                      // LoRA list filter ('' = all)   // the brush-size ring that follows the pointer while painting
       initDims: null,
+      peel: { original: "", current: "", layers: [], tidy: false, saved: null, busy: false },  // 🧅 Peel layers (working files)
+      placeDrag: null,       // 🧩 Combine: the box being moved or resized
       resetFlip: false,      // the Reset all lever, while it's flipped (it springs back by itself)
       resetUndo: null,       // Create settings before "Reset to defaults", for one undo
       quitAsk: false,        // Tools -> Force quit: waiting for confirmation
@@ -588,6 +591,11 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.6.0: 🧩 Combine pictures by asking, 💡 match the scene's light, 🧅 peel layers", items: [
+              "<b>🧩 Combine</b> (Image to image): put a character, a pet or an object from another picture into a scene just by asking, e.g. “add her sitting on the bench, waving”. The picture at the top is the scene; add up to 3 pictures under <b>Add to the scene</b>. <b>✨ Let it decide</b> puts them where they fit; <b>✋ I'll place it</b> lets you drag and size each one on the scene, and then only the area around it is blended in (the rest of the scene stays exactly the same). Uses FLUX.2 Klein, like ✨ Edit with words.",
+              "<b>✂ Cut it out first</b> (Combine, on by default): the character is lifted out of its picture with ✂ Cut out's model, so its old background doesn't come along.",
+              "<b>💡 Match the scene's light</b> (Combine, on by default): before it goes in, the character's brightness, contrast and colour are moved towards the scene's (around where you put it), with a <b>How much</b> slider. Klein then adds the shadows.",
+              "<b>🧅 Peel layers</b> (Image to image): select or paint a part (👤 Subject and ⬚ Object find it for you), press <b>🧅 Peel off</b>, and it goes onto its own layer while what was behind it is filled in. Each peel takes a few seconds; repeat for the next part. Rename, hide or reorder the layers, ↶ undo the last peel, then <b>💾 Save layers</b>: a layered Photoshop file (.psd) that opens in Photoshop, Procreate, Affinity, Krita, GIMP and Photopea, plus each layer in the Library." ] },
             { h: "1.5.1: MOSS-Image, an Images fader, problem pictures in Train, undo in Adjust", items: [
               "<b>MOSS-Image</b> (Create's model list, new MOSS-Image group): a model made for <b>lettering and layouts</b>: signs, posters, book covers, labels and infographics with the words spelled right. <b>Turbo</b> (15 passes) or <b>best quality</b> (50 steps). It runs on the Mac's graphics chip in its own engine, installed the first time with its model (~13 GB). It's big: on an 8 GB Mac expect several minutes a picture or more, and close other apps. Text to image only, no LoRAs yet. Apache-2.0.",
               "<b>Images fader</b> (Create): the number of images is now a studio fader, like a mixing desk's: slide it, scroll on it, or click a number on its scale. Every other slider got the same fader look: a ridged cap and a printed scale.",
@@ -1005,6 +1013,19 @@ const protoartApp = createApp({
               "<b>Unplug</b>: drag a plug away from its jack, or double-click a cable. One cable per jack: plugging into a used jack replaces its cable. Loops aren't allowed, and <b>VECTOR</b> has to be last (it makes a drawing, not a picture). The patchbay starts with <b>no cables</b>. <b>example</b> plugs in PICTURE ▸ ENHANCE ▸ FACES ▸ RESULT; <b>clear cables</b> pulls them all out; <b>↺ reset</b> also puts the modules back in their places.",
               "<b>▶ Run patch</b> runs each patched tool in turn, each on the previous one's result, using that tool's own settings in its module below (upscale, face model, depth look, colours…). <b>REMOVE</b> uses what you painted on the picture: if nothing is painted yet, Run patch turns Paint on so you can paint first. Every step is saved in the Library; the last one shows in the picture window to compare. <b>■ Stop</b> stops after the current step.",
               "Your cables are remembered on this Mac, and the patchbay stays hidden until you switch it on." ] },
+            { h: "🧩 Combine: add a character to a scene", items: [
+              "In <b>Image to image</b>, drop the <b>scene</b> as the picture, pick <b>🧩 Combine</b>, and drop the character (a person, a cartoon character, a pet, a product) under <b>Add to the scene</b>. Up to 3: they're numbered 2, 3 and 4 (the scene is 1), so you can say “picture 2 sits on the bench, picture 3 stands behind her”.",
+              "Say what you want in <b>3 · Prompt</b>: where, doing what (“on the left, sitting on the steps, reading”). Leave it empty and it's put in where it fits. Press <b>🧩 Combine</b>.",
+              "<b>✨ Let it decide</b>: Klein chooses the place and redraws the whole picture, so the scene can shift a little. <b>✋ I'll place it</b>: a numbered box appears on the scene for each one; drag it to move, pull its corner to size it (it keeps its shape, and the character stands on the box's bottom edge), double-click to bring it to the front. With <b>Keep the rest of the scene exactly as it is</b> (on), only the area around what you placed is redrawn, with room for its shadow.",
+              "<b>✂ Cut it out of its picture first</b> (on): only the character is used, not its old background. It uses ✂ Cut out's model (~224 MB once) and takes about 15–30 s per picture on an 8 GB Mac. Turn it off for a picture that already has a plain or see-through background.",
+              "<b>💡 Match the scene's light</b> (on): the character's brightness, contrast and colour are moved towards the scene's before it goes in, so a sunny photo of a person doesn't glow in a night forest. <b>How much</b>: higher takes on more of the scene's light and colour. The character keeps its own shading; Klein adds the shadows.",
+              "Tips: a clear, full-body picture of the character works best; describe the size (“small, in the distance”) when it should be far away; try another seed if the pose or place isn't right. The result goes to the Library as <b>Combined</b>, linked to the scene." ] },
+            { h: "🧅 Peel layers: split a picture into layers", items: [
+              "In <b>Image to image</b>, pick <b>🧅 Peel layers</b>. Select a part with the painting tools (<b>👤 Subject</b> finds the main subject, <b>⬚ Object</b> what you drag a box around, or paint it), then press <b>🧅 Peel off</b>.",
+              "That part goes onto its own see-through layer, and what was behind it is filled in (the same Smart fill as 🩹 Remove), so the picture at the top now shows what's left. Select the next part and peel again: each peel takes a few seconds.",
+              "<b>✂ Follow the edge exactly</b>: uses ✂ Cut out's model to follow hair and fur inside your selection (slower: about 15–30 s on an 8 GB Mac).",
+              "The <b>layer list</b> (top first): rename a layer (that's its name in the .psd), 👁 hide it (it's saved hidden), ↑ ↓ change the order. <b>↶ Undo last peel</b> puts the last one back; <b>✕ Start over</b> returns to the original picture.",
+              "<b>💾 Save layers</b>: one layered Photoshop file (.psd, next to your pictures: <b>📂 Show the .psd in Finder</b>) with the filled-in background at the bottom, plus each layer in the Library as a see-through PNG. Nothing is saved until you press it; the working files are tidied away after a few days." ] },
             { h: "🩹 Remove objects and ✒️ Vectorize", items: [
               "<b>Remove objects in Tools</b>: press <b>🖌 Paint</b> in the module, paint on the picture on the left (all the selection tools work), choose <b>✨ Smart fill</b> (rebuilds what was behind it) or <b>⚡ Quick fill</b> (instant, for small spots), and press <b>🩹 Remove</b>.",
               "<b>🩹 Remove objects</b>: opens the picture in Image to image in Remove mode. Paint over what you want gone and press <b>🩹 Remove</b>; it's filled in from what's around it. The result is saved as a new picture in the Library (“Objects removed”); the original stays.",
@@ -1264,6 +1285,12 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "New in 1.6.0: if something doesn't work", items: [
+              "<b>Combine changed the scene too</b>: with ✨ Let it decide the whole picture is redrawn. Use <b>✋ I'll place it</b> with <b>Keep the rest of the scene exactly as it is</b>: then only the area around the character changes.",
+              "<b>The character's face or clothes came out different</b>: use a clearer, bigger picture of it, keep ✂ Cut it out first on, place it bigger (a tiny character loses detail), and try another seed.",
+              "<b>The character looks pasted on</b>: keep 💡 Match the scene's light on and raise <b>How much</b>; in the prompt say where the light comes from (“lit by the lantern on her right”).",
+              "<b>Combine or Peel says it can't download</b>: Cut out (~224 MB) and Smart fill (~208 MB) download once. Turn off Strict offline mode in Settings → Privacy for the download.",
+              "<b>Peel left an outline behind</b>: select a little past the edge (Grow the selection, or paint over it), or turn on ✂ Follow the edge exactly. <b>The .psd won't open</b>: it's a standard 8-bit RGB Photoshop file; a very big picture with many layers can be several hundred MB." ] },
             { h: "New in 1.5.1: if something doesn't work", items: [
               "<b>Training says it will take 16 hours</b>: on an 8 GB Mac that's about right for ERNIE (each step works through a very big model, and memory spills onto the disk). Use ★ Recommended (fewer steps for ERNIE), or train on an SD 1.5 model, which takes minutes to a few hours. The estimate becomes a measurement after the first steps.",
               "<b>MOSS-Image is very slow or the Mac stalls</b>: it's a big model; on 8 GB, close other apps (web browsers especially), use Medium (768) size and Turbo, and make one picture at a time. <b>“MOSS-Image isn't on this Mac yet”</b> with Strict offline on: turn it off for the one-time download (~13 GB).",
@@ -7133,6 +7160,22 @@ const protoartApp = createApp({
         await this.runJob("heal", { init_image: f.init_image, mask: this.mask.data, method: f.heal_method || "lama" });
         return;
       }
+      if (f.i2i_mode === "combine") {  // 🧩 the scene + the characters / things to add, by FLUX.2 Klein
+        const refs = (f.edit_refs || []).slice(0, 3);
+        if (!refs.length) return (this.error = "Add the character (or thing) to put into the scene under “Add to the scene”.");
+        const c = f.combine || {};
+        const placed = c.where === "place";
+        if (placed) this.combineBoxesFill();
+        this.error = "";
+        await this.runJob("edit_words", { init_image: f.init_image, prompt: f.prompt || "", refs, seed: f.seed,
+          combine: { cutout: c.cutout !== false, match_light: c.match_light !== false, light_strength: c.light_strength ?? 0.7,
+                     keep_scene: c.keep_scene !== false, place: placed ? refs.map((_, i) => ({ ...c.boxes[i] })) : null } });
+        return;
+      }
+      if (f.i2i_mode === "peel") {  // 🧅 lift the painted part onto its own layer
+        await this.peelOff();
+        return;
+      }
       if (f.i2i_mode === "edit") {  // ✨ FLUX.2 Klein, whatever model Create has
         if (!(f.prompt || "").trim()) return (this.error = "Describe the change in the prompt, e.g. “make the jacket red” or “turn it into a watercolour”.");
         this.error = "";
@@ -7253,6 +7296,109 @@ const protoartApp = createApp({
     },
     editModel() {  // the model Edit with words uses
       return this.models.find((m) => m.id === "flux2_klein_mlx_q4") || null;
+    },
+    // ---------------------------------------------------------------- 🧩 Combine: where each one goes
+    combineBoxesFill() {
+      // one box per picture to add: new ones side by side, standing on the lower part of the scene
+      const c = this.form.combine, n = (this.form.edit_refs || []).length;
+      if (!Array.isArray(c.boxes)) c.boxes = [];
+      for (let i = c.boxes.length; i < n; i++) {
+        const w = Math.min(0.42, 0.9 / n);
+        c.boxes.push({ x: Math.max(0, 0.5 - (n * w) / 2 + i * w + w * 0.05), y: 0.3, w: w * 0.9, h: 0.62 });
+      }
+      if (c.boxes.length > n) c.boxes.splice(n);
+    },
+    combineSetWhere(w) {
+      this.form.combine.where = w;
+      if (w === "place") this.combineBoxesFill();
+    },
+    placeDown(i, e, how) {
+      const stage = e.currentTarget.closest(".mask-stage");
+      if (!stage) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const r = stage.getBoundingClientRect();
+      this.placeDrag = { i, how, x: e.clientX, y: e.clientY, w: r.width, h: r.height, box: { ...this.form.combine.boxes[i] } };
+      const move = (ev) => {
+        const d = this.placeDrag;
+        if (!d) return;
+        const dx = (ev.clientX - d.x) / d.w, dy = (ev.clientY - d.y) / d.h, b = { ...d.box };
+        if (d.how === "move") {
+          b.x = Math.min(1 - 0.02, Math.max(-b.w + 0.02, b.x + dx));
+          b.y = Math.min(1 - 0.02, Math.max(-b.h + 0.02, b.y + dy));
+        } else {  // the corner: keep the box's shape, so the character isn't squashed
+          const k = Math.max(0.05 / Math.min(b.w, b.h), 1 + Math.max(dx / b.w, dy / b.h));
+          b.w *= k; b.h *= k;
+        }
+        this.form.combine.boxes.splice(d.i, 1, b);
+      };
+      const up = () => {
+        this.placeDrag = null;
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    },
+    placeBoxStyle(i) {
+      const b = (this.form.combine.boxes || [])[i];
+      if (!b) return { display: "none" };
+      return { left: b.x * 100 + "%", top: b.y * 100 + "%", width: b.w * 100 + "%", height: b.h * 100 + "%" };
+    },
+    placeFlip(i) {  // bring it in front of the others
+      const f = this.form, j = f.edit_refs.length - 1;
+      if (i === j) return;
+      const [r] = f.edit_refs.splice(i, 1), [b] = f.combine.boxes.splice(i, 1);
+      f.edit_refs.push(r);
+      f.combine.boxes.push(b);
+    },
+    // ---------------------------------------------------------------- 🧅 Peel layers
+    async peelOff() {
+      const f = this.form, P = this.peel;
+      if (!this.maskIsFor("i2i", f.init_image)) return (this.error = "Paint over or select the part to peel off first (the 👤 Subject and ⬚ Object tools find it for you).");
+      if (!P.layers.length || P.current !== f.init_image) Object.assign(P, { original: f.init_image, current: f.init_image, layers: [], saved: null });
+      this.error = "";
+      P.busy = true;
+      try {
+        const res = await this.runJob("peel", { init_image: f.init_image, mask: this.mask.data, tidy: !!P.tidy });
+        if (!res || !res.layer) return;
+        P.layers.unshift({ path: res.layer, before: f.init_image, name: "Layer " + (P.layers.length + 1), visible: true });
+        P.current = res.background;
+        P.saved = null;
+        f.init_image = res.background;  // the next part is peeled from what's left
+      } finally {
+        P.busy = false;
+      }
+    },
+    peelUndo() {
+      const P = this.peel, l = P.layers.shift();
+      if (!l) return;
+      P.current = l.before;
+      P.saved = null;
+      this.form.init_image = l.before;
+    },
+    peelMove(i, d) {
+      const L = this.peel.layers, j = i + d;
+      if (j < 0 || j >= L.length) return;
+      [L[i], L[j]] = [L[j], L[i]];
+      this.peel.saved = null;
+    },
+    peelClear() {
+      const P = this.peel;
+      if (P.original) this.form.init_image = P.original;
+      Object.assign(P, { original: "", current: "", layers: [], saved: null });
+    },
+    async peelSave() {
+      const P = this.peel;
+      if (!P.layers.length) return (this.error = "Peel off at least one layer first.");
+      P.busy = true;
+      try {
+        const res = await this.runJob("peel_save", { original: P.original, background: P.current,
+          layers: P.layers.map((l) => ({ path: l.path, name: l.name, visible: l.visible })) });
+        if (res && res.psd) P.saved = { psd: res.psd, layers: res.layers };
+      } finally {
+        P.busy = false;
+      }
     },
     async addEditRefs(files) {
       for (const file of files) {
@@ -7615,7 +7761,7 @@ const protoartApp = createApp({
     kindLabel(kind) {
       return { generated: "Original", img2img: "Image-to-image", faces: "Face-restored", enhanced: "Enhanced",
                depth: "Depth map", inpaint: "Inpainted", outpaint: "Expanded", grid: "Comparison grid",
-               edited: "Edited", healed: "Objects removed", word_edit: "Edited with words", faceswap: "Face swap",
+               edited: "Edited", healed: "Objects removed", word_edit: "Edited with words", combined: "Combined", faceswap: "Face swap",
                chain: "Model chain", tiled: "Tiled upscale", animation: "Animation", layer: "Layer", cutout: "Cut out",
                papercut: "Paper cut-out" }[kind] || kind;
     },

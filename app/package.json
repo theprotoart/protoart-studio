@@ -1,7 +1,7 @@
 {
   "name": "protoart-studio",
   "productName": "Protoart Studio",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Local image generation for Apple Silicon: SD 1.5, SDXL and ERNIE-Image with LoRAs, presets and a searchable library.",
   "main": "main.js",
   "private": true,

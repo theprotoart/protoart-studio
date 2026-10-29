@@ -169,7 +169,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -293,6 +293,12 @@ def job_label(cmd, a):
         return "Download the recommended VAE"
     if cmd == "edit_words" and isinstance(a.get("outpaint"), dict):
         return "Expand with FLUX.2" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
+    if cmd == "peel":
+        return "Peel off a layer"
+    if cmd == "peel_save":
+        return "Save the layers (.psd)"
+    if cmd == "edit_words" and isinstance(a.get("combine"), dict):
+        return "Combine · " + ((a.get("prompt") or "")[:40] or "add to the scene")
     if cmd == "edit_words":
         return "Edit with words · " + ((a.get("prompt") or "")[:40] or "FLUX.2")
     if cmd == "vectorize":
@@ -321,7 +327,7 @@ class JobQueue:
     def _public(j):
         a = j.get("args") or {}
         info = {"id": j["id"], "cmd": j["cmd"], "label": j["label"], "model": j.get("model")}
-        if j["cmd"] in ("edit_words", "heal") and a.get("init_image") and not a.get("from_tools"):
+        if j["cmd"] in ("edit_words", "heal", "peel") and a.get("init_image") and not a.get("from_tools"):
             info["i2i"] = True  # Edit with words / Remove: progress shows in Image to image, where they were started
         if j["cmd"] == "generate":  # what the UI needs to estimate how long the job will take
             info.update(steps=a.get("steps"), images=a.get("num_images") or 1, width=a.get("width"),
@@ -1815,7 +1821,7 @@ def reader():
 
 # Tools jobs that run on the processor (not the graphics chip) and take seconds: while a picture is being made they
 # run beside it instead of waiting in the queue (Remove with smart fill uses LaMa on the CPU; quick fill is OpenCV).
-SIDE_LANE = ("heal", "cutout", "papercut")
+SIDE_LANE = ("heal", "cutout", "papercut", "peel", "peel_save")
 
 
 def run_side(mid, cmd, a):
@@ -1830,6 +1836,10 @@ def run_side(mid, cmd, a):
             data = eng.cutout(a, emit=side_emit)
         elif cmd == "papercut":
             data = eng.papercut(a, emit=side_emit)
+        elif cmd == "peel":
+            data = eng.peel(a, emit=side_emit)
+        elif cmd == "peel_save":
+            data = eng.peel_save(a, emit=side_emit)
         else:
             raise KeyError(cmd)
         emit({"type": "result", "id": mid, "data": data})
@@ -2000,6 +2010,10 @@ def run_job(kind, a):
         return eng.cutout(a)
     if kind == "papercut":
         return eng.papercut(a)
+    if kind == "peel":
+        return eng.peel(a)
+    if kind == "peel_save":
+        return eng.peel_save(a)
     if kind == "procreate_layers":
         return eng.procreate_layers(a)
     if kind == "vectorize":
