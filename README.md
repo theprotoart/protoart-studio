@@ -192,7 +192,9 @@ bash packaging/build_mac_app.sh     # dist/Protoart Studio.app (bundles its own 
 bash packaging/make_dmg.sh          # dist/Protoart-Studio-<version>.dmg + .sha256 (rebuilds the app first)
 ```
 
-The `.command` files at the top level do the same with a double-click. Release steps are in
+The `.command` files at the top level do the same with a double-click. **`Rebuild installer.command`** is the
+one-button version: it runs every self-test (`packaging/run_tests.py`), builds the app and the DMG, writes
+`tests.log` / `dmg.log`, and shows the new DMG and its checksum in Finder. Release steps are in
 [RELEASING.md](RELEASING.md).
 
 ### Layout

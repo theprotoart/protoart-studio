@@ -15,6 +15,8 @@ Releases are built on an Apple Silicon Mac and published as GitHub Releases. The
 
 ```bash
 bash packaging/make_dmg.sh        # or double-click "Make DMG for friends.command"
+# or double-click "Rebuild installer.command": self-tests first (packaging/run_tests.py), then the same build,
+# logs in tests.log and dmg.log, and the checksum shown at the end
 ```
 
 This rebuilds `dist/Protoart Studio.app` (with its own Python, ~1.8 GB), checks that it doesn't depend on anything only

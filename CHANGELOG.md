@@ -2,6 +2,9 @@
 
 ## 1.6.0
 
+- 🔨 `Rebuild installer.command` (double-click): runs every backend self-test (`packaging/run_tests.py`, offline),
+  asks before building if any fail, then `make_dmg.sh`; logs to `tests.log` / `dmg.log`, plays a sound and shows the
+  new DMG and its SHA-256 when done
 - 🧩 Combine (Image to image mode `combine`): the scene + up to 3 pictures to add, through `edit_words` with a
   `combine` dict (`postprocess/compose.py`, `Engine._combine_prepare`): optional BiRefNet cut-out of each picture
   (the reference Klein sees is the cut-out on white, cropped to it), light matching, and the prompt built by
