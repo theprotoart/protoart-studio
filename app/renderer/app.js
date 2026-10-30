@@ -169,11 +169,11 @@ const QUALITY_NEG = {
 };
 // Recommended samplers per model type: quickest to a clean picture first (fewest model runs), then best quality.
 // (Pony / Illustrious / NoobAI were trained and tuned with Euler a, so it leads their quality list.)
-const SAMPLER_PICKS = {
-  sd15: { fast: ["unipc", "dpmpp_2m_karras", "deis"], quality: ["dpmpp_2m_karras", "dpmpp_sde_karras", "dpmpp_2m_sde_karras"] },
-  sdxl: { fast: ["dpmpp_2m_karras", "unipc", "deis"], quality: ["dpmpp_2m_sde_karras", "dpmpp_2m_karras", "euler_a"] },
-  anime_xl: { fast: ["euler_a", "dpmpp_2m_karras", "unipc"], quality: ["euler_a", "dpmpp_2m_sde_karras", "dpmpp_2m_karras"] },
-  ernie: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
+const SAMPLER_PICKS = {  // the 3 fastest and the 3 best-quality samplers for each model type (no sampler in both)
+  sd15: { fast: ["unipc", "dpmpp_2m_karras", "dpmpp_2m_lu"], quality: ["dpmpp_sde_karras", "dpmpp_2m_sde_karras", "dpmpp_3m_sde_exp"] },
+  sdxl: { fast: ["dpmpp_2m_karras", "unipc", "dpmpp_2m_lu"], quality: ["dpmpp_2m_sde_karras", "dpmpp_3m_sde_exp", "euler_a"] },
+  anime_xl: { fast: ["euler_a", "dpmpp_2m_karras", "unipc"], quality: ["dpmpp_2m_sde_karras", "dpmpp_2m_sde_exp", "euler_beta"] },
+  ernie: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras", "flow_euler_stochastic"] },
   flux: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
   flux2: { fast: ["flow_euler"], quality: [] },
 };
@@ -670,6 +670,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.0: 🧩 Combine pictures by asking, 💡 match the scene's light, 📷 camera angles, 🧅 peel layers", items: [
+              "<b>Newer samplers</b> for SD 1.5 and SDXL: DPM++ 2M SDE Exponential, DPM++ 3M SDE Exponential, DPM++ 2M Lu (good at few steps), Euler Beta and SA-Solver. The sampler list now shows the <b>3 fastest</b> and the <b>3 best-quality</b> samplers for your model type at the top (Pony / Illustrious / NoobAI have their own), the rest under <i>All other samplers</i>.",
               "<b>More fixes from testing</b>: each tab shows <b>its own queue</b> and live preview (Image to image jobs no longer show in Create, nor Tools' previews in Image to image), and Image to image results show there straight away. <b>Space</b> no longer jumps the page in Image to image. <b>📷 Camera angle</b> checks the result: if it came out split into panels it tries once more, then keeps the biggest panel; it also asks to keep the clothes' colours. <b>📄 Paper cut-out → 👁 preview</b> shows the paper border live. <b>Detail with a LoRA</b> lists your ★ detail LoRAs (mark or unmark one under the list). <b>🧪 Model merger</b> moved to <b>Train → 🧪 Merge models</b>. <b>🔤 Text</b> selection tool (Image to image, Remove, Peel): finds the writing in a picture. <b>🎚 Adjust</b>: a filter's own-settings paint layers fold under that filter; click one to work on it. Create's model list has a <b>kind filter</b> (People, NSFW, fits this Mac, fast engine) beside Sort. 🎲 Random prompt can <b>📚 mix in Ideas</b>. The picture viewer's ‹ › sit right beside the picture.",
               "<b>📚 Ideas</b> (Create's prompt tools): hundreds of tested tags by category (pose, expressions, eyes, hair styles, headwear, outfits, dresses, bottoms, footwear, framing, styles), taken from Corneo's visual tag guides. Click one to add it, <b>🎲 Suggest one</b> for a random idea, or <b>🎲 Mix</b> for a pose, expression, hair, outfit, shoes and framing at once. 🎲 Random prompt uses them too.",
               "<b>🙂 Keep faces</b> (✨ Edit with words, on by default): each face is redone close up and blended in, so restoring or colouring an old photo keeps the person's face. <b>Embeddings</b> can be set to go in the prompt or the negative prompt (Train, Models → Embeddings, or right-click in Create).",
@@ -3537,9 +3538,9 @@ const protoartApp = createApp({
       const fam = this.currentFlavor && this.family === "sdxl" ? "anime_xl" : this.family;
       const p = SAMPLER_PICKS[fam] || { fast: [], quality: [] };
       const by = Object.fromEntries((this.samplers || []).map((x) => [x.id, x]));
-      // only the top two of each, so the choice stays simple; the others are under "All other samplers"
-      const fast = p.fast.map((id) => by[id]).filter(Boolean).slice(0, 2);
-      const quality = p.quality.map((id) => by[id]).filter(Boolean).slice(0, 2);
+      // the top three of each, so the choice stays simple; the others are under "All other samplers"
+      const fast = p.fast.map((id) => by[id]).filter(Boolean).slice(0, 3);
+      const quality = p.quality.map((id) => by[id]).filter(Boolean).filter((x) => !fast.some((f) => f.id === x.id)).slice(0, 3);
       const shown = new Set([...fast, ...quality].map((x) => x.id));
       return { fast, quality, rest: (this.samplers || []).filter((x) => !shown.has(x.id)),
                qualityOnly: quality.filter((x) => !fast.some((f) => f.id === x.id)) };

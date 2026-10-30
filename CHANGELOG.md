@@ -10,6 +10,8 @@
   (`blend_area`, with room for a contact shadow) redrawn; the rest is the original. Saved as kind `combined`
 - 💡 Match the scene's light (`compose.match_light`): LAB mean / contrast transfer towards the scene (or the area
   around where it's placed), the subject's own colours and shading kept, strength slider
+- Samplers: `dpmpp_2m_sde_exp`, `dpmpp_3m_sde_exp`, `dpmpp_2m_lu`, `euler_beta`, `sa_solver` (with recommended steps;
+  an older diffusers without a class falls back to the default); picks show 3 fastest + 3 best quality, no overlap
 - More testing fixes: per-tab queue lists (`queueHere`, `jobTabOf`) and live previews; `currentTab` set on start so
   jobs are filed under the right tab; Space can't scroll Tools / Image to image (held keys repeat); Camera angle panel
   check (`compose.panel_seams` / `largest_panel`): one retry with another seed, then the biggest panel; prompt keeps

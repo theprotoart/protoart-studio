@@ -23,6 +23,12 @@ UNET_SAMPLERS = {
     "dpmpp_3m_sde_karras": ("DPM++ 3M SDE Karras", "DPMSolverMultistepScheduler", {"algorithm_type": "sde-dpmsolver++", "solver_order": 3, "use_karras_sigmas": True}, None),
     "dpmpp_sde_karras":   ("DPM++ SDE Karras", "DPMSolverSDEScheduler", {"use_karras_sigmas": True}, "torchsde"),
     "dpmpp_2s_karras":    ("DPM++ 2S Karras", "DPMSolverSinglestepScheduler", {"use_karras_sigmas": True}, None),
+    # newer ones (as in Forge / ComfyUI): exponential and Lu noise schedules, Beta for Euler, SA-Solver
+    "dpmpp_2m_sde_exp":   ("DPM++ 2M SDE Exponential", "DPMSolverMultistepScheduler", {"algorithm_type": "sde-dpmsolver++", "solver_order": 2, "use_exponential_sigmas": True}, None),
+    "dpmpp_3m_sde_exp":   ("DPM++ 3M SDE Exponential", "DPMSolverMultistepScheduler", {"algorithm_type": "sde-dpmsolver++", "solver_order": 3, "use_exponential_sigmas": True}, None),
+    "dpmpp_2m_lu":        ("DPM++ 2M Lu (good at few steps)", "DPMSolverMultistepScheduler", {"algorithm_type": "dpmsolver++", "solver_order": 2, "use_lu_lambdas": True}, None),
+    "euler_beta":         ("Euler Beta", "EulerDiscreteScheduler", {"use_beta_sigmas": True}, "scipy"),
+    "sa_solver":          ("SA-Solver", "SASolverScheduler", {}, None),
     "unipc":              ("UniPC", "UniPCMultistepScheduler", {}, None),
     "unipc_karras":       ("UniPC Karras", "UniPCMultistepScheduler", {"use_karras_sigmas": True}, None),
     "deis":               ("DEIS", "DEISMultistepScheduler", {}, None),
@@ -53,6 +59,8 @@ RECOMMENDED_STEPS = {
     "dpmpp_2m": (25, 20, 30), "dpmpp_2m_karras": (25, 20, 30), "dpmpp_2m_beta": (25, 20, 30),
     "dpmpp_2m_sde_karras": (25, 20, 35), "dpmpp_3m_sde_karras": (30, 25, 40),
     "dpmpp_sde_karras": (18, 12, 25), "dpmpp_2s_karras": (20, 15, 25),
+    "dpmpp_2m_sde_exp": (25, 20, 35), "dpmpp_3m_sde_exp": (30, 25, 40), "dpmpp_2m_lu": (16, 12, 22),
+    "euler_beta": (28, 20, 40), "sa_solver": (25, 20, 35),
     "unipc": (18, 12, 25), "unipc_karras": (18, 12, 25), "deis": (20, 15, 25),
     "lms_karras": (30, 25, 40), "ddim": (45, 30, 50), "pndm": (50, 40, 60),
     "lcm": (6, 4, 8), "tcd": (6, 4, 8),
@@ -105,5 +113,9 @@ def build_scheduler(family, sampler_id, base_config):
         import importlib
         cls = getattr(diffusers, base_config.get("_class_name", ""), None)
         return (cls.from_config(base_config) if cls else None), sampler_id
-    cls = getattr(diffusers, cls_name)
+    cls = getattr(diffusers, cls_name, None)
+    if cls is None:  # an older diffusers without this scheduler: the model type's default instead
+        sampler_id = DEFAULTS.get(family, next(iter(table)))
+        _, cls_name, overrides, _ = table[sampler_id]
+        cls = getattr(diffusers, cls_name)
     return cls.from_config(base_config, **overrides), sampler_id
