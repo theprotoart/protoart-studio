@@ -2457,3 +2457,6 @@ input[type=range]:disabled { opacity: .35; }
 .adj-layer-head .hint { font-size: 11px; }
 .adj-layer-chev { width: 10px; color: var(--muted, #aaa); }
 .adj-layer-body { padding: 2px 8px 6px; }
+
+/* 🗺 Regions ↔ 🖼 image prompt: the note saying one switched the other off */
+.mutex-note { margin: 4px 0 6px; padding: 5px 9px; border-left: 3px solid var(--amber, #ffae2b); background: rgba(255, 174, 43, .08); }

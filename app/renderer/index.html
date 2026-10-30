@@ -619,6 +619,7 @@
         <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">a different prompt for each part of the picture</span><span v-if="cfShut('regions')" class="cfold-sum">{{ cfSummary('regions') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <label class="check"><input type="checkbox" v-model="form.regions.on"> Use regional prompts
           <span class="hint">· each area draws its own prompt; the main prompt above sets the scene around them</span></label>
+        <div v-if="form.regions.on && ipaParked" class="hint mutex-note">🖼 Your image prompt is switched off while regions are on (they can't run together yet); it comes back when you untick this.</div>
         <div class="reg-templates">
           <span class="hint">Templates</span>
           <button v-for="t in REGION_TEMPLATES" :key="'rt' + t.id" class="ghost small" @click="useRegionTemplate(t)" :title="t.tip + ' · sets the areas, example prompts to edit and a size that fits (↩ puts it back)'">{{ t.icon }} {{ t.label }}</button>
@@ -684,7 +685,9 @@
             <button class="ghost small" @click="whichOne('pose')" title="Opens Image to image with a ControlNet picked for you">Use ControlNet…</button></div>
           <div class="hint">They combine: a Face image prompt plus a pose ControlNet keeps the person and copies the pose.</div>
         </details>
-                <div v-if="!form.ip_adapter.image" class="ipa-drop" :class="{over: ipDragOver}" @dragover.prevent="ipDragOver=true"
+                <div v-if="regionsParked && form.ip_adapter.image" class="hint mutex-note">🗺 Regional prompts were switched off when you added a picture here (they can't run together yet); they come back when you remove it.</div>
+        <div v-else-if="form.regions.on && !form.ip_adapter.image" class="hint mutex-note">Adding a picture here switches 🗺 Regional prompts off (they can't run together yet).</div>
+        <div v-if="!form.ip_adapter.image" class="ipa-drop" :class="{over: ipDragOver}" @dragover.prevent="ipDragOver=true"
              @dragleave="ipDragOver=false" @drop.prevent="onIpDrop" @click="$refs.ipPick.click()">
           Drop a reference picture <span class="hint">(or click to choose)</span></div>
         <div v-else class="ipa-on">
