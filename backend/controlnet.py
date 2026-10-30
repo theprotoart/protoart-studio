@@ -130,7 +130,7 @@ def _inspect(path):
     if "lllite" in low:
         return {"family": "sdxl", "layout": None, "problem": "a ControlNet-LLLite file (not supported yet)"}
     if "task_embedding" in shapes or any(k.startswith(("spatial_ch_projs", "control_add_embedding")) for k in keys):
-        return {"family": "sdxl", "layout": None, "problem": "a ControlNet Union file (not supported yet)"}
+        return {"family": "sdxl", "layout": None, "problem": "a ControlNet Union file (several controls in one SDXL file). Your own Union files can't be used yet: use the built-in Union ProMax instead (Image to image → ControlNet, with an SDXL model)"}
     if any(k.startswith(("adapter.", "body.0.")) for k in keys) and not any("zero_conv" in k or "controlnet_" in k for k in keys):
         return {"family": None, "layout": None, "problem": "a T2I-Adapter, not a ControlNet (not supported yet)"}
     if any(".lora_" in k or "lora_controlnet" in k or k.endswith((".up", ".down")) for k in keys):
@@ -179,6 +179,9 @@ def user_files():
             continue
         for p in files:
             if p.name.startswith("._") or p.stem in taken:
+                continue
+            # the app's own working folders (e.g. ".union-promax": links to the built-in Union ProMax) aren't yours
+            if any(part.startswith(".") for part in p.relative_to(d).parts[:-1]):
                 continue
             taken.add(p.stem)
             try:

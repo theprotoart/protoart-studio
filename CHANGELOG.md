@@ -10,6 +10,15 @@
   (`blend_area`, with room for a contact shadow) redrawn; the rest is the original. Saved as kind `combined`
 - 💡 Match the scene's light (`compose.match_light`): LAB mean / contrast transfer towards the scene (or the area
   around where it's placed), the subject's own colours and shading kept, strength slider
+- Fixes from testing: Camera angle prompt asks for one single view (no panels / split / extra copies); Make: one angle
+  or 🔄 all 8 around (Around greyed out, one shared seed), ↺ Reset camera, Picture layout (one view / 🗯 comic panels /
+  🧍 character sheet), kind `camera_angle`; ⇄ Convert (enhancer styles `to_tags` / `to_natural`, LoRA tags kept);
+  Create and Image to image keep their own LoRAs (`create_loras` / `i2i_loras`, swapped with the prompts); pictures go
+  to the tab their job was started from (`jobTab`), Tools jobs (cut out, paper cut-out, layers) stay out of Create;
+  Library details: Made with + LoRAs (or none); embeddings split into prompt / negative by name (`is_negative_name`);
+  the app's `.union-promax` link folder isn't listed as a user ControlNet, clearer Union message; Tools picture panel
+  sticky; ↺ module buttons don't cover titles; the Generate bar stays above the Images fader; Cut out says the
+  download is first-time only
 - Models that need more memory than the Mac has (`enough_ram` false) are greyed out and can't be picked or downloaded
   (`ramBlocked`: Create list, Image to image and chain selects, start-up preload, Models tab), unless Settings →
   Load anyway (`force_load`); a saved model that's too big is swapped for one that fits. MOSS-Image docs: 16 GB

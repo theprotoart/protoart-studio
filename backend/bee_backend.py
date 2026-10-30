@@ -266,7 +266,8 @@ def job_label(cmd, a):
                 "depth": "Depth map"}.get(a.get("action"), "Post-process") + \
             f" · image #{a.get('image_id')}"
     if cmd == "enhance_prompt":
-        return "Enhance prompt"
+        return {"to_tags": "Convert the prompt to tags", "to_natural": "Convert the prompt to sentences"}.get(
+            a.get("family"), "Enhance prompt")
     if cmd == "plan_regions":
         return "Plan the layout"
     if cmd == "faceswap":

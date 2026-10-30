@@ -129,6 +129,20 @@ def _info(p, st):
     return info
 
 
+_NEG = None
+
+
+def is_negative_name(stem):
+    """Embeddings meant for the negative prompt (EasyNegative, bad-hands, ng_deepnegative, verybadimagenegative…), by
+    name: everything else (your own trained characters and styles, too) goes in the prompt."""
+    global _NEG
+    import re
+    if _NEG is None:
+        _NEG = re.compile(r"neg|unaesthetic|verybad|worst|lowres|^ng[_-]|^bad|bad[-_ ]?(hand|prompt|artist|quality|dream|anatomy|picture)",
+                          re.I)
+    return bool(_NEG.search(str(stem)))
+
+
 def scan(folder, safetensors_only=False):
     out = []
     d = Path(folder)
@@ -147,7 +161,7 @@ def scan(folder, safetensors_only=False):
         info = _info(p, st)
         if info:
             row = {"name": p.stem, "file": str(p), "family": info["family"], "vectors": info["vectors"],
-                   "size_kb": max(1, round(st.st_size / 1024))}
+                   "size_kb": max(1, round(st.st_size / 1024)), "negative": is_negative_name(p.stem)}
             if nsfw.name_flag(p.stem):
                 row["nsfw_auto"] = True
             out.append(row)

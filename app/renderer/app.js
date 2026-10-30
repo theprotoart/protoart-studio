@@ -9,6 +9,14 @@ const HEAVY = new Set(["ckpt_merge", "lora_extract", "lora_base_find", "model_ke
                         "control_preview", "convert_tdict", "compare"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
+const jobTab = new Map();  // queue job id -> the tab it was started from (its pictures show there, not in the other tab)
+let currentTab = "create";
+// pictures made by Image to image (older records, or ones whose job isn't known any more, go by their kind)
+function isNegEmbedding(e) {
+  if (e && typeof e.negative === "boolean") return e.negative;
+  return /neg|unaesthetic|verybad|worst|lowres|^ng[_-]|^bad|bad[-_ ]?(hand|prompt|artist|quality|dream|anatomy|picture)/i.test((e && e.name) || "");
+}
+function isI2iRecord(r) { return r && r._tab ? r._tab === "i2i" : I2I_KINDS.includes(r && r.kind); }
 
 window.bee.onMessage((m) => {
   if ((m.type === "result" || m.type === "error") && pending.has(m.id)) {
@@ -21,6 +29,7 @@ window.bee.onMessage((m) => {
     }
     pending.delete(m.id);
     jobArgs.delete(m.id);
+    setTimeout(() => jobTab.delete(m.id), 120000);  // its pictures have arrived by then
     // a job that stopped because a first-time download didn't happen: the app offers ⬇ Download it now
     if (m.type === "error" && job && /one-time download/i.test(m.msg || "")) listeners.forEach((fn) => fn({ type: "download_needed", job }));
     if (m.type === "result") resolve(m.data);
@@ -35,6 +44,7 @@ function call(cmd, args = {}) {
   // Vue's reactive objects can't cross Electron's process boundary, so always send a plain copy.
   const plainArgs = JSON.parse(JSON.stringify(args ?? {}));
   if (HEAVY.has(cmd)) jobArgs.set(id, { cmd, args: plainArgs });
+  jobTab.set(id, currentTab);
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });
     window.bee.send({ id, cmd, args: plainArgs }).then(
@@ -110,7 +120,7 @@ function defaultForm() {
     ip_adapter: { image: "", kind: "style", scale: 0.6 },
     heal_method: "lama",
     edit_refs: [],      // ✨ Edit with words: extra pictures to take a style, object or outfit from (🧩 Combine: what to add)
-    cam: { az: 0, el: 0, zoom: 5 },  // 📷 Camera angle: around (0–360°), up / down (−30–60°), how close (0–10)
+    cam: { az: 0, el: 0, zoom: 5, turnaround: false, layout: "single" },  // 📷 Camera angle: around (0–360°), up / down (−30–60°), how close (0–10)
     combine: { cutout: true, match_light: true, light_strength: 0.7, where: "auto", keep_scene: true, boxes: [] },  // 🧩 Combine
     i2i_mode: "change", inpaint: { strength: 0.85, blur: 4, only_masked: false },
     outpaint: { left: 0, right: 0, top: 0, bottom: 0 },
@@ -157,16 +167,22 @@ function camWords(az, el, zoom) {
   const dist = CAM_DIST.reduce((b, d) => (Math.abs(d.at - zoom) < Math.abs(b.at - zoom) ? d : b));
   return { view, elev, dist, label: `${view} · ${elev.name} · ${dist.name}` };
 }
-function camPrompt(az, el, zoom, extra) {
+function camPrompt(az, el, zoom, extra, layout) {
   const w = camWords(az, el, zoom);
   const more = (extra || "").trim().replace(/\.$/, "");
-  return `Show the same picture from a different camera angle: the ${w.view} of the subject, ${w.elev.say}, ${w.dist.say}. ` +
-    (more ? more[0].toUpperCase() + more.slice(1) + ". " : "") +
-    "Keep the same identity, face, hair, outfit, pose, expression, proportions, colours, materials, lighting and art style; " +
-    "change only where the camera is.";
+  const add = more ? more[0].toUpperCase() + more.slice(1) + ". " : "";
+  const keep = "Keep the same character: identity, face, hair, outfit, colours, materials and art style.";
+  if (layout === "comic")
+    return `Turn this into a comic book page with 3 to 4 panels showing the subject from different camera angles (one of them the ${w.view}, ${w.elev.say}). ` + add + keep;
+  if (layout === "sheet")
+    return "Turn this into a character turnaround sheet: the same character shown full body from the front, the side and the back, " +
+      "standing side by side on a plain light background, evenly spaced. " + add + keep;
+  return `Move the camera around the subject: show it from the ${w.view}, ${w.elev.say}, ${w.dist.say}. ` + add + keep + " " +
+    "One single image of one scene: a single camera view with the character shown once. " +
+    "No panels, no split screen, no collage, no border lines, no extra copies of the character.";
 }
 if (typeof module !== "undefined") module.exports = { camWords, camPrompt };
-const I2I_KINDS = ["img2img", "healed", "word_edit", "combined", "inpaint", "outpaint", "controlnet", "faceswap"];  // pictures made in Image to image
+const I2I_KINDS = ["img2img", "healed", "word_edit", "combined", "camera_angle", "inpaint", "outpaint", "controlnet", "faceswap"];  // pictures made in Image to image
 // Tools → Tiled upscale presets (size, how much new detail, steps)
 const TILED_PRESETS = [
   { id: "gentle", label: "Gentle", tip: "Sharper and bigger, almost no change: photos and faces", set: { scale: 2, strength: 0.2, steps: 24 } },
@@ -621,6 +637,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.0: 🧩 Combine pictures by asking, 💡 match the scene's light, 📷 camera angles, 🧅 peel layers", items: [
+              "<b>Fixes and extras</b>: <b>⇄ Convert</b> (Create's prompt tools) turns sentences into Stable Diffusion tags and tags into sentences, so a prompt you like works with any model. Create and Image to image each keep <b>their own LoRAs</b>, and Image to image's pictures stay out of Create's pictures. Your own embeddings (from Train) are offered for the <b>prompt</b>, negative ones (EasyNegative, bad-hands…) for the negative prompt. The Library's details say <b>which tool made a picture</b> (📷 Camera angle and its view, 🧩 Combine, ✨ Edit with words…) and list its LoRAs (or none). In Tools the <b>picture stays in view</b> while you scroll through the modules. The Images fader no longer shows through the Add to queue button, and the ↺ buttons no longer cover module titles.",
               "<b>Greyed out = not available on this Mac</b>: models that need more memory than your Mac has are greyed out in Create, Image to image, the model chain and the Models tab, marked “not available: needs N GB RAM”, and can't be picked or downloaded. (Settings → Options → <b>Load anyway</b> still lets you try them.)",
               "<b>📷 Camera angle</b> (Image to image): see the same picture from another angle. Drag the card to turn the camera around the subject and over or under it, scroll to go nearer or further, or pick from the lists (8 directions, 4 heights, 3 distances). <b>🔄 All 8 views</b> makes a whole turnaround sheet in one go. Uses FLUX.2 Klein.",
               "<b>🧩 Combine</b> (Image to image): put a character, a pet or an object from another picture into a scene just by asking, e.g. “add her sitting on the bench, waving”. The picture at the top is the scene; add up to 3 pictures under <b>Add to the scene</b>. <b>✨ Let it decide</b> puts them where they fit; <b>✋ I'll place it</b> lets you drag and size each one on the scene, and then only the area around it is blended in (the rest of the scene stays exactly the same). Uses FLUX.2 Klein, like ✨ Edit with words.",
@@ -1055,7 +1072,8 @@ const protoartApp = createApp({
               "In <b>Image to image</b>, pick <b>📷 Camera angle</b>. The card shows your picture as the camera sees it: <b>drag left / right</b> to go around the subject, <b>up / down</b> to go under or over it, <b>scroll</b> to come nearer or go further. The pink ring shows where the camera is from above (front at the bottom), the blue arc how high it is.",
               "Or use the sliders and lists: <b>Around</b> (front, front-right quarter, right side, back-right quarter, back, back-left quarter, left side, front-left quarter), <b>Up / down</b> (low-angle, eye-level, elevated, high-angle) and <b>How close</b> (wide shot, medium shot, close-up). The line under them shows which one you have; <b>↺ Front</b> goes back to the start.",
               "Press <b>📷 New angle</b>. Anything to add goes in 3 · Prompt (“she is holding the sword”). The exact words sent to Klein are shown under the controls.",
-              "<b>🔄 All 8 views</b>: one picture every 45° around the subject, at the height and distance you set: a turnaround sheet for a character. They go into the queue one after another (each takes as long as one edit).",
+              "<b>Make: 📷 One new angle</b> gives one picture from the angle the sliders set. <b>🔄 All 8 around (turnaround)</b> gives 8 pictures, one every 45° all the way around the subject: then Around isn't used (it's greyed out), while Up / down and How close apply to all 8, and all 8 share one seed so the character stays alike. They go into the queue one after another. <b>↺ Reset camera</b> goes back to front view, eye level, medium shot.",
+              "<b>Picture layout</b>: <b>🖼 One view</b> (the default) asks for a single picture with the character shown once: no panels, split screens or extra copies. <b>🗯 Comic panels</b> makes a comic-book page with 3–4 panels from different angles, and <b>🧍 Character sheet</b> the character from the front, side and back side by side. (The 8 around are always one view each.)",
               "Tips: works best on one clear subject; the back view is invented, so the same seed and a picture showing more of the character keep it closer; small turns (a quarter view) stay closest to the original." ] },
             { h: "🧅 Peel layers: split a picture into layers", items: [
               "In <b>Image to image</b>, pick <b>🧅 Peel layers</b>. Select a part with the painting tools (<b>👤 Subject</b> finds the main subject, <b>⬚ Object</b> what you drag a box around, or paint it), then press <b>🧅 Peel off</b>.",
@@ -1327,7 +1345,11 @@ const protoartApp = createApp({
               "<b>The character's face or clothes came out different</b>: use a clearer, bigger picture of it, keep ✂ Cut it out first on, place it bigger (a tiny character loses detail), and try another seed.",
               "<b>The character looks pasted on</b>: keep 💡 Match the scene's light on and raise <b>How much</b>; in the prompt say where the light comes from (“lit by the lantern on her right”).",
               "<b>Combine or Peel says it can't download</b>: Cut out (~224 MB) and Smart fill (~208 MB) download once. Turn off Strict offline mode in Settings → Privacy for the download.",
+              "<b>A ControlNet says “can't be used: a ControlNet Union file”</b>: it's an SDXL file with several controls in one. Your own Union files can't be used yet; the built-in <b>Union ProMax</b> does the same (Image to image → 2 · ControlNet with an SDXL model). The app's own copy of Union ProMax no longer shows up in that list.",
+              "<b>Does ✂ Cut out download every time?</b> No: its model (~224 MB) downloads once, the first time, then it works offline for every picture.",
+              "<b>⇄ Convert changed a detail</b>: it uses the small prompt-enhancer model; press ↩ undo and try again (each try is a little different), or fix the word by hand.",
               "<b>A model is greyed out</b>: this Mac doesn't have the memory it needs (its card says how much). Pick one that isn't greyed out; Settings → Options → Load anyway lets you try it anyway, but it may be very slow or stop part-way.",
+              "<b>📷 Camera angle made panels, a line across the middle or two copies of the character</b>: that was the old wording; 🖼 One view now asks for a single picture. If it still happens, try another seed, and keep 3 · Prompt short (a long description of the picture can make Klein redraw it twice).",
               "<b>📷 Camera angle barely turned</b>: Klein sometimes keeps the original angle; try another seed, or a bigger change (a side view instead of a quarter view). <b>The character changed when seen from the back</b>: the back is invented; add details in the prompt (“long braid down her back”).",
               "<b>Peel left an outline behind</b>: select a little past the edge (Grow the selection, or paint over it), or turn on ✂ Follow the edge exactly. <b>The .psd won't open</b>: it's a standard 8-bit RGB Photoshop file; a very big picture with many layers can be several hundred MB." ] },
             { h: "New in 1.5.1: if something doesn't work", items: [
@@ -1872,6 +1894,9 @@ const protoartApp = createApp({
       // only embeddings made for this model's type (SD 1.5, or SDXL incl. Pony / Illustrious / NoobAI)
       return (this.embeddings || []).filter((e) => e.family === this.family && !(this.hideNsfw && e.nsfw_auto));
     },
+    // negative-prompt embeddings (EasyNegative, bad-hands…) by name; the rest (your own characters and styles too) go in the prompt
+    negEmbeddings() { return this.compatibleEmbeddings.filter((e) => isNegEmbedding(e)); },
+    posEmbeddings() { return this.compatibleEmbeddings.filter((e) => !isNegEmbedding(e)); },
     unknownTypeLoras() {
       return this.loras.filter((l) => !l.family || l.family === "unknown").length;
     },
@@ -2428,7 +2453,7 @@ const protoartApp = createApp({
         && !(this.hideNsfw && x.nsfw_auto)).slice(0, 400);
     },
     createSession() {  // Create's pictures: Image to image's results stay in Image to image (and the Library)
-      return this.session.filter((r) => !I2I_KINDS.includes(r.kind));
+      return this.session.filter((r) => !isI2iRecord(r));
     },
     expandAdvice() {  // ↔ Expand: a warning when the request is the kind that tends to give seams or repeats
       const o = this.form.outpaint, d = this.initDims;
@@ -2447,10 +2472,10 @@ const protoartApp = createApp({
       return { level: "ok", text: "One direction at a time, a moderate amount: this gives the cleanest results." };
     },
     i2iUsesKlein() {  // Image to image runs on FLUX.2 Klein: Edit with words, or Expand with the outpaint LoRA
-      return this.form.i2i_mode === "edit" || (this.form.i2i_mode === "outpaint" && this.form.outpaint_engine !== "model");
+      return ["edit", "combine", "camera"].includes(this.form.i2i_mode) || (this.form.i2i_mode === "outpaint" && this.form.outpaint_engine !== "model");
     },
     i2iResults() {
-      return this.session.filter((r) => I2I_KINDS.includes(r.kind));
+      return this.session.filter((r) => isI2iRecord(r));
     },
     i2iLatest() {
       return this.i2iResults[0] || null;
@@ -2688,6 +2713,7 @@ const protoartApp = createApp({
     // Create and Image to image each keep their own prompt and negative prompt: the prompt box shows the one for
     // the tab you're in (synchronous, so code that switches tab and then sets a prompt writes into the right one)
     tab: { flush: "sync", handler(v, old) {
+      currentTab = v;
       this.swapPrompts(v === "i2i" ? "i2i" : "create");
       if (v === "settings") { this.loadFolders(false); this.$nextTick(() => this.applySettingsFolds()); }
       // leaving Tools drops Adjust's GPU preview; coming back reloads it with the same settings
@@ -2787,16 +2813,17 @@ const protoartApp = createApp({
   },
 
   methods: {
+    // (and their own LoRAs: a LoRA added in Create isn't added to Image to image, and the other way round)
     swapPrompts(to) {
       const f = this.form;
       const owner = f.prompt_owner === "i2i" ? "i2i" : "create";
       if (to === owner) return;
       if (to === "i2i") {
-        f.create_prompt = f.prompt; f.create_negative = f.negative_prompt;
-        f.prompt = f.i2i_prompt || ""; f.negative_prompt = f.i2i_negative || "";
+        f.create_prompt = f.prompt; f.create_negative = f.negative_prompt; f.create_loras = f.loras || [];
+        f.prompt = f.i2i_prompt || ""; f.negative_prompt = f.i2i_negative || ""; f.loras = f.i2i_loras || [];
       } else {
-        f.i2i_prompt = f.prompt; f.i2i_negative = f.negative_prompt;
-        f.prompt = f.create_prompt || ""; f.negative_prompt = f.create_negative || "";
+        f.i2i_prompt = f.prompt; f.i2i_negative = f.negative_prompt; f.i2i_loras = f.loras || [];
+        f.prompt = f.create_prompt || ""; f.negative_prompt = f.create_negative || ""; f.loras = f.create_loras || [];
       }
       f.prompt_owner = to;
       this.lastEnhanced = null;  // an enhanced prompt belongs to the tab it was made in
@@ -2862,10 +2889,13 @@ const protoartApp = createApp({
         // (a Remove from Tools is tagged from_tools: Image to image's 🩹 Remove makes the same kind of picture)
         const fromJob = this.queue.find((j) => j.id === m.job);
         const sent = jobArgs.get(m.job);
-        const toolKinds = ["enhanced", "faces", "depth", "edited", "vector"];
-        const fromTools = sent ? (sent.cmd === "postprocess" || sent.cmd === "vectorize" || !!sent.args.from_tools)
-          : fromJob ? fromJob.cmd === "postprocess" : toolKinds.includes(m.record.kind);
-        if (!fromTools) this.session.unshift(m.record);
+        const toolKinds = ["enhanced", "faces", "depth", "edited", "vector", "cutout", "papercut", "layer"];
+        const toolCmds = ["postprocess", "vectorize", "cutout", "papercut", "procreate_layers", "peel_save"];
+        const cmd = sent ? sent.cmd : fromJob ? fromJob.cmd : null;
+        const startedIn = jobTab.get(m.job);
+        const fromTools = startedIn === "tools" || (cmd ? (toolCmds.includes(cmd) || !!(sent && sent.args.from_tools))
+          : toolKinds.includes(m.record.kind));
+        if (!fromTools) this.session.unshift({ ...m.record, _tab: startedIn === "i2i" ? "i2i" : startedIn === "create" ? "create" : undefined });
         if (m.record.model && m.record.kind === "generated") this.readyModel = m.record.model;
         if (m.record.nsfw && this.hideNsfw) this.status = "A new picture is covered by the NSFW filter (click it to look)";
         this.livePreview = null;
@@ -4101,6 +4131,18 @@ const protoartApp = createApp({
       this.tab = "create";
       if (!this.isInstalled(m)) this.status = `${m.label} selected · it downloads (${Math.round(m.download_gb)} GB) the first time you press Generate`;
     },
+    // Library details: which tool made a picture (Create, Image to image's modes, Tools…), with its main choices
+    madeWith(d) {
+      const st = (d && d.settings) || {};
+      if (st.camera) return "📷 Camera angle (FLUX.2 Klein) · " + (st.camera.view || "");
+      if (st.combine) return "🧩 Combine (FLUX.2 Klein)" + (st.combine.placed ? " · placed by hand" : " · placed by Klein") +
+        (st.combine.cut_out ? " · cut out first" : "") + (st.combine.match_light ? " · light matched" : "");
+      if (st.edit && st.edit.outpaint) return "↔ Expand (FLUX.2 Klein)";
+      if (d.kind === "word_edit") return "✨ Edit with words (FLUX.2 Klein)" + (st.edit && st.edit.painted ? " · painted area only" : "") +
+        (st.edit && st.edit.extra_pictures ? ` · ${st.edit.extra_pictures} extra picture${st.edit.extra_pictures > 1 ? "s" : ""}` : "");
+      if (d.kind === "generated") return "Create (text to image)";
+      return this.kindLabel(d.kind) || d.kind || "—";
+    },
     // a model this Mac doesn't have the memory for: greyed out and can't be picked (unless Settings → Load anyway)
     ramBlocked(m) {
       return !!m && m.enough_ram === false && !this.opts.force_load;
@@ -4728,10 +4770,10 @@ const protoartApp = createApp({
       this.session = this.session.filter((x) => x.id !== r.id);
     },
     clearSession() {  // Create's "clear all": Image to image's results stay where they are
-      this.session = this.session.filter((r) => I2I_KINDS.includes(r.kind));
+      this.session = this.session.filter((r) => isI2iRecord(r));
     },
     clearI2iResults() {  // Image to image's "clear all": takes its results off the screen (they stay in the Library)
-      this.session = this.session.filter((r) => !I2I_KINDS.includes(r.kind));
+      this.session = this.session.filter((r) => !isI2iRecord(r));
       this.i2iCompare = false;
     },
 
@@ -5707,10 +5749,11 @@ const protoartApp = createApp({
       if (this.pw.open) this.closePuppet();
       if (this.cut.open) this.closeCutout();
       this.tool.healing = false;
-      Object.assign(this.cut, { open: true, busy: true, msg: "Finding the subject (the first time downloads the model, ~224 MB)…", path: s.path, view: "result" });
+      Object.assign(this.cut, { open: true, busy: true, msg: this.opts.cut_model_ready ? "Finding the subject…" : "Finding the subject (first time only: downloading the model, ~224 MB; after that it's on this Mac)…", path: s.path, view: "result" });
       try {
         const r = await this.runJob("cutout", { ...this.toolArgs(), mode: "matte" });
         if (!r || !r.matte) throw new Error(this.error || "it didn't finish");
+        if (!this.opts.cut_model_ready) { this.opts.cut_model_ready = true; this.saveOpts(); }
         const [mb, ib] = await Promise.all([this.readImageBytes(r.matte), this.readImageBytes(s.path)]);
         const [mi, ii] = await Promise.all([createImageBitmap(new Blob([mb])), createImageBitmap(new Blob([ib]))]);
         const k = Math.min(1, 1200 / Math.max(ii.width, ii.height)), w = Math.max(1, Math.round(ii.width * k)), h = Math.max(1, Math.round(ii.height * k));
@@ -6531,6 +6574,24 @@ const protoartApp = createApp({
           + (here ? "" : ` (in ${owner === "i2i" ? "Image to image" : "Create"})`);
       }
     },
+    // ⇄ Convert: sentences → Stable Diffusion tags, or tags → sentences, with the prompt enhancer's small model
+    async convertPrompt(to) {
+      const f = this.form, owner = f.prompt_owner === "i2i" ? "i2i" : "create";
+      const text = f.prompt || "";
+      const loras = text.match(/<lora:[^>]+>/gi) || [];  // LoRA tags stay exactly as they are
+      const body = text.replace(/<lora:[^>]+>/gi, " ").replace(/\s+/g, " ").trim();
+      if (!body) return;
+      const res = await this.runJob("enhance_prompt", { prompt: body, width: f.width, height: f.height, model: f.model,
+                                                        family: to === "tags" ? "to_tags" : "to_natural" });
+      if (!res) return;
+      const out = [res.prompt, ...loras].join(to === "tags" ? ", " : " ").trim();
+      if ((f.prompt_owner === "i2i" ? "i2i" : "create") === owner) {
+        this.undoPrompt = text;
+        f.prompt = out;
+      } else if (owner === "i2i") f.i2i_prompt = out;
+      else f.create_prompt = out;
+      this.status = to === "tags" ? "Converted to Stable Diffusion tags (↩ undo puts yours back)" : "Converted to natural sentences (↩ undo puts yours back)";
+    },
     async toolTiled() {
       const f = this.form;
       // Not Create's prompt: every tile would try to draw that whole scene (new faces and people in each tile). A short
@@ -7224,9 +7285,12 @@ const protoartApp = createApp({
       if (f.i2i_mode === "camera") {  // 📷 the same picture from another angle, by FLUX.2 Klein
         this.error = "";
         const c = f.cam || {}, list = c.turnaround ? [0, 45, 90, 135, 180, 225, 270, 315].map((az) => ({ az, el: c.el, zoom: c.zoom })) : [c];
+        // the 8 views share one seed (a new random one each time if the seed is −1), so they stay alike
+        const seed = c.turnaround && (f.seed == null || +f.seed < 0) ? Math.floor(Math.random() * 2 ** 31) : f.seed;
         for (const v of list) {
-          this.runJob("edit_words", { init_image: f.init_image, prompt: camPrompt(v.az, v.el, v.zoom, f.prompt), seed: f.seed,
-                                      camera: { az: Math.round(v.az), el: Math.round(v.el), zoom: v.zoom, view: camWords(v.az, v.el, v.zoom).label } });
+          this.runJob("edit_words", { init_image: f.init_image, prompt: camPrompt(v.az, v.el, v.zoom, f.prompt, c.turnaround ? "single" : c.layout), seed,
+                                      camera: { az: Math.round(v.az), el: Math.round(v.el), zoom: v.zoom, layout: c.turnaround ? "single" : (c.layout || "single"),
+                                                view: c.turnaround || (c.layout || "single") === "single" ? camWords(v.az, v.el, v.zoom).label : c.layout === "comic" ? "comic panels" : "character sheet" } });
           await new Promise((r) => setTimeout(r, 60));  // keeps them in order in the queue
         }
         return;
@@ -7358,7 +7422,7 @@ const protoartApp = createApp({
     },
     // ---------------------------------------------------------------- 📷 Camera angle
     camLabel() { const c = this.form.cam; return camWords(c.az, c.el, c.zoom).label; },
-    camPromptText() { const c = this.form.cam; return camPrompt(c.az, c.el, c.zoom, this.form.prompt); },
+    camPromptText() { const c = this.form.cam; return camPrompt(c.az, c.el, c.zoom, this.form.prompt, c.turnaround ? "single" : c.layout); },
     camSet(k, v) {
       const c = this.form.cam;
       if (k === "az") c.az = ((Math.round(v) % 360) + 360) % 360;
@@ -7680,7 +7744,7 @@ const protoartApp = createApp({
     },
     suggestNegative(random) {
       this.undoNegative = this.form.negative_prompt;
-      const embeds = this.compatibleEmbeddings.map((e) => e.name).filter((n) => this.inNegative(n));  // keep your embeddings
+      const embeds = this.negEmbeddings.map((e) => e.name).filter((n) => this.inNegative(n));  // keep the negative embeddings already there
       this.form.negative_prompt = [...embeds, this.makeNegative(random)].join(", ");
       this.lastAutoNegative = this.form.negative_prompt;
       this.status = "Negative prompt written for " + this.familyLabel + (random ? " (with random extras)" : "") + ": edit it as you like";
@@ -7846,7 +7910,7 @@ const protoartApp = createApp({
     kindLabel(kind) {
       return { generated: "Original", img2img: "Image-to-image", faces: "Face-restored", enhanced: "Enhanced",
                depth: "Depth map", inpaint: "Inpainted", outpaint: "Expanded", grid: "Comparison grid",
-               edited: "Edited", healed: "Objects removed", word_edit: "Edited with words", combined: "Combined", faceswap: "Face swap",
+               edited: "Edited", healed: "Objects removed", word_edit: "Edited with words", combined: "Combined", camera_angle: "Camera angle", faceswap: "Face swap",
                chain: "Model chain", tiled: "Tiled upscale", animation: "Animation", layer: "Layer", cutout: "Cut out",
                papercut: "Paper cut-out" }[kind] || kind;
     },

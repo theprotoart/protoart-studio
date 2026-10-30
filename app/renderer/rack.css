@@ -2412,3 +2412,18 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .model-item.unavail.on { opacity: .7; }
 .unavail-text { color: #e07a6a; font-weight: 600; }
 button:disabled { cursor: not-allowed; }
+
+/* the Generate / Add to queue bar stays above everything that scrolls under it (the Images fader's cap and numbers) */
+.actions { z-index: 20; }
+
+/* Tools: the picture stays in view while you scroll down through the modules, so changes can be seen as you make them */
+@media (min-width: 901px) {
+  .tools > .tool-source { position: sticky; top: -16px; max-height: calc(100vh - 160px); overflow-y: auto; overscroll-behavior: contain; z-index: 5; }
+}
+/* each module's ↺ never covers its title: the title wraps before it */
+.rack-module .mod-head:has(.mod-reset) h3, .rack-module .mod-head:has(.mod-reset) .mod-sub { padding-right: 46px; box-sizing: border-box; max-width: 100%; }
+.cam-now { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.cam-reset { font-size: 11px; }
+.cam-explain { margin: 2px 0 6px; }
+label.dim { opacity: .5; }
+input[type=range]:disabled { opacity: .35; }

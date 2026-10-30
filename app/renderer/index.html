@@ -143,7 +143,7 @@
           </select>
           <select title="Show only one kind of picture: originals, image-to-image results, face-restored, enhanced…" v-model="lib.kind" @change="queryLibrary()">
             <option value="">All versions</option><option value="generated">Originals</option>
-            <option value="img2img">Image-to-image</option><option value="faces">Face-restored</option><option value="enhanced">Enhanced</option><option value="healed">Objects removed</option><option value="word_edit">Edited with words</option>
+            <option value="img2img">Image-to-image</option><option value="faces">Face-restored</option><option value="enhanced">Enhanced</option><option value="healed">Objects removed</option><option value="word_edit">Edited with words</option><option value="combined">Combined</option><option value="camera_angle">Camera angle</option>
           </select>
         </div>
         <div class="slot-line">
@@ -328,11 +328,20 @@
           <button class="ptool" :class="{open: ptool === 'random'}" @click="randomPrompt(); ptool = 'random'; wild.open = false"
                   :title="naturalPrompts() ? 'A random scene written in sentences (what ' + familyLabel + ' reads best); its options open below' : 'A random Danbooru-style tag prompt; its options open below'">
             <i class="ptool-lamp" :class="{on: rnd.every}"></i>🎲<b>Random</b></button>
+          <button class="ptool" :class="{open: ptool === 'convert'}" @click="togglePtool('convert')" title="Convert the prompt: plain sentences ⇄ Stable Diffusion tags, so a prompt you like works with any kind of model">⇄<b>Convert</b></button>
           <button class="ptool" :class="{open: wild.open}" @click="togglePtool('wild')" title="Wildcards: {red|blue} picks one per image; __name__ picks a line from a wildcard file">{ }<b>Wildcards</b></button>
           <button class="ptool" :class="{open: batch.open}" @click="batch.open = true" title="Prompt list: queue one job per line of a list of prompts">📋<b>List</b></button>
           <button class="ptool" @click="$refs.settingsPick.click()" title="Load the settings a picture was made with (A1111, ComfyUI, InvokeAI or this app write them into PNGs), or a .json of settings / a ComfyUI workflow">📥<b>Settings</b></button>
           <input ref="settingsPick" type="file" accept=".png,.jpg,.jpeg,.webp,.json,application/json,image/png,image/jpeg,image/webp" hidden @change="onSettingsPicked">
           <button v-if="undoPrompt" class="link ptool-undo" @click="form.prompt = undoPrompt; undoPrompt = null" title="Put the prompt back as it was">↩ undo</button>
+        </div>
+        <div v-if="ptool === 'convert'" class="wild-panel ptool-panel">
+          <div class="hint">Rewrites the prompt in the other form, keeping what it describes (nothing is added). {{ familyLabel }}
+            reads <b>{{ naturalPrompts() ? 'sentences' : 'tags' }}</b> best. LoRA tags like &lt;lora:…&gt; are kept as they are; ↩ undo puts your prompt back.</div>
+          <div class="row small">
+            <button class="ghost small" @click="convertPrompt('tags')" :disabled="!form.prompt.trim()" title="A description in sentences → short comma-separated tags (SD 1.5, SDXL, Pony, Illustrious)">→ 🏷 Stable Diffusion tags</button>
+            <button class="ghost small" @click="convertPrompt('natural')" :disabled="!form.prompt.trim()" title="Comma-separated tags → plain sentences (FLUX, FLUX.2 Klein, ERNIE, Anima, MOSS-Image, Edit with words)">→ 💬 Natural sentences</button>
+          </div>
         </div>
         <div v-if="ptool === 'enhance'" class="wild-panel ptool-panel">
           <div class="row small">
@@ -426,6 +435,11 @@
                   :title="tagsInPrompt ? 'Already at the start of your prompt' : 'Put these at the start of the prompt (and the low-quality ones in the negative prompt) so you can see and edit them'">
             {{ flavorTags }} <b>{{ tagsInPrompt ? '✓ in prompt' : '⤴ put in prompt' }}</b></button>
         </div>
+        <div v-if="posEmbeddings.length" class="trig-row emb-row">
+          <span class="hint" title="Embeddings that add a character, a style or a look: they go in the prompt (yours from Train too)">Embeddings (prompt):</span>
+          <button v-for="e in posEmbeddings" :key="'p' + e.name" class="chip trig" :class="{on: inPrompt(e.name)}"
+                  @click="togglePromptWord(e.name)" title="Click to add to / remove from the prompt">{{ e.name }}</button>
+        </div>
         <div class="neg-head">
           <span class="neg-title">Negative prompt <span v-if="['flux', 'flux2'].includes(family)" class="hint">· FLUX mostly ignores it</span></span>
           <span class="grow"></span>
@@ -441,10 +455,10 @@
           </select>
           <button class="link" @click="savePromptPreset('negative')" :disabled="!(form.negative_prompt || '').trim()" title="Keep this negative prompt under a name, to use again with any prompt">＋ save</button>
         </div>
-        <div v-if="compatibleEmbeddings.length" class="trig-row emb-row">
-          <span class="hint">Embeddings:</span>
-          <button v-for="e in compatibleEmbeddings" :key="e.name" class="chip trig" :class="{on: inNegative(e.name) || inPrompt(e.name)}"
-                  @click="toggleNegativeWord(e.name)" title="Click to add to / remove from the negative prompt (or type its name in the prompt)">{{ e.name }}</button>
+        <div v-if="negEmbeddings.length" class="trig-row emb-row">
+          <span class="hint">Negative embeddings:</span>
+          <button v-for="e in negEmbeddings" :key="e.name" class="chip trig" :class="{on: inNegative(e.name) || inPrompt(e.name)}"
+                  @click="toggleNegativeWord(e.name)" title="Click to add to / remove from the negative prompt">{{ e.name }}</button>
         </div>
         <textarea class="tape tape-neg" v-model="form.negative_prompt" rows="2" placeholder="What to avoid…"></textarea>
         <div class="seed-row neg-seed"><label>Seed <span class="hint">-1 = random · the same seed and settings make the same picture</span></label>
@@ -2722,22 +2736,34 @@
               <line x1="18" y1="62" :x2="camDot().ex" :y2="camDot().ey" class="ray"/><circle :cx="camDot().ex" :cy="camDot().ey" r="4.5" class="cam"/>
             </svg>
           </div>
-          <div class="cam-now"><b>{{ camLabel() }}</b></div>
-          <label>Around <span class="hint">{{ form.cam.az }}°</span>
-            <select :value="Math.round(form.cam.az / 45) % 8 * 45" @change="camSet('az', +$event.target.value)" class="cam-pick">
+          <label>Make</label>
+          <div class="seg cam-what">
+            <button :class="{on: !form.cam.turnaround}" @click="form.cam.turnaround = false" title="One new picture, from the angle you set below">📷 One new angle</button>
+            <button :class="{on: form.cam.turnaround}" @click="form.cam.turnaround = true" title="8 pictures, one every 45° all the way around the subject (front, front-right, right side… front-left), at the height and distance you set below">🔄 All 8 around (turnaround)</button>
+          </div>
+          <div class="cam-now"><b>{{ form.cam.turnaround ? 'all 8 directions · ' + camLabel().split(' · ').slice(1).join(' · ') : camLabel() }}</b>
+            <button class="ghost small cam-reset" @click="Object.assign(form.cam, {az: 0, el: 0, zoom: 5})" title="Back to the start: front view, eye level, medium shot">↺ Reset camera</button></div>
+          <div class="hint cam-explain">{{ form.cam.turnaround
+            ? 'Around isn\'t used: the 8 pictures go all the way around. Up / down and How close apply to all 8, and they share one seed so they stay alike.'
+            : 'Each slider moves the camera; the list above it jumps to the nearest named position. The card above shows roughly what the camera will see.' }}</div>
+          <label :class="{dim: form.cam.turnaround}">Around <span class="hint">{{ form.cam.turnaround ? 'all 8, every 45°' : form.cam.az + '° · where the camera stands around the subject' }}</span>
+            <select :disabled="form.cam.turnaround" :value="Math.round(form.cam.az / 45) % 8 * 45" @change="camSet('az', +$event.target.value)" class="cam-pick">
               <option v-for="(v, i) in CAM_VIEWS" :key="v" :value="i * 45">{{ v }}</option></select></label>
-          <input type="range" min="0" max="359" step="1" :value="form.cam.az" @input="camSet('az', +$event.target.value)">
-          <label>Up / down <span class="hint">{{ form.cam.el }}°</span>
+          <input type="range" min="0" max="359" step="1" :disabled="form.cam.turnaround" :value="form.cam.az" @input="camSet('az', +$event.target.value)">
+          <label>Up / down <span class="hint">{{ form.cam.el }}° · below the subject looking up (−) or above looking down (+)</span>
             <select :value="CAM_ELEV.reduce((b, e) => Math.abs(e.at - form.cam.el) < Math.abs(b.at - form.cam.el) ? e : b).at" @change="camSet('el', +$event.target.value)" class="cam-pick">
               <option v-for="e in CAM_ELEV" :key="e.at" :value="e.at">{{ e.name }}</option></select></label>
           <input type="range" min="-30" max="60" step="1" :value="form.cam.el" @input="camSet('el', +$event.target.value)">
-          <label>How close <span class="hint">{{ form.cam.zoom }}</span>
+          <label>How close <span class="hint">{{ form.cam.zoom }} · 0 far away (whole body and surroundings) to 10 a close-up</span>
             <select :value="CAM_DIST.reduce((b, d) => Math.abs(d.at - form.cam.zoom) < Math.abs(b.at - form.cam.zoom) ? d : b).at" @change="camSet('zoom', +$event.target.value)" class="cam-pick">
               <option v-for="d in CAM_DIST" :key="d.at" :value="d.at">{{ d.name }}</option></select></label>
           <input type="range" min="0" max="10" step="0.5" :value="form.cam.zoom" @input="camSet('zoom', +$event.target.value)">
-          <div class="seg"><button @click="Object.assign(form.cam, {az: 0, el: 0, zoom: 5})" title="Front view, eye level, medium shot">↺ Front</button></div>
-          <label class="check" title="Makes 8 pictures, one every 45° around the subject (at this height and distance): a character turnaround sheet. Each one takes as long as one edit">
-            <input type="checkbox" v-model="form.cam.turnaround"> 🔄 All 8 views (a turnaround)</label>
+          <label>Picture layout <span v-if="form.cam.turnaround" class="hint">the 8 around are always one view each</span></label>
+          <div class="seg cam-what">
+            <button :disabled="form.cam.turnaround" :class="{on: form.cam.turnaround || (form.cam.layout || 'single') === 'single'}" @click="form.cam.layout = 'single'" title="One picture, one camera view of the subject (no panels or extra copies)">🖼 One view</button>
+            <button :disabled="form.cam.turnaround" :class="{on: !form.cam.turnaround && form.cam.layout === 'comic'}" @click="form.cam.layout = 'comic'" title="A comic-book page: a few panels showing the subject from different angles">🗯 Comic panels</button>
+            <button :disabled="form.cam.turnaround" :class="{on: !form.cam.turnaround && form.cam.layout === 'sheet'}" @click="form.cam.layout = 'sheet'" title="A character sheet: the subject shown from the front, side and back, side by side on a plain background">🧍 Character sheet</button>
+          </div>
           <div class="hint">Anything to add goes in <b>3 · Prompt</b> (optional, e.g. “she is holding the sword”). The words sent: <i>{{ camPromptText() }}</i></div>
         </template>
         <template v-else-if="form.i2i_mode === 'faceswap'">
@@ -2910,8 +2936,8 @@
         <div class="hint">{{ familyLabel }} · the sampler, steps and guidance are shared with Create.</div>
       </div>
 
-      <div v-if="!i2iUsesKlein && form.i2i_mode !== 'faceswap'" class="card i2i-loras i2ifold" :class="{shut: i2iShut('loras')}">
-        <h3 @click="i2iFoldToggle('loras', $event)">LoRAs <span class="hint">· {{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · shared with Create</span>
+      <div v-if="!i2iUsesKlein && !['faceswap', 'peel', 'remove'].includes(form.i2i_mode)" class="card i2i-loras i2ifold" :class="{shut: i2iShut('loras')}">
+        <h3 @click="i2iFoldToggle('loras', $event)">LoRAs <span class="hint">· {{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · its own list (separate from Create's)</span>
           <button v-if="form.loras.length" class="link small-link" @click="form.loras = []">clear all</button><span class="cfold-chev" aria-hidden="true"></span></h3>
         <div v-for="(l, i) in form.loras" :key="l.name" class="lora-row">
           <span class="lora-name" :title="l.name">{{ l.name }}</span>
@@ -3081,7 +3107,7 @@
       <div v-if="form.i2i_mode !== 'faceswap'" class="card i2ifold" :class="{shut: i2iShut('prompt')}">
         <h3 @click="i2iFoldToggle('prompt', $event)">3 · Prompt <span v-if="i2iShut('prompt')" class="cfold-sum">{{ form.prompt ? (form.prompt.length > 60 ? form.prompt.slice(0, 59) + '…' : form.prompt) : 'empty' }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <textarea class="tape" v-model="form.prompt" rows="3"
-                  :placeholder="form.i2i_mode === 'edit' ? 'The change, in a sentence: make the jacket red · add a hat · turn it into a watercolour…' : i2iUsesKlein ? 'Optional: what goes around the picture · more of the street · a sunny beach · the rest of the room…' : 'What the result should look like…'"></textarea>
+                  :placeholder="form.i2i_mode === 'camera' ? 'Optional: anything to add · she is holding the sword · he is smiling…' : form.i2i_mode === 'combine' ? 'Where and doing what · sitting on the bench, waving · standing on the left, small, in the distance…' : form.i2i_mode === 'edit' ? 'The change, in a sentence: make the jacket red · add a hat · turn it into a watercolour…' : i2iUsesKlein ? 'Optional: what goes around the picture · more of the street · a sunny beach · the rest of the room…' : 'What the result should look like…'"></textarea>
         <div v-if="i2iUsesKlein && form.i2i_mode === 'outpaint'" class="row small i2i-enhance">
           <button class="link" @click="suggestExpandPrompt" :disabled="!form.init_image"
                   title="Describe your picture (on this Mac) and ask for more of the same scene around it: a good starting prompt you can edit">💡 suggest from the picture</button>
@@ -4296,9 +4322,10 @@
           <tr><td>Seed</td><td>{{ detail.seed }}
             <button v-if="detail.seed != null" class="link small-link" @click="findSeed(detail.seed)" title="Show every picture in the Library made with this seed">find all with this seed</button></td></tr>
           <tr v-if="detail.settings?.clip_skip"><td>CLIP skip</td><td>{{ detail.settings.clip_skip }}</td></tr>
-          <tr v-if="detail.loras.length"><td>LoRAs</td>
+          <tr><td>Made with</td><td>{{ madeWith(detail) }}</td></tr>
+          <tr><td>LoRAs</td>
             <td><button v-for="l in detail.loras" :key="l.name" class="chip static lora-link" @click="filterByLora(l.name)"
-                        title="Show all images made with this LoRA">{{ l.name }} {{ l.weight }}</button></td></tr>
+                        title="Show all images made with this LoRA">{{ l.name }} {{ l.weight }}</button><span v-if="!detail.loras.length" class="hint">none</span></td></tr>
           <tr><td>Created</td><td>{{ new Date(detail.created_at*1000).toLocaleString() }}</td></tr>
           <tr><td>Content</td><td>{{ nsfwReason(detail) }}
             <span class="nsfw-marks">

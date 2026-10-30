@@ -3930,15 +3930,15 @@ class Engine:
                     "engine": "mlx", "loras": [], "seconds": round(secs, 1),
                     "edit": {"painted": mask is not None, "extra_pictures": len(refs)}}
         if isinstance(args.get("camera"), dict):  # 📷 Camera angle
-            settings["camera"] = {k: args["camera"].get(k) for k in ("az", "el", "zoom", "view")}
+            settings["camera"] = {k: args["camera"].get(k) for k in ("az", "el", "zoom", "view", "layout")}
         if combine is not None:
             settings["combine"] = {"placed": bool(combine.get("place")), "cut_out": combine.get("cutout") is not False,
                                    "match_light": combine.get("match_light") is not False}
         if args.get("loras"):
             settings["loras"] = [{"name": l["name"], "weight": float(l.get("weight", 1.0))} for l in args["loras"] if isinstance(l, dict) and l.get("name")]
-        path = self._save(result, settings, suffix="combined" if combine is not None else "wordedit")
-        record = self.library.add_image(path, settings, parent_id=src.get("id"),
-                                        kind="combined" if combine is not None else "word_edit")
+        kind = "combined" if combine is not None else "camera_angle" if isinstance(args.get("camera"), dict) else "word_edit"
+        path = self._save(result, settings, suffix={"combined": "combined", "camera_angle": "angle"}.get(kind, "wordedit"))
+        record = self.library.add_image(path, settings, parent_id=src.get("id"), kind=kind)
         record["thumb"] = str(thumbs.make(record["id"], path, result) or "") or None
         record = self._content_check(record, result)
         self.emit({"type": "image", "record": record})

@@ -58,6 +58,16 @@ SYSTEM = {
         "change the season, weather, time of day, material, era or mood to its striking opposite. Write it as 15 to 25 "
         "short comma-separated tags (Danbooru-style tags when they fit). No sentences. Always write in English. "
         "Output only the tags on one line."),
+    "to_tags": (
+        "You convert a plain-language image description into a Stable Diffusion prompt made of short comma-separated "
+        "tags (Danbooru-style tags when they fit, e.g. 1boy, beard, red cape, city background, night). Keep every "
+        "detail the description gives, in the same order of importance, and add nothing new: no extra details and no "
+        "quality tags. No sentences. Always write in English. Output only the tags on one line."),
+    "to_natural": (
+        "You convert a Stable Diffusion tag prompt (short comma-separated tags) into a natural description for an image "
+        "model that reads plain language. Write 1 to 3 clear sentences that keep every detail the tags give and add "
+        "nothing new. Leave out quality tags such as masterpiece, best quality, highres, absurdres, score_9. "
+        "Always write in English. Output only the description."),
 }
 EXAMPLES = {
     "natural": ("a fox in snow",
@@ -87,6 +97,14 @@ EXAMPLES = {
     "region_tags": ("a vintage 60s car",
                     "vintage car, 1960s, red convertible, rounded fenders, chrome bumper, whitewall tires, "
                     "three-quarter view, glossy paint"),
+    "to_tags": ("A young woman with long silver hair and green eyes stands on a rooftop at night, wearing a black "
+                "leather jacket, with neon city lights glowing behind her.",
+                "1girl, solo, long hair, silver hair, green eyes, standing, rooftop, night, black jacket, "
+                "leather jacket, city lights, neon lights, cityscape background"),
+    "to_natural": ("masterpiece, best quality, 1boy, solo, beard, red cape, armor, standing, city, night, "
+                   "buildings, lights, from below",
+                   "A bearded man in armour and a red cape stands in a city at night, seen from below, with "
+                   "buildings and lights around him."),
     "edit": ("make her jacket red",
              "Change the woman's jacket to a deep red leather jacket with the same cut and fit, keeping her face, "
              "pose, hair, the background and the lighting exactly as they are."),
@@ -97,7 +115,7 @@ QUALITY_TAGS = ["masterpiece", "best quality", "highly detailed"]
 def style_for(family, contrast=False):
     """Tags for the Stable Diffusion models (SD 1.5, SDXL incl. Pony / Illustrious / NoobAI), sentences for the
     models that read language (ERNIE, FLUX, FLUX.2); "edit" rewrites an editing instruction (Edit with words)."""
-    if family in ("edit", "outpaint", "region", "region_tags"):
+    if family in ("edit", "outpaint", "region", "region_tags", "to_tags", "to_natural"):
         return family
     tags = family in ("sd15", "sdxl")
     if contrast:  # 🔄 contrast: the same scene turned into its striking opposite
@@ -141,7 +159,7 @@ class PromptEnhancer:
         inputs = tok(text, return_tensors="pt").to(self.device)
         start = inputs["input_ids"].shape[1]
         emit = self.emit
-        limit = {"tags": 110, "contrast_tags": 110, "edit": 80, "outpaint": 80, "region": 80, "region_tags": 60}.get(style, 170)
+        limit = {"to_tags": 120, "to_natural": 150, "tags": 110, "contrast_tags": 110, "edit": 80, "outpaint": 80, "region": 80, "region_tags": 60}.get(style, 170)
 
         class Watch(StoppingCriteria):
             def __call__(self, input_ids, scores, **kw):
@@ -165,7 +183,7 @@ class PromptEnhancer:
                 return scores.masked_fill(m.unsqueeze(0), float("-inf"))
 
         with torch.no_grad():
-            out = model.generate(**inputs, max_new_tokens=limit, do_sample=True, temperature=0.6, top_p=0.9,
+            out = model.generate(**inputs, max_new_tokens=limit, do_sample=True, temperature=0.3 if style.startswith("to_") else 0.6, top_p=0.9,
                                  repetition_penalty=1.1, pad_token_id=tok.eos_token_id,
                                  logits_processor=LogitsProcessorList([BlockForeign()]),
                                  stopping_criteria=StoppingCriteriaList([Watch()]))
@@ -263,6 +281,14 @@ def clean(text, original, style):
                 seen.add(tag.lower())
                 tags.append(tag)
         return ", ".join(tags[:16])
+    if style == "to_tags":  # a conversion: the same details as tags, nothing added (no quality tags)
+        seen, tags = set(), []
+        for raw in re.split(r",|\.|;", t):
+            tag = raw.strip().strip("*-").strip()
+            if tag and len(tag) <= 40 and tag.lower() not in seen:
+                seen.add(tag.lower())
+                tags.append(tag)
+        return ", ".join(tags)
     if style in ("tags", "contrast_tags"):
         if style == "contrast_tags":
             original = ""  # a contrast is a new scene: the user's own tags aren't put back in front
