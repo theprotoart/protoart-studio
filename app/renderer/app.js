@@ -1909,9 +1909,13 @@ const protoartApp = createApp({
       const c = (window.TAG_DICT || {})[this.ideas.cat];
       if (!c) return [];
       const q = this.ideas.q.trim().toLowerCase();
-      const all = q ? Object.values(window.TAG_DICT).flatMap((x) => x.tags) : c.tags;
+      const of = (x) => [...x.tags, ...(this.ideasMature ? x.mature || [] : [])];
+      const all = q ? Object.values(window.TAG_DICT).flatMap(of) : of(c);
       return [...new Set(all.filter((t) => !q || t.includes(q)))].slice(0, 300);
     },
+    // mature ideas (swimwear, lingerie-style clothes, suggestive poses; nothing explicit) only with Hide NSFW off
+    ideasMature() { return !this.hideNsfw && !this.opts.sfw_mode; },
+    matureIdeas() { return new Set(Object.values(window.TAG_DICT || {}).flatMap((x) => x.mature || [])); },
     negEmbeddings() { return this.compatibleEmbeddings.filter((e) => isNegEmbedding(e)); },
     posEmbeddings() { return this.compatibleEmbeddings.filter((e) => !isNegEmbedding(e)); },
     unknownTypeLoras() {
@@ -6601,7 +6605,8 @@ const protoartApp = createApp({
     },
     // 📚 Ideas: tags by category (from Corneo's visual tag dictionaries), click to add, 🎲 for a random one
     randomIdea(cat) {
-      const list = ((window.TAG_DICT || {})[cat] || {}).tags || [];
+      const c = (window.TAG_DICT || {})[cat] || {};
+      const list = [...(c.tags || []), ...(this.ideasMature ? c.mature || [] : [])];
       const free = list.filter((t) => !this.inPrompt(t));
       if (!free.length) return;
       const t = free[Math.floor(Math.random() * free.length)];

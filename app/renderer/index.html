@@ -346,10 +346,11 @@
             <button class="ghost small" @click="randomIdeas()" title="One random idea from several categories at once (pose, expression, hair, outfit, shoes, framing)">🎲 Mix</button>
           </div>
           <div class="trig-row ideas-chips">
-            <button v-for="t in ideasShown" :key="t" class="chip trig" :class="{on: inPrompt(t)}" @click="togglePromptWord(t)" :title="inPrompt(t) ? 'In the prompt: click to take it out' : 'Click to add to the prompt'">{{ t }}</button>
+            <button v-for="t in ideasShown" :key="t" class="chip trig" :class="{on: inPrompt(t), mature: matureIdeas.has(t)}" @click="togglePromptWord(t)" :title="inPrompt(t) ? 'In the prompt: click to take it out' : 'Click to add to the prompt'">{{ t }}</button>
             <span v-if="!ideasShown.length" class="hint">No match.</span>
           </div>
-          <div class="hint">Tags tested on anime-style SDXL models (Pony, Illustrious, NoobAI); they work as plain words with other models too. 🎲 Random prompt uses them as well.</div>
+          <div class="hint">Tags tested on anime-style SDXL models (Pony, Illustrious, NoobAI); they work as plain words with other models too. 🎲 Random prompt uses them as well (safe-for-work ones only).
+            {{ ideasMature ? 'Hide NSFW is off: mature ideas are included, marked ⚑.' : 'Mature ideas (marked ⚑) show when Hide NSFW is off.' }}</div>
         </div>
         <div v-if="ptool === 'convert'" class="wild-panel ptool-panel">
           <div class="hint">Rewrites the prompt in the other form, keeping what it describes (nothing is added). {{ familyLabel }}

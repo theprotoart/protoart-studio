@@ -2432,3 +2432,4 @@ input[type=range]:disabled { opacity: .35; }
 .ideas-cats button { font-size: 11px; padding: 3px 7px; }
 .ideas-search { flex: 1; min-width: 120px; }
 .ideas-chips { max-height: 190px; overflow-y: auto; margin: 6px 0; }
+.ideas-chips .chip.mature::after { content: " ⚑"; color: #e07a6a; }
