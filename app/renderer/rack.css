@@ -2427,3 +2427,4 @@ button:disabled { cursor: not-allowed; }
 .cam-explain { margin: 2px 0 6px; }
 label.dim { opacity: .5; }
 input[type=range]:disabled { opacity: .35; }
+.emb-role .seg button { padding: 2px 8px; font-size: 11px; }

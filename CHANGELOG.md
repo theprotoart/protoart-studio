@@ -10,6 +10,11 @@
   (`blend_area`, with room for a contact shadow) redrawn; the rest is the original. Saved as kind `combined`
 - 💡 Match the scene's light (`compose.match_light`): LAB mean / contrast transfer towards the scene (or the area
   around where it's placed), the subject's own colours and shading kept, strength slider
+- 🙂 Keep faces (Edit with words, `keep_faces`, default on): `_klein_faces` finds faces (RetinaFace) and redoes each
+  close up (`detailer.face_crop`, the original crop as both pictures), colour-matched and pasted back; small pictures
+  are worked on at up to 2× and keep the bigger result when nothing was painted. Embedding roles (`embedding_role`,
+  library setting `embedding_roles`, checkpoints share their embedding's role): Train → Use it in, Models →
+  Embeddings ✏️ / 🚫, right-click in Create
 - Fixes from testing: Camera angle prompt asks for one single view (no panels / split / extra copies); Make: one angle
   or 🔄 all 8 around (Around greyed out, one shared seed), ↺ Reset camera, Picture layout (one view / 🗯 comic panels /
   🧍 character sheet), kind `camera_angle`; ⇄ Convert (enhancer styles `to_tags` / `to_natural`, LoRA tags kept);

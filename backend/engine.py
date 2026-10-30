@@ -3863,10 +3863,13 @@ class Engine:
             image, ref_imgs, mask, prompt = self._combine_prepare(image, refs, ref_imgs, combine, prompt)
         ram = total_ram_gb()
         side = 768 if 0 < ram < 12 else 1024
-        scale = min(1.5, side / max(1.0, (image.width * image.height) ** 0.5))
+        # small pictures are worked on bigger (up to 2×): faces and small details come out much closer to the original
+        scale = min(2.0, side / max(1.0, (image.width * image.height) ** 0.5))
         width = max(256, int(image.width * scale) // 16 * 16)
         height = max(256, int(image.height * scale) // 16 * 16)
         steps = max(1, min(12, int(args.get("steps") or spec["defaults"]["steps"])))
+        keep_faces = bool(args.get("keep_faces"))
+        faces_redone = 0
         seed = int(args.get("seed") if args.get("seed") not in (None, "", -1) else random.randint(0, 2**32 - 1)) % 2**32
         started = time.time()
         if self.cancel_event.is_set():
@@ -3888,6 +3891,7 @@ class Engine:
                 ref_files.append(str(p))
             out = tmp / f"edit_out_{os.getpid()}.png"
             self.emit({"type": "status", "msg": "Editing with FLUX.2 Klein (fast engine)…"})
+            face_files = []
 
             def on_event(ev):
                 if ev.get("type") == "progress":
@@ -3902,8 +3906,12 @@ class Engine:
                                   "height": height, "steps": steps, "cfg": 1.0, "seed": seed, "out": str(out),
                                   "preview": self.previews, "image_paths": ref_files}, on_event=on_event)
                 result = Image.open(out).convert("RGB")
+                if keep_faces and mask is None and combine is None and not self.cancel_event.is_set():
+                    # 🙂 Keep faces: each face is edited again on its own, close up (it fills the picture, so Klein
+                    # keeps its features), with the original face as a second picture, and blended into the result
+                    result, faces_redone = self._klein_faces(image, result, prompt, seed, steps, tmp, on_event, face_files)
             finally:
-                for f in [out, *map(Path, ref_files)]:
+                for f in [out, *map(Path, ref_files), *face_files]:
                     try:
                         Path(f).unlink()
                     except OSError:
@@ -3912,7 +3920,9 @@ class Engine:
             raise Cancelled()
         except mlx_engine.EngineError as e:
             raise UserError(str(e))
-        result = result.resize(image.size, Image.LANCZOS)
+        # a small picture worked on bigger keeps the bigger result (unless only a painted part changed)
+        if mask is not None or width * height < image.width * image.height * 1.3:
+            result = result.resize(image.size, Image.LANCZOS)
         if mask is not None:
             # only the painted area changes, with a soft edge; everything else is the untouched original
             m = mask.convert("L").point(lambda v: 255 if v > 127 else 0).filter(ImageFilter.MaxFilter(5))
@@ -3928,7 +3938,7 @@ class Engine:
         settings = {"model": self.EDIT_MODEL, "prompt": prompt, "negative_prompt": "", "width": result.width,
                     "height": result.height, "steps": steps, "cfg": 1.0, "sampler": "flow_euler", "seed": seed,
                     "engine": "mlx", "loras": [], "seconds": round(secs, 1),
-                    "edit": {"painted": mask is not None, "extra_pictures": len(refs)}}
+                    "edit": {"painted": mask is not None, "extra_pictures": len(refs), "faces_redone": faces_redone}}
         if isinstance(args.get("camera"), dict):  # 📷 Camera angle
             settings["camera"] = {k: args["camera"].get(k) for k in ("az", "el", "zoom", "view", "layout")}
         if combine is not None:
@@ -3943,6 +3953,50 @@ class Engine:
         record = self._content_check(record, result)
         self.emit({"type": "image", "record": record})
         return record
+
+    def _klein_faces(self, original, result, prompt, seed, steps, tmp, on_event, files, max_faces=3):
+        """🙂 Keep faces (Edit with words): find the faces in the original; for each, the same edit is made again on a
+        close-up crop of the original face (with that face as a reference picture too), then blended into the result
+        with its light matched. -> (result, how many faces were redone)"""
+        import detailer
+        from PIL import Image
+        base = original.resize(result.size, Image.LANCZOS)
+        ff = self._face_finder_ready()
+        if ff is None:
+            self.emit({"type": "status", "msg": "🙂 Keep faces needs the face finder that Restore faces downloads: use Restore faces once (Tools), then it works offline."})
+            return result, 0
+        try:
+            boxes = ff.find(base, min_score=0.6, min_size=12)[:max_faces]
+        except Exception as e:
+            print("[engine] face finder unavailable:", e, flush=True)
+            return result, 0
+        work = 768 if 0 < total_ram_gb() < 12 else 1024
+        done = 0
+        for i, box in enumerate(boxes):
+            if self.cancel_event.is_set():
+                break
+            self.emit({"type": "status", "msg": f"Keeping the face close to the original ({i + 1} of {len(boxes)})…"})
+            crop, region, fmask = detailer.face_crop(base, box, padding=2.2, work=work)
+            src_p, out_p = tmp / f"edit_face_{os.getpid()}_{i}.png", tmp / f"edit_face_out_{os.getpid()}_{i}.png"
+            crop.save(src_p)
+            files += [src_p, out_p]
+            text = (prompt + " This is a close-up of the face: keep exactly the same person, with the same face shape, "
+                    "eyes, nose, mouth, age, expression and head angle as in the pictures; change only what the "
+                    "instruction asks for.")
+            self.mlx.request({"cmd": "generate", "prompt": text, "negative_prompt": None, "width": work, "height": work,
+                              "steps": steps, "cfg": 1.0, "seed": seed, "out": str(out_p), "preview": False,
+                              "image_paths": [str(src_p), str(src_p)]}, on_event=on_event)
+            new = Image.open(out_p).convert("RGB")
+            left, top, right, bottom = region
+            around = result.crop(region).resize(new.size, Image.LANCZOS)
+            try:  # the close-up's light and colour matched to the result around the face, so it blends in
+                import color_match
+                new = color_match.match_to_original(new, around, fmask)
+            except Exception as e:
+                print("[engine] face colour match skipped:", e, flush=True)
+            result = detailer.paste_back(result, new, region, fmask)
+            done += 1
+        return result, done
 
     def _combine_prepare(self, image, refs, ref_imgs, combine, prompt):
         """🧩 Combine: the characters (or things) cut out of their pictures, their light matched to the scene, and

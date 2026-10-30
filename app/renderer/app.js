@@ -120,6 +120,7 @@ function defaultForm() {
     ip_adapter: { image: "", kind: "style", scale: 0.6 },
     heal_method: "lama",
     edit_refs: [],      // ✨ Edit with words: extra pictures to take a style, object or outfit from (🧩 Combine: what to add)
+    keep_faces: true,  // ✨ Edit with words: each face redone close-up so it stays like the original
     cam: { az: 0, el: 0, zoom: 5, turnaround: false, layout: "single" },  // 📷 Camera angle: around (0–360°), up / down (−30–60°), how close (0–10)
     combine: { cutout: true, match_light: true, light_strength: 0.7, where: "auto", keep_scene: true, boxes: [] },  // 🧩 Combine
     i2i_mode: "change", inpaint: { strength: 0.85, blur: 4, only_masked: false },
@@ -637,6 +638,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.0: 🧩 Combine pictures by asking, 💡 match the scene's light, 📷 camera angles, 🧅 peel layers", items: [
+              "<b>🙂 Keep faces</b> (✨ Edit with words, on by default): each face is redone close up and blended in, so restoring or colouring an old photo keeps the person's face. <b>Embeddings</b> can be set to go in the prompt or the negative prompt (Train, Models → Embeddings, or right-click in Create).",
               "<b>Fixes and extras</b>: <b>⇄ Convert</b> (Create's prompt tools) turns sentences into Stable Diffusion tags and tags into sentences, so a prompt you like works with any model. Create and Image to image each keep <b>their own LoRAs</b>, and Image to image's pictures stay out of Create's pictures. Your own embeddings (from Train) are offered for the <b>prompt</b>, negative ones (EasyNegative, bad-hands…) for the negative prompt. The Library's details say <b>which tool made a picture</b> (📷 Camera angle and its view, 🧩 Combine, ✨ Edit with words…) and list its LoRAs (or none). In Tools the <b>picture stays in view</b> while you scroll through the modules. The Images fader no longer shows through the Add to queue button, and the ↺ buttons no longer cover module titles.",
               "<b>Greyed out = not available on this Mac</b>: models that need more memory than your Mac has are greyed out in Create, Image to image, the model chain and the Models tab, marked “not available: needs N GB RAM”, and can't be picked or downloaded. (Settings → Options → <b>Load anyway</b> still lets you try them.)",
               "<b>📷 Camera angle</b> (Image to image): see the same picture from another angle. Drag the card to turn the camera around the subject and over or under it, scroll to go nearer or further, or pick from the lists (8 directions, 4 heights, 3 distances). <b>🔄 All 8 views</b> makes a whole turnaround sheet in one go. Uses FLUX.2 Klein.",
@@ -868,6 +870,7 @@ const protoartApp = createApp({
             { h: "🔤 Embeddings", items: [
               "<b>Settings → Embeddings</b>: add embedding files (copied in), add folders (used in place), or download them <b>From Civitai</b> (“Textual Inversion”). SD 1.5 and SDXL (Pony, Illustrious, NoobAI too).",
               "Above the negative prompt, Create shows only the embeddings made for the chosen model's type; click one or type its name. Embeddings left in LoRA folders are found too and no longer listed as LoRAs." ] },
+              "<b>Prompt or negative?</b> Create offers each embedding in the box it belongs in: <b>Embeddings (prompt)</b> for characters, objects and styles (yours from Train too), <b>Negative embeddings</b> for things to avoid (EasyNegative, bad-hands…). It's guessed from the name; set it yourself in <b>Models → Embeddings</b> (✏️ Prompt / 🚫 Negative), by right-clicking an embedding in Create, or in Train → <b>Use it in</b> when you make one.",
             { h: "🗂 Batch edit & export, and 🗜 Compress", items: [
               "In the <b>Library</b>: select pictures and export them all at once: resize, convert (JPEG / PNG / WebP / TIFF), apply an Adjust look or preset, rename from a pattern, choose dpi, and keep or remove the details inside (removed by default). Ready-made presets and your own.",
               "<b>🗜 Compress</b> (from ProtoArt Press): copies that are usually 40–70% smaller and measured to look the same. One picture: <b>🗜 Compress / export…</b> in its details." ] },
@@ -1008,6 +1011,7 @@ const protoartApp = createApp({
               "<b>Change strength</b>: low (0.3) keeps most of the original, high (0.8+) changes a lot.",
               "Pick the model right here; steps and CFG are next to it.",
               "<b>✨ Edit with words</b> (FLUX.2 Klein): describe the change in the prompt — “make the jacket red”, “add sunglasses”, “replace the sky with a sunset”, “turn it into a watercolour” — and press <b>✨ Edit</b>. It keeps the rest of the picture. Paint over a part first and only that part can change (everything else stays exactly as it was): best for precise edits. Add up to 3 <b>more pictures</b> to borrow from (“dress her in the outfit from the second picture”, “paint it in the style of the second picture”). It always uses FLUX.2 Klein, whatever model Create has (4.6 GB the first time), takes about as long as one FLUX.2 picture, and ignores LoRAs and the negative prompt.",
+              "<b>🙂 Keep faces close to the original</b> (on by default): after the edit, each face (up to 3) is edited again on its own, close up, with the original face beside it, and blended in, so the person stays recognisable when you restore, colour or re-dress a photo. It adds about one more edit per face, and uses the face finder that Restore faces downloads (use Restore faces once). Small pictures are also worked on at up to twice their size and come back bigger.",
               "<b>🩹 Remove</b>: paint over what you want gone and press 🩹 Remove; it's filled in from its surroundings (no prompt or model needed). <b>✨ Smart fill</b> handles objects, people and patterns (~208 MB download the first time); <b>⚡ Quick fill</b> is instant for dust, spots and thin lines. Cover the thing fully, a little past its edges.",
               "<b>LoRAs</b> card: add a LoRA (search the list, or #tag for your 🏷 tags), set its weight with the slider, ✕ removes it. Under the search: the order (A → Z, <b>Newest first</b>, biggest…) and the kind list (<b>● People</b> / <b>Not People</b>, .safetensors, Pony…); <b>★</b> shows only favourites. They're the same LoRAs and the same filters as in Create (both tabs share the model); trigger words and 🎲 Random LoRAs are in Create." ] },
             { h: "🖌 Inpaint", items: [
@@ -1172,6 +1176,7 @@ const protoartApp = createApp({
             { h: "🔤 Embeddings (textual inversion)", items: [
               "Pick an SD 1.5 model, a folder of <b>5–20 pictures</b> that share the thing you're teaching, a <b>name</b> (the word you'll type, e.g. <i>my_cat</i>) and a <b>starting word</b> (what it's close to: cat, woman, painting).",
               "<b>Subject</b> or <b>Style</b> changes the practice sentences it learns from. <b>Vectors</b>: 2 is standard; 4–8 hold more detail (good for styles). <b>Steps</b>: 1500 is standard; about 30–60 minutes on an 8 GB M1.",
+              "<b>Use it in</b>: ✏️ <b>The prompt</b> (a character, object or style: the usual choice) or 🚫 <b>The negative prompt</b> (something to avoid). Create then offers the embedding, and its checkpoints, in that box.",
               "Only the new word is learned; the model itself isn't changed. The finished embedding appears in the list above the negative prompt; type its name or click it. Pause and Stop work as for LoRAs (Stop keeps what it learned so far).",
               "Embeddings can only steer what the model already knows how to draw. For a new face or a very particular look, a LoRA learns more. SDXL embeddings need a 16 GB+ Mac and aren't available yet." ] },
             { h: "🧬 Merging LoRAs", items: [
@@ -1345,6 +1350,7 @@ const protoartApp = createApp({
               "<b>The character's face or clothes came out different</b>: use a clearer, bigger picture of it, keep ✂ Cut it out first on, place it bigger (a tiny character loses detail), and try another seed.",
               "<b>The character looks pasted on</b>: keep 💡 Match the scene's light on and raise <b>How much</b>; in the prompt say where the light comes from (“lit by the lantern on her right”).",
               "<b>Combine or Peel says it can't download</b>: Cut out (~224 MB) and Smart fill (~208 MB) download once. Turn off Strict offline mode in Settings → Privacy for the download.",
+              "<b>Edit with words changed the face</b> (restoring or colouring an old photo): keep <b>🙂 Keep faces close to the original</b> on (it redoes each face close up); if the face finder isn't on this Mac yet, run Restore faces once in Tools. A very small or damaged face gives Klein little to keep: try another seed, or a shorter instruction like “restore and colourise this photo, keep the face exactly the same”.",
               "<b>A ControlNet says “can't be used: a ControlNet Union file”</b>: it's an SDXL file with several controls in one. Your own Union files can't be used yet; the built-in <b>Union ProMax</b> does the same (Image to image → 2 · ControlNet with an SDXL model). The app's own copy of Union ProMax no longer shows up in that list.",
               "<b>Does ✂ Cut out download every time?</b> No: its model (~224 MB) downloads once, the first time, then it works offline for every picture.",
               "<b>⇄ Convert changed a detail</b>: it uses the small prompt-enhancer model; press ↩ undo and try again (each try is a little different), or fix the word by hand.",
@@ -1580,7 +1586,7 @@ const protoartApp = createApp({
                              precision: "fp16", save_every: 0, preset: "recommended", steps: 1000, lr: 0.0001, rank: 16,
                              resolution: 512, targets: "attention", flip: true, train_text_encoder: false,
                              dirty: false, result: null, lossHistory: [], secPerStep: null, spsBy: {},
-                             mode: "lora", onlyIssues: false, emb: { name: "", init: "", kind: "object", vectors: 2, steps: 1500, save_every: 0 } },
+                             mode: "lora", onlyIssues: false, emb: { name: "", init: "", kind: "object", vectors: 2, steps: 1500, save_every: 0, use: "prompt" } },
                            (() => { const t = loadJSON("protoart.train", {}); delete t.items; delete t.result; delete t.lossHistory; delete t.dirty; return t; })()),
       merge: { family: "", items: [], q: "", mode: "exact", rank: 32, name: "", result: null, error: "", busy: false },
       hub: { source: "", busy: false, error: "", found: null, needToken: false, token: "", tokenSet: false, msg: "" },
@@ -4139,7 +4145,8 @@ const protoartApp = createApp({
         (st.combine.cut_out ? " · cut out first" : "") + (st.combine.match_light ? " · light matched" : "");
       if (st.edit && st.edit.outpaint) return "↔ Expand (FLUX.2 Klein)";
       if (d.kind === "word_edit") return "✨ Edit with words (FLUX.2 Klein)" + (st.edit && st.edit.painted ? " · painted area only" : "") +
-        (st.edit && st.edit.extra_pictures ? ` · ${st.edit.extra_pictures} extra picture${st.edit.extra_pictures > 1 ? "s" : ""}` : "");
+        (st.edit && st.edit.extra_pictures ? ` · ${st.edit.extra_pictures} extra picture${st.edit.extra_pictures > 1 ? "s" : ""}` : "") +
+        (st.edit && st.edit.faces_redone ? ` · 🙂 ${st.edit.faces_redone} face${st.edit.faces_redone > 1 ? "s" : ""} kept close` : "");
       if (d.kind === "generated") return "Create (text to image)";
       return this.kindLabel(d.kind) || d.kind || "—";
     },
@@ -6251,6 +6258,8 @@ const protoartApp = createApp({
       const t = this.train, e = t.emb;
       const args = { model: t.model, folder: t.folder, name: e.name.trim(), init_word: e.init.trim(), kind: e.kind,
                      vectors: e.vectors, steps: e.steps, save_every: e.save_every, flip: t.flip };
+      // where the new word goes in Create (its checkpoints too): the prompt, or the negative prompt
+      call("embedding_role", { name: args.name, role: e.use === "negative" ? "negative" : "prompt" }).catch(() => {});
       const res = await this.runJob("train_embedding", args);
       if (res) {
         this.train.result = res;
@@ -6573,6 +6582,11 @@ const protoartApp = createApp({
         this.status = (contrast ? "Contrast prompt written (↩ undo puts yours back)" : style === "outpaint" ? "Described what goes around the picture" : edit ? "Instruction made clearer" : "Prompt enhanced (and a matching negative prompt written if yours was empty)")
           + (here ? "" : ` (in ${owner === "i2i" ? "Image to image" : "Create"})`);
       }
+    },
+    // Models → Embeddings and Train: which box an embedding goes in (Create shows it there)
+    async setEmbeddingRole(x, role) {
+      await call("embedding_role", { name: x.name, role }).catch((e) => { this.error = e.message; });
+      this.embeddings = await call("list_embeddings").catch(() => this.embeddings);
     },
     // ⇄ Convert: sentences → Stable Diffusion tags, or tags → sentences, with the prompt enhancer's small model
     async convertPrompt(to) {
@@ -7303,7 +7317,7 @@ const protoartApp = createApp({
         if (!(f.prompt || "").trim()) return (this.error = "Describe the change in the prompt, e.g. “make the jacket red” or “turn it into a watercolour”.");
         this.error = "";
         const painted = this.maskIsFor("i2i", f.init_image) ? this.mask.data : null;
-        await this.runJob("edit_words", { init_image: f.init_image, prompt: f.prompt, mask: painted,
+        await this.runJob("edit_words", { init_image: f.init_image, prompt: f.prompt, mask: painted, keep_faces: !painted && f.keep_faces !== false,
                                           refs: (f.edit_refs || []).slice(0, 3), seed: f.seed });
         return;
       }

@@ -719,8 +719,27 @@ def handle_quick(cmd, a):
     if cmd == "lora_triggers_all":
         return library.get_setting("lora_triggers", {}) or {}
     if cmd == "list_embeddings":  # Create (above the negative prompt) and Settings → Embeddings
-        return [{k: e.get(k) for k in ("name", "family", "file", "source", "vectors", "size_kb", "nsfw_auto")}
-                for e in embeddings.all_embeddings()]
+        roles = library.get_setting("embedding_roles", {}) or {}
+        out = []
+        for e in embeddings.all_embeddings():
+            row = {k: e.get(k) for k in ("name", "family", "file", "source", "vectors", "size_kb", "nsfw_auto")}
+            role = embeddings.role_for(e.get("name"), roles)  # where you said it goes (Train, Models), else by its name
+            row["negative"] = role == "negative" if role else embeddings.is_negative_name(e.get("name"))
+            row["role_set"] = bool(role)
+            out.append(row)
+        return out
+    if cmd == "embedding_role":  # which box an embedding goes in: "prompt" or "negative" ("" = decide by its name)
+        name = str(a.get("name") or "").strip()[:120]
+        role = a.get("role") if a.get("role") in ("prompt", "negative") else None
+        if not name:
+            raise ValueError("No embedding name.")
+        roles = dict(library.get_setting("embedding_roles", {}) or {})
+        if role:
+            roles[embeddings.base_name(name)] = role
+        else:
+            roles.pop(embeddings.base_name(name), None)
+        library.set_setting("embedding_roles", roles)
+        return {"name": name, "role": role}
     if cmd == "embedding_dirs_get":
         return {"dirs": embeddings.EXTRA_DIRS, "default": embeddings.own_dir()}
     if cmd == "embedding_dirs_set":

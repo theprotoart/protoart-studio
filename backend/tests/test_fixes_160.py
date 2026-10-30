@@ -48,3 +48,41 @@ def test_own_union_folder_is_not_a_user_controlnet():
         assert [f["name"] for f in controlnet.user_files()] == ["mine"]
     finally:
         paths.CONTROLNET_DIR = old
+
+
+def test_keep_faces_redoes_each_face_close_up(tmp_path=None):
+    import engine
+    from PIL import Image
+    tmp = Path(tempfile.mkdtemp())
+    eng = engine.Engine.__new__(engine.Engine)
+    eng.emit = lambda m: None
+    import threading
+    eng.cancel_event = threading.Event()
+
+    class FF:
+        def find(self, im, min_score=0.6, min_size=12):
+            return [(40, 30, 80, 80)]
+    eng._face_finder_ready = lambda: FF()
+    calls = []
+
+    class Mlx:
+        def request(self, msg, on_event=None):
+            calls.append(msg)
+            im = Image.new("RGB", (msg["width"], msg["height"]), (200, 30, 30))
+            for x in range(0, msg["width"], 8):  # a pattern (the face's detail)
+                for y in range(msg["height"]):
+                    im.putpixel((x, y), (255, 255, 255))
+            im.save(msg["out"])
+    eng.mlx = Mlx()
+    original = Image.new("RGB", (160, 200), (90, 90, 90))
+    result = Image.new("RGB", (320, 400), (20, 120, 20))
+    files = []
+    out, n = eng._klein_faces(original, result, "colour this photo", 1, 4, tmp, None, files)
+    assert n == 1 and len(calls) == 1 and out.size == result.size
+    assert len(calls[0]["image_paths"]) == 2 and "same person" in calls[0]["prompt"]
+    import numpy as np
+    face = np.asarray(out.crop((45, 35, 75, 75)))
+    assert (face != np.array([20, 120, 20])).any()      # the face area came from the close-up
+    assert out.getpixel((5, 390)) == (20, 120, 20)      # elsewhere: the edit's result
+    eng._face_finder_ready = lambda: None                # no face finder yet: nothing changes
+    assert eng._klein_faces(original, result, "x", 1, 4, tmp, None, [])[1] == 0

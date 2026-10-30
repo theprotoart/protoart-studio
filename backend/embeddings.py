@@ -143,6 +143,18 @@ def is_negative_name(stem):
     return bool(_NEG.search(str(stem)))
 
 
+def base_name(name):
+    """A training checkpoint ("my_word-step750") has the same role as its embedding ("my_word")."""
+    import re
+    return re.sub(r"[-_]step\d+$", "", str(name or ""))
+
+
+def role_for(name, roles):
+    """Where you said this embedding goes ("prompt" / "negative"), or None."""
+    roles = roles or {}
+    return roles.get(str(name)) or roles.get(base_name(name))
+
+
 def scan(folder, safetensors_only=False):
     out = []
     d = Path(folder)

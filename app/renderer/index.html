@@ -438,7 +438,7 @@
         <div v-if="posEmbeddings.length" class="trig-row emb-row">
           <span class="hint" title="Embeddings that add a character, a style or a look: they go in the prompt (yours from Train too)">Embeddings (prompt):</span>
           <button v-for="e in posEmbeddings" :key="'p' + e.name" class="chip trig" :class="{on: inPrompt(e.name)}"
-                  @click="togglePromptWord(e.name)" title="Click to add to / remove from the prompt">{{ e.name }}</button>
+                  @click="togglePromptWord(e.name)" @contextmenu.prevent="setEmbeddingRole(e, 'negative')" title="Click to add to / remove from the prompt · right-click: it belongs in the negative prompt">{{ e.name }}</button>
         </div>
         <div class="neg-head">
           <span class="neg-title">Negative prompt <span v-if="['flux', 'flux2'].includes(family)" class="hint">· FLUX mostly ignores it</span></span>
@@ -458,7 +458,7 @@
         <div v-if="negEmbeddings.length" class="trig-row emb-row">
           <span class="hint">Negative embeddings:</span>
           <button v-for="e in negEmbeddings" :key="e.name" class="chip trig" :class="{on: inNegative(e.name) || inPrompt(e.name)}"
-                  @click="toggleNegativeWord(e.name)" title="Click to add to / remove from the negative prompt">{{ e.name }}</button>
+                  @click="toggleNegativeWord(e.name)" @contextmenu.prevent="setEmbeddingRole(e, 'prompt')" title="Click to add to / remove from the negative prompt · right-click: it belongs in the prompt">{{ e.name }}</button>
         </div>
         <textarea class="tape tape-neg" v-model="form.negative_prompt" rows="2" placeholder="What to avoid…"></textarea>
         <div class="seed-row neg-seed"><label>Seed <span class="hint">-1 = random · the same seed and settings make the same picture</span></label>
@@ -1378,7 +1378,7 @@
         <button class="ghost" @click="openFolder(extrasFolder)" title="Open the folder in Finder: drop files in, then press Refresh">Open folder</button>
         <button class="ghost" @click="refreshExtras">↻ Refresh</button>
       </div>
-      <p class="hint">{{ extras.tab === 'emb' ? 'Embeddings (textual inversion) add a word to the prompt or negative prompt. Use them from Create (click one under the negative prompt).'
+      <p class="hint">{{ extras.tab === 'emb' ? 'Embeddings (textual inversion) add a word to the prompt or negative prompt. Create offers each one for the box it belongs in; set it below if it\'s in the wrong one.'
         : extras.tab === 'vae' ? 'Pick a VAE in Create → Extras → VAE. Civitai VAEs (e.g. vae-ft-mse-840000 for SD 1.5) download into this folder; .safetensors and .pt files work.'
         : 'Your own SD 1.5 and SDXL ControlNets from Civitai. Pick one in Image to image → ControlNet (with a model of the same type). A name with canny, depth, lineart, openpose, softedge, scribble or tile gets that map made from your picture; others follow the picture as it is.' }}</p>
       <table class="extras-table">
@@ -1387,6 +1387,11 @@
           <td class="hint">{{ x.family ? familyName(x.family) : (extras.tab === 'cn' ? '?' : 'SD 1.5') }}<template v-if="x.size_mb"> · {{ x.size_mb }} MB</template>
             <template v-if="x.map"> · makes a {{ x.map }} map</template>
             <span v-if="x.problem" class="warn-text" :title="'This file can\'t be used: it\'s ' + x.problem"> · ⚠ can't be used: {{ x.problem }}</span></td>
+          <td v-if="extras.tab === 'emb'" class="emb-role">
+            <div class="seg small-seg" :title="x.role_set ? 'Set by you' : 'Guessed from its name: click to set it'">
+              <button :class="{on: !x.negative}" @click="setEmbeddingRole(x, 'prompt')">✏️ Prompt</button>
+              <button :class="{on: x.negative}" @click="setEmbeddingRole(x, 'negative')">🚫 Negative</button>
+            </div></td>
           <td class="hint path-cell" :title="x.file">{{ x.file }}</td>
         </tr>
         <tr v-if="!extrasShown.length"><td class="hint" colspan="3">Nothing here yet. Add from Civitai (above) or drop files into the folder.</td></tr>
@@ -2624,6 +2629,8 @@
             <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
             <span class="hint">{{ mask.size }}</span>
           </div>
+          <label class="check" title="After the edit, each face (up to 3) is edited again on its own, close up, with the original face beside it, and blended in: the person stays recognisable (restoring or colouring old photos, changing clothes or the background). Adds about one more edit per face. Not used when you paint an area (the rest stays exactly the same then)">
+            <input type="checkbox" :checked="form.keep_faces !== false" @change="form.keep_faces = $event.target.checked"> 🙂 Keep faces close to the original <span class="hint">(+1 edit per face)</span></label>
           <label>More pictures <span class="hint">optional · up to 3 · a style, an object, an outfit or a person to use</span></label>
           <div class="edit-refs">
             <div v-for="(r, i) in form.edit_refs" :key="r" class="edit-ref">
@@ -3322,6 +3329,11 @@
             <div class="seg">
               <button :class="{on: train.emb.kind === 'object'}" @click="train.emb.kind = 'object'" title="A character, person, animal or thing">Subject (character, object)</button>
               <button :class="{on: train.emb.kind === 'style'}" @click="train.emb.kind = 'style'" title="How pictures look: an art style, colours, mood">Style</button>
+            </div></div>
+          <div class="span2"><label>Use it in <span class="hint">where Create offers it</span></label>
+            <div class="seg">
+              <button :class="{on: train.emb.use !== 'negative'}" @click="train.emb.use = 'prompt'" title="It adds your character, object or style: Create offers it above the negative prompt, for the prompt (the usual choice)">✏️ The prompt</button>
+              <button :class="{on: train.emb.use === 'negative'}" @click="train.emb.use = 'negative'" title="It's something to avoid (like EasyNegative or bad-hands): Create offers it for the negative prompt">🚫 The negative prompt</button>
             </div></div>
           <div><label>Vectors <span class="hint">detail capacity</span></label>
             <select title="How many vectors the embedding has: more holds more detail but needs more training" v-model.number="train.emb.vectors"><option :value="1">1 (simple idea)</option><option :value="2">2 (standard)</option><option :value="4">4 (more detail)</option><option :value="8">8 (styles, most detail)</option></select></div>
