@@ -2433,3 +2433,20 @@ input[type=range]:disabled { opacity: .35; }
 .ideas-search { flex: 1; min-width: 120px; }
 .ideas-chips { max-height: 190px; overflow-y: auto; margin: 6px 0; }
 .ideas-chips .chip.mature::after { content: " ⚑"; color: #e07a6a; }
+.model-search-row { flex-wrap: wrap; }
+.model-search-row .model-kind { flex: 1 1 140px; min-width: 0; }
+/* the picture viewer's ‹ › sit right beside the picture box (not at the far edges of a wide screen) */
+.detail-nav.prev { left: max(14px, calc(50vw - min(750px, 50vw - 70px) - 54px)); }
+.detail-nav.next { right: max(14px, calc(50vw - min(750px, 50vw - 70px) - 54px)); }
+.train-merge-rack { display: block; }
+.train-merge-rack .train-model-merge { max-width: 560px; }
+.sel-tools { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.rack-module .sel-tools { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* 🎚 Adjust: a filter's own-settings layers, folded under the filter; the one you work on is highlighted */
+.adj-layers { margin: 6px 0 4px; display: flex; flex-direction: column; gap: 4px; }
+.adj-layer { border: 1px solid rgba(255, 255, 255, .1); border-radius: 4px; }
+.adj-layer.sel { border-color: var(--amber, #ffae2b); box-shadow: 0 0 0 1px rgba(255, 174, 43, .35) inset; }
+.adj-layer-head { display: flex; align-items: center; gap: 6px; padding: 4px 8px; cursor: pointer; }
+.adj-layer-head .hint { font-size: 11px; }
+.adj-layer-chev { width: 10px; color: var(--muted, #aaa); }
+.adj-layer-body { padding: 2px 8px 6px; }

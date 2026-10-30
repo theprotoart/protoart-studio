@@ -10,6 +10,13 @@
   (`blend_area`, with room for a contact shadow) redrawn; the rest is the original. Saved as kind `combined`
 - 💡 Match the scene's light (`compose.match_light`): LAB mean / contrast transfer towards the scene (or the area
   around where it's placed), the subject's own colours and shading kept, strength slider
+- More testing fixes: per-tab queue lists (`queueHere`, `jobTabOf`) and live previews; `currentTab` set on start so
+  jobs are filed under the right tab; Space can't scroll Tools / Image to image (held keys repeat); Camera angle panel
+  check (`compose.panel_seams` / `largest_panel`): one retry with another seed, then the biggest panel; prompt keeps
+  clothes colours; Paper cut-out live border preview (`paperPreview`, chamfer distance); ★ detail LoRAs
+  (`opts.detail_loras`, name guesses); Model merger moved to Train (mode `models`); 🔤 Text selection (`find_text`,
+  Florence-2 `<OCR_WITH_REGION>`); Adjust own-settings layers folded under their filter (`adjSelectLayer`); model
+  kind filter in Create; Random prompt mixes in Ideas (`rnd.ideas`); viewer ‹ › beside the picture
 - 📚 Ideas (Create prompt tools): `tag_dictionary.js` (window.TAG_DICT, 11 categories read from Corneo's visual
   Danbooru tag guides, safe-for-work entries only), chips to add, 🎲 Suggest one / 🎲 Mix; 🎲 Random prompt
   (tags and sentences) draws from it too

@@ -291,6 +291,15 @@
           <select class="model-sort" :value="opts.model_sort || ''" @change="setModelSort($event.target.value)" title="How the model lists are sorted (here, the Image to image list and the model chain); ★ favourites always come first">
             <option value="">Sort: usual</option><option value="az">Sort: A → Z</option><option value="za">Sort: Z → A</option><option value="size">Sort: biggest</option>
           </select>
+          <select v-model="modelKind" class="model-kind" title="Show only one kind of model">
+            <option value="">All kinds ({{ modelKindCount('') }})</option>
+            <option value="people">● People ({{ modelKindCount('people') }})</option>
+            <option value="not_people">Not People ({{ modelKindCount('not_people') }})</option>
+            <option value="nsfw">⚑ NSFW ({{ modelKindCount('nsfw') }})</option>
+            <option value="sfw">Not NSFW ({{ modelKindCount('sfw') }})</option>
+            <option value="small">Fits this Mac easily ({{ modelKindCount('small') }})</option>
+            <option value="fast">⚡ Fast engine ({{ modelKindCount('fast') }})</option>
+          </select>
         </div>
         <div class="model-list">
           <button v-for="m in filteredModels" :key="m.id" class="model-item" :aria-disabled="ramBlocked(m)"
@@ -415,6 +424,8 @@
           <div class="row small">
             <label class="check" title="Each time you press Generate, the prompt is replaced by a new random one with these settings (like New random mix for LoRAs)">
               <input type="checkbox" v-model="rnd.every"> New random prompt every time I press Generate</label>
+            <label v-if="!naturalPrompts()" class="check" title="Adds a few extra details picked at random from 📚 Ideas (pose, expression, hair, headwear, outfit, shoes, eyes, framing; safe-for-work ones)">
+              <input type="checkbox" :checked="rnd.ideas !== false" @change="rnd.ideas = $event.target.checked"> 📚 Mix in Ideas</label>
             <button class="ghost small" @click="randomPrompt" title="Another random prompt">🎲 Again</button>
           </div>
         </div>
@@ -905,9 +916,9 @@
     </aside>
 
     <section class="output">
-      <div v-if="queue.length" class="queue">
+      <div v-if="queueHere.length" class="queue">
         <div class="queue-head">
-          <span>Queue · {{ queue.length }} job{{ queue.length===1?'':'s' }}
+          <span>Queue · {{ queueHere.length }} job{{ queueHere.length===1?'':'s' }}<span v-if="queue.length > queueHere.length" class="hint" :title="'Jobs started in the other tab show there'"> · +{{ queue.length - queueHere.length }} in {{ tab === 'i2i' ? 'Create / Tools' : 'Image to image / Tools' }}</span>
             <span class="hint" v-if="paused"> · ❚❚ paused</span>
             <span class="hint" v-else-if="jobEtas.length"> · all done in ~{{ formatDuration(jobEtas[jobEtas.length-1].finishIn) }}</span></span>
           <span class="queue-btns">
@@ -919,7 +930,7 @@
             <button class="ghost small-btn" @click="stopAll" title="Stop the current job and clear the queue">Stop all</button>
           </span>
         </div>
-        <div v-for="(j, i) in queue" :key="j.id" class="job" :class="j.state" @contextmenu.prevent="menuJob($event, j)">
+        <div v-for="(j, i) in queueHere" :key="j.id" class="job" :class="j.state" @contextmenu.prevent="menuJob($event, j)">
           <div class="job-main">
             <span class="job-state">{{ j.state==='running' ? '▶' : i }}</span>
             <span class="job-label" :title="j.label">{{ j.label }}</span>
@@ -1501,7 +1512,7 @@
         </div>
         <div v-else-if="cut.open && !tool.healing" class="adjust-canvas-wrap cut-wrap" @click.stop>
           <canvas v-show="!cut.busy" ref="cutCanvas" class="adjust-canvas"></canvas>
-          <span class="adjust-badge">{{ cut.view === 'mask' ? 'CUT OUT · MASK' : 'CUT OUT' }}</span>
+          <span class="adjust-badge">{{ cut.view === 'mask' ? 'CUT OUT · MASK' : cut.paperView ? 'PAPER CUT-OUT · PREVIEW' : 'CUT OUT' }}</span>
           <span v-if="cut.busy || cut.msg" class="adjust-badge busy">{{ cut.msg || 'Working…' }}</span>
         </div>
         <div v-else-if="tool.source && tool.healing" class="mask-stage tool-mask" @click.stop @dragover.stop>
@@ -1780,7 +1791,7 @@
           <div v-if="adj.paintMode === 'paint'" class="adj-points">
             <button class="ghost small" @click="adjNewPaintLayer" title="Start a new set of brush strokes with their own settings (e.g. a strong Bloom on the lantern, a soft one on the sky)">＋ New paint layer with its own settings</button>
           </div>
-          <div v-if="adjLayer(adj.pointTarget)" class="adj-own-box">
+          <div v-if="adjLayer(adj.pointTarget) && adjLayer(adj.pointTarget).step === 'base'" class="adj-own-box">
             <div class="adj-pt-line"><b>⚙ {{ (adjPointTargets().find((t) => t.id === adj.pointTarget) || {}).label }}</b>
               <span class="hint">these sliders change only this {{ adjPointCount() ? 'point' : 'painted layer' }}</span>
               <button class="link small" @click="adjPaintToggle('paint')" title="Paint where these settings should show">🖌 paint</button>
@@ -1836,6 +1847,29 @@
                     <button class="link small" @click="adj.pointTarget = id; adj.pointSel = -1; adjPaintToggle('paint')" title="Brush on where this filter should show">🖌 paint it on</button>
                     <button class="link small" @click="adj.pointTarget = id; adj.pointSel = -1; adjStartAdd()" title="Click the picture where this filter should show">＋ add a point</button>
                     <button v-if="adjPointCount(id) || adjHasPaint(id)" class="link small" @click="adjClearPoints(id)">whole picture again</button></div>
+                  <div class="adj-layers">
+                    <div v-for="(l, n) in ((adj.p.layers || {})[id] || [])" :key="l.key" class="adj-layer" :class="{sel: adj.pointTarget === l.key}">
+                      <div class="adj-layer-head" @click="adjSelectLayer(l.key)"
+                           :title="'Click to work on this layer: painting, points and its sliders change only it'">
+                        <span class="adj-layer-chev">{{ adj.openLayer === l.key ? '▾' : '▸' }}</span>
+                        <b>⚙ Layer {{ n + 1 }}</b>
+                        <span class="hint">{{ [adjPointCount(l.key) ? adjPointCount(l.key) + ' point' + (adjPointCount(l.key) === 1 ? '' : 's') : '', adjHasPaint(l.key) ? 'painted' : ''].filter(Boolean).join(' + ') || 'nothing painted yet' }}</span>
+                        <span class="grow"></span>
+                        <button class="link small" @click.stop="adjSelectLayer(l.key, true); adjPaintToggle('paint')" title="Paint where this layer shows">🖌</button>
+                        <button class="link small" @click.stop="adjSelectLayer(l.key, true); adjStartAdd()" title="Add a point with this layer's settings">＋</button>
+                        <button class="link small" @click.stop="adjRemoveLayer(l.key)" title="Take this layer out (its points and paint go too)">✕</button>
+                      </div>
+                      <div v-if="adj.openLayer === l.key" class="adj-layer-body">
+                        <div v-for="sl in adjStepSliders(id)" :key="'ly' + l.key + sl.k" class="adj-row" :title="sl.tip">
+                          <label>{{ sl.label }}</label>
+                          <input type="range" v-bind="adjSlider(sl)" :value="l.own[sl.k]" @input="adjOwnSet(l.key, sl.k, $event.target.value)"
+                                 @dblclick="adjOwnSet(l.key, sl.k, adj.p[sl.k])" title="Double-click: the same as this filter's own setting">
+                          <span class="adj-val">{{ Number(l.own[sl.k] ?? 0).toFixed(2) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button class="link small" @click="adj.pointTarget = id; adjNewPaintLayer()" title="A new set of brush strokes with their own settings for this filter (e.g. a strong Bloom on the lantern, a soft one on the sky)">＋ new paint layer with its own settings</button>
+                  </div>
                   <button class="link small" @click="adjResetFilter(id)">reset this filter</button>
                 </div>
               </div>
@@ -2229,7 +2263,7 @@
           <input type="range" min="0.05" max="0.95" step="0.01" v-model.number="post.cut.threshold" title="Lower keeps more of the subject (hair, fur); higher drops faint bits of background">
           <label title="Grow (+) or shrink (−) the subject's outline before the paper border goes around it">Grow / shrink <span class="mod-val">{{ post.cut.grow > 0 ? '+' : '' }}{{ post.cut.grow }} px</span></label>
           <input type="range" min="-20" max="20" step="1" v-model.number="post.cut.grow" title="Shrink a little (−1 to −3) if a line of the old background shows inside the border">
-          <button class="link small-link" :disabled="!tool.source || cut.busy" @click="toolCutout" title="See the outline these settings give, live on the picture on the left (✂ Cut out's preview). The sliders here and there are the same">👁 preview the outline</button>
+          <button class="link small-link" :disabled="!tool.source || cut.busy" @click="paperPreview" title="See the cut-out with its paper border, live on the picture on the left: Threshold, Grow / shrink, Border and Paper update it as you move them">👁 preview the outline</button>
           <label title="How wide the paper border around the subject is">Border <span class="mod-val">{{ Number(post.paper.edge).toFixed(1) }}%</span></label>
           <input type="range" min="0.3" max="8" step="0.1" v-model.number="post.paper.edge" title="The paper border's width (part of the picture's shorter side)">
           <label>Paper</label>
@@ -2262,12 +2296,18 @@
             <h3>Detail with a LoRA</h3><button class="mod-reset" @click.stop="resetToolPart('detail')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span v-if="patchPicked('detail')" class="mod-editing">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">patchbay · {{ currentModel ? currentModel.label : 'pick a model in Create' }}</span></div>
           <p class="mod-desc">A light redraw with the model picked in Create and one LoRA (an “add detail” LoRA, a style…): sharper skin, fabric and texture, same picture. Runs as the patchbay's DETAIL module.</p>
           <label>LoRA <span class="hint">{{ detLoras().length }} of {{ compatibleLoras.length }}</span></label>
+          <div class="seg det-which">
+            <button :class="{on: opts.det_all_loras !== true}" @click="opts.det_all_loras = false; saveOpts()" title="Only the LoRAs marked ★ as detail LoRAs (and ones named like one: add detail, sharpen, texture…)">★ Detail LoRAs ({{ (compatibleLoras || []).filter((l) => isDetailLora(l.name)).length }})</button>
+            <button :class="{on: opts.det_all_loras === true}" @click="opts.det_all_loras = true; saveOpts()" title="Every LoRA that fits the Create model">All LoRAs</button>
+          </div>
           <input v-model="detLoraQ" class="mod-input" type="search" placeholder="🔍 Search LoRAs (name or trigger word)…" title="Type part of a LoRA's name or trigger word to narrow the list">
           <select v-model="post.det.lora" title="The LoRA used for the detail pass (only ones that fit the Create model are listed)">
             <option value="">none (just a light redraw)</option>
             <option v-if="post.det.lora && !detLoras().some((l) => l.name === post.det.lora)" :value="post.det.lora">{{ post.det.lora }}</option>
-            <option v-for="l in detLoras()" :key="'det' + l.name" :value="l.name">{{ l.name }}</option>
+            <option v-for="l in detLoras()" :key="'det' + l.name" :value="l.name">{{ isDetailLora(l.name) ? '★ ' : '' }}{{ l.name }}</option>
           </select>
+          <button v-if="post.det.lora" class="link small-link" @click="toggleDetailLora(post.det.lora)"
+                  :title="isDetailLora(post.det.lora) ? 'Take it off the ★ Detail LoRAs list' : 'Put it on the ★ Detail LoRAs list (shown first, and on their own)'">{{ isDetailLora(post.det.lora) ? '☆ not a detail LoRA' : '★ mark as a detail LoRA' }}</button>
           <label>LoRA weight <span class="mod-val">{{ Number(post.det.weight).toFixed(2) }}</span></label>
           <input type="range" min="0" max="1.5" step="0.05" v-model.number="post.det.weight" title="How strongly the LoRA is used">
           <label title="How much may change: 0.2–0.4 adds detail and keeps the picture; higher redraws more">Change strength <span class="mod-val">{{ Number(post.det.strength).toFixed(2) }}</span></label>
@@ -2370,34 +2410,6 @@
             <span class="mod-plate">Quantizer · QZ-9</span>
           </div>
           <p v-if="qnt.msg" class="mod-note">{{ qnt.msg }}</p>
-        </div>
-        <div class="card rack-module merge-module" :class="{active: mrgJob}">
-          <div class="mod-head"><i class="mod-lamp" :class="{on: !!mrgJob}"></i><span class="mod-icon">🧪</span>
-            <h3>Model merger</h3><button class="mod-reset" @click.stop="resetToolPart('merge')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span class="mod-sub">blend two models into a new one</span></div>
-          <p class="mod-desc">Mixes two of your .safetensors models of the same type (SD 1.5 + SD 1.5, SDXL + SDXL) into a new model file. The models you pick aren't changed.</p>
-          <label>Model A</label>
-          <select v-model="mrg.a" title="The first model (its VAE is kept)"><option value="">pick a model…</option>
-            <option v-for="m in mergeModels" :key="'a' + m.id" :value="m.path">{{ m.label }} · {{ familyName(m.family) }}</option></select>
-          <label>Model B</label>
-          <select v-model="mrg.b" title="The second model"><option value="">pick a model…</option>
-            <option v-for="m in mergeModels.filter(x => !mrgFamily || x.family === mrgFamily)" :key="'b' + m.id" :value="m.path">{{ m.label }}</option></select>
-          <div class="seg mod-seg">
-            <button :class="{on: mrg.mode === 'sum'}" @click="mrg.mode = 'sum'" title="A × (1 − amount) + B × amount">Blend</button>
-            <button :class="{on: mrg.mode === 'add'}" @click="mrg.mode = 'add'" title="A + (B − C) × amount: adds what B learned on top of its base model C">Add difference</button>
-          </div>
-          <template v-if="mrg.mode === 'add'">
-            <label>Model C <span class="hint">the base model B was made from</span></label>
-            <select v-model="mrg.c"><option value="">pick a model…</option>
-              <option v-for="m in mergeModels.filter(x => !mrgFamily || x.family === mrgFamily)" :key="'c' + m.id" :value="m.path">{{ m.label }}</option></select>
-          </template>
-          <label>{{ mrg.mode === 'add' ? 'How much of the difference' : 'How much of B' }} <span class="mod-val">{{ Number(mrg.m).toFixed(2) }}</span></label>
-          <input type="range" min="0" max="1" step="0.05" v-model.number="mrg.m" title="0 = only A, 1 = all of B (or of the difference)">
-          <input v-model="mrg.name" placeholder="name for the new model (optional)" title="The new model's file name">
-          <div class="mod-foot">
-            <button class="primary mod-go" :disabled="!mrg.a || !mrg.b || (mrg.mode === 'add' && !mrg.c) || !!mrgJob" @click="runMerge">{{ mrgJob ? 'Merging…' : 'Merge' }}</button>
-            <span class="mod-plate">Merger · MM-7</span>
-          </div>
-          <p v-if="mrg.msg" class="mod-note">{{ mrg.msg }}</p>
         </div>
         <div class="card rack-module convert-module" :class="{active: !!conv.items, over: conv.over}" @dragover.prevent="conv.over = true" @dragleave="conv.over = false" @drop.prevent="convertDrop"
              title="Drop DiffusionBee files (.tdict) or folders, an old .ckpt model, or a .safetensors model here">
@@ -3234,6 +3246,51 @@
           <button v-if="i2iResults.length && !i2iRunning" class="ghost small" @click="clearI2iResults"
                   title="Take the results off this screen (they stay in the Library)">✕ Clear results</button>
         </div>
+      <div v-if="queueHere.length" class="queue i2i-queue">
+        <div class="queue-head">
+          <span>Queue · {{ queueHere.length }} job{{ queueHere.length===1?'':'s' }}<span v-if="queue.length > queueHere.length" class="hint" :title="'Jobs started in the other tab show there'"> · +{{ queue.length - queueHere.length }} in {{ tab === 'i2i' ? 'Create / Tools' : 'Image to image / Tools' }}</span>
+            <span class="hint" v-if="paused"> · ❚❚ paused</span>
+            <span class="hint" v-else-if="jobEtas.length"> · all done in ~{{ formatDuration(jobEtas[jobEtas.length-1].finishIn) }}</span></span>
+          <span class="queue-btns">
+            <button class="ghost small-btn pause-btn" :class="{on: paused}" @click="togglePause"
+                    :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
+            <button v-if="runningJob && queue.length > 1 && canSendBack(runningJob)" class="ghost small-btn" @click="sendBack(runningJob.id)"
+                    :disabled="!!stopping[runningJob.id]"
+                    title="Put the job that's running now at the back of the queue, so the others run first. Pictures it already finished are kept; the one it was making starts again when its turn comes.">⤵ Run the others first</button>
+            <button class="ghost small-btn" @click="stopAll" title="Stop the current job and clear the queue">Stop all</button>
+          </span>
+        </div>
+        <div v-for="(j, i) in queueHere" :key="j.id" class="job" :class="j.state" @contextmenu.prevent="menuJob($event, j)">
+          <div class="job-main">
+            <span class="job-state">{{ j.state==='running' ? '▶' : i }}</span>
+            <span class="job-label" :title="j.label">{{ j.label }}</span>
+            <span class="hint" v-if="j.model">{{ modelLabel(j.model) }}</span>
+          </div>
+          <div v-if="j.loras && j.loras.length" class="job-loras">
+            <span v-for="l in j.loras" :key="l.name" class="chip static job-lora" :title="l.name + ' at weight ' + l.weight">
+              {{ l.name }} <small>{{ Number(l.weight).toFixed(2).replace(/\.?0+$/, '') }}</small></span>
+          </div>
+          <div class="job-eta" v-if="!stopping[j.id]">{{ etaText(j) }}</div>
+          <div class="job-eta stopping" v-else>Stopping…
+            <button v-if="canForceStop(j)" class="danger small-force" @click="forceStop">Force stop now</button>
+            <span v-else class="hint">(finishing the current step)</span>
+          </div>
+          <div v-if="j.state==='running'" class="job-progress">
+            <div class="bar"><div :style="{width: (jobProgress(j) ?? 0) + '%'}"></div></div>
+            <span class="hint">{{ jobProgress(j) !== null ? progressText : status + elapsedText }}</span>
+          </div>
+          <button v-if="j.state==='running' && j.cmd==='generate' && (j.images || 1) > 1 && canSkipImage" class="ghost job-skip"
+                  @click="skipImage" title="Skip the image being made now; the job carries on with its next image">⏭</button>
+          <button v-if="j.state==='running' && queue.length > 1 && canSendBack(j)" class="ghost job-skip job-later" @click="sendBack(j.id)"
+                  :disabled="!!stopping[j.id]" title="Move this job to the back of the queue so the others run first">⤵</button>
+          <span v-if="j.state === 'queued' && queuedCount > 1" class="job-move">
+            <button class="ghost" :disabled="queuedIndex(j) === 0" @click="moveJob(j.id, -1)" title="Move up: start sooner">▲</button>
+            <button class="ghost" :disabled="queuedIndex(j) === queuedCount - 1" @click="moveJob(j.id, 1)" title="Move down: start later">▼</button>
+          </span>
+          <button class="job-cancel" @click="cancelJob(j.id)"
+                  :title="j.state==='running' ? 'Stop this job (the rest of the queue continues)' : 'Remove from queue'">✕</button>
+        </div>
+      </div>
         <div v-if="i2iRunning" class="bar"><div :style="{width: progressPct + '%'}"></div></div>
         <div class="i2i-stage zoom-frame" :class="{split: i2iCompare && i2iLatest && form.init_image && !i2iRunning, zoomed: zoom.i2i.z > 1, panning: zoomSpace}"
              @wheel="zoomWheel('i2i', $event)" @pointerdown.capture="zoomPanDown('i2i', $event)">
@@ -3286,13 +3343,47 @@
           <button :class="{on: train.mode === 'lora'}" @click="setTrainMode('lora')" title="Teach a model a character, object or style: a LoRA you add in Create">🎓 LoRA</button>
           <button :class="{on: train.mode === 'embedding'}" @click="setTrainMode('embedding')" title="Teach a model one new word (textual inversion): a tiny file you use by typing its name">🔤 Embedding</button>
           <button :class="{on: train.mode === 'merge'}" @click="setTrainMode('merge')" title="Combine LoRAs made for the same model type into one new LoRA">🧬 Merge LoRAs</button>
+          <button :class="{on: train.mode === 'models'}" @click="setTrainMode('models')" title="Blend two base models (SD 1.5 + SD 1.5, or SDXL + SDXL) into a new model">🧪 Merge models</button>
         </div>
         <div class="hint">{{ train.mode === 'lora' ? 'A LoRA learns a lot (a face, an outfit, a style) and is added in Create under LoRAs.'
           : train.mode === 'embedding' ? 'An embedding learns one new word from your pictures. Tiny file (a few KB), used by typing its name in any prompt. SD 1.5 models for now.'
+          : train.mode === 'models' ? 'Two base models of the same type become a new model file (a blend, or one model plus what another learned). Your originals are never changed.'
           : 'Two or more LoRAs for the same model type become one new LoRA. Your originals are never changed.' }}</div>
       </div>
+      <template v-if="train.mode === 'models'">
+        <div class="module-rack train-merge-rack">
+        <div class="card rack-module merge-module train-model-merge" :class="{active: mrgJob}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!mrgJob}"></i><span class="mod-icon">🧪</span>
+            <h3>Model merger</h3><button class="mod-reset" @click.stop="resetToolPart('merge')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span class="mod-sub">blend two models into a new one</span></div>
+          <p class="mod-desc">Mixes two of your .safetensors models of the same type (SD 1.5 + SD 1.5, SDXL + SDXL) into a new model file. The models you pick aren't changed.</p>
+          <label>Model A</label>
+          <select v-model="mrg.a" title="The first model (its VAE is kept)"><option value="">pick a model…</option>
+            <option v-for="m in mergeModels" :key="'a' + m.id" :value="m.path">{{ m.label }} · {{ familyName(m.family) }}</option></select>
+          <label>Model B</label>
+          <select v-model="mrg.b" title="The second model"><option value="">pick a model…</option>
+            <option v-for="m in mergeModels.filter(x => !mrgFamily || x.family === mrgFamily)" :key="'b' + m.id" :value="m.path">{{ m.label }}</option></select>
+          <div class="seg mod-seg">
+            <button :class="{on: mrg.mode === 'sum'}" @click="mrg.mode = 'sum'" title="A × (1 − amount) + B × amount">Blend</button>
+            <button :class="{on: mrg.mode === 'add'}" @click="mrg.mode = 'add'" title="A + (B − C) × amount: adds what B learned on top of its base model C">Add difference</button>
+          </div>
+          <template v-if="mrg.mode === 'add'">
+            <label>Model C <span class="hint">the base model B was made from</span></label>
+            <select v-model="mrg.c"><option value="">pick a model…</option>
+              <option v-for="m in mergeModels.filter(x => !mrgFamily || x.family === mrgFamily)" :key="'c' + m.id" :value="m.path">{{ m.label }}</option></select>
+          </template>
+          <label>{{ mrg.mode === 'add' ? 'How much of the difference' : 'How much of B' }} <span class="mod-val">{{ Number(mrg.m).toFixed(2) }}</span></label>
+          <input type="range" min="0" max="1" step="0.05" v-model.number="mrg.m" title="0 = only A, 1 = all of B (or of the difference)">
+          <input v-model="mrg.name" placeholder="name for the new model (optional)" title="The new model's file name">
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!mrg.a || !mrg.b || (mrg.mode === 'add' && !mrg.c) || !!mrgJob" @click="runMerge">{{ mrgJob ? 'Merging…' : 'Merge' }}</button>
+            <span class="mod-plate">Merger · MM-7</span>
+          </div>
+          <p v-if="mrg.msg" class="mod-note">{{ mrg.msg }}</p>
+        </div>
+        </div>
+      </template>
 
-      <template v-if="train.mode !== 'merge'">
+      <template v-if="!['merge', 'models'].includes(train.mode)">
       <div class="card">
         <h3>1 · Base model</h3>
         <select title="The base model the LoRA or embedding learns on: use it with this model (and its family) afterwards" v-model="train.model" @change="onTrainModelChange">
@@ -3542,7 +3633,7 @@
                   :title="paused ? 'Carry on training' : 'Pause training between steps (it keeps its memory; nothing is lost)'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
           <button class="danger" @click="cancelJob(trainJob.id)">Stop training (keeps progress so far)</button></div>
       </div>
-      <div v-if="train.result && train.result.kind === 'embedding' && train.mode !== 'merge'" class="card">
+      <div v-if="train.result && train.result.kind === 'embedding' && train.mode === 'embedding'" class="card">
         <h3>✅ Embedding {{ train.result.name }} is ready</h3>
         <div class="hint">{{ train.result.steps }} steps in {{ formatDuration(train.result.seconds) }} · {{ train.result.vectors }} vector{{ train.result.vectors === 1 ? '' : 's' }} · saved to your embeddings folder</div>
         <div class="row">

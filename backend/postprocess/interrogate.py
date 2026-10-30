@@ -57,6 +57,30 @@ class Interrogator:
         caption = parsed.get(task, text) if isinstance(parsed, dict) else str(parsed)
         return " ".join(str(caption).replace("<pad>", "").split())
 
+    def text_regions(self, image):
+        """🔤 Text in the picture (signs, logos, captions, watermarks): Florence-2's OCR with regions.
+        -> list of quads [[x1, y1, ..., x4, y4], ...] in the picture's pixels"""
+        import torch
+        if self._florence is None:
+            from transformers import AutoProcessor, Florence2ForConditionalGeneration
+            self.emit({"type": "status", "msg": "Loading Florence-2 (first time downloads ~1.5 GB)…"})
+            dtype = torch.float16 if self.device == "mps" else torch.float32
+            model = Florence2ForConditionalGeneration.from_pretrained(FLORENCE_REPO, torch_dtype=dtype).to(self.device).eval()
+            proc = AutoProcessor.from_pretrained(FLORENCE_REPO)
+            self._florence = (model, proc, dtype)
+        model, proc, dtype = self._florence
+        task = "<OCR_WITH_REGION>"
+        self.emit({"type": "status", "msg": "Finding the text…"})
+        inputs = proc(text=task, images=image.convert("RGB"), return_tensors="pt").to(self.device)
+        if "pixel_values" in inputs:
+            inputs["pixel_values"] = inputs["pixel_values"].to(dtype)
+        with torch.no_grad():
+            ids = model.generate(**inputs, max_new_tokens=512, num_beams=1)
+        text = proc.batch_decode(ids, skip_special_tokens=False)[0]
+        parsed = proc.post_process_generation(text, task=task, image_size=image.size)
+        got = parsed.get(task, {}) if isinstance(parsed, dict) else {}
+        return [list(map(float, q)) for q in (got.get("quad_boxes") or []) if len(q) == 8]
+
     # ------------------------------------------------------------ WD tagger
     def _load_wd(self):
         if self._wd is None:

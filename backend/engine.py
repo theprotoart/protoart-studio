@@ -3176,6 +3176,35 @@ class Engine:
             return {"prompt": ", ".join(tags), "tags": tags, "rating": rating}
         return {"prompt": self.interrogator.describe(image, detail=args.get("detail", "detailed"))}
 
+    def find_text(self, args):
+        """🔤 Text selection tool: the text in the picture (signs, logos, captions, watermarks) as a selection for the
+        painting area -> {mask (PNG data URL, width × height), found, count}"""
+        import base64
+        import io
+        from PIL import Image, ImageDraw, ImageFilter
+        src, image = self._source_picture({"path": args.get("path"), "image_id": args.get("image_id")})
+        image = image.convert("RGB")
+        if 0 < total_ram_gb() < 16:
+            self.unload()  # Florence-2 and an image model don't fit together on small Macs
+        if self.interrogator is None:
+            from postprocess.interrogate import Interrogator
+            self.interrogator = Interrogator(self.device(), emit=self.emit)
+        quads = self.interrogator.text_regions(image)
+        W, H = int(args.get("width") or image.width), int(args.get("height") or image.height)
+        sx, sy = W / image.width, H / image.height
+        m = Image.new("L", (W, H), 0)
+        d = ImageDraw.Draw(m)
+        for q in quads:
+            pts = [(q[i] * sx, q[i + 1] * sy) for i in range(0, 8, 2)]
+            d.polygon(pts, fill=255)
+        if quads:  # a little past the letters (outlines, shadows, glow)
+            grow = max(3, int(min(W, H) * 0.008)) // 2 * 2 + 1
+            m = m.filter(ImageFilter.MaxFilter(min(grow, 15)))
+        buf = io.BytesIO()
+        m.save(buf, "PNG")
+        return {"mask": "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(), "found": bool(quads),
+                "count": len(quads)}
+
     def postprocess(self, args, force=False):
         """args: {action: 'faces'|'enhance', image_id, ...options}. Saves a new linked library image."""
         from PIL import Image
@@ -3870,6 +3899,7 @@ class Engine:
         steps = max(1, min(12, int(args.get("steps") or spec["defaults"]["steps"])))
         keep_faces = bool(args.get("keep_faces"))
         faces_redone = 0
+        panels_cropped = False
         seed = int(args.get("seed") if args.get("seed") not in (None, "", -1) else random.randint(0, 2**32 - 1)) % 2**32
         started = time.time()
         if self.cancel_event.is_set():
@@ -3906,6 +3936,23 @@ class Engine:
                                   "height": height, "steps": steps, "cfg": 1.0, "seed": seed, "out": str(out),
                                   "preview": self.previews, "image_paths": ref_files}, on_event=on_event)
                 result = Image.open(out).convert("RGB")
+                cam = args.get("camera") if isinstance(args.get("camera"), dict) else None
+                if cam and (cam.get("layout") or "single") == "single" and not self.cancel_event.is_set():
+                    # 📷 Klein sometimes answers a camera move with a split / comic-panel picture: try again once with
+                    # another seed and firmer words, and if it's still split, keep the biggest panel
+                    import postprocess.compose as comp
+                    if comp.panel_seams(result):
+                        self.emit({"type": "status", "msg": "It came out split into panels: trying once more as one picture…"})
+                        seed = (seed + 7919) % 2**32
+                        self.mlx.request({"cmd": "generate", "prompt": prompt + " The whole frame is one single photograph "
+                                          "of one moment: one person shown once, no grid, no split, no second view.",
+                                          "negative_prompt": None, "width": width, "height": height, "steps": steps,
+                                          "cfg": 1.0, "seed": seed, "out": str(out), "preview": self.previews,
+                                          "image_paths": ref_files}, on_event=on_event)
+                        result = Image.open(out).convert("RGB")
+                        if comp.panel_seams(result):
+                            result = result.crop(comp.largest_panel(result))
+                            panels_cropped = True
                 if keep_faces and mask is None and combine is None and not self.cancel_event.is_set():
                     # 🙂 Keep faces: each face is edited again on its own, close up (it fills the picture, so Klein
                     # keeps its features), with the original face as a second picture, and blended into the result
@@ -3921,7 +3968,9 @@ class Engine:
         except mlx_engine.EngineError as e:
             raise UserError(str(e))
         # a small picture worked on bigger keeps the bigger result (unless only a painted part changed)
-        if mask is not None or width * height < image.width * image.height * 1.3:
+        if panels_cropped:
+            pass  # the kept panel has its own shape: not stretched back to the picture's
+        elif mask is not None or width * height < image.width * image.height * 1.3:
             result = result.resize(image.size, Image.LANCZOS)
         if mask is not None:
             # only the painted area changes, with a soft edge; everything else is the untouched original
@@ -3941,6 +3990,7 @@ class Engine:
                     "edit": {"painted": mask is not None, "extra_pictures": len(refs), "faces_redone": faces_redone}}
         if isinstance(args.get("camera"), dict):  # 📷 Camera angle
             settings["camera"] = {k: args["camera"].get(k) for k in ("az", "el", "zoom", "view", "layout")}
+            settings["camera"]["panel_cropped"] = panels_cropped
         if combine is not None:
             settings["combine"] = {"placed": bool(combine.get("place")), "cut_out": combine.get("cutout") is not False,
                                    "match_light": combine.get("match_light") is not False}

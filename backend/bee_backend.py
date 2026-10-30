@@ -169,7 +169,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -294,6 +294,8 @@ def job_label(cmd, a):
         return "Download the recommended VAE"
     if cmd == "edit_words" and isinstance(a.get("outpaint"), dict):
         return "Expand with FLUX.2" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
+    if cmd == "find_text":
+        return "Find the text in the picture"
     if cmd == "peel":
         return "Peel off a layer"
     if cmd == "peel_save":
@@ -2032,6 +2034,8 @@ def run_job(kind, a):
         return eng.cutout(a)
     if kind == "papercut":
         return eng.papercut(a)
+    if kind == "find_text":
+        return eng.find_text(a)
     if kind == "peel":
         return eng.peel(a)
     if kind == "peel_save":

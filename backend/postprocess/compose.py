@@ -232,3 +232,66 @@ def write_psd(path, size, layers, composite=None):
         for i in range(3):
             f.write(np.ascontiguousarray(c[..., i]).tobytes())
     return path
+
+
+# ------------------------------------------------------------------------------------------- panels (📷 Camera angle)
+def _gutters(a, axis):
+    """Straight full-length gutter lines (a comic panel border) across a grey array, along rows (axis 0) or columns
+    (axis 1) -> list of (start, end) in pixels, only between 12% and 88% of the length."""
+    import numpy as np
+    m = a if axis == 0 else a.T
+    n, length = m.shape
+    std = m.std(1)
+    mean = m.mean(1)
+    flat = (std < 9) & ((mean > 215) | (mean < 35))  # a plain white or black line all the way across
+    out, start = [], None
+    for i, f in enumerate(list(flat) + [False]):
+        if f and start is None:
+            start = i
+        if not f and start is not None:
+            thick = i - start
+            mid = (start + i) / 2
+            if thick <= max(3, n * 0.03) and n * 0.12 < mid < n * 0.88:
+                before, after = max(0, start - 6), min(n - 1, i + 5)
+                if std[before] > 18 and std[after] > 18:  # picture on both sides, not a plain background
+                    out.append((start, i))
+            start = None
+    return out
+
+
+def panel_seams(image):
+    """Does the picture look split into panels (a straight border line across it, or across one half)?
+    -> list of ("row" | "col", position) found"""
+    import numpy as np
+    a = np.asarray(image.convert("L"), np.float32)
+    H, W = a.shape
+    found = [("row", (s + e) // 2) for s, e in _gutters(a, 0)] + [("col", (s + e) // 2) for s, e in _gutters(a, 1)]
+    if not found:  # a 2×2-style split: a line across just the left or right half (or the top or bottom half)
+        for part, off, ax in ((a[:, : W // 2], 0, 0), (a[:, W // 2:], W // 2, 0), (a[: H // 2], 0, 1), (a[H // 2:], H // 2, 1)):
+            for s, e in _gutters(part, ax):
+                found.append(("row" if ax == 0 else "col", (s + e) // 2 + (off if ax == 1 else 0)))
+    return found
+
+
+def largest_panel(image):
+    """The biggest panel of a picture split by gutter lines -> (left, top, right, bottom)"""
+    import numpy as np
+    a = np.asarray(image.convert("L"), np.float32)
+    H, W = a.shape
+    rows = [0] + [(s + e) // 2 for s, e in _gutters(a, 0)] + [H]
+    cols = [0] + [(s + e) // 2 for s, e in _gutters(a, 1)] + [W]
+    best, box = -1, (0, 0, W, H)
+    for y0, y1 in zip(rows, rows[1:]):
+        for x0, x1 in zip(cols, cols[1:]):
+            sub = a[y0:y1, x0:x1]
+            inner_rows = [(s + e) // 2 for s, e in _gutters(sub, 0)] if sub.size else []
+            inner_cols = [(s + e) // 2 for s, e in _gutters(sub, 1)] if sub.size else []
+            ys, xs = [0] + inner_rows + [y1 - y0], [0] + inner_cols + [x1 - x0]
+            for yy0, yy1 in zip(ys, ys[1:]):
+                for xx0, xx1 in zip(xs, xs[1:]):
+                    area = (yy1 - yy0) * (xx1 - xx0)
+                    if area > best:
+                        best, box = area, (x0 + xx0, y0 + yy0, x0 + xx1, y0 + yy1)
+    l, t, r, b = box
+    pad = 4
+    return (min(r - 1, l + pad), min(b - 1, t + pad), max(l + 1, r - pad), max(t + 1, b - pad))

@@ -86,3 +86,22 @@ def test_keep_faces_redoes_each_face_close_up(tmp_path=None):
     assert out.getpixel((5, 390)) == (20, 120, 20)      # elsewhere: the edit's result
     eng._face_finder_ready = lambda: None                # no face finder yet: nothing changes
     assert eng._klein_faces(original, result, "x", 1, 4, tmp, None, [])[1] == 0
+
+
+def test_panel_seams_found_and_largest_panel_kept():
+    import numpy as np
+    from PIL import Image
+    from postprocess import compose as c
+    rng = np.random.default_rng(0)
+    a = (rng.random((400, 600)) * 120 + 60).astype(np.uint8)
+    assert c.panel_seams(Image.fromarray(a)) == []
+    b = a.copy()
+    b[:, 298:303] = 250          # a white gutter down the middle
+    b[180:184, 303:] = 250       # and across the right half (a 3-panel page)
+    img = Image.fromarray(b)
+    assert c.panel_seams(img)
+    l, t, r, bt = c.largest_panel(img)
+    assert r <= 300 and (r - l) * (bt - t) > 0.4 * 600 * 400  # the left panel, the biggest
+    w = np.full((400, 600), 255, np.uint8)
+    w[100:300, 200:400] = rng.integers(0, 255, (200, 200))     # a picture on a plain background: no panels
+    assert c.panel_seams(Image.fromarray(w)) == []
