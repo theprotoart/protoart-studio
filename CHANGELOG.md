@@ -10,6 +10,9 @@
   (`blend_area`, with room for a contact shadow) redrawn; the rest is the original. Saved as kind `combined`
 - 💡 Match the scene's light (`compose.match_light`): LAB mean / contrast transfer towards the scene (or the area
   around where it's placed), the subject's own colours and shading kept, strength slider
+- 📚 Ideas (Create prompt tools): `tag_dictionary.js` (window.TAG_DICT, 11 categories read from Corneo's visual
+  Danbooru tag guides, safe-for-work entries only), chips to add, 🎲 Suggest one / 🎲 Mix; 🎲 Random prompt
+  (tags and sentences) draws from it too
 - 🙂 Keep faces (Edit with words, `keep_faces`, default on): `_klein_faces` finds faces (RetinaFace) and redoes each
   close up (`detailer.face_crop`, the original crop as both pictures), colour-matched and pasted back; small pictures
   are worked on at up to 2× and keep the bigger result when nothing was painted. Embedding roles (`embedding_role`,

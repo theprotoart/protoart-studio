@@ -469,6 +469,7 @@ const protoartApp = createApp({
       brush: { show: false, x: 0, y: 0 },
       objFinding: false,   // object selection is working out the outline
       soundsOn: window.ProtoSound ? window.ProtoSound.enabled : true,
+      TAG_DICT: window.TAG_DICT || {}, ideas: { cat: Object.keys(window.TAG_DICT || {})[0] || "", q: "" },
       LICENCES, TILED_PRESETS, APP_VERSION, CAM_VIEWS, CAM_ELEV, CAM_DIST,
       loraSort: loadJSON("protoart.loraSort", "az"),   // LoRA list order
       loraKind: "",                                      // LoRA list filter ('' = all)   // the brush-size ring that follows the pointer while painting
@@ -638,6 +639,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.0: 🧩 Combine pictures by asking, 💡 match the scene's light, 📷 camera angles, 🧅 peel layers", items: [
+              "<b>📚 Ideas</b> (Create's prompt tools): hundreds of tested tags by category (pose, expressions, eyes, hair styles, headwear, outfits, dresses, bottoms, footwear, framing, styles), taken from Corneo's visual tag guides. Click one to add it, <b>🎲 Suggest one</b> for a random idea, or <b>🎲 Mix</b> for a pose, expression, hair, outfit, shoes and framing at once. 🎲 Random prompt uses them too.",
               "<b>🙂 Keep faces</b> (✨ Edit with words, on by default): each face is redone close up and blended in, so restoring or colouring an old photo keeps the person's face. <b>Embeddings</b> can be set to go in the prompt or the negative prompt (Train, Models → Embeddings, or right-click in Create).",
               "<b>Fixes and extras</b>: <b>⇄ Convert</b> (Create's prompt tools) turns sentences into Stable Diffusion tags and tags into sentences, so a prompt you like works with any model. Create and Image to image each keep <b>their own LoRAs</b>, and Image to image's pictures stay out of Create's pictures. Your own embeddings (from Train) are offered for the <b>prompt</b>, negative ones (EasyNegative, bad-hands…) for the negative prompt. The Library's details say <b>which tool made a picture</b> (📷 Camera angle and its view, 🧩 Combine, ✨ Edit with words…) and list its LoRAs (or none). In Tools the <b>picture stays in view</b> while you scroll through the modules. The Images fader no longer shows through the Add to queue button, and the ↺ buttons no longer cover module titles.",
               "<b>Greyed out = not available on this Mac</b>: models that need more memory than your Mac has are greyed out in Create, Image to image, the model chain and the Models tab, marked “not available: needs N GB RAM”, and can't be picked or downloaded. (Settings → Options → <b>Load anyway</b> still lets you try them.)",
@@ -893,6 +895,8 @@ const protoartApp = createApp({
             { h: "🗺 Regions: templates", items: [
               "Create → 🗺 Regions → <b>Templates</b>: Before / after, Day / night, Two characters, Face-off, Character in a scene, 3-panel comic, Sky and land, Four seasons, Two above one below and Product on a table. Each sets the areas, example prompts for each area and the main prompt (if yours is empty), and a size that fits. Edit the words, then Generate. ↩ puts back what you had." ] },
             { h: "Prompt tools", items: [
+              "<b>📚 Ideas</b>: tested tags in 11 categories (pose, expressions, eyes, hair styles, headwear, outfits, dresses, bottoms, footwear, framing, styles), from Corneo's visual tag guides. Pick a category, click a tag to add it (click again to take it out), search all of them, or press <b>🎲 Suggest one</b> (a random idea from the category) or <b>🎲 Mix</b> (pose, expression, hair, outfit, shoes and framing at once). They're tags, best for SD 1.5 / SDXL / Pony / Illustrious; other models read them as plain words. 🎲 Random prompt uses them too.",
+              "<b>⇄ Convert</b>: rewrites the prompt as Stable Diffusion tags, or as natural sentences, keeping what it describes (and your &lt;lora:…&gt; tags). Use it to move a prompt you like between SD 1.5 / SDXL models and FLUX, Klein, ERNIE or Anima. ↩ undo puts yours back.",
               "Under the prompt, one row of keys: <b>✨ Enhance</b> (rewrite the prompt with more detail now, or every time you Generate), <b>📒 Saved</b> (prompts you kept), <b>🖼 From image</b> (turn a picture into a prompt; or drop a picture on the prompt box), <b>🎲 Random</b> (a random prompt: a woman, a man, two people, a landscape or an animal), <b>{ } Wildcards</b> and <b>📋 List</b>. Each opens its own panel underneath; click it again to close it.",
               "<b>🎲 New random prompt every time I press Generate</b> (in Random's panel): each picture gets a fresh random prompt. <b>New random mix</b> under LoRAs does the same for LoRAs (every LoRA in the list is swapped).",
               "<b>📒 Negative prompts</b>: the small menu above the negative prompt box keeps negative prompts on their own (＋ save), to use with any prompt. The <b>Seed</b> is under the negative prompt.",
@@ -1901,6 +1905,13 @@ const protoartApp = createApp({
       return (this.embeddings || []).filter((e) => e.family === this.family && !(this.hideNsfw && e.nsfw_auto));
     },
     // negative-prompt embeddings (EasyNegative, bad-hands…) by name; the rest (your own characters and styles too) go in the prompt
+    ideasShown() {
+      const c = (window.TAG_DICT || {})[this.ideas.cat];
+      if (!c) return [];
+      const q = this.ideas.q.trim().toLowerCase();
+      const all = q ? Object.values(window.TAG_DICT).flatMap((x) => x.tags) : c.tags;
+      return [...new Set(all.filter((t) => !q || t.includes(q)))].slice(0, 300);
+    },
     negEmbeddings() { return this.compatibleEmbeddings.filter((e) => isNegEmbedding(e)); },
     posEmbeddings() { return this.compatibleEmbeddings.filter((e) => !isNegEmbedding(e)); },
     unknownTypeLoras() {
@@ -6587,6 +6598,28 @@ const protoartApp = createApp({
     async setEmbeddingRole(x, role) {
       await call("embedding_role", { name: x.name, role }).catch((e) => { this.error = e.message; });
       this.embeddings = await call("list_embeddings").catch(() => this.embeddings);
+    },
+    // 📚 Ideas: tags by category (from Corneo's visual tag dictionaries), click to add, 🎲 for a random one
+    randomIdea(cat) {
+      const list = ((window.TAG_DICT || {})[cat] || {}).tags || [];
+      const free = list.filter((t) => !this.inPrompt(t));
+      if (!free.length) return;
+      const t = free[Math.floor(Math.random() * free.length)];
+      this.undoPrompt = this.form.prompt;
+      this.addPromptWords([t]);
+      this.status = `Added “${t}” (${((this.TAG_DICT[cat] || {}).label || "idea").toLowerCase()})`;
+    },
+    randomIdeas() {
+      this.undoPrompt = this.form.prompt;
+      const before = this.form.prompt;
+      ["posture", "expressions", "hair", "outfits", "footwear", "framing"].forEach((k) => {
+        const list = ((window.TAG_DICT || {})[k] || {}).tags || [];
+        if (list.length && Math.random() < 0.8) {
+          const free = list.filter((t) => !this.inPrompt(t));
+          if (free.length) this.addPromptWords([free[Math.floor(Math.random() * free.length)]]);
+        }
+      });
+      if (this.form.prompt !== before) this.status = "Added a mix of ideas (↩ undo takes them out)";
     },
     // ⇄ Convert: sentences → Stable Diffusion tags, or tags → sentences, with the prompt enhancer's small model
     async convertPrompt(to) {

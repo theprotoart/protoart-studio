@@ -122,6 +122,9 @@
       const p = person(subject === "1boy" ? "man" : "woman");
       out.push(`${pick(P.shot)} of ${p}, ${pick(P.action)} ${pick(P.place)} ${pick(P.time)}.`);
       if (detail >= 2 && maybe(0.7)) out.push(`${subject === "1boy" ? "He" : "She"} has ${pick(P.extra)}.`);
+      // a detail from the tag dictionary now and then: shoes, a hat, a pose
+      const D = window.TAG_DICT || {}, from = (k) => ((D[k] || {}).tags || []);
+      if (detail >= 2 && from("footwear").length && maybe(0.35)) out.push(`${subject === "1boy" ? "He" : "She"} wears ${pick(from("footwear"))}${from("headwear").length && maybe(0.4) ? " and " + an(pick(from("headwear"))) : ""}.`);
     }
     if (detail >= 2 && subject !== "scenery") out.push(`The scene is lit by ${pick(P.light.filter((l) => subject !== "animal" || !/candle|neon/.test(l)))}.`);
     if (opts.style !== false) out.push(`The picture looks like ${pick(subject === "scenery" ? P.look.filter((l) => !/portrait/.test(l)) : P.look)}.`);

@@ -328,12 +328,28 @@
           <button class="ptool" :class="{open: ptool === 'random'}" @click="randomPrompt(); ptool = 'random'; wild.open = false"
                   :title="naturalPrompts() ? 'A random scene written in sentences (what ' + familyLabel + ' reads best); its options open below' : 'A random Danbooru-style tag prompt; its options open below'">
             <i class="ptool-lamp" :class="{on: rnd.every}"></i>🎲<b>Random</b></button>
+          <button class="ptool" :class="{open: ptool === 'ideas'}" @click="togglePtool('ideas')" title="Ideas: hundreds of tested tags by category (pose, eyes, hair, hats, expressions, outfits, shoes, framing, styles): click one to add it, or 🎲 for a random one">📚<b>Ideas</b></button>
           <button class="ptool" :class="{open: ptool === 'convert'}" @click="togglePtool('convert')" title="Convert the prompt: plain sentences ⇄ Stable Diffusion tags, so a prompt you like works with any kind of model">⇄<b>Convert</b></button>
           <button class="ptool" :class="{open: wild.open}" @click="togglePtool('wild')" title="Wildcards: {red|blue} picks one per image; __name__ picks a line from a wildcard file">{ }<b>Wildcards</b></button>
           <button class="ptool" :class="{open: batch.open}" @click="batch.open = true" title="Prompt list: queue one job per line of a list of prompts">📋<b>List</b></button>
           <button class="ptool" @click="$refs.settingsPick.click()" title="Load the settings a picture was made with (A1111, ComfyUI, InvokeAI or this app write them into PNGs), or a .json of settings / a ComfyUI workflow">📥<b>Settings</b></button>
           <input ref="settingsPick" type="file" accept=".png,.jpg,.jpeg,.webp,.json,application/json,image/png,image/jpeg,image/webp" hidden @change="onSettingsPicked">
           <button v-if="undoPrompt" class="link ptool-undo" @click="form.prompt = undoPrompt; undoPrompt = null" title="Put the prompt back as it was">↩ undo</button>
+        </div>
+        <div v-if="ptool === 'ideas' && Object.keys(TAG_DICT).length" class="wild-panel ptool-panel ideas-panel">
+          <div class="seg ideas-cats">
+            <button v-for="(c, k) in TAG_DICT" :key="k" :class="{on: ideas.cat === k}" @click="ideas.cat = k" :title="c.tags.length + ' ideas'">{{ c.icon }} {{ c.label }}</button>
+          </div>
+          <div class="row small">
+            <input v-model="ideas.q" placeholder="Search the ideas…" class="ideas-search">
+            <button class="ghost small" @click="randomIdea(ideas.cat)" :title="'Add a random ' + ((TAG_DICT[ideas.cat] || {}).label || '').toLowerCase() + ' idea to the prompt'">🎲 Suggest one</button>
+            <button class="ghost small" @click="randomIdeas()" title="One random idea from several categories at once (pose, expression, hair, outfit, shoes, framing)">🎲 Mix</button>
+          </div>
+          <div class="trig-row ideas-chips">
+            <button v-for="t in ideasShown" :key="t" class="chip trig" :class="{on: inPrompt(t)}" @click="togglePromptWord(t)" :title="inPrompt(t) ? 'In the prompt: click to take it out' : 'Click to add to the prompt'">{{ t }}</button>
+            <span v-if="!ideasShown.length" class="hint">No match.</span>
+          </div>
+          <div class="hint">Tags tested on anime-style SDXL models (Pony, Illustrious, NoobAI); they work as plain words with other models too. 🎲 Random prompt uses them as well.</div>
         </div>
         <div v-if="ptool === 'convert'" class="wild-panel ptool-panel">
           <div class="hint">Rewrites the prompt in the other form, keeping what it describes (nothing is added). {{ familyLabel }}
@@ -4402,6 +4418,7 @@
 <script src="../node_modules/vue/dist/vue.global.prod.js"></script>
 <script src="adjust.js"></script>
 <script src="puppet.js"></script>
+<script src="tag_dictionary.js"></script>
 <script src="prompt_generator.js"></script>
 <script src="natural_prompt.js"></script>
 <script src="negative_prompt.js"></script>

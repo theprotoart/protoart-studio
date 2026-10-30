@@ -2428,3 +2428,7 @@ button:disabled { cursor: not-allowed; }
 label.dim { opacity: .5; }
 input[type=range]:disabled { opacity: .35; }
 .emb-role .seg button { padding: 2px 8px; font-size: 11px; }
+.ideas-cats { flex-wrap: wrap; margin-bottom: 6px; }
+.ideas-cats button { font-size: 11px; padding: 3px 7px; }
+.ideas-search { flex: 1; min-width: 120px; }
+.ideas-chips { max-height: 190px; overflow-y: auto; margin: 6px 0; }

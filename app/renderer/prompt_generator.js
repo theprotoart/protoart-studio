@@ -55,6 +55,24 @@
       "bubbles", "fireflies", "confetti", "snowflakes", "chromatic aberration", "film grain"],
   };
 
+  // more ideas from the tag dictionary (tag_dictionary.js, Corneo's visual guides): used alongside the lists above
+  const D = (window.TAG_DICT || {});
+  const more = (key, cat, keep) => {
+    const extra = ((D[cat] || {}).tags || []).filter((t) => !keep || keep(t));
+    T[key] = [...new Set([...(T[key] || []), ...extra])];
+  };
+  more("pose", "posture");
+  more("expression", "expressions");
+  more("hair_style", "hair", (t) => !/hair color|colored|(black|blonde|brown|red|white|pink|blue|green|purple|grey|silver) hair$/.test(t));
+  more("hair_acc", "headwear");
+  more("eye_style", "eyes", (t) => !/^(blue|red|green|brown|purple|yellow|golden|grey|aqua|pink|orange|black|white) eyes$/.test(t));
+  more("dress", "dresses");
+  more("bottom", "bottomwear");
+  more("shoes", "footwear");
+  more("outfit", "outfits");
+  more("composition", "framing");
+  more("style", "styles");
+
   const QUALITY = {
     standard: ["masterpiece", "best quality", "highres", "absurdres"],
     illustrious: ["masterpiece", "best quality", "amazing quality", "very aesthetic", "absurdres", "newest"],
@@ -108,11 +126,13 @@
       else tags.push(subject);
       if (subject === "1girl" || subject === "1boy") tags.push("solo");
       tags.push(pick(T.hair_color), pick(T.hair_length), pick(T.eyes));
+      if (T.eye_style && T.eye_style.length && maybe(0.15 * detail)) tags.push(pick(T.eye_style));
       if (maybe(0.4 + 0.2 * detail)) tags.push(pick(T.hair_style));
       if (maybe(0.2 + 0.15 * detail)) tags.push(pick(T.hair_acc));
       tags.push(pick(T.expression));
       const girlish = subject.includes("girl");
       if (girlish && maybe(0.35)) tags.push(pick(T.dress));
+      else if (T.outfit && T.outfit.length && maybe(0.25)) tags.push(pick(T.outfit));
       else {
         tags.push(pick(T.top));
         if (maybe(0.7)) tags.push(pick(girlish ? T.bottom : T.bottom.filter((b) => !b.includes("skirt"))));
