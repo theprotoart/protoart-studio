@@ -629,11 +629,14 @@
       height: { type: Number, default: 128 },   // travel, in px
       title: { type: String, default: "" },
       defaultValue: { type: Number, default: null },
+      typeMax: { type: Number, default: null },  // the number under the fader can be typed up to this (default: max)
     },
     emits: ["update:modelValue", "change"],
-    data() { return { drag: null }; },
+    data() { return { drag: null, editText: null }; },
     computed: {
-      value() { return Number.isFinite(this.modelValue) ? clamp(this.modelValue, this.min, this.max) : this.min; },
+      top() { return Math.max(this.max, this.typeMax || this.max); },
+      typedValue() { return Number.isFinite(this.modelValue) ? clamp(this.modelValue, this.min, this.top) : this.min; },
+      value() { return clamp(this.typedValue, this.min, this.max); },
       frac() { return (this.value - this.min) / (this.max - this.min || 1); },
       scale() {
         if (this.marks) return this.marks;
@@ -672,6 +675,18 @@
         else if (k === "End") v = this.max;
         if (v !== null) { e.preventDefault(); this.set(v); }
       },
+      // the number under the fader: click it and type an exact amount (Return to set, Esc to cancel)
+      typed(raw) {
+        const v = parseFloat(String(raw).replace(",", "."));
+        if (!Number.isFinite(v)) return null;
+        const s = this.step || 1;
+        return clamp(Math.round((v - this.min) / s) * s + this.min, this.min, this.top);
+      },
+      commitTyped() {
+        const n = this.editText === null ? null : this.typed(this.editText);
+        if (n !== null && n !== this.modelValue) { this.$emit("update:modelValue", n); this.$emit("change", n); }
+        this.editText = null;
+      },
     },
     render() {
       const h = Vue.h, H = this.height, span = this.max - this.min || 1;
@@ -699,7 +714,24 @@
             }),
           ]),
         ]),
-        h("div", { class: "f-read" }, String(this.value)),
+        h("input", {
+          class: ["f-read", { editing: this.editText !== null }], type: "text", inputmode: "numeric",
+          value: this.editText !== null ? this.editText : String(this.typedValue),
+          title: `Click to type an exact number (${this.min}–${this.top})`,
+          "aria-label": (this.label || "value") + " (type a number)",
+          onFocus: (e) => { this.editText = String(this.typedValue); this.$nextTick(() => e.target.select()); },
+          onInput: (e) => { this.editText = e.target.value; },
+          onBlur: this.commitTyped,
+          onKeydown: (e) => {
+            if (e.key === "Enter") e.target.blur();
+            else if (e.key === "Escape") { this.editText = null; e.target.blur(); }
+            else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+              e.preventDefault();
+              const n = this.typed((this.typed(this.editText) ?? this.typedValue) + (e.key === "ArrowUp" ? 1 : -1) * (this.step || 1));
+              this.editText = String(n);
+            }
+          },
+        }),
       ]);
     },
   };

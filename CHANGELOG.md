@@ -21,7 +21,7 @@
   clothes colours; Paper cut-out live border preview (`paperPreview`, chamfer distance); ★ detail LoRAs
   (`opts.detail_loras`, name guesses); Model merger moved to Train (mode `models`); 🔤 Text selection (`find_text`,
   Florence-2 `<OCR_WITH_REGION>`); Adjust own-settings layers folded under their filter (`adjSelectLayer`); model
-  kind filter in Create; Random prompt mixes in Ideas (`rnd.ideas`), now also for sentence models (FLUX, FLUX.2, ERNIE, MOSS: an "Extra details" sentence, skipping framing/hair/eyes they already set) and for animals/scenery (framing and style only), with the picks named in the status line; viewer ‹ › beside the picture
+  kind filter in Create; Random prompt mixes in Ideas (`rnd.ideas`), now also for sentence models (FLUX, FLUX.2, ERNIE, MOSS: an "Extra details" sentence, skipping framing/hair/eyes they already set) and for animals/scenery (framing and style only), with the picks named in the status line; the Images fader's readout is typeable (`RackFader` `typeMax`, Images up to 64; the engine's cap went from 16 to 64); error boxes above the pictures get a ✕ (`.error-box.closable`); the NSFW **Show picture** button kept its centring when pressed (`.nsfw-reveal:active`); viewer ‹ › beside the picture
 - 📚 Ideas (Create prompt tools): `tag_dictionary.js` (window.TAG_DICT, 11 categories read from Corneo's visual
   Danbooru tag guides, safe-for-work entries only), chips to add, 🎲 Suggest one / 🎲 Mix; 🎲 Random prompt
   (tags and sentences) draws from it too

@@ -2358,7 +2358,7 @@ class Engine:
         height = int(args.get("height") or d["height"])
         steps = int(args.get("steps") or d["steps"])
         cfg = float(args.get("cfg") if args.get("cfg") not in (None, "") else d["cfg"])
-        n = max(1, min(int(args.get("num_images") or 1), 16))
+        n = max(1, min(int(args.get("num_images") or 1), 64))  # the fader goes to 16; typed amounts up to 64
         seed = args.get("seed")
         try:
             seed = int(seed) if seed not in (None, "") else -1
