@@ -61,7 +61,7 @@
     const extra = ((D[cat] || {}).tags || []).filter((t) => !keep || keep(t));
     T[key] = [...new Set([...(T[key] || []), ...extra])];
   };
-  more("pose", "posture");
+  more("pose", "posture", (t) => !/hug|hands|heads together|back-to-back|shoulder-to-shoulder|noses|formation|carry|piggyback|locked arms|head on chest|on shoulder|legs over head|chest stand|body bridge/.test(t));
   more("expression", "expressions");
   more("hair_style", "hair", (t) => !/hair color|colored|(black|blonde|brown|red|white|pink|blue|green|purple|grey|silver) hair$/.test(t));
   more("hair_acc", "headwear");
@@ -70,7 +70,7 @@
   more("bottom", "bottomwear");
   more("shoes", "footwear");
   more("outfit", "outfits");
-  more("composition", "framing");
+  more("composition", "framing", (t) => /^(portrait|upper body|cowboy shot|full body|wide shot|very wide shot|close-up|profile|feet out of frame)$/.test(t));
   more("style", "styles");
 
   const QUALITY = {
