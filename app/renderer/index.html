@@ -424,7 +424,7 @@
           <div class="row small">
             <label class="check" title="Each time you press Generate, the prompt is replaced by a new random one with these settings (like New random mix for LoRAs)">
               <input type="checkbox" v-model="rnd.every"> New random prompt every time I press Generate</label>
-            <label v-if="!naturalPrompts()" class="check" title="Adds a few extra details picked at random from 📚 Ideas (pose, expression, hair, headwear, outfit, shoes, eyes, framing; safe-for-work ones)">
+            <label class="check" title="Adds a few extra details picked at random from 📚 Ideas (pose, expression, hair, headwear, outfit, shoes, eyes, framing, style; safe-for-work ones). Animals and scenery only get framing and style. The status line shows which ones were added.">
               <input type="checkbox" :checked="rnd.ideas !== false" @change="rnd.ideas = $event.target.checked"> 📚 Mix in Ideas</label>
             <button class="ghost small" @click="randomPrompt" title="Another random prompt">🎲 Again</button>
           </div>

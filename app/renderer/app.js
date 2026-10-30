@@ -671,7 +671,7 @@ const protoartApp = createApp({
           sections: [
             { h: "1.6.0: 🧩 Combine pictures by asking, 💡 match the scene's light, 📷 camera angles, 🧅 peel layers", items: [
               "<b>Newer samplers</b> for SD 1.5 and SDXL: DPM++ 2M SDE Exponential, DPM++ 3M SDE Exponential, DPM++ 2M Lu (good at few steps), Euler Beta and SA-Solver. The sampler list now shows the <b>3 fastest</b> and the <b>3 best-quality</b> samplers for your model type at the top (Pony / Illustrious / NoobAI have their own), the rest under <i>All other samplers</i>.",
-              "<b>More fixes from testing</b>: each tab shows <b>its own queue</b> and live preview (Image to image jobs no longer show in Create, nor Tools' previews in Image to image), and Image to image results show there straight away. <b>Space</b> no longer jumps the page in Image to image. <b>📷 Camera angle</b> checks the result: if it came out split into panels it tries once more, then keeps the biggest panel; it also asks to keep the clothes' colours. <b>📄 Paper cut-out → 👁 preview</b> shows the paper border live. <b>Detail with a LoRA</b> lists your ★ detail LoRAs (mark or unmark one under the list). <b>🧪 Model merger</b> moved to <b>Train → 🧪 Merge models</b>. <b>🔤 Text</b> selection tool (Image to image, Remove, Peel): finds the writing in a picture. <b>🎚 Adjust</b>: a filter's own-settings paint layers fold under that filter; click one to work on it. Create's model list has a <b>kind filter</b> (People, NSFW, fits this Mac, fast engine) beside Sort. 🎲 Random prompt can <b>📚 mix in Ideas</b>. The picture viewer's ‹ › sit right beside the picture.",
+              "<b>More fixes from testing</b>: each tab shows <b>its own queue</b> and live preview (Image to image jobs no longer show in Create, nor Tools' previews in Image to image), and Image to image results show there straight away. <b>Space</b> no longer jumps the page in Image to image. <b>📷 Camera angle</b> checks the result: if it came out split into panels it tries once more, then keeps the biggest panel; it also asks to keep the clothes' colours. <b>📄 Paper cut-out → 👁 preview</b> shows the paper border live. <b>Detail with a LoRA</b> lists your ★ detail LoRAs (mark or unmark one under the list). <b>🧪 Model merger</b> moved to <b>Train → 🧪 Merge models</b>. <b>🔤 Text</b> selection tool (Image to image, Remove, Peel): finds the writing in a picture. <b>🎚 Adjust</b>: a filter's own-settings paint layers fold under that filter; click one to work on it. Create's model list has a <b>kind filter</b> (People, NSFW, fits this Mac, fast engine) beside Sort. 🎲 Random prompt can <b>📚 mix in Ideas</b> for every model, FLUX and the other sentence models too (they get them as an \"Extra details\" sentence); animals and scenery get a framing or style idea, and the status line names the ones it added. The picture viewer's ‹ › sit right beside the picture.",
               "<b>📚 Ideas</b> (Create's prompt tools): hundreds of tested tags by category (pose, expressions, eyes, hair styles, headwear, outfits, dresses, bottoms, footwear, framing, styles), taken from Corneo's visual tag guides. Click one to add it, <b>🎲 Suggest one</b> for a random idea, or <b>🎲 Mix</b> for a pose, expression, hair, outfit, shoes and framing at once. 🎲 Random prompt uses them too.",
               "<b>🙂 Keep faces</b> (✨ Edit with words, on by default): each face is redone close up and blended in, so restoring or colouring an old photo keeps the person's face. <b>Embeddings</b> can be set to go in the prompt or the negative prompt (Train, Models → Embeddings, or right-click in Create).",
               "<b>Fixes and extras</b>: <b>⇄ Convert</b> (Create's prompt tools) turns sentences into Stable Diffusion tags and tags into sentences, so a prompt you like works with any model. Create and Image to image each keep <b>their own LoRAs</b>, and Image to image's pictures stay out of Create's pictures. Your own embeddings (from Train) are offered for the <b>prompt</b>, negative ones (EasyNegative, bad-hands…) for the negative prompt. The Library's details say <b>which tool made a picture</b> (📷 Camera angle and its view, 🧩 Combine, ✨ Edit with words…) and list its LoRAs (or none). In Tools the <b>picture stays in view</b> while you scroll through the modules. The Images fader no longer shows through the Add to queue button, and the ↺ buttons no longer cover module titles.",
@@ -928,7 +928,7 @@ const protoartApp = createApp({
             { h: "🗺 Regions: templates", items: [
               "Create → 🗺 Regions → <b>Templates</b>: Before / after, Day / night, Two characters, Face-off, Character in a scene, 3-panel comic, Sky and land, Four seasons, Two above one below and Product on a table. Each sets the areas, example prompts for each area and the main prompt (if yours is empty), and a size that fits. Edit the words, then Generate. ↩ puts back what you had." ] },
             { h: "Prompt tools", items: [
-              "<b>📚 Ideas</b>: tested tags in 11 categories (pose, expressions, eyes, hair styles, headwear, outfits, dresses, bottoms, footwear, framing, styles), from Corneo's visual tag guides. Pick a category, click a tag to add it (click again to take it out), search all of them, or press <b>🎲 Suggest one</b> (a random idea from the category) or <b>🎲 Mix</b> (pose, expression, hair, outfit, shoes and framing at once). They're tags, best for SD 1.5 / SDXL / Pony / Illustrious; other models read them as plain words. 🎲 Random prompt uses them too.",
+              "<b>📚 Ideas</b>: tested tags in 11 categories (pose, expressions, eyes, hair styles, headwear, outfits, dresses, bottoms, footwear, framing, styles), from Corneo's visual tag guides. Pick a category, click a tag to add it (click again to take it out), search all of them, or press <b>🎲 Suggest one</b> (a random idea from the category) or <b>🎲 Mix</b> (pose, expression, hair, outfit, shoes and framing at once). They're tags, best for SD 1.5 / SDXL / Pony / Illustrious; other models read them as plain words. <b>🎲 Random → 📚 Mix in Ideas</b> (on by default) adds a few of them to each random prompt, for every model: people get a pose, expression, clothes or style; animals and scenery a framing or style. The status line under the buttons names the ones it added.",
               "<b>🔤 Text</b> (selection tools in Image to image): finds the writing in the picture by itself (signs, logos, captions, watermarks) and selects it, to 🧅 peel it onto its own layer, 🩹 remove it or redraw it. Uses Florence-2 (~1.5 GB the first time). Press T, or click it; ＋ Add / － Subtract work as usual.",
               "<b>⇄ Convert</b>: rewrites the prompt as Stable Diffusion tags, or as natural sentences, keeping what it describes (and your &lt;lora:…&gt; tags). Use it to move a prompt you like between SD 1.5 / SDXL models and FLUX, Klein, ERNIE or Anima. ↩ undo puts yours back.",
               "Under the prompt, one row of keys: <b>✨ Enhance</b> (rewrite the prompt with more detail now, or every time you Generate), <b>📒 Saved</b> (prompts you kept), <b>🖼 From image</b> (turn a picture into a prompt; or drop a picture on the prompt box), <b>🎲 Random</b> (a random prompt: a woman, a man, two people, a landscape or an animal), <b>{ } Wildcards</b> and <b>📋 List</b>. Each opens its own panel underneath; click it again to close it.",
@@ -1394,6 +1394,7 @@ const protoartApp = createApp({
               "<b>⇄ Convert changed a detail</b>: it uses the small prompt-enhancer model; press ↩ undo and try again (each try is a little different), or fix the word by hand.",
               "<b>A model is greyed out</b>: this Mac doesn't have the memory it needs (its card says how much). Pick one that isn't greyed out; Settings → Options → Load anyway lets you try it anyway, but it may be very slow or stop part-way.",
               "<b>📷 Camera angle made panels, a line across the middle or two copies of the character</b>: that was the old wording; 🖼 One view now asks for a single picture. If it still happens, try another seed, and keep 3 · Prompt short (a long description of the picture can make Klein redraw it twice).",
+              "<b>🎲 Random doesn't add anything from 📚 Ideas</b>: open 🎲 Random and check <b>📚 Mix in Ideas</b> is ticked. The status line under the buttons names what it added (“📚 from Ideas: …”); with FLUX and the other sentence models they're at the end of the prompt as “Extra details — …”. Animals and scenery only get a framing or style idea, never a pose or clothes.",
               "<b>📷 Camera angle barely turned</b>: Klein sometimes keeps the original angle; try another seed, or a bigger change (a side view instead of a quarter view). <b>The character changed when seen from the back</b>: the back is invented; add details in the prompt (“long braid down her back”).",
               "<b>Peel left an outline behind</b>: select a little past the edge (Grow the selection, or paint over it), or turn on ✂ Follow the edge exactly. <b>The .psd won't open</b>: it's a standard 8-bit RGB Photoshop file; a very big picture with many layers can be several hundred MB." ] },
             { h: "New in 1.5.1: if something doesn't work", items: [
@@ -7896,29 +7897,47 @@ const protoartApp = createApp({
     naturalPrompts() {  // models that read sentences get sentence prompts from 🎲 Random prompt
       return ["ernie", "flux", "flux2", "moss"].includes(this.family);
     },
+    // 📚 a few extra details from the Ideas (safe ones), from categories picked at random.
+    // People get pose/expression/hair/clothes/…; animals and scenery only get framing and style.
+    ideaExtras(prompt, natural) {
+      if (this.rnd.ideas === false) return [];
+      const D = window.TAG_DICT || {};
+      const noPerson = ["scenery", "animal"].includes(this.rnd.subject);
+      const cats = (noPerson ? ["framing", "styles"] : ["posture", "expressions", "hair", "headwear", "outfits", "footwear", "eyes", "framing", "styles"])
+        // sentence prompts already choose the shot, hair and eyes: don't contradict them
+        .filter((k) => !(natural && ["framing", "hair", "eyes"].includes(k)))
+        .filter((k) => (D[k] || {}).tags && D[k].tags.length).sort(() => Math.random() - 0.5);
+      const SCENE_FRAMING = /^(close-up|portrait|full body|wide shot|very wide shot|profile|landscape|cityscape|nature|scenery|photo|poster|postcard|widescreen|upper body|cowboy shot)$/;
+      const SKIP = /^(no humans|multiple views|comic|manga|cover|cover page|manga cover|face|lower body|feet out of frame|stereogram|unfinished|faux traditional media)$/;
+      const low = prompt.toLowerCase(), out = [];
+      for (const k of cats.slice(0, noPerson ? 2 : 1 + (this.rnd.detail || 2))) {
+        const pool = D[k].tags.filter((t) => !SKIP.test(t) && (!noPerson || k !== "framing" || SCENE_FRAMING.test(t)) && !low.includes(t));
+        if (pool.length) out.push({ cat: k, tag: pool[Math.floor(Math.random() * pool.length)] });
+      }
+      return out;
+    },
     randomPrompt() {
       if (this.naturalPrompts()) {
-        this.form.prompt = window.NaturalPrompt.generate(this.rnd).prompt;
+        let prompt = window.NaturalPrompt.generate(this.rnd).prompt.trim();
+        const extra = this.ideaExtras(prompt, true);
+        if (extra.length) {
+          const WORD = { posture: "pose: ", expressions: "expression: ", headwear: "wearing ", outfits: "wearing ",
+            footwear: "wearing ", styles: "style: " };
+          prompt = prompt.replace(/[.\s]*$/, ".") + " Extra details — " + extra.map((e) => WORD[e.cat] + e.tag).join("; ") + ".";
+        }
+        this.form.prompt = prompt;
         this.autoNegative();
-        this.status = `Random ${FAMILY_LABEL[this.family]} prompt written as sentences`;
+        this.status = `Random ${FAMILY_LABEL[this.family]} prompt written as sentences`
+          + (extra.length ? ` · 📚 from Ideas: ${extra.map((e) => e.tag).join(", ")}` : "");
         return;
       }
       const r = window.DanbooruPrompt.generate(this.rnd);
       let prompt = r.prompt;
-      if (this.rnd.ideas !== false && !["scenery", "animal"].includes(this.rnd.subject)) {
-        // 📚 a couple of extra details from the Ideas (safe ones), from categories picked at random
-        const D = window.TAG_DICT || {}, cats = ["posture", "expressions", "hair", "headwear", "outfits", "footwear", "eyes", "framing"]
-          .filter((k) => (D[k] || {}).tags && D[k].tags.length).sort(() => Math.random() - 0.5);
-        const have = new Set(prompt.split(",").map((t) => t.trim()));
-        const extra = [];
-        for (const k of cats.slice(0, 1 + (this.rnd.detail || 2))) {
-          const t = D[k].tags[Math.floor(Math.random() * D[k].tags.length)];
-          if (!have.has(t)) { extra.push(t); have.add(t); }
-        }
-        if (extra.length) prompt += ", " + extra.join(", ");
-      }
+      const extra = this.ideaExtras(prompt);
+      if (extra.length) prompt += ", " + extra.map((e) => e.tag).join(", ");
       this.form.prompt = prompt;
       this.autoNegative();
+      this.status = extra.length ? `Random prompt · 📚 from Ideas: ${extra.map((e) => e.tag).join(", ")}` : "Random prompt";
     },
     // ✨ suggest / 🎲 random negative prompt: fits the prompt and the model type (tags or plain words)
     makeNegative(random) {
