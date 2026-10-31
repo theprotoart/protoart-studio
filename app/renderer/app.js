@@ -196,21 +196,34 @@ function camWords(az, el, zoom) {
   const dist = CAM_DIST.reduce((b, d) => (Math.abs(d.at - zoom) < Math.abs(b.at - zoom) ? d : b));
   return { view, elev, dist, label: `${view} · ${elev.name} · ${dist.name}` };
 }
+// what the camera sees from each of the 8 directions (spelled out: Klein turns much further when it's told what
+// becomes visible, and barely turns when the words are mostly about keeping things the same)
+const CAM_SEE = [
+  "the character faces the camera",
+  "the character is turned about 45 degrees, so we see the front and the right side, the face in three-quarter view",
+  "the character is seen in profile from the right, so we see the right side of the body and the face in side profile",
+  "the character is turned away, so we see the back and the right side, the face hidden or only just visible",
+  "the character is seen from behind, so we see the back of the head and the back, the face is not visible",
+  "the character is turned away, so we see the back and the left side, the face hidden or only just visible",
+  "the character is seen in profile from the left, so we see the left side of the body and the face in side profile",
+  "the character is turned about 45 degrees, so we see the front and the left side, the face in three-quarter view"];
 function camPrompt(az, el, zoom, extra, layout) {
   const w = camWords(az, el, zoom);
+  const see = CAM_SEE[CAM_VIEWS.indexOf(w.view)] || "";
   const more = (extra || "").trim().replace(/\.$/, "");
   const add = more ? more[0].toUpperCase() + more.slice(1) + ". " : "";
-  // (no words about black and white here: naming it made Klein turn colour pictures grey; the engine checks the colours)
-  const keep = "Keep the same character: identity, face, hair, the same clothes in exactly the same colours, materials, " +
-    "lighting and art style. Keep the original colours of the picture. Change nothing else.";
+  // (no words about black and white: naming it made Klein turn colour pictures grey; the engine checks the colours.
+  //  Few "keep" words: a long list of what must stay the same made Klein hardly move the camera.)
+  const same = "Same character, outfit, colours and art style; change only where the camera is.";
   if (layout === "comic")
-    return `Turn this into a comic book page with 3 to 4 panels showing the subject from different camera angles (one of them the ${w.view}, ${w.elev.say}). ` + add + keep;
+    return `Turn this into a comic book page with 3 to 4 panels showing the subject from different camera angles (one of them the ${w.view}, ${w.elev.say}). ` + add + same;
   if (layout === "sheet")
     return "Turn this into a character turnaround sheet: the same character shown full body from the front, the side and the back, " +
-      "standing side by side on a plain light background, evenly spaced. " + add + keep;
-  return `Move the camera around the subject: show it from the ${w.view}, ${w.elev.say}, ${w.dist.say}. ` + add + keep + " " +
-    "One single image of one scene: a single camera view with the character shown once. " +
-    "No panels, no split screen, no collage, no border lines, no extra copies of the character.";
+      "standing side by side on a plain light background, evenly spaced. " + add + same;
+  return `Rotate the camera around the subject to the ${w.view}: ${see}. ${w.elev.say[0].toUpperCase() + w.elev.say.slice(1)}, ${w.dist.say}. ` +
+    (w.view === "front view" ? "" : "The camera has really moved, so the character and the place around it are seen from this new direction. ") +
+    add + same + " " +
+    "One single picture: no panels, no split screen, no extra copies of the character.";
 }
 if (typeof module !== "undefined") module.exports = { camWords, camPrompt };
 // Image to image's picture and settings: Create's ↺ reset all, presets and ↺ reuse leave them alone
@@ -676,7 +689,8 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Since 1.6.1", items: [
-              "The picture viewer's <b>‹ ›</b> arrows sit right on the edges of the picture box, so they're close to the picture on any window size." ] },
+              "The picture viewer's <b>‹ ›</b> arrows sit right on the edges of the picture box, so they're close to the picture on any window size.",
+              "<b>📷 Camera angle turns further again</b>: its words now say what the camera sees from the new side (“we see the right side of the body and the face in side profile”, “seen from behind, the face is not visible”) and keep only a short “same character, outfit, colours and art style”. The long list of things to keep (added with the colour fix) made Klein hardly move the camera." ] },
             { h: "1.6.1: fixes from testing", items: [
               "<b>📷 Camera angle keeps the colours</b>: its words no longer mention black and white (that made Klein turn colour pictures grey), and if a colour picture still comes back grey it tries once more in colour. <b>⇄ Invert</b> is in every painting mode (after 👤 Subject it selects the background). Image to image's quick sampler picks sit on two labelled rows (⚡ Fastest, ★ Best quality) like Create's. Create's <b>↺ reset all</b>, its undo, presets and ↺ reuse no longer take away Image to image's picture. The LoRA list's ✕ no longer gets cut off in Image to image, and a Tools module picked in the patchbay keeps its title readable." ] },
             { h: "1.6.0: 🧩 Combine pictures by asking, 💡 match the scene's light, 📷 camera angles, 🧅 peel layers", items: [
@@ -1410,7 +1424,7 @@ const protoartApp = createApp({
               "<b>“Regional prompts and an image prompt (IP-Adapter) can't be combined yet”</b>: that can't happen any more; the app now switches one off when you switch the other on (a note in 🗺 Regions or 🖼 Image prompt says which, and it comes back when you switch the first one off).",
               "<b>I want more than 16 pictures at once</b>: click the number under the Images fader, type the amount (up to 64) and press Return. They're made one after another, so 40 SDXL pictures on an 8 GB Mac take a long time; the queue can be paused or stopped. <b>An error stays above the pictures</b>: click its ✕, or it goes away by itself when the next job starts.",
               "<b>🎲 Random doesn't add anything from 📚 Ideas</b>: open 🎲 Random and check <b>📚 Mix in Ideas</b> is ticked. The status line under the buttons names what it added (“📚 from Ideas: …”); with FLUX and the other sentence models they're at the end of the prompt as “Extra details — …”. Animals and scenery only get a framing or style idea, never a pose or clothes.",
-              "<b>📷 Camera angle barely turned</b>: Klein sometimes keeps the original angle; try another seed, or a bigger change (a side view instead of a quarter view). <b>The character changed when seen from the back</b>: the back is invented; add details in the prompt (“long braid down her back”).",
+              "<b>📷 Camera angle barely turned</b>: the words now describe what the new side shows, which turns it much further than 1.6.1 did. If it still keeps the angle: Klein sometimes keeps the original angle; try another seed, or a bigger change (a side view instead of a quarter view). <b>The character changed when seen from the back</b>: the back is invented; add details in the prompt (“long braid down her back”).",
               "<b>Peel left an outline behind</b>: select a little past the edge (Grow the selection, or paint over it), or turn on ✂ Follow the edge exactly. <b>The .psd won't open</b>: it's a standard 8-bit RGB Photoshop file; a very big picture with many layers can be several hundred MB." ] },
             { h: "New in 1.5.1: if something doesn't work", items: [
               "<b>Training says it will take 16 hours</b>: on an 8 GB Mac that's about right for ERNIE (each step works through a very big model, and memory spills onto the disk). Use ★ Recommended (fewer steps for ERNIE), or train on an SD 1.5 model, which takes minutes to a few hours. The estimate becomes a measurement after the first steps.",

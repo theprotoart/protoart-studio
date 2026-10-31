@@ -2,6 +2,7 @@
 
 ## Next (not released yet)
 
+- 📷 Camera angle turns further: `camPrompt` says what each of the 8 directions shows (`CAM_SEE`) and keeps only "Same character, outfit, colours and art style; change only where the camera is" (1.6.1's long keep-list made Klein barely move the camera); no "the camera has moved" line for the front view
 - The picture viewer's ‹ › arrows sit on the edges of the picture box (half on it) instead of out by the window's edges (the box is at most 1200 px wide; `.detail-nav` positions use that)
 
 ## 1.6.1
