@@ -2443,9 +2443,10 @@ input[type=range]:disabled { opacity: .35; }
 .ideas-chips .chip.mature::after { content: " ⚑"; color: #e07a6a; }
 .model-search-row { flex-wrap: wrap; }
 .model-search-row .model-kind { flex: 1 1 140px; min-width: 0; }
-/* the picture viewer's ‹ › sit right beside the picture box (not at the far edges of a wide screen) */
-.detail-nav.prev { left: max(14px, calc(50vw - min(750px, 50vw - 70px) - 54px)); }
-.detail-nav.next { right: max(14px, calc(50vw - min(750px, 50vw - 70px) - 54px)); }
+/* the picture viewer's ‹ › sit on the edges of the picture box itself (half on it; the box is at most 1200 px wide), not out by the window's edges */
+.detail-nav.prev { left: max(4px, calc(50vw - min(600px, 50vw - 70px) - 23px)); }
+.detail-nav.next { right: max(4px, calc(50vw - min(600px, 50vw - 70px) - 23px)); }
+.detail-nav { z-index: 40; box-shadow: 0 4px 14px rgba(0, 0, 0, .6); }
 .train-merge-rack { display: block; }
 .train-merge-rack .train-model-merge { max-width: 560px; }
 .sel-tools { grid-template-columns: repeat(8, minmax(0, 1fr)); }

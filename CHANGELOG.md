@@ -1,5 +1,9 @@
 # Changelog
 
+## Next (not released yet)
+
+- The picture viewer's ‹ › arrows sit on the edges of the picture box (half on it) instead of out by the window's edges (the box is at most 1200 px wide; `.detail-nav` positions use that)
+
 ## 1.6.1
 
 - 📷 Camera angle: `camPrompt` no longer names black and white (it made Klein drop the colours), and `edit_words` retries once in colour when `compose.turned_grey` (chroma of the result < 35% of the original's), noted as `camera.colour_retried`

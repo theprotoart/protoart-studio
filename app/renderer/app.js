@@ -675,6 +675,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Since 1.6.1", items: [
+              "The picture viewer's <b>‹ ›</b> arrows sit right on the edges of the picture box, so they're close to the picture on any window size." ] },
             { h: "1.6.1: fixes from testing", items: [
               "<b>📷 Camera angle keeps the colours</b>: its words no longer mention black and white (that made Klein turn colour pictures grey), and if a colour picture still comes back grey it tries once more in colour. <b>⇄ Invert</b> is in every painting mode (after 👤 Subject it selects the background). Image to image's quick sampler picks sit on two labelled rows (⚡ Fastest, ★ Best quality) like Create's. Create's <b>↺ reset all</b>, its undo, presets and ↺ reuse no longer take away Image to image's picture. The LoRA list's ✕ no longer gets cut off in Image to image, and a Tools module picked in the patchbay keeps its title readable." ] },
             { h: "1.6.0: 🧩 Combine pictures by asking, 💡 match the scene's light, 📷 camera angles, 🧅 peel layers", items: [
