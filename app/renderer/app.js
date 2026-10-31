@@ -409,7 +409,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.1";  // keep in step with app/package.json
+const APP_VERSION = "1.6.2";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -688,7 +688,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Since 1.6.1", items: [
+            { h: "1.6.2: 📷 Camera angle turns further, picture viewer arrows", items: [
               "The picture viewer's <b>‹ ›</b> arrows sit right on the edges of the picture box, so they're close to the picture on any window size.",
               "<b>📷 Camera angle turns further again</b>: its words now say what the camera sees from the new side (“we see the right side of the body and the face in side profile”, “seen from behind, the face is not visible”) and keep only a short “same character, outfit, colours and art style”. The long list of things to keep (added with the colour fix) made Klein hardly move the camera." ] },
             { h: "1.6.1: fixes from testing", items: [
