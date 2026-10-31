@@ -2467,3 +2467,6 @@ input[type=range]:disabled { opacity: .35; }
    one-letter-wide column) */
 .rack-module .mod-head > h3, .rack-module .mod-head > .mod-sub, .rack-module .mod-head > .mod-editing { grid-column: 2; }
 .rack-module .mod-head > .mod-editing { margin-left: 0; justify-self: start; }
+
+/* Image to image → Earlier results: “· 9 pictures · clear all” beside the heading, like Create's */
+.i2i-clear-line { text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 6px; }

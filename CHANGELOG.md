@@ -1,5 +1,9 @@
 # Changelog
 
+## Next (not released yet)
+
+- Image to image → Earlier results: “· N pictures · clear all” beside the heading (`clearI2iResults`, like Create's)
+
 ## 1.6.2
 
 - 📷 Camera angle turns further: `camPrompt` says what each of the 8 directions shows (`CAM_SEE`) and keeps only "Same character, outfit, colours and art style; change only where the camera is" (1.6.1's long keep-list made Klein barely move the camera); no "the camera has moved" line for the front view

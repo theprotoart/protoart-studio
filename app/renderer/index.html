@@ -3325,7 +3325,9 @@
           <button class="ghost" @click="showInFolder(i2iLatest.path)">Show in Finder</button>
         </div>
       </div>
-      <h3 v-if="i2iResults.length > 1" class="sub">Earlier results</h3>
+      <h3 v-if="i2iResults.length > 1" class="sub">Earlier results <span class="hint i2i-clear-line">· {{ i2iResults.length }} pictures ·
+        <button class="link" :disabled="i2iRunning" @click="clearI2iResults" title="Take them off this screen; they stay in the Library">clear all</button>
+        (they stay in the Library)</span></h3>
       <div class="gallery">
         <figure v-for="r in i2iResults.slice(1)" :key="r.id" @click="openDetail(r)" :class="{covered: covered(r)}">
           <img :src="thumbUrl(r)" loading="lazy" decoding="async"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
