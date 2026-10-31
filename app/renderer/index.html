@@ -757,10 +757,10 @@
           <div v-if="samplerPicks().fast.length && !(form.fast && currentModel?.fast_mode)" class="sampler-picks">
             <div class="chips"><span class="hint">⚡ Fastest:</span>
               <button v-for="s in samplerPicks().fast" :key="'cf' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)"
-                      :title="'Quick to a clean picture with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ s.label }}</button></div>
+                      :title="s.label + ' · quick to a clean picture with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ chipLabel(s) }}</button></div>
             <div v-if="samplerPicks().quality.length" class="chips"><span class="hint">★ Best quality:</span>
               <button v-for="s in samplerPicks().quality" :key="'cq' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)"
-                      :title="'Most detailed results with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ s.label }}</button></div>
+                      :title="s.label + ' · most detailed results with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ chipLabel(s) }}</button></div>
           </div></div>
         <div class="span2 knob-row">
           <rack-knob v-model.number="form.steps" :min="1" :max="150" :step="1" label="Steps" title="Steps: more = more detail, slower"
@@ -2649,7 +2649,7 @@
             </div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
-              <span class="grow"></span><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
+              <span class="grow"></span><button class="ghost small sel-end" :disabled="!mask.data" @click="maskInvert" title="Swap painted and unpainted areas: after 👤 Subject, everything except the subject (the background)">⇄ Invert</button><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
               <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
               <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
               <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
@@ -2722,7 +2722,7 @@
             </div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
-              <span class="grow"></span><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
+              <span class="grow"></span><button class="ghost small sel-end" :disabled="!mask.data" @click="maskInvert" title="Swap painted and unpainted areas: after 👤 Subject, everything except the subject (the background)">⇄ Invert</button><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
               <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
               <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
               <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
@@ -2837,7 +2837,7 @@
             </div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
-              <span class="grow"></span><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
+              <span class="grow"></span><button class="ghost small sel-end" :disabled="!mask.data" @click="maskInvert" title="Swap painted and unpainted areas: after 👤 Subject, everything except the subject (the background)">⇄ Invert</button><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
               <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
               <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
               <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
@@ -2866,7 +2866,7 @@
             </div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
-              <span class="grow"></span><button class="ghost small sel-end" :disabled="!mask.data" @click="maskInvert" title="Swap painted and unpainted areas">⇄ Invert</button><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
+              <span class="grow"></span><button class="ghost small sel-end" :disabled="!mask.data" @click="maskInvert" title="Swap painted and unpainted areas: after 👤 Subject, everything except the subject (the background)">⇄ Invert</button><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
               <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
               <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
               <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
@@ -2933,12 +2933,13 @@
           </template>
           <template v-else><option v-for="s in samplers" :key="'ia' + s.id" :value="s.id">{{ s.label }}</option></template>
         </select>
-        <div v-if="samplerPicks().fast.length" class="chips i2i-sampler-picks"><span class="hint">⚡</span>
-          <button v-for="s in samplerPicks().fast" :key="'icf' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)"
-                  :title="'⚡ Quick to a clean picture with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ s.label }}</button>
-          <span class="hint">★</span>
-          <button v-for="s in samplerPicks().quality" :key="'icq' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)"
-                  :title="'★ Most detailed results with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ s.label }}</button>
+        <div v-if="samplerPicks().fast.length" class="sampler-picks i2i-sampler-picks">
+          <div class="chips"><span class="hint">⚡ Fastest:</span>
+            <button v-for="s in samplerPicks().fast" :key="'icf' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)"
+                    :title="s.label + ' · quick to a clean picture with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ chipLabel(s) }}</button></div>
+          <div v-if="samplerPicks().quality.length" class="chips"><span class="hint">★ Best quality:</span>
+            <button v-for="s in samplerPicks().quality" :key="'icq' + s.id" class="chip rec" :class="{on: form.sampler === s.id}" @click="pickSampler(s.id)"
+                    :title="s.label + ' · most detailed results with ' + pickFor() + (s.steps ? ' (~' + s.steps[0] + ' steps)' : '')">{{ chipLabel(s) }}</button></div>
         </div>
         <div class="grid2 i2i-model-opts">
           <div class="span2 knob-row">

@@ -295,3 +295,22 @@ def largest_panel(image):
     l, t, r, b = box
     pad = 4
     return (min(r - 1, l + pad), min(b - 1, t + pad), max(l + 1, r - pad), max(t + 1, b - pad))
+
+
+def colourfulness(image):
+    """How colourful a picture is: the mean chroma (distance from grey) of a small copy, 0 for black and white,
+    tens for colour pictures (a muted one ~10-20, a bright one 60+). Used to catch 📷 Camera angle results that came out black and white."""
+    im = image.convert("RGB")
+    im.thumbnail((160, 160))
+    a = np.asarray(im, dtype=np.float32)
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    # opponent colour axes (cheap and close enough to LAB a*/b* for this)
+    rg = r - g
+    yb = 0.5 * (r + g) - b
+    return float(np.sqrt(rg * rg + yb * yb).mean())
+
+
+def turned_grey(source, result, ratio=0.35, min_source=8.0):
+    """True when a colour picture came back (nearly) black and white."""
+    s = colourfulness(source)
+    return s >= min_source and colourfulness(result) < s * ratio

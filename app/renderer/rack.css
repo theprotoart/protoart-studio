@@ -1913,7 +1913,8 @@ button.rec-btn.on { border-color: var(--lit-edge); box-shadow: 0 0 8px rgba(var(
 .i2ifold.shut > :not(h3) { display: none !important; }
 .i2ifold > h3 .cfold-sum { display: block; font-weight: 400; letter-spacing: 0; text-transform: none; font-size: 12px; opacity: .8; margin-top: 2px; }
 .i2i-sampler { width: 100%; margin: 2px 0 6px; }
-.i2i-sampler-picks { margin: 0 0 8px; gap: 4px; flex-wrap: wrap; }
+.i2i-sampler-picks { margin: 4px 0 8px; }
+.i2i-sampler-picks .chips { white-space: normal; margin-bottom: 2px; }
 .i2ifold.shut > h3 .cfold-chev { transform: rotate(-45deg); top: 4px; }
 .ok-box { margin: 8px 0; padding: 8px 12px; border-radius: 5px; border: 1px solid #2f7d43; background: rgba(60, 170, 90, .16);
   color: #bfe8c9; font-size: 13px; }
@@ -2460,3 +2461,8 @@ input[type=range]:disabled { opacity: .35; }
 
 /* 🗺 Regions ↔ 🖼 image prompt: the note saying one switched the other off */
 .mutex-note { margin: 4px 0 6px; padding: 5px 9px; border-left: 3px solid var(--amber, #ffae2b); background: rgba(255, 174, 43, .08); }
+
+/* Tools: a module picked in the patchbay shows "⚙ DETAIL" under its title (it used to squeeze the title into a
+   one-letter-wide column) */
+.rack-module .mod-head > h3, .rack-module .mod-head > .mod-sub, .rack-module .mod-head > .mod-editing { grid-column: 2; }
+.rack-module .mod-head > .mod-editing { margin-left: 0; justify-self: start; }

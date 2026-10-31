@@ -200,8 +200,9 @@ function camPrompt(az, el, zoom, extra, layout) {
   const w = camWords(az, el, zoom);
   const more = (extra || "").trim().replace(/\.$/, "");
   const add = more ? more[0].toUpperCase() + more.slice(1) + ". " : "";
-  const keep = "Keep the same character: identity, face, hair, the same clothes in the same colours, materials, lighting and art style " +
-    "(a black-and-white photo stays black and white). Change nothing else.";
+  // (no words about black and white here: naming it made Klein turn colour pictures grey; the engine checks the colours)
+  const keep = "Keep the same character: identity, face, hair, the same clothes in exactly the same colours, materials, " +
+    "lighting and art style. Keep the original colours of the picture. Change nothing else.";
   if (layout === "comic")
     return `Turn this into a comic book page with 3 to 4 panels showing the subject from different camera angles (one of them the ${w.view}, ${w.elev.say}). ` + add + keep;
   if (layout === "sheet")
@@ -212,6 +213,10 @@ function camPrompt(az, el, zoom, extra, layout) {
     "No panels, no split screen, no collage, no border lines, no extra copies of the character.";
 }
 if (typeof module !== "undefined") module.exports = { camWords, camPrompt };
+// Image to image's picture and settings: Create's ↺ reset all, presets and ↺ reuse leave them alone
+const I2I_PICTURE_KEYS = ["init_image", "control_image", "edit_refs"];
+const I2I_FORM_KEYS = [...I2I_PICTURE_KEYS, "strength", "use_init_size", "size_link", "size_ratio", "i2i_use_init", "control",
+  "heal_method", "keep_faces", "cam", "combine", "i2i_mode", "inpaint", "outpaint", "outpaint_engine", "swap", "i2i_loras"];
 const I2I_KINDS = ["img2img", "healed", "word_edit", "combined", "camera_angle", "inpaint", "outpaint", "controlnet", "faceswap"];  // pictures made in Image to image
 // Tools → Tiled upscale presets (size, how much new detail, steps)
 const TILED_PRESETS = [
@@ -672,7 +677,7 @@ const protoartApp = createApp({
           sections: [
             { h: "1.6.0: 🧩 Combine pictures by asking, 💡 match the scene's light, 📷 camera angles, 🧅 peel layers", items: [
               "<b>Newer samplers</b> for SD 1.5 and SDXL: DPM++ 2M SDE Exponential, DPM++ 3M SDE Exponential, DPM++ 2M Lu (good at few steps), Euler Beta and SA-Solver. The sampler list now shows the <b>3 fastest</b> and the <b>3 best-quality</b> samplers for your model type at the top (Pony / Illustrious / NoobAI have their own), the rest under <i>All other samplers</i>.",
-              "<b>More fixes from testing</b>: each tab shows <b>its own queue</b> and live preview (Image to image jobs no longer show in Create, nor Tools' previews in Image to image), and Image to image results show there straight away. <b>Space</b> no longer jumps the page in Image to image. <b>📷 Camera angle</b> checks the result: if it came out split into panels it tries once more, then keeps the biggest panel; it also asks to keep the clothes' colours. <b>📄 Paper cut-out → 👁 preview</b> shows the paper border live. <b>Detail with a LoRA</b> lists your ★ detail LoRAs (mark or unmark one under the list). <b>🧪 Model merger</b> moved to <b>Train → 🧪 Merge models</b>. <b>🔤 Text</b> selection tool (Image to image, Remove, Peel): finds the writing in a picture. <b>🎚 Adjust</b>: a filter's own-settings paint layers fold under that filter; click one to work on it. Create's model list has a <b>kind filter</b> (People, NSFW, fits this Mac, fast engine) beside Sort. 🎲 Random prompt can <b>📚 mix in Ideas</b> for every model, FLUX and the other sentence models too (they get them as an \"Extra details\" sentence); animals and scenery get a framing or style idea, and the status line names the ones it added. The picture viewer's ‹ › sit right beside the picture. <b>Type the number of images</b>: click the number under the Images fader and type any amount up to 64 (the fader itself goes to 16). Error messages above the pictures have a <b>✕</b> to hide them, and the <b>Show picture</b> button on a hidden NSFW picture no longer jumps sideways when you click it. <b>🗺 Regional prompts and 🖼 an image prompt</b> can no longer be on at the same time (that gave an error): switching one on switches the other off, with a note, and puts it back when you switch the first one off.",
+              "<b>More fixes from testing</b>: each tab shows <b>its own queue</b> and live preview (Image to image jobs no longer show in Create, nor Tools' previews in Image to image), and Image to image results show there straight away. <b>Space</b> no longer jumps the page in Image to image. <b>📷 Camera angle</b> checks the result: if it came out split into panels it tries once more, then keeps the biggest panel; it also asks to keep the clothes' colours. <b>📄 Paper cut-out → 👁 preview</b> shows the paper border live. <b>Detail with a LoRA</b> lists your ★ detail LoRAs (mark or unmark one under the list). <b>🧪 Model merger</b> moved to <b>Train → 🧪 Merge models</b>. <b>🔤 Text</b> selection tool (Image to image, Remove, Peel): finds the writing in a picture. <b>🎚 Adjust</b>: a filter's own-settings paint layers fold under that filter; click one to work on it. Create's model list has a <b>kind filter</b> (People, NSFW, fits this Mac, fast engine) beside Sort. 🎲 Random prompt can <b>📚 mix in Ideas</b> for every model, FLUX and the other sentence models too (they get them as an \"Extra details\" sentence); animals and scenery get a framing or style idea, and the status line names the ones it added. The picture viewer's ‹ › sit right beside the picture. <b>Type the number of images</b>: click the number under the Images fader and type any amount up to 64 (the fader itself goes to 16). Error messages above the pictures have a <b>✕</b> to hide them, and the <b>Show picture</b> button on a hidden NSFW picture no longer jumps sideways when you click it. <b>📷 Camera angle keeps the colours</b>: its words no longer mention black and white (that made Klein turn colour pictures grey), and if a colour picture still comes back grey it tries once more in colour. <b>⇄ Invert</b> is in every painting mode (after 👤 Subject it selects the background). Image to image's quick sampler picks sit on two labelled rows (⚡ Fastest, ★ Best quality) like Create's. Create's <b>↺ reset all</b>, its undo, presets and ↺ reuse no longer take away Image to image's picture. The LoRA list's ✕ no longer gets cut off in Image to image, and a Tools module picked in the patchbay keeps its title readable. <b>🗺 Regional prompts and 🖼 an image prompt</b> can no longer be on at the same time (that gave an error): switching one on switches the other off, with a note, and puts it back when you switch the first one off.",
               "<b>📚 Ideas</b> (Create's prompt tools): hundreds of tested tags by category (pose, expressions, eyes, hair styles, headwear, outfits, dresses, bottoms, footwear, framing, styles), taken from Corneo's visual tag guides. Click one to add it, <b>🎲 Suggest one</b> for a random idea, or <b>🎲 Mix</b> for a pose, expression, hair, outfit, shoes and framing at once. 🎲 Random prompt uses them too.",
               "<b>🙂 Keep faces</b> (✨ Edit with words, on by default): each face is redone close up and blended in, so restoring or colouring an old photo keeps the person's face. <b>Embeddings</b> can be set to go in the prompt or the negative prompt (Train, Models → Embeddings, or right-click in Create).",
               "<b>Fixes and extras</b>: <b>⇄ Convert</b> (Create's prompt tools) turns sentences into Stable Diffusion tags and tags into sentences, so a prompt you like works with any model. Create and Image to image each keep <b>their own LoRAs</b>, and Image to image's pictures stay out of Create's pictures. Your own embeddings (from Train) are offered for the <b>prompt</b>, negative ones (EasyNegative, bad-hands…) for the negative prompt. The Library's details say <b>which tool made a picture</b> (📷 Camera angle and its view, 🧩 Combine, ✨ Edit with words…) and list its LoRAs (or none). In Tools the <b>picture stays in view</b> while you scroll through the modules. The Images fader no longer shows through the Add to queue button, and the ↺ buttons no longer cover module titles.",
@@ -1056,7 +1061,7 @@ const protoartApp = createApp({
               "<b>LoRAs</b> card: add a LoRA (search the list, or #tag for your 🏷 tags), set its weight with the slider, ✕ removes it. Under the search: the order (A → Z, <b>Newest first</b>, biggest…) and the kind list (<b>● People</b> / <b>Not People</b>, .safetensors, Pony…); <b>★</b> shows only favourites. They're the same LoRAs and the same filters as in Create (both tabs share the model); trigger words and 🎲 Random LoRAs are in Create." ] },
             { h: "🖌 Inpaint", items: [
               "<b>Inpainting models first</b>: when you have an inpainting model (e.g. a file like dreamshaper_8Inpainting), the model list at the top shows them under 🎯 Inpainting models while you're in Inpaint, and greys out the others. Pick one to use it; its LoRAs follow its type. Switch off <b>🖌 Paint with an inpainting model</b> in Settings to inpaint with any model.",
-              "<b>Selection tools</b> (everywhere you paint over a picture): <b>🖌 Brush</b>, <b>🧽 Erase</b>, <b>➰ Lasso</b> (draw around an area; it fills when you let go), <b>⬠ Polygon</b> (click the corners; click the first point, double-click or press Return to close), <b>🪄 Wand</b> (click a colour; the tolerance slider sets how similar), <b>⬚ Object</b> (drag a box around something and its outline is found). <b>＋ Add / － Subtract</b>, or hold ⌥ Option to subtract. Keys: B E L P W O; Esc cancels.",
+              "<b>Selection tools</b> (everywhere you paint over a picture): <b>🖌 Brush</b>, <b>🧽 Erase</b>, <b>➰ Lasso</b> (draw around an area; it fills when you let go), <b>⬠ Polygon</b> (click the corners; click the first point, double-click or press Return to close), <b>🪄 Wand</b> (click a colour; the tolerance slider sets how similar), <b>⬚ Object</b> (drag a box around something and its outline is found). <b>＋ Add / － Subtract</b>, or hold ⌥ Option to subtract. <b>⇄ Invert</b> swaps what's selected and what isn't: after <b>👤 Subject</b> it selects everything except the subject (the background). Keys: B E L P W O; Esc cancels.",
               "<b>Brush size</b>: a ring the size of the brush follows the pointer (dashed when erasing); moving the size slider shows it on the picture, and the metal well next to the slider shows the size.",
               "Choose <b>Inpaint</b>, paint over what you want to change (Paint / Erase, brush size, invert, clear), and describe what should be there.",
               "<b>Change strength</b> 0.7–0.9 replaces what's painted; 1.0 starts from scratch there. <b>Edge softness</b> blends the edges.",
@@ -1395,6 +1400,8 @@ const protoartApp = createApp({
               "<b>Does ✂ Cut out download every time?</b> No: its model (~224 MB) downloads once, the first time, then it works offline for every picture.",
               "<b>⇄ Convert changed a detail</b>: it uses the small prompt-enhancer model; press ↩ undo and try again (each try is a little different), or fix the word by hand.",
               "<b>A model is greyed out</b>: this Mac doesn't have the memory it needs (its card says how much). Pick one that isn't greyed out; Settings → Options → Load anyway lets you try it anyway, but it may be very slow or stop part-way.",
+              "<b>📷 Camera angle comes out black and white</b>: fixed. Its words used to say “a black-and-white photo stays black and white”, and Klein took the hint; now they ask for the picture's own colours, and if a colour picture still comes back grey it tries once more in colour (it says so in the status line). If it's still grey, try another seed or add “in full colour” to 3 · Prompt.",
+              "<b>Image to image's picture disappeared after using Create</b>: Create's ↺ reset all (and its undo), presets and ↺ reuse used to reset it too; they leave it alone now. If it still happens, tell us what you did just before.",
               "<b>📷 Camera angle made panels, a line across the middle or two copies of the character</b>: that was the old wording; 🖼 One view now asks for a single picture. If it still happens, try another seed, and keep 3 · Prompt short (a long description of the picture can make Klein redraw it twice).",
               "<b>“Regional prompts and an image prompt (IP-Adapter) can't be combined yet”</b>: that can't happen any more; the app now switches one off when you switch the other on (a note in 🗺 Regions or 🖼 Image prompt says which, and it comes back when you switch the first one off).",
               "<b>I want more than 16 pictures at once</b>: click the number under the Images fader, type the amount (up to 64) and press Return. They're made one after another, so 40 SDXL pictures on an 8 GB Mac take a long time; the queue can be paused or stopped. <b>An error stays above the pictures</b>: click its ✕, or it goes away by itself when the next job starts.",
@@ -1520,6 +1527,7 @@ const protoartApp = createApp({
             { h: "Generating is very slow", items: [
               "The first picture after opening the app is slower (the model loads into memory); the next ones are faster.",
               "<b>“Your Mac is short of memory”</b> above the pictures: other apps (a browser with many tabs, Discord, other image apps) are holding the memory, so the Mac moves the model to the disk and every step waits for it. Quitting them makes SDXL several times faster (on an 8 GB Mac, about 30–100 s a step with browsers open, a handful without). The note's ✕ hides it.",
+              "<b>Inpaint or Camera angle takes 10+ minutes</b> (the preview says 40–70 s a step): the Mac is out of memory (the engine's log showed 0.3 GB free and the disk in use). Inpaint at 768 px normally takes well under a minute on an 8 GB M1, and 📷 Camera angle a minute or two. Quit other apps (web browsers, video and chat apps), don't mix many jobs with different models in the queue (each switch reloads a model), and use a smaller picture.",
               "On 8 GB Macs: <b>SD 1.5 at 512 px</b> is quickest, <b>⚡ Fast mode</b> cuts steps to 6, ERNIE runs best on the fast engine at <b>Medium (768)</b>. Quit other apps so macOS doesn't swap.",
               "Hi-res fix, the face detailer and the image prompt each add time; turn them off for quick drafts. Turning off the live preview (Settings) helps a little." ] },
             { h: "🎚 Adjust: “No handler registered” or the preview stays black", items: [
@@ -2837,12 +2845,12 @@ const protoartApp = createApp({
         const im = new Image();
         im.onload = () => { if (this.form.init_image === v && im.naturalWidth) this.initDims = { w: im.naturalWidth, h: im.naturalHeight }; };
         im.src = this.fileUrl(v);
+        this.zoomReset("i2iSrc"); this.zoomReset("i2i");  // a new picture: stop painting on the old one
       },
     },
     "tool.source"() { this.tool.healing = false; this.zoomReset("tools"); if (this.cut.open) this.closeCutout(); },
     "train.kind"() { if (this.train.preset === "recommended") this.applyTrainPreset(this.trainRecommended); },
     "train.model"() { if (this.train.preset === "recommended") this.applyTrainPreset(this.trainRecommended); },
-    "form.init_image"() { this.zoomReset("i2iSrc"); this.zoomReset("i2i"); },  // a new picture in Tools: stop painting on the old one
     train: { deep: true, handler(v) {
       const { items, result, lossHistory, dirty, ...keep } = v;
       saveJSON("protoart.train", keep);
@@ -3560,6 +3568,7 @@ const protoartApp = createApp({
         this.form.fast_prev = null;
       }
     },
+    chipLabel(s) { return String(s.label || s.id).replace(/\s*\([^)]*\)\s*$/, ""); },  // the quick-pick buttons: names without the notes in brackets (they're in the tip)
     samplerPicks() {
       // {fast: [samplers], quality: [samplers], rest: [samplers]} for the chosen model, only ones it offers
       const fam = this.currentFlavor && this.family === "sdxl" ? "anime_xl" : this.family;
@@ -3672,6 +3681,7 @@ const protoartApp = createApp({
       // (Image to image's own prompt is left alone)
       const keep = { prompt: "", negative_prompt: "", prompt_owner: this.form.prompt_owner,
                      i2i_prompt: this.form.i2i_prompt, i2i_negative: this.form.i2i_negative, loras: [] };
+      for (const k of I2I_FORM_KEYS) if (k in this.form) keep[k] = JSON.parse(JSON.stringify(this.form[k]));
       const start = this.opts.default_model || "";  // Models tab → ☆ Default
       const was = this.form.model;
       this.form = Object.assign(defaultForm(), keep);
@@ -3729,7 +3739,9 @@ const protoartApp = createApp({
     },
     undoResetCreate() {
       if (!this.resetUndo) return;
-      this.form = this.resetUndo;
+      const u = this.resetUndo;  // Create's settings come back; Image to image keeps the picture it has now
+      for (const k of I2I_FORM_KEYS) if (k in this.form) u[k] = JSON.parse(JSON.stringify(this.form[k]));
+      this.form = u;
       this.resetUndo = null;
       if (this.resetFolds) { this.cfolds = this.resetFolds; saveJSON("protoart.createFolds", this.cfolds); this.resetFolds = null; }
       this.status = "Settings restored";
@@ -8184,6 +8196,7 @@ const protoartApp = createApp({
       if (!name) return;
       const settings = JSON.parse(JSON.stringify(this.form));
       if (!this.presetIncludesPrompt) delete settings.prompt;
+      for (const k of I2I_PICTURE_KEYS) delete settings[k];  // Image to image's pictures aren't part of a look
       delete settings.seed; // presets keep the look, not one exact image
       this.presets = await call("presets_save", { name, settings });
       this.selectedPreset = name;
@@ -8194,6 +8207,7 @@ const protoartApp = createApp({
       const p = this.presets.find((x) => x.name === this.selectedPreset);
       if (!p) return;
       const s = JSON.parse(JSON.stringify(p.settings));
+      for (const k of I2I_PICTURE_KEYS) delete s[k];  // (older presets saved them): keep the picture you're working on
       this.form.model = s.model || this.form.model;
       await this.loadSamplers(false);
       Object.assign(this.form, s);
@@ -9661,8 +9675,7 @@ const protoartApp = createApp({
         clip_skip: s.clip_skip || 1,
         var_seed: s.var_strength ? s.var_seed : -1, var_strength: s.var_strength || 0,
         loras: JSON.parse(JSON.stringify(r.loras)), num_images: 1,
-        init_image: s.init_image || "", strength: s.strength || 0.6,
-      });
+      });  // (Image to image's picture is left as it is: ↺ reuse fills in Create)
       this.detail = null;
       this.tab = "create";
     },

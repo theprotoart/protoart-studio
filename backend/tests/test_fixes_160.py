@@ -105,3 +105,33 @@ def test_panel_seams_found_and_largest_panel_kept():
     w = np.full((400, 600), 255, np.uint8)
     w[100:300, 200:400] = rng.integers(0, 255, (200, 200))     # a picture on a plain background: no panels
     assert c.panel_seams(Image.fromarray(w)) == []
+
+
+def test_camera_result_turned_grey_is_caught():
+    import numpy as np
+    from PIL import Image
+    from postprocess import compose as c
+    rng = np.random.default_rng(3)
+    colour = Image.fromarray((rng.random((120, 160, 3)) * 200 + 30).astype(np.uint8))
+    grey = colour.convert("L").convert("RGB")
+    assert c.turned_grey(colour, grey)
+    assert not c.turned_grey(colour, colour)
+    assert not c.turned_grey(grey, grey)          # a black-and-white original may stay black and white
+    muted = Image.new("RGB", (64, 64), (120, 100, 90))
+    assert c.colourfulness(muted) > 8 and c.colourfulness(muted.convert("L").convert("RGB")) == 0
+
+
+def test_camera_prompt_never_mentions_black_and_white():
+    import subprocess, json, os
+    js = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "app", "renderer", "app.js")
+    src = open(js, encoding="utf-8").read()
+    start = src.index("function camWords(")
+    end = src.index("if (typeof module", start)
+    pre = src[src.index("const CAM_VIEWS"):start]
+    code = pre + src[start:end] + "\nconsole.log(JSON.stringify([camPrompt(90,0,5,'',''), camPrompt(0,30,5,'x','comic'), camPrompt(0,0,5,'','sheet')]));"
+    try:
+        out = subprocess.run(["node", "-e", code], capture_output=True, text=True, timeout=30)
+    except FileNotFoundError:
+        return  # no node here (the Mac's test run): nothing to check
+    for p in json.loads(out.stdout):
+        assert "black" not in p.lower() and "colours" in p

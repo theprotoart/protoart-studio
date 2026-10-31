@@ -49,7 +49,7 @@ label.check input { width: auto; }
 .controls section { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
 .grid2 .span2 { grid-column: span 2; }
-.lora-row { display: grid; grid-template-columns: 1fr 90px 60px 28px; gap: 6px; align-items: center; margin-top: 6px; }
+.lora-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(60px, 90px) 60px auto; gap: 6px; align-items: center; margin-top: 6px; }
 .lora-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lora-row input[type=range] { padding: 0; accent-color: var(--accent); }
 .num { padding: 4px; }

@@ -3900,6 +3900,7 @@ class Engine:
         keep_faces = bool(args.get("keep_faces"))
         faces_redone = 0
         panels_cropped = False
+        grey_retried = still_grey = False
         seed = int(args.get("seed") if args.get("seed") not in (None, "", -1) else random.randint(0, 2**32 - 1)) % 2**32
         started = time.time()
         if self.cancel_event.is_set():
@@ -3953,6 +3954,26 @@ class Engine:
                         if comp.panel_seams(result):
                             result = result.crop(comp.largest_panel(result))
                             panels_cropped = True
+                if cam and not self.cancel_event.is_set() and not re.search(
+                        r"black[- ]and[- ]white|monochrome|gr[ae]yscale|sepia|b&w", args.get("prompt") or "", re.I):
+                    # 📷 Klein sometimes turns a colour picture black and white when it moves the camera: try once more
+                    # asking for the colours, and say so if it still came out grey
+                    import postprocess.compose as comp
+                    if comp.turned_grey(image, result):
+                        self.emit({"type": "status", "msg": "It came out black and white: trying once more in colour…"})
+                        seed = (seed + 104729) % 2**32
+                        self.mlx.request({"cmd": "generate", "prompt": prompt + " In full colour, with exactly the colours "
+                                          "of the original picture; not black and white, not monochrome, not greyscale.",
+                                          "negative_prompt": None, "width": width, "height": height, "steps": steps,
+                                          "cfg": 1.0, "seed": seed, "out": str(out), "preview": self.previews,
+                                          "image_paths": ref_files}, on_event=on_event)
+                        again = Image.open(out).convert("RGB")
+                        if comp.colourfulness(again) > comp.colourfulness(result):
+                            result, panels_cropped = again, False
+                            if (cam.get("layout") or "single") == "single" and comp.panel_seams(result):
+                                result, panels_cropped = result.crop(comp.largest_panel(result)), True
+                        grey_retried = True
+                        still_grey = comp.turned_grey(image, result)
                 if keep_faces and mask is None and combine is None and not self.cancel_event.is_set():
                     # 🙂 Keep faces: each face is edited again on its own, close up (it fills the picture, so Klein
                     # keeps its features), with the original face as a second picture, and blended into the result
@@ -3991,6 +4012,9 @@ class Engine:
         if isinstance(args.get("camera"), dict):  # 📷 Camera angle
             settings["camera"] = {k: args["camera"].get(k) for k in ("az", "el", "zoom", "view", "layout")}
             settings["camera"]["panel_cropped"] = panels_cropped
+            settings["camera"]["colour_retried"] = grey_retried
+            if still_grey:
+                self.emit({"type": "status", "msg": "📷 It still came out black and white: try another seed, or add “in full colour” to the prompt."})
         if combine is not None:
             settings["combine"] = {"placed": bool(combine.get("place")), "cut_out": combine.get("cutout") is not False,
                                    "match_light": combine.get("match_light") is not False}
