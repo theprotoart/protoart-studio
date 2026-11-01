@@ -4167,6 +4167,7 @@ class Engine:
             return result, 0
         work = 768 if 0 < total_ram_gb() < 12 else 1024
         done = 0
+        on_event = on_event or (lambda ev: None)
         if boxes:
             on_event({"type": "_more", "passes": len(boxes)})  # the bar and time left cover the face passes too
         for i, box in enumerate(boxes):
