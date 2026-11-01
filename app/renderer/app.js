@@ -469,7 +469,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.2";  // keep in step with app/package.json
+const APP_VERSION = "1.6.3";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -752,7 +752,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Since 1.6.2 (in the next version): 🔤 Replace text, ↻ keep training a LoRA, face swap picks and marks, ⚥ swap gender", items: [
+            { h: "1.6.3: 🔤 Replace text, ↻ keep training a LoRA, face swap picks and marks, ⚥ swap gender", items: [
               "<b>🔤 Replace text</b> (Tools): swap the writing in a picture for your own. <b>1 · 🔍 Find the text</b> selects it, <b>2 · 🧽 Clear it</b> fills the background in where it was, and <b>3 · ✏️ Type</b> opens a Type tool: click the picture, type, then pick the font, size, colour (🎯 takes the old text's colour), bold, italic, alignment, outline, shadow and angle; drag the text to move it. <b>💾 Save</b> adds the picture to the Library.",
               "<b>↻ Continue training</b> (Train → 3 · LoRA): pick a LoRA you made and it keeps what it learned and learns more from your pictures, for example a person whose likeness isn't quite there yet. It's saved under a new name (…-more), so you can compare the two.",
               "<b>🔁 Face swap</b>: add up to 4 <b>more photos of the same person</b> for a steadier likeness; <b>👆 Pick faces</b> finds the faces in the picture so you click the ones to change; <b>✚ Mark by hand</b> lets you click the eyes, nose and mouth corners of a face the finder misses (a creature, a cartoon, a statue).",
@@ -1496,7 +1496,7 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
-            { h: "Since 1.6.2: if something doesn't work", items: [
+            { h: "New in 1.6.3: if something doesn't work", items: [
               "<b>Face swap: no face found</b> in the picture (a creature, a cartoon, a statue, a face from the side): pick <b>✚ Mark by hand</b> and click its eyes, nose and mouth corners. It works best on faces that are roughly human-shaped.",
               "<b>Image → prompt said the Mac is short of memory</b> (METAL “Insufficient Memory”): it now falls back to <b>Quick describe</b> by itself. For the full description, quit other apps (or press ⟲ Force stop &amp; restart) and try again.",
               "<b>Tiled upscale seems stuck</b>: each tile takes a while on 8 GB Macs (the bar now moves with every tile). If the Mac is swapping, close other apps or use a smaller upscale.",

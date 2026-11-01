@@ -1,6 +1,6 @@
 # Changelog
 
-## Next (not released yet)
+## 1.6.3
 
 - ✨ Edit with words: one progress bar for the whole job (`phase` in `edit_words`' `on_event`: `_more` / `_next`
   add each 🙂 Keep faces pass and each camera retry to the same total), clearer Keep faces status and hint
