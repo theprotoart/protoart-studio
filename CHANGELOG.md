@@ -2,7 +2,8 @@
 
 ## Next (not released yet)
 
-- 🦴 Pose & ControlNet in Create (`form.cc`, `.cc-sec`, `ccTypes`, `ccPreview` via `control_preview`): `createArgs`
+- 🎛 ControlNet in Create (`form.cc`, `.cc-sec`, `ccTypes`, goal buttons `ccGoals` / `ccPick` with `CN_GUIDES` settings,
+  `ccPreview` via `control_preview`): `createArgs`
   sends `control` + `control_image` (Create's own size); "Which one should I use? → Use ControlNet…" stays in Create
 
 ## 1.6.3

@@ -755,8 +755,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Since 1.6.3 (in the next version): 🦴 Pose & ControlNet in Create", items: [
-              "<b>🦴 Pose &amp; ControlNet</b> is now in <b>Create</b> (SD 1.5 and SDXL models), under Image prompt: drop a picture with the pose you want and describe your character; the new picture is made in that pose from the start, no Image to image round trip. <i>Follow its</i> picks OpenPose (the pose), Line art, Scribble, Canny or Depth; <b>👁 Show what it follows</b> shows the pose skeleton." ] },
+            { h: "Since 1.6.3 (in the next version): 🎛 ControlNet in Create", items: [
+              "<b>🎛 ControlNet</b> is now in <b>Create</b> (SD 1.5 and SDXL models), under Image prompt: pick what to follow (<b>🦴 Pose</b>, <b>✏️ Drawing</b>, <b>🖍 Scribble</b>, <b>📐 Outlines</b>, <b>〰 Soft shapes</b>, <b>🧊 Depth &amp; layout</b>), drop the picture and write your prompt: the new picture follows it from the start, with no Image to image round trip. Each button sets the recommended strength and timing; <i>Follow its</i> lists every ControlNet you have (your own ones too); <b>👁 Show what it follows</b> shows the pose skeleton, lines or depth it found." ] },
             { h: "1.6.3: 🔤 Replace text, ↻ keep training a LoRA, face swap picks and marks, ⚥ swap gender", items: [
               "<b>🔤 Replace text</b> (Tools): swap the writing in a picture for your own. <b>1 · 🔍 Find the text</b> selects it, <b>2 · 🧽 Clear it</b> fills the background in where it was, and <b>3 · ✏️ Type</b> opens a Type tool: click the picture, type, then pick the font, size, colour (🎯 takes the old text's colour), bold, italic, alignment, outline, shadow and angle; drag the text to move it. <b>💾 Save</b> adds the picture to the Library.",
               "<b>↻ Continue training</b> (Train → 3 · LoRA): pick a LoRA you made and it keeps what it learned and learns more from your pictures, for example a person whose likeness isn't quite there yet. It's saved under a new name (…-more), so you can compare the two.",
@@ -1079,10 +1079,10 @@ const protoartApp = createApp({
               "Picks random LoRAs that work with the chosen model: set how many (e.g. 1 to 2) and the weight range.",
               "Their trigger words are added to the prompt (if auto-add is on in Settings) and taken back out on the next pick. LoRAs you added yourself stay.",
               "<b>new pick every Generate</b> re-rolls each time you press Generate. It only ever picks LoRAs made for the chosen model's type, and skips ones hidden by Hide NSFW / Hide People." ] },
-            { h: "🦴 Pose & ControlNet (in Create)", items: [
-              "Make a character in the pose of another picture, straight from Create (SD 1.5 and SDXL models): drop the picture in <b>🦴 Pose &amp; ControlNet</b> (a photo, a drawing or a 3D pose model all work), keep <i>Follow its</i> on <b>OpenPose</b>, and describe your character in the prompt as usual. The picture's size doesn't matter: Create's own size is used.",
+            { h: "🎛 ControlNet (in Create)", items: [
+              "Make a new picture that follows another one, straight from Create (SD 1.5 and SDXL models). In <b>🎛 ControlNet</b> pick what to follow: <b>🦴 Pose</b> (a person's pose: a photo, a drawing or a 3D pose model all work), <b>✏️ Drawing</b> (colour and render a sketch, keeping its lines), <b>🖍 Scribble</b> (a rough doodle → a finished picture), <b>📐 Outlines</b> (exact edges: a product, a building, a logo), <b>〰 Soft shapes</b> (the main shapes, loosely) or <b>🧊 Depth &amp; layout</b> (what's near and far). Drop the picture and describe the result in the prompt as usual. The picture's size doesn't matter: Create's own size is used. <i>Follow its</i> lists every ControlNet you have, your own ones too.",
               "<b>How closely</b> 0.7–1.0 keeps the pose; lower lets the prompt bend it. <b>Until</b> 70–80 % of the steps stops following the pose before the end, so hands, clothes and details come from your prompt. <b>👁 Show what it follows</b> shows the skeleton it found (if it found none, use a clearer, full-body picture). Tick <i>It's already a map</i> for a pose skeleton or outline you made elsewhere.",
-              "Other types: <b>Line art</b> or <b>Scribble</b> follow a drawing, <b>Canny</b> the outlines, <b>Depth</b> the shapes and layout. It combines with an <b>Image prompt · Face</b> (the same person, in that pose). Hi-res fix is skipped while it's on. The first time, the ControlNet model downloads (SDXL: Union ProMax, ~2.5 GB, slow on 8 GB Macs)." ] },
+              "It combines with an <b>Image prompt · Face</b> (the same person, in that pose) or <b>Stronger</b> (that picture's style, on this layout). Hi-res fix is skipped while it's on. The first time, the ControlNet model downloads (SDXL: Union ProMax, ~2.5 GB, slow on 8 GB Macs)." ] },
             { h: "Image prompt (IP-Adapter)", items: [
               "Drop a reference picture to borrow its look without training a LoRA: <b>Style & look</b> (colours, style, mood), <b>Stronger</b> (closer to the picture) or <b>Face</b> (a person's face from a close-up).",
               "<b>How much to borrow</b>: 0.4–0.6 blends it with your prompt; 0.8+ follows the picture closely. Works in Image to image too.",
@@ -2578,6 +2578,20 @@ const protoartApp = createApp({
     ccTypes() {  // Create's ControlNets: the ones made for the current model's type
       const fam = this.family === "sdxl" ? "sdxl" : "sd15";
       return this.controlTypes.filter((t) => (t.family || "sd15") === fam);
+    },
+    ccGoals() {  // Create → 🎛 ControlNet: one button per thing to follow, for this model type
+      const want = [["openpose", "🦴 Pose", "Copies a person's pose; clothes, face and setting come from your prompt"],
+        ["lineart", "✏️ Drawing", "Colours and renders a drawing or sketch, keeping its lines"],
+        ["scribble", "🖍 Scribble", "Turns a rough doodle into a finished picture"],
+        ["canny", "📐 Outlines", "Keeps the exact outlines (a product, a building, a logo); everything else can change"],
+        ["softedge", "〰 Soft shapes", "Keeps the main shapes loosely; details can change"],
+        ["depth", "🧊 Depth & layout", "Keeps what's near and far (the 3-D layout of a scene)"]];
+      const out = [];
+      for (const [map, label, tip] of want) {
+        const t = this.ccTypes.find((x) => x.id === map || x.id === "union:" + map || x.makes_map === map || x.map === map);
+        if (t) out.push({ id: t.id, map, label, tip });
+      }
+      return out;
     },
     ccAvailable() {
       return ["sd15", "sdxl"].includes(this.family) && this.currentModel?.engine !== "mlx" && this.ccTypes.length > 0;
@@ -5563,7 +5577,16 @@ const protoartApp = createApp({
       const cc = this.form.cc;
       if (cc.type && this.ccTypes.some((t) => t.id === cc.type)) return;
       const pose = this.family === "sdxl" ? "union:openpose" : "openpose";
-      cc.type = this.ccTypes.some((t) => t.id === pose) ? pose : (this.ccTypes[0] || {}).id || "";
+      this.ccPick(this.ccTypes.some((t) => t.id === pose) ? pose : (this.ccTypes[0] || {}).id || "");
+    },
+    ccPick(id) {  // a goal button: that ControlNet with its recommended strength and timing
+      const cc = this.form.cc;
+      cc.type = id;
+      this.ccMap = null;
+      const t = this.controlTypes.find((x) => x.id === id) || {};
+      const g = CN_GUIDES[id] || CN_GUIDES[t.makes_map] || CN_GUIDES[String(id).replace(/^union:/, "")];
+      if (g && g.set) Object.assign(cc, { scale: g.set.scale ?? cc.scale, start: g.set.start ?? 0, end: g.set.end ?? cc.end });
+      if (id.endsWith("openpose")) cc.end = Math.min(cc.end, 0.8);  // the pose, then the prompt finishes hands and clothes
     },
     async ccSet(path) {
       if (!path) return;

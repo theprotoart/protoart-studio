@@ -2518,3 +2518,5 @@ input[type=range]:disabled { opacity: .35; }
 .adj-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
 input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00); border-radius: 3px; height: 6px; }
 .enh-module .enh-protect { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0; }
+
+.cc-goals { margin: 4px 0 8px; }
