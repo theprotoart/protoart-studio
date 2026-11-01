@@ -186,6 +186,7 @@ function defaultForm() {
     init_image: "", strength: 0.6, use_init_size: false, size_link: false, size_ratio: 1,
     fast: false, fast_prev: null, i2i_use_init: true, control_image: "",
     control: { type: "", scale: 1.0, start: 0.0, end: 1.0, already_map: false },
+    cc: { image: "", type: "", scale: 0.8, start: 0.0, end: 0.8, already_map: false },  // 🦴 Create's own ControlNet (a pose…)
     hires: { on: false, scale: 1.5, strength: 0.45, steps: 15 },
     face_detailer: { on: false, strength: 0.4, prompt: "" },
     ip_adapter: { image: "", kind: "style", scale: 0.6 },
@@ -556,6 +557,7 @@ const protoartApp = createApp({
       loraRand: Object.assign({ min: 1, max: 2, wmin: 0.6, wmax: 1.0, every: false, knownOnly: true, picked: [], words: [] },
                               loadJSON("protoart.loraRand", {})),
       ipDragOver: false,
+      ccDragOver: false, ccMap: null, ccMapBusy: false,  // Create → 🦴 Pose & ControlNet
       ipKinds: [
         { id: "style", label: "Style & look", tip: "Borrows the overall look: colours, style, mood, subject" },
         { id: "plus", label: "Stronger", tip: "Follows the reference picture more closely (IP-Adapter Plus)" },
@@ -597,7 +599,8 @@ const protoartApp = createApp({
         f.regions = { ...defaultForm().regions, ...(f.regions || {}) };
         f.swap = { ...defaultForm().swap, ...(f.swap || {}), consent: false };
         f.cam = { ...defaultForm().cam, ...(f.cam || {}) };
-        f.combine = { ...defaultForm().combine, ...(f.combine || {}) };  // permission is asked again each time the app opens
+        f.combine = { ...defaultForm().combine, ...(f.combine || {}) };
+        f.cc = { ...defaultForm().cc, ...(f.cc || {}) };  // permission is asked again each time the app opens
         if (!loadJSON("protoart.cfDefault", false)) {  // 1.2: CodeFormer became the default face model (once)
           f.face_model = "codeformer";
           saveJSON("protoart.cfDefault", true);
@@ -752,6 +755,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Since 1.6.3 (in the next version): 🦴 Pose & ControlNet in Create", items: [
+              "<b>🦴 Pose &amp; ControlNet</b> is now in <b>Create</b> (SD 1.5 and SDXL models), under Image prompt: drop a picture with the pose you want and describe your character; the new picture is made in that pose from the start, no Image to image round trip. <i>Follow its</i> picks OpenPose (the pose), Line art, Scribble, Canny or Depth; <b>👁 Show what it follows</b> shows the pose skeleton." ] },
             { h: "1.6.3: 🔤 Replace text, ↻ keep training a LoRA, face swap picks and marks, ⚥ swap gender", items: [
               "<b>🔤 Replace text</b> (Tools): swap the writing in a picture for your own. <b>1 · 🔍 Find the text</b> selects it, <b>2 · 🧽 Clear it</b> fills the background in where it was, and <b>3 · ✏️ Type</b> opens a Type tool: click the picture, type, then pick the font, size, colour (🎯 takes the old text's colour), bold, italic, alignment, outline, shadow and angle; drag the text to move it. <b>💾 Save</b> adds the picture to the Library.",
               "<b>↻ Continue training</b> (Train → 3 · LoRA): pick a LoRA you made and it keeps what it learned and learns more from your pictures, for example a person whose likeness isn't quite there yet. It's saved under a new name (…-more), so you can compare the two.",
@@ -1074,6 +1079,10 @@ const protoartApp = createApp({
               "Picks random LoRAs that work with the chosen model: set how many (e.g. 1 to 2) and the weight range.",
               "Their trigger words are added to the prompt (if auto-add is on in Settings) and taken back out on the next pick. LoRAs you added yourself stay.",
               "<b>new pick every Generate</b> re-rolls each time you press Generate. It only ever picks LoRAs made for the chosen model's type, and skips ones hidden by Hide NSFW / Hide People." ] },
+            { h: "🦴 Pose & ControlNet (in Create)", items: [
+              "Make a character in the pose of another picture, straight from Create (SD 1.5 and SDXL models): drop the picture in <b>🦴 Pose &amp; ControlNet</b> (a photo, a drawing or a 3D pose model all work), keep <i>Follow its</i> on <b>OpenPose</b>, and describe your character in the prompt as usual. The picture's size doesn't matter: Create's own size is used.",
+              "<b>How closely</b> 0.7–1.0 keeps the pose; lower lets the prompt bend it. <b>Until</b> 70–80 % of the steps stops following the pose before the end, so hands, clothes and details come from your prompt. <b>👁 Show what it follows</b> shows the skeleton it found (if it found none, use a clearer, full-body picture). Tick <i>It's already a map</i> for a pose skeleton or outline you made elsewhere.",
+              "Other types: <b>Line art</b> or <b>Scribble</b> follow a drawing, <b>Canny</b> the outlines, <b>Depth</b> the shapes and layout. It combines with an <b>Image prompt · Face</b> (the same person, in that pose). Hi-res fix is skipped while it's on. The first time, the ControlNet model downloads (SDXL: Union ProMax, ~2.5 GB, slow on 8 GB Macs)." ] },
             { h: "Image prompt (IP-Adapter)", items: [
               "Drop a reference picture to borrow its look without training a LoRA: <b>Style & look</b> (colours, style, mood), <b>Stronger</b> (closer to the picture) or <b>Face</b> (a person's face from a close-up).",
               "<b>How much to borrow</b>: 0.4–0.6 blends it with your prompt; 0.8+ follows the picture closely. Works in Image to image too.",
@@ -2565,6 +2574,13 @@ const protoartApp = createApp({
     controlMapKind() {  // the map the picked ControlNet needs ("union:depth" → "depth")
       const t = this.form.control.type || "";
       return t.startsWith("union:") ? t.slice(6) : t;
+    },
+    ccTypes() {  // Create's ControlNets: the ones made for the current model's type
+      const fam = this.family === "sdxl" ? "sdxl" : "sd15";
+      return this.controlTypes.filter((t) => (t.family || "sd15") === fam);
+    },
+    ccAvailable() {
+      return ["sd15", "sdxl"].includes(this.family) && this.currentModel?.engine !== "mlx" && this.ccTypes.length > 0;
     },
     controlTypesShown() {  // the ControlNets for the current model's type (SD 1.5's built-in ones, your own SD 1.5 or SDXL)
       const fam = this.family === "sdxl" ? "sdxl" : "sd15";
@@ -5207,6 +5223,12 @@ const protoartApp = createApp({
         this.$nextTick(() => document.querySelector(".ipa")?.scrollIntoView({ behavior: "smooth", block: "center" }));
         return;
       }
+      if (!inI2i && this.tab === "create" && this.ccAvailable) {  // Create has its own 🦴 Pose & ControlNet now
+        this.ccDefaultType();
+        this.$nextTick(() => document.querySelector(".cc-sec")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+        this.status = "🦴 Pose & ControlNet: drop the picture whose pose (or drawing, outline, depth) to follow, then describe the character";
+        return;
+      }
       if (!inI2i) this.openI2I();
       this.setI2iMode && this.form.i2i_mode !== "change" && this.setI2iMode("change");
       const pose = this.family === "sdxl" ? "union:openpose" : "openpose";
@@ -5227,6 +5249,13 @@ const protoartApp = createApp({
       args.init_image = "";
       delete args.control;
       delete args.control_image;
+      const cc = this.form.cc || {};
+      delete args.cc;
+      if (cc.image && cc.type && this.ccAvailable) {  // 🦴 Pose & ControlNet: make the picture following a reference
+        args.control = { type: cc.type, scale: cc.scale, start: cc.start, end: cc.end, already_map: !!cc.already_map };
+        args.control_image = cc.image;
+        args.use_init_size = false;  // Create's own size
+      }
       delete args.outpaint;
       delete args.inpaint;
       this.cleanExtras(args);
@@ -5529,6 +5558,38 @@ const protoartApp = createApp({
     },
 
     // -------------------------------------------------------------- image prompt (IP-Adapter)
+    // -------------------------------------------------------------- Create → 🦴 Pose & ControlNet
+    ccDefaultType() {  // OpenPose for this model type, if it's there
+      const cc = this.form.cc;
+      if (cc.type && this.ccTypes.some((t) => t.id === cc.type)) return;
+      const pose = this.family === "sdxl" ? "union:openpose" : "openpose";
+      cc.type = this.ccTypes.some((t) => t.id === pose) ? pose : (this.ccTypes[0] || {}).id || "";
+    },
+    async ccSet(path) {
+      if (!path) return;
+      this.form.cc.image = path;
+      this.ccMap = null;
+      this.ccDefaultType();
+    },
+    onCcDrop(e) {
+      this.ccDragOver = false;
+      const file = [...(e.dataTransfer?.files || [])].find(isPicture);
+      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => this.ccSet(p));
+    },
+    onCcPicked(e) {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => this.ccSet(p));
+    },
+    async ccPreview() {  // 👁 what the ControlNet will follow (the pose skeleton, the outlines…)
+      const cc = this.form.cc;
+      if (!cc.image || !cc.type || this.ccMapBusy) return;
+      this.ccMapBusy = true;
+      try {
+        const r = await this.runJob("control_preview", { path: cc.image, type: cc.type, already_map: cc.already_map, depth_model: "small" });
+        if (r) this.ccMap = { src: r.src, for: cc.image + "|" + cc.type };
+      } finally { this.ccMapBusy = false; }
+    },
     onIpDrop(e) {
       this.ipDragOver = false;
       const file = [...(e.dataTransfer?.files || [])].find(isPicture);
@@ -7816,6 +7877,7 @@ const protoartApp = createApp({
       if (!(await this.slowCheck("i2i"))) return;
       this.error = "";
       const args = JSON.parse(JSON.stringify(f));
+      delete args.cc;  // Create's own ControlNet stays in Create
       this.cleanExtras(args);
       delete args.hires; // Hi-res fix is for making new pictures (Create)
       args.fast = false;

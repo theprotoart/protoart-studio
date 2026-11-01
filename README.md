@@ -29,7 +29,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   presets, 📒 saved prompts, wildcards, a random-prompt generator that writes tags or sentences to suit the model, negative
   prompt ✨ suggest / 🎲 random matched to the model, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop, and
   🔬 compare grids picked with keys, 🎲 small change (variation seed), 📒 saved prompts with export / import, ✨ enhance and 🔄 contrast prompts, and your own default sampler / steps / guidance per
-  model and default weight per LoRA, 🗺 regional prompts (✨ plan the layout from one sentence, or start from a template: before / after, day / night, face-off, comic…), A1111-style prompt editing, ⚥ swap a prompt's gender, 🧱 seamless tiling
+  model and default weight per LoRA, 🦴 pose / ControlNet straight from Create, 🗺 regional prompts (✨ plan the layout from one sentence, or start from a template: before / after, day / night, face-off, comic…), A1111-style prompt editing, ⚥ swap a prompt's gender, 🧱 seamless tiling
   clips, and 📥 settings from A1111 / ComfyUI / InvokeAI pictures or .json
 - **Image to image:** ✨ Edit with words (FLUX.2 Klein: describe a change; paint to limit it; add reference pictures),
   🧩 Combine (put a character from another picture into a scene by asking; let it decide where or place it yourself; 💡 match the scene's light),

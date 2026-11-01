@@ -706,6 +706,37 @@
         <input ref="ipPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.procreate,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onIpPicked">
       </section>
 
+      <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="cc-sec ipa cfold" :class="{shut: cfShut('cc')}">
+        <label @click="cfToggle('cc', $event)">🦴 Pose &amp; ControlNet <span class="hint">make the character in the pose (or drawing, outline, depth) of a picture</span><span v-if="cfShut('cc')" class="cfold-sum">{{ form.cc.image && form.cc.type ? ((ccTypes.find((t) => t.id === form.cc.type) || {}).label || form.cc.type) : 'off' }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <div v-if="!ccTypes.length" class="hint">No ControlNet for {{ family === 'sdxl' ? 'SDXL' : 'SD 1.5' }} models yet: download one in Models → ControlNet{{ family === 'sdxl' ? ' (Union ProMax covers every type)' : '' }}.</div>
+        <template v-else>
+        <div v-if="!form.cc.image" class="ipa-drop" :class="{over: ccDragOver}" @dragover.prevent="ccDragOver = true"
+             @dragleave="ccDragOver = false" @drop.prevent="onCcDrop" @click="$refs.ccPick.click()">
+          Drop a picture with the pose you want <span class="hint">(a photo, a drawing, a 3D pose · or click to choose)</span></div>
+        <div v-else class="ipa-on">
+          <img :src="ccMap && ccMap.for === form.cc.image + '|' + form.cc.type ? ccMap.src : fileUrl(form.cc.image)" alt="The picture to follow">
+          <div class="ipa-opts">
+            <label>Follow its</label>
+            <select v-model="form.cc.type" @change="ccMap = null" title="What the new picture copies from this one: OpenPose = the pose; Line art / Scribble = a drawing; Canny = outlines; Depth = the shapes and layout">
+              <option v-for="t in ccTypes" :key="t.id" :value="t.id">{{ t.label }}</option>
+            </select>
+            <label class="check" title="Tick when the picture already is a pose skeleton, an outline or a depth map (it's used as it is)"><input type="checkbox" v-model="form.cc.already_map" @change="ccMap = null"> It's already a map (a pose skeleton, outlines…)</label>
+            <label>How closely <span class="hint">{{ Number(form.cc.scale).toFixed(2) }}</span></label>
+            <input type="range" min="0.2" max="1.5" step="0.05" v-model.number="form.cc.scale">
+            <label>Until <span class="hint">{{ Math.round(form.cc.end * 100) }}% of the steps</span></label>
+            <input type="range" min="0.3" max="1" step="0.05" v-model.number="form.cc.end" title="Stop following it before the end, so details (hands, clothes) can come from your prompt">
+            <div class="hint slider-help">Pose: 0.7–1.0 until 70–80 % keeps the pose and lets your prompt make the character</div>
+            <div class="row">
+              <button class="ghost small" :disabled="ccMapBusy" @click="ccPreview" title="Show what it will follow (the pose skeleton, outlines or depth)">{{ ccMapBusy ? 'Making…' : '👁 Show what it follows' }}</button>
+              <button class="link" @click="form.cc.image = ''; ccMap = null">remove</button>
+            </div>
+          </div>
+        </div>
+        <div v-if="form.cc.image && family === 'sdxl'" class="hint">SDXL ControlNets are big: on an 8 GB Mac expect it to be slow, and use 768–1024 px.</div>
+        </template>
+        <input ref="ccPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.procreate,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onCcPicked">
+      </section>
+
       <section class="grid2 cfold" :class="{shut: cfShut('size')}">
         <label class="span2 cfold-title" @click="cfToggle('size', $event)">Size &amp; steps<span v-if="cfShut('size')" class="cfold-sum">{{ cfSummary('size') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <div class="span2 size-presets">

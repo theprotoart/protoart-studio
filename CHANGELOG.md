@@ -1,5 +1,10 @@
 # Changelog
 
+## Next (not released yet)
+
+- 🦴 Pose & ControlNet in Create (`form.cc`, `.cc-sec`, `ccTypes`, `ccPreview` via `control_preview`): `createArgs`
+  sends `control` + `control_image` (Create's own size); "Which one should I use? → Use ControlNet…" stays in Create
+
 ## 1.6.3
 
 - ✨ Edit with words: one progress bar for the whole job (`phase` in `edit_words`' `on_event`: `_more` / `_next`
