@@ -238,7 +238,7 @@ def save_lora(path, unet_sd, te_sd, cfg, fmt, precision, tag_counts, steps_done)
         "ss_base_model_version": {"sdxl": "sdxl_base_v1-0", "ernie": "ernie_image"}.get(cfg.get("family"), "sd_v1"),
         "ss_network_module": "networks.lora",
         "ss_network_dim": str(cfg["rank"]), "ss_network_alpha": str(cfg["alpha"]),
-        "ss_output_name": Path(path).stem, "ss_steps": str(steps_done), "ss_learning_rate": str(cfg["lr"]),
+        "ss_output_name": Path(path).stem, "ss_steps": str(steps_done + int(cfg.get("prev_steps") or 0)), "ss_learning_rate": str(cfg["lr"]),
         "ss_resolution": str(cfg["resolution"]), "ss_num_train_images": str(cfg["n_images"]),
         "ss_tag_frequency": json.dumps({"dataset": dict(tag_counts.most_common(200))}),
         "modelspec.architecture": {"sdxl": "stable-diffusion-xl-v1-base/lora", "ernie": "ernie-image/lora"}.get(
@@ -253,6 +253,74 @@ def save_lora(path, unet_sd, te_sd, cfg, fmt, precision, tag_counts, steps_done)
     save_file(sd, str(tmp), metadata=meta)
     tmp.replace(path)
     return str(path)
+
+
+# ------------------------------------------------------------------ continue training an existing LoRA
+def read_resume(path):
+    """Opens a LoRA to keep training. Returns its tensors, metadata and the settings it was trained with
+    (rank, alpha, which parts it covers), so the new training builds a LoRA of exactly the same shape."""
+    from safetensors import safe_open
+    p = Path(path or "")
+    if not p.is_file() or p.suffix.lower() != ".safetensors":
+        raise TrainError("The LoRA to continue from wasn't found. Pick it again in Continue from.")
+    sd, meta = {}, {}
+    with safe_open(str(p), framework="pt") as f:
+        meta = dict(f.metadata() or {})
+        for k in f.keys():
+            sd[k] = f.get_tensor(k)
+    downs = [v for k, v in sd.items() if k.endswith((".lora_down.weight", ".lora_A.weight")) and v.dim() == 2]
+    if not downs:
+        raise TrainError("This LoRA can't be trained further here (it isn't a standard LoRA, for example a LyCORIS/LoCon file).")
+    rank = int(downs[0].shape[0])
+    try:
+        alpha = float(meta.get("ss_network_alpha") or 0)
+    except ValueError:
+        alpha = 0.0
+    if not alpha:
+        al = [v for k, v in sd.items() if k.endswith(".alpha")]
+        alpha = float(al[0]) if al else float(rank)
+    keys = " ".join(sd.keys())
+    full = any(w in keys for w in ("proj_in", "proj_out", "ff_net", "ff.net"))
+    has_te = any(k.startswith(("lora_te_", "lora_te1_", "text_encoder.")) for k in sd)
+    try:
+        prev_steps = int(meta.get("ss_steps") or 0)
+    except ValueError:
+        prev_steps = 0
+    return {"sd": sd, "meta": meta, "rank": rank, "alpha": alpha, "full": full, "te": has_te,
+            "steps": prev_steps, "family": meta.get("beestudio_family") or "", "name": p.stem}
+
+
+def load_resume(model, sd, kohya_prefix, diffusers_prefix):
+    """Copies a saved LoRA's weights into the fresh PEFT adapter on `model`. Returns (loaded, total) parts."""
+    import torch
+    loaded = 0
+    by_kohya, by_path = {}, {}
+    for name, mod in model.named_modules():
+        if hasattr(mod, "lora_A") and "default" in getattr(mod, "lora_A", {}):
+            clean = name.replace("base_model.model.", "")
+            by_kohya[kohya_prefix + clean.replace(".", "_")] = mod
+            by_path[diffusers_prefix + clean] = mod
+    pairs = {}
+    for k, v in sd.items():
+        m = re.match(r"^(.*)\.(lora_down|lora_up|lora_A|lora_B)\.weight$", k)
+        if m:
+            pairs.setdefault(m.group(1), {})["A" if m.group(2) in ("lora_down", "lora_A") else "B"] = v
+    total = 0
+    with torch.no_grad():
+        for base, ab in pairs.items():
+            if not (base.startswith(kohya_prefix) or base.startswith(diffusers_prefix)):
+                continue
+            total += 1
+            mod = by_kohya.get(base) or by_path.get(base)
+            if mod is None or "A" not in ab or "B" not in ab:
+                continue
+            A, B = mod.lora_A["default"].weight, mod.lora_B["default"].weight
+            if tuple(A.shape) != tuple(ab["A"].shape) or tuple(B.shape) != tuple(ab["B"].shape):
+                continue
+            A.copy_(ab["A"].to(A.device, A.dtype))
+            B.copy_(ab["B"].to(B.device, B.dtype))
+            loaded += 1
+    return loaded, total
 
 
 # ------------------------------------------------------------------ training
@@ -282,6 +350,12 @@ def train(engine, args, emit, cancel_event, lora_dir):
     train_te = bool(args.get("train_text_encoder"))
     targets = UNET_TARGETS["full" if args.get("targets") == "full" else "attention"]
     model_id = args.get("model")
+    resume = read_resume(args["resume_from"]) if args.get("resume_from") else None
+    if resume:
+        # keep the LoRA's own shape, so its learning carries on instead of starting over
+        rank, alpha = resume["rank"], resume["alpha"]
+        targets = UNET_TARGETS["full" if resume["full"] else "attention"]
+        train_te = resume["te"]
     cfg = {"rank": rank, "alpha": alpha, "lr": lr, "resolution": res, "n_images": len(items), "trigger": trigger}
 
     out_dir = Path(lora_dir)
@@ -293,6 +367,11 @@ def train(engine, args, emit, cancel_event, lora_dir):
     # 1. base model (SD 1.5 family only), loaded at full fp16 precision (no 8-bit) and without LoRAs
     from engine import all_models, total_ram_gb
     spec = all_models().get(model_id)
+    if resume and spec and spec["family"] == "ernie":
+        raise TrainError("Continuing an ERNIE LoRA isn't possible yet. Train a new one instead.")
+    if resume and spec and resume["family"] and resume["family"] != spec["family"]:
+        raise TrainError(f"'{resume['name']}' was made for a different kind of model. "
+                         "Pick a base model of the same kind it was trained on.")
     if spec and spec.get("engine") == "mlx" and spec["family"] == "ernie":
         # ERNIE on the fast engine: QLoRA on the 4-bit model, runs on much smaller Macs than the full model
         import mlx_train
@@ -414,6 +493,20 @@ def train(engine, args, emit, cancel_event, lora_dir):
         params += [p for p in te.parameters() if p.requires_grad]
     for p in params:
         p.data = p.data.float()  # train the small LoRA weights in float32 for stability
+    if resume:
+        got, total = load_resume(unet, resume["sd"], "lora_unet_", "unet.")
+        if train_te:
+            g2, t2 = load_resume(te, resume["sd"], "lora_te_", "text_encoder.")
+            got, total = got + g2, total + t2
+        if not got:
+            raise TrainError(f"'{resume['name']}' doesn't fit this base model, so it can't be trained further on it. "
+                             "Pick the base model it was trained on (LoRAs made by other programs may use a "
+                             "layout that can't be continued here).")
+        cfg["prev_steps"] = resume["steps"]
+        msg = f"Continuing '{resume['name']}' ({got} of {total} parts loaded)…"
+        emit({"type": "status", "msg": msg})
+        print(f"[train] resume {resume['name']}: {got}/{total} modules, rank {rank}, alpha {alpha}", flush=True)
+        resume["sd"] = None
     try:
         unet.enable_gradient_checkpointing()
     except Exception:

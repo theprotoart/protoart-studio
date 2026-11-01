@@ -9,12 +9,16 @@
   "use strict";
 
   const FILTER_ORDER = ["extract", "dark", "bleach", "glow", "bloom", "blur", "grain"];
+  // Camera Raw's Color Mixer (HSL): the eight colour bands, centred at these hues (degrees)
+  const MIX_HUES = ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"];
 
   function defaults() {
     return {
       exposure: 0, contrast: 0, highlights: 0, shadows: 0, whites: 0, blacks: 0,
       temperature: 0, tint: 0, vibrance: 0, saturation: 0,
-      clarity: 0, sharpen: 0, vignette: 0,
+      clarity: 0, sharpen: 0, vignette: 0, texture: 0, dehaze: 0,
+      ...Object.fromEntries(MIX_HUES.flatMap((h) => [["mh_" + h, 0], ["ms_" + h, 0], ["ml_" + h, 0]])),
+      cgShHue: 220, cgShSat: 0, cgMidHue: 30, cgMidSat: 0, cgHiHue: 40, cgHiSat: 0, cgBalance: 0,
       extractOn: false, deAmount: 0.5, deContrast: 0, deSaturation: 0, deRadius: 1,
       darkOn: false, dcStrength: 0.5, dcBrightness: 0, dcSaturation: 0,
       bleachOn: false, bbBrightness: 0, bbSaturation: 0, bbContrast: 0, bbLocalContrast: 0,
@@ -149,6 +153,69 @@ void main() {
   if (midtones) { float L = luma(c); w = 1.0 - pow(abs(L - 0.5) * 2.0, 2.0); }
   o = vec4(c + amount * w * (c - b), 1.0);
 }`,
+    // Dehaze (Camera Raw): the haze is guessed from the local darkest colour channel (a "dark channel" prior);
+    // + takes it away (more contrast and colour in far, misty parts), - adds a soft veil
+    dehaze: `uniform sampler2D blurred; uniform float amount;
+void main() {
+  vec3 c = texture(img, uv).rgb, b = texture(blurred, uv).rgb;
+  float dark = min(b.r, min(b.g, b.b)), A = 0.95;
+  if (amount > 0.0) {
+    float t = max(1.0 - amount * 0.9 * dark / A, 0.35);
+    vec3 r = (c - A * (1.0 - t)) / t;
+    float L0 = luma(c), L1 = luma(r);
+    r = mix(vec3(L1), r, 1.0 + 0.25 * amount);         // a touch more colour, as Camera Raw does
+    c = mix(c, r, 0.85) + (L0 - L1) * 0.25 * amount;    // keep it from going too dark
+  } else {
+    float k = -amount * (0.35 + 0.45 * (1.0 - dark));
+    c = mix(c, vec3(A) * 0.85 + c * 0.15, k * 0.7);
+  }
+  o = vec4(max(c, 0.0), 1.0);
+}`,
+    // Color Mixer (HSL): per colour band, shift hue, change saturation and luminance (bands blend smoothly)
+    mixer: `uniform vec4 mh[2]; uniform vec4 ms[2]; uniform vec4 ml[2];
+float band(vec4 a[2], int i) { int j = i - (i / 8) * 8; return j < 4 ? a[0][j] : a[1][j - 4]; }
+float atHue(vec4 a[2], float h) {
+  float C[9] = float[9](0.0, 30.0, 60.0, 120.0, 180.0, 240.0, 270.0, 300.0, 360.0);
+  for (int k = 0; k < 8; k++) if (h < C[k + 1]) return mix(band(a, k), band(a, k + 1), (h - C[k]) / (C[k + 1] - C[k]));
+  return band(a, 0);
+}
+vec3 rgb2hsl(vec3 c) {
+  float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b)), l = (mx + mn) * 0.5, d = mx - mn, h = 0.0, s = 0.0;
+  if (d > 1e-5) {
+    s = d / (1.0 - abs(2.0 * l - 1.0) + 1e-5);
+    if (mx == c.r) h = mod((c.g - c.b) / d, 6.0); else if (mx == c.g) h = (c.b - c.r) / d + 2.0; else h = (c.r - c.g) / d + 4.0;
+    h *= 60.0;
+  }
+  return vec3(h, s, l);
+}
+vec3 hsl2rgb(vec3 h) {
+  float c = (1.0 - abs(2.0 * h.z - 1.0)) * h.y, x = c * (1.0 - abs(mod(h.x / 60.0, 2.0) - 1.0)), m = h.z - c * 0.5;
+  vec3 r = h.x < 60.0 ? vec3(c, x, 0) : h.x < 120.0 ? vec3(x, c, 0) : h.x < 180.0 ? vec3(0, c, x)
+         : h.x < 240.0 ? vec3(0, x, c) : h.x < 300.0 ? vec3(x, 0, c) : vec3(c, 0, x);
+  return r + m;
+}
+void main() {
+  vec3 c = clamp(texture(img, uv).rgb, 0.0, 1.0);
+  vec3 h = rgb2hsl(c);
+  float w = smoothstep(0.02, 0.18, h.y);   // greys stay as they are
+  float dh = atHue(mh, h.x), ds = atHue(ms, h.x), dl = atHue(ml, h.x);
+  h.x = mod(h.x + dh * 30.0 * w + 360.0, 360.0);
+  h.y = clamp(h.y * (1.0 + ds * w), 0.0, 1.0);
+  vec3 r = hsl2rgb(h);
+  float L = luma(r);
+  r *= max(0.0, 1.0 + dl * 0.6 * w * h.y) ;     // luminance: brighter / darker, more on strong colours
+  o = vec4(mix(c, r, 1.0), 1.0);
+}`,
+    // Color Grading (Camera Raw): tint the shadows, midtones and highlights; Balance moves where shadows end
+    grade: `uniform vec3 sh, mid, hi; uniform float balance;
+void main() {
+  vec3 c = texture(img, uv).rgb;
+  float L = clamp(luma(c), 0.0, 1.0), b = 0.5 - 0.35 * balance;
+  float ws = 1.0 - smoothstep(0.0, b * 1.6, L), wh = smoothstep(b * 0.6, 1.0, L), wm = max(0.0, 1.0 - ws - wh);
+  vec3 r = c + sh * ws + mid * wm + hi * wh;
+  r *= L / max(luma(r), 1e-4);                     // grading changes colour, not brightness
+  o = vec4(max(r, 0.0), 1.0);
+}`,
     // CIHighlightShadowAdjust-style lift (Detail Extractor, Dark Contrasts)
     recover: `uniform sampler2D blurred; uniform float shadowLift, highlightAmt;
 void main() {
@@ -204,7 +271,7 @@ void main() {
     // ◎ Control points (like Nik Color Efex): blend a step's result back into the picture only around the points.
     // pts[i] = (x, y, radius, opacity): x, y in 0..1 from the top left, radius in units of the long side.
     // Painted areas (🖌 paint where it shows) add to the points: `paint` holds them in its red channel.
-    pointMask: `uniform sampler2D orig; uniform sampler2D paint; uniform bool hasPaint; uniform vec4 pts[16]; uniform int n; uniform vec2 scale;
+    pointMask: `uniform sampler2D orig; uniform sampler2D paint; uniform bool hasPaint; uniform float layerOp; uniform vec4 pts[16]; uniform int n; uniform vec2 scale;
 void main() {
   float m = hasPaint ? texture(paint, uv).r : 0.0;
   for (int i = 0; i < 16; i++) {
@@ -213,7 +280,7 @@ void main() {
     float d = length((uv - q.xy) * scale) / max(q.z, 1e-4);
     m = max(m, q.w * (1.0 - smoothstep(0.35, 1.0, d)));   // full strength in the middle, a soft edge
   }
-  o = mix(texture(orig, uv), texture(img, uv), m);
+  o = mix(texture(orig, uv), texture(img, uv), clamp(m, 0.0, 1.0) * layerOp);
 }`,
     vignette: `uniform float amount, aspect;
 void main() {
@@ -377,7 +444,8 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
       for (const [k, v] of Object.entries(uniforms)) {
         const l = loc(k);
         if (l === null) continue;
-        if (Array.isArray(v)) gl.uniform2f(l, v[0], v[1]);
+        if (Array.isArray(v) && v.length === 3) gl.uniform3f(l, v[0], v[1], v[2]);
+        else if (Array.isArray(v)) gl.uniform2f(l, v[0], v[1]);
         else if (typeof v === "boolean") gl.uniform1i(l, v ? 1 : 0);
         else if (v instanceof Float32Array) gl.uniform4fv(l, v);
         else if (Number.isInteger(v) && (k === "radius" || k === "n")) gl.uniform1i(l, v);
@@ -460,7 +528,7 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
         pts.forEach((q, i) => arr.set([q.x, q.y, q.r, q.op], i * 4));
         const long = Math.max(cur.w, cur.h);
         const paint = this.paint[key];
-        swap(this._step(cur, "pointMask", { pts: arr, n: pts.length, scale: [cur.w / long, cur.h / long], hasPaint: !!paint },
+        swap(this._step(cur, "pointMask", { pts: arr, n: pts.length, scale: [cur.w / long, cur.h / long], hasPaint: !!paint, layerOp: 1 },
                         { orig: before, paint: paint || this.blank }));
       };
       // a step, with its points / paint, and its layers: points or painted strokes with their own settings
@@ -485,7 +553,8 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
             const pts = pointsFor(l.key), arr = new Float32Array(64);
             pts.forEach((q, i) => arr.set([q.x, q.y, q.r, q.op], i * 4));
             const long = Math.max(done.w, done.h);
-            return { pts: arr, n: pts.length, scale: [done.w / long, done.h / long], hasPaint: !!this.paint[l.key] };
+            return { pts: arr, n: pts.length, scale: [done.w / long, done.h / long], hasPaint: !!this.paint[l.key],
+                     layerOp: l.opacity == null ? 1 : Math.max(0, Math.min(1, Number(l.opacity))) };
           })(), { orig: acc, paint: this.paint[l.key] || this.blank });
           this._release(done);
           swap(mixed);
@@ -517,9 +586,28 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
         this._release(bl);
       }
       // 2. Presence: Clarity (big-radius midtone contrast), Sharpening (fine), Vignette
+      if (p.dehaze) {  // Dehaze first, like Camera Raw (it works on the haze of the whole scene)
+        const bl = this._blur(cur, 18 * unit);
+        swap(this._step(cur, "dehaze", { amount: p.dehaze }, { blurred: bl }));
+        this._release(bl);
+      }
+      if (p.texture) swap(this._local(cur, 3.5 * unit, 1.1 * p.texture, true));  // Texture: fine detail, not edges
       if (p.clarity) swap(this._local(cur, 30 * unit, 0.9 * p.clarity, true));
       if (p.sharpen > 0) swap(this._local(cur, 0.9 * unit, 1.6 * p.sharpen));
       if (p.vignette) swap(this._step(cur, "vignette", { amount: p.vignette, aspect: cur.w / cur.h }));
+      // 3. Color Mixer (HSL) and Color Grading
+      if (MIX_HUES.some((h) => p["mh_" + h] || p["ms_" + h] || p["ml_" + h])) {
+        const arr = (pre) => new Float32Array(MIX_HUES.map((h) => Number(p[pre + h]) || 0));
+        swap(this._step(cur, "mixer", { mh: arr("mh_"), ms: arr("ms_"), ml: arr("ml_") }));
+      }
+      if (p.cgShSat || p.cgMidSat || p.cgHiSat) {
+        const tintOf = (hue, sat) => {  // a colour of that hue, centred on grey, scaled by the saturation
+          const h = ((Number(hue) % 360) + 360) % 360, f = (n) => { const k = (n + h / 30) % 12; return 0.5 - 0.5 * Math.max(-1, Math.min(k - 3, 9 - k, 1)); };
+          return [f(0) - 0.5, f(8) - 0.5, f(4) - 0.5].map((v) => v * 0.35 * (Number(sat) || 0));
+        };
+        swap(this._step(cur, "grade", { sh: tintOf(p.cgShHue, p.cgShSat), mid: tintOf(p.cgMidHue, p.cgMidSat),
+                                        hi: tintOf(p.cgHiHue, p.cgHiSat), balance: p.cgBalance || 0 }));
+      }
       };
       withLayers("base", runBase);
 
@@ -644,5 +732,5 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
     }
   }
 
-  window.ProtoAdjust = { AdjustEngine, defaults, withDefaults, fullOrder, LOOKS, FILTER_ORDER, isDefault, anyOn };
+  window.ProtoAdjust = { AdjustEngine, defaults, withDefaults, fullOrder, LOOKS, FILTER_ORDER, MIX_HUES, isDefault, anyOn };
 })();

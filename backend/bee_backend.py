@@ -169,7 +169,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -270,6 +270,8 @@ def job_label(cmd, a):
             a.get("family"), "Enhance prompt")
     if cmd == "plan_regions":
         return "Plan the layout"
+    if cmd == "faceswap_faces":
+        return "Face swap · find the faces"
     if cmd == "faceswap":
         return "Face swap"
     if cmd == "quantize":
@@ -617,12 +619,13 @@ def handle_quick(cmd, a):
                 src_path = src["path"]
         adjust = a.get("adjust") if isinstance(a.get("adjust"), dict) else {}
         warp = a.get("editor") == "Puppet warp"  # Tools → 🪡 Puppet warp saves through here too
-        info = {"source_id": src_id, "source_path": src_path, "editor": "Puppet warp" if warp else "Adjust",
-                "settings": settings_}
+        text = a.get("editor") == "Text"  # and Tools → 🔤 Replace text
+        info = {"source_id": src_id, "source_path": src_path,
+                "editor": "Puppet warp" if warp else "Text" if text else "Adjust", "settings": settings_}
         try:
             rec = edits.import_into_library(library, paths.IMAGES_DIR, thumbs, f, info, emit,
-                                            extra={"puppet": adjust} if warp else {"adjust": adjust},
-                                            suffix="warped" if warp else "adjusted")
+                                            extra={"puppet": adjust} if warp else {"text": adjust} if text else {"adjust": adjust},
+                                            suffix="warped" if warp else "text" if text else "adjusted")
         finally:
             try:
                 os.remove(f)
@@ -864,6 +867,8 @@ def handle_quick(cmd, a):
                             "size_mb": i.get("size_mb")})
         return {"items": out, "default_out": str(paths.HOME / "converted"), "free_gb": round(
             __import__("shutil").disk_usage(paths.HOME).free / 2**30, 1)}
+    if cmd == "papercut_preview":  # 📄 the paper cut-out's live preview (small, not saved) from the found subject
+        return _engine.papercut_preview(a) if _engine is not None else None
     if cmd == "select_object":
         import select_object
         from PIL import Image, ImageOps
@@ -1834,7 +1839,7 @@ def reader():
             job = {"id": mid, "cmd": cmd, "args": a, "label": job_label(cmd, a), "model": a.get("model")}
             jobs.make_way(None if cmd == "preload" else (a.get("model") or (a.get("base") or {}).get("model")))
             # Image -> prompt is quick and the user is waiting on it, so it jumps the queue.
-            jobs.put(job, front=cmd in ("interrogate", "enhance_prompt", "plan_regions", "control_preview"))
+            jobs.put(job, front=cmd in ("interrogate", "enhance_prompt", "plan_regions", "control_preview", "faceswap_faces"))
             continue
         if cmd in NET_QUICK:  # these wait on the internet: never hold up the other buttons while they do
             threading.Thread(target=run_quick, args=(mid, cmd, a), daemon=True).start()
@@ -1876,7 +1881,7 @@ def run_side(mid, cmd, a):
 
 # quick commands that talk to a website (up to ~25 s if it's slow or blocked): run beside the reader, so the
 # app stays responsive (an unanswered Check used to leave every other button waiting)
-NET_QUICK = ("select_object", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
+NET_QUICK = ("select_object", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
              "train_square_copies")  # (that one isn't online, but can take a while for a big folder)
 
 
@@ -2046,6 +2051,8 @@ def run_job(kind, a):
         return eng.vectorize(a)
     if kind == "edit_words":
         return eng.edit_words(a)
+    if kind == "faceswap_faces":
+        return eng.faceswap_faces(a)
     if kind == "faceswap":
         return eng.faceswap(a)
     if kind == "tiled_upscale":

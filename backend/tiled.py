@@ -83,7 +83,9 @@ def upscale(pipe, family, image, prompt, negative, scale=2.0, strength=0.35, ste
     for i, t in enumerate(timesteps):
         acc = torch.zeros_like(latents, dtype=torch.float32)
         cnt = torch.zeros((1, 1, lh, lw), device=device, dtype=torch.float32)
-        for (y, x, th, tw) in tiles:
+        for k, (y, x, th, tw) in enumerate(tiles):
+            if on_step and k:  # the bar moves tile by tile (a whole step can take minutes on a small Mac)
+                on_step(i * len(tiles) + k - 1, len(timesteps) * len(tiles))
             chunk = latents[:, :, y:y + th, x:x + tw]
             inp = torch.cat([chunk] * 2) if cfg > 1 else chunk
             inp = sched.scale_model_input(inp, t)
@@ -106,7 +108,7 @@ def upscale(pipe, family, image, prompt, negative, scale=2.0, strength=0.35, ste
         eps_full = (acc / cnt).to(dtype)
         latents = sched.step(eps_full, t, latents).prev_sample
         if on_step:
-            on_step(i, len(timesteps))
+            on_step((i + 1) * len(tiles) - 1, len(timesteps) * len(tiles))
         if device.type == "mps":
             torch.mps.empty_cache()
 

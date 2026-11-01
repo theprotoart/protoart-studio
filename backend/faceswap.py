@@ -50,6 +50,24 @@ def is_cached():
     return all(isinstance(try_to_load_from_cache(REPO, f), str) for f in (SWAPPER, ARCFACE))
 
 
+def find_faces(face_net, image, min_score=0.6):
+    """RetinaFace on a PIL picture -> list of {box, score, landmarks (5×2)}, biggest first."""
+    import cv2
+    import torch
+    bgr = cv2.cvtColor(np.asarray(image.convert("RGB")), cv2.COLOR_RGB2BGR)
+    with torch.no_grad():
+        dets = face_net.detect_faces(bgr, conf_threshold=min_score)
+    out = []
+    for d in dets if dets is not None else []:
+        d = [float(v) for v in d]
+        box = d[:4]
+        if min(box[2] - box[0], box[3] - box[1]) < 16:
+            continue
+        out.append({"box": box, "score": d[4], "landmarks": np.array(d[5:15], np.float32).reshape(5, 2)})
+    out.sort(key=lambda f: (f["box"][2] - f["box"][0]) * (f["box"][3] - f["box"][1]), reverse=True)
+    return out
+
+
 class FaceSwapper:
     def __init__(self, face_net, emit=None):
         """face_net: facexlib's RetinaFace (detailer.FaceFinder(...).net)."""
@@ -81,20 +99,32 @@ class FaceSwapper:
     # ---------------------------------------------------------------- faces
     def faces(self, image, min_score=0.6):
         """-> list of {box, score, landmarks (5×2)} biggest first."""
+        return find_faces(self.face_net, image, min_score)
+
+    def identity_of(self, pictures, index=0):
+        """🔁 Likeness from one or more photos of the same person: each photo's ArcFace identity, averaged
+        (several photos from different angles give a steadier likeness than one). -> (latent, photos used)"""
+        embs = []
+        for k, pic in enumerate(pictures):
+            fs = self.faces(pic)
+            if not fs:
+                if k == 0:
+                    raise ValueError("no face found in the face picture (use a clear, front-facing photo)")
+                continue  # an extra photo without a clear face is skipped
+            f = fs[min(int(index or 0), len(fs) - 1)] if k == 0 else fs[0]
+            embs.append(self._arc(pic, f))
+        emb = np.mean(embs, axis=0)
+        emb = emb / (np.linalg.norm(emb) + 1e-8)
+        latent = emb.reshape(1, -1) @ self.emap
+        return (latent / (np.linalg.norm(latent) + 1e-8)).astype(np.float32), len(embs)
+
+    def _arc(self, image, face):
         import cv2
-        import torch
         bgr = cv2.cvtColor(np.asarray(image.convert("RGB")), cv2.COLOR_RGB2BGR)
-        with torch.no_grad():
-            dets = self.face_net.detect_faces(bgr, conf_threshold=min_score)
-        out = []
-        for d in dets if dets is not None else []:
-            d = [float(v) for v in d]
-            box = d[:4]
-            if min(box[2] - box[0], box[3] - box[1]) < 16:
-                continue
-            out.append({"box": box, "score": d[4], "landmarks": np.array(d[5:15], np.float32).reshape(5, 2)})
-        out.sort(key=lambda f: (f["box"][2] - f["box"][0]) * (f["box"][3] - f["box"][1]), reverse=True)
-        return out
+        crop, _ = align(bgr, face["landmarks"], 112)
+        blob = cv2.dnn.blobFromImage(crop, 1.0 / 127.5, (112, 112), (127.5, 127.5, 127.5), swapRB=True)
+        emb = self.arcface.run(None, {self.arcface.get_inputs()[0].name: blob})[0].reshape(-1)
+        return emb / (np.linalg.norm(emb) + 1e-8)
 
     def identity(self, image, face):
         """ArcFace identity of one face, mapped for the swapper (normalised)."""
@@ -153,26 +183,38 @@ class FaceSwapper:
         mask = cv2.GaussianBlur(mask, (2 * k + 1, 2 * k + 1), 0)[:, :, None] / 255.0
         return (mask * warped.astype(np.float32) + (1 - mask) * bgr.astype(np.float32)).clip(0, 255).astype(np.uint8)
 
-    def swap(self, source_image, target_image, which="all", source_index=0, boost=1):
+    def swap(self, source_image, target_image, which="all", source_index=0, boost=1, extra_faces=(), marks=None):
         """Swap the source picture's face onto the target picture.
-        which: "all" faces, "biggest", or an index (0 = biggest). -> (PIL image, number of faces swapped)"""
+        which: "all" faces, "biggest", an index (0 = biggest) or a list of indexes (the faces you picked).
+        extra_faces: more photos of the same person (their likeness is averaged in).
+        marks: faces you marked by hand (for faces the finder misses, like a creature's): a list of 5 points each
+        (left eye, right eye, nose, left and right mouth corner) in the target's pixels.
+        -> (PIL image, number of faces swapped)"""
         import cv2
         from PIL import Image
-        src_faces = self.faces(source_image)
-        if not src_faces:
-            raise ValueError("no face found in the face picture (use a clear, front-facing photo)")
-        src = src_faces[min(int(source_index or 0), len(src_faces) - 1)]
-        latent = self.identity(source_image, src)
-        tgt_faces = self.faces(target_image)
-        if not tgt_faces:
-            raise ValueError("no face found in the picture to change")
-        if which == "biggest":
-            chosen = tgt_faces[:1]
-        elif isinstance(which, int) or (isinstance(which, str) and which.isdigit()):
-            i = int(which)
-            chosen = [tgt_faces[min(i, len(tgt_faces) - 1)]]
+        latent, self.photos_used = self.identity_of([source_image, *extra_faces], source_index)
+        if marks:
+            chosen = []
+            for pts in marks:
+                pts = np.array(pts, np.float32).reshape(5, 2)
+                chosen.append({"box": [float(pts[:, 0].min()), float(pts[:, 1].min()), float(pts[:, 0].max()),
+                                       float(pts[:, 1].max())], "score": 1.0, "landmarks": pts})
         else:
-            chosen = tgt_faces
+            tgt_faces = self.faces(target_image)
+            if not tgt_faces:
+                raise ValueError("no face found in the picture to change. Mark the face by hand (✚ Mark a face) "
+                                 "if it's a creature, a cartoon or a face seen from the side")
+            if which == "biggest":
+                chosen = tgt_faces[:1]
+            elif isinstance(which, (list, tuple)):
+                chosen = [tgt_faces[int(i)] for i in which if 0 <= int(i) < len(tgt_faces)]
+                if not chosen:
+                    raise ValueError("the faces you picked weren't found again: press Find faces once more")
+            elif isinstance(which, int) or (isinstance(which, str) and which.isdigit()):
+                i = int(which)
+                chosen = [tgt_faces[min(i, len(tgt_faces) - 1)]]
+            else:
+                chosen = tgt_faces
         bgr = cv2.cvtColor(np.asarray(target_image.convert("RGB")), cv2.COLOR_RGB2BGR)
         for n, f in enumerate(chosen):
             self.emit({"type": "status", "msg": f"Swapping face {n + 1} of {len(chosen)}…"})

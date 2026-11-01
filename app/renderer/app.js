@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "faceswap_faces", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
@@ -13,6 +13,44 @@ const jobTab = new Map();  // queue job id -> the tab it was started from (its p
 let currentTab = "create";
 // pictures made by Image to image (older records, or ones whose job isn't known any more, go by their kind)
 // distance (px) from each pixel to the subject (alpha >= 128), two-pass chamfer: for the paper border preview
+function cleanBits(a, w, h, keepFrac = 0.004) {  // ✂ drop small separate specks (as postprocess/cutout.py clean_bits)
+  const n = w * h, lab = new Int32Array(n), sizes = [0], stack = new Int32Array(n);
+  let next = 0;
+  for (let i = 0; i < n; i++) {
+    if (a[i] <= 127 || lab[i]) continue;
+    next++; let sp = 0, cnt = 0; stack[sp++] = i; lab[i] = next;
+    while (sp) {
+      const p = stack[--sp]; cnt++;
+      const x = p % w, y = (p - x) / w;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const xx = x + dx, yy = y + dy;
+        if ((dx || dy) && xx >= 0 && yy >= 0 && xx < w && yy < h) {
+          const q = yy * w + xx;
+          if (a[q] > 127 && !lab[q]) { lab[q] = next; stack[sp++] = q; }
+        }
+      }
+    }
+    sizes.push(cnt);
+  }
+  if (next < 2) return a;
+  let big = 1;
+  for (let k = 2; k <= next; k++) if (sizes[k] > sizes[big]) big = k;
+  const min = keepFrac * n, drop = new Uint8Array(next + 1);
+  let any = false;
+  for (let k = 1; k <= next; k++) if (k !== big && sizes[k] < min) { drop[k] = 1; any = true; }
+  if (!any) return a;
+  const out = new Uint8ClampedArray(a);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {  // take each dropped bit out with its soft edge (5x5)
+    let gone = false;
+    for (let dy = -2; dy <= 2 && !gone; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const xx = x + dx, yy = y + dy;
+      if (xx >= 0 && yy >= 0 && xx < w && yy < h && drop[lab[yy * w + xx]]) { gone = true; break; }
+    }
+    if (gone) out[y * w + x] = 0;
+  }
+  return out;
+}
+
 function chamferDistance(alpha, w, h) {
   const INF = 1e9, d = new Float32Array(w * h);
   for (let i = 0; i < d.length; i++) d[i] = alpha[i] >= 128 ? 0 : INF;
@@ -38,6 +76,7 @@ function isNegEmbedding(e) {
   return /neg|unaesthetic|verybad|worst|lowres|^ng[_-]|^bad|bad[-_ ]?(hand|prompt|artist|quality|dream|anatomy|picture)/i.test((e && e.name) || "");
 }
 // which tab a queue job was started from: the app's own note, else the backend's (Image to image jobs carry i2i)
+let lastFail = null;  // {tab, at}: the tab of the job that failed last (see the "error" watcher)
 function jobTabOf(j) {
   if (!j) return "create";
   const t = jobTab.get(j.id);
@@ -61,7 +100,11 @@ window.bee.onMessage((m) => {
     // a job that stopped because a first-time download didn't happen: the app offers ⬇ Download it now
     if (m.type === "error" && job && /one-time download/i.test(m.msg || "")) listeners.forEach((fn) => fn({ type: "download_needed", job }));
     if (m.type === "result") resolve(m.data);
-    else reject(Object.assign(new Error(m.msg), { cancelled: !!m.cancelled }));
+    else {
+      // the error message is shown in the tab the job came from, not whichever tab is open when it fails
+      lastFail = { tab: jobTab.get(m.id) || currentTab, at: Date.now() };
+      reject(Object.assign(new Error(m.msg), { cancelled: !!m.cancelled }));
+    }
     return;
   }
   listeners.forEach((fn) => fn(m));
@@ -111,7 +154,7 @@ function defaultPost() {  // Tools settings on a fresh install
            solver: "DDIM", seed: -1, prompt: "", turbo: false, instant: false, work_size: "auto",
            keep_style: false, style_words: "" },  // 🎨 keep the picture's own look (painting, anime…) instead of turning photographic
     vec: { colors: 8, detail: "medium", smooth: true },   // ✒️ Vectorize
-    det: { lora: "", weight: 0.8, strength: 0.35, steps: 20 },  // 🔎 Detail with a LoRA (patchbay module)
+    det: { model: "", lora: "", weight: 0.8, strength: 0.35, steps: 20 },  // model "": Create's (if SD) or the first SD 1.5  // 🔎 Detail with a LoRA (patchbay module)
     // ✂ Cut out: threshold / softness on the model's matte, grow (+) or shrink (−) in px, then the clean-ups
     cut: { threshold: 0.5, softness: 0.1, grow: 0, bg: "transparent", color: "#ffffff", clean: true, fix_edges: true, crop: false },
     // 📄 Paper cut-out: border width (% of the shorter side), its paper, torn-ness, shadow, print look, background
@@ -137,7 +180,7 @@ function defaultForm() {
     var_seed: -1, var_strength: 0,  // 🎲 Small change (variation seed): 0 = off
     seamless: false,  // 🧱 Seamless: the picture tiles
     regions: { on: false, layout: "cols", ratios: "1,1", prompts: ["", ""], base: 0.2, add_main: false, refine: 0.5 },  // 🗺 Regional prompts
-    swap: { face: "", which: "all", boost: 1, restore: true, consent: false },  // 🔁 Face swap (Image to image)
+    swap: { face: "", more: [], which: "all", picks: [], marks: [], boost: 1, restore: true, consent: false },  // 🔁 Face swap (Image to image)
     vae: "",
     restore_faces: false, face_strength: 0.8, face_model: "codeformer", face_fidelity: 0.5, enhance_prompt: false, clip_skip: 1, quality_tags: true,
     init_image: "", strength: 0.6, use_init_size: false, size_link: false, size_ratio: 1,
@@ -337,10 +380,27 @@ const ADJ_SECTIONS = [
     { k: "tint", label: "Tint", tip: "Green ↔ magenta" },
     { k: "vibrance", label: "Vibrance", tip: "Boosts muted colours and protects skin tones" },
     { k: "saturation", label: "Saturation", tip: "All colours; far left = black and white" } ] },
-  { id: "presence", label: "Presence & effects", tip: "Lightroom's Clarity, Sharpening and Vignette.", sliders: [
+  { id: "presence", label: "Presence & effects", tip: "Camera Raw's Texture, Clarity, Dehaze, Sharpening and Vignette.", sliders: [
+    { k: "texture", label: "Texture", tip: "Fine detail (skin, fabric, foliage) without touching the edges; left smooths it" },
     { k: "clarity", label: "Clarity", tip: "Mid-tone contrast: crisper texture (left softens)" },
+    { k: "dehaze", label: "Dehaze", tip: "Right takes away haze and mist (more contrast and colour far away); left adds a soft haze" },
     { k: "sharpen", label: "Sharpening", min: 0, max: 1, tip: "Fine-edge sharpening" },
     { k: "vignette", label: "Vignette", tip: "Darkens the corners (left lightens them)" } ] },
+  ...[["mh_", "Color mixer · Hue", "Shift each colour's hue (e.g. turn yellow-green grass greener)"],
+      ["ms_", "Color mixer · Saturation", "Make one colour stronger or weaker (left = greyer)"],
+      ["ml_", "Color mixer · Luminance", "Make one colour brighter or darker (e.g. a deeper blue sky)"]].map(([pre, label, tip]) => ({
+    id: pre + "mix", label, tip: "Like Camera Raw's Color Mixer (HSL). " + tip + ". Greys aren't changed.", folded: true,
+    sliders: ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"].map((h) => ({
+      k: pre + h, label: h[0].toUpperCase() + h.slice(1), tip: label.split(" · ")[1] + " of the " + h + "s",
+      dot: { red: "#e0413a", orange: "#f08a2c", yellow: "#efd23a", green: "#4fb548", aqua: "#3cc6c6", blue: "#3f6fe0", purple: "#8a52d6", magenta: "#d64fb4" }[h] })) })),
+  { id: "grading", label: "Color grading", tip: "Like Camera Raw's Color Grading: tint the shadows, midtones and highlights (pick a hue, then raise its amount).", folded: true, sliders: [
+    { k: "cgShHue", label: "Shadows hue", min: 0, max: 360, step: 1, hue: true, tip: "The colour of the shadows (220 = blue, 180 = teal)" },
+    { k: "cgShSat", label: "Shadows amount", min: 0, max: 1, tip: "How strongly the shadows are tinted" },
+    { k: "cgMidHue", label: "Midtones hue", min: 0, max: 360, step: 1, hue: true, tip: "The colour of the midtones" },
+    { k: "cgMidSat", label: "Midtones amount", min: 0, max: 1, tip: "How strongly the midtones are tinted" },
+    { k: "cgHiHue", label: "Highlights hue", min: 0, max: 360, step: 1, hue: true, tip: "The colour of the highlights (40 = warm orange)" },
+    { k: "cgHiSat", label: "Highlights amount", min: 0, max: 1, tip: "How strongly the highlights are tinted" },
+    { k: "cgBalance", label: "Balance", tip: "Left: more of the picture counts as shadows; right: more counts as highlights" } ] },
 ];
 const ADJ_FILTERS = {
   extract: { label: "Detail Extractor", on: "extractOn", tip: "Pulls out texture everywhere, an HDR-like look.", sliders: [
@@ -593,6 +653,7 @@ const protoartApp = createApp({
       chain: { steps: loadJSON("protoart.chain", []).map((x) => ({ lora: "", lora_weight: 1, extra: "", ...x, result: "", q: "" })),
                running: false, stopped: false, at: -1, done: 0 },  // 🔗 Model chain
       swapOver: false,
+      swapView: { found: null, for: "", w: 0, h: 0, cur: [], busy: false },  // 🔁 the faces found / being marked
       promptBox: null,       // the 📒 My prompts window: {name} = saving, {name: null} = managing
       undoNegative: null,
       lastAutoNegative: "",
@@ -647,6 +708,7 @@ const protoartApp = createApp({
       // 🔍 zoom on the pictures you work on: Tools' picture, Image to image's preview and the picture you paint on there
       zoom: { tools: { z: 1, x: 0, y: 0 }, i2i: { z: 1, x: 0, y: 0 }, i2iSrc: { z: 1, x: 0, y: 0 } },
       zoomSpace: false,      // Space held: drag to move around (like Photoshop)
+      tx: { open: false, base: null, layers: [], sel: -1, scale: 1, nw: 0, nh: 0, pick: false, busy: false, msg: "", drag: null, finding: false },  // 🔤 Replace text
       pw: { open: false, rec: null, pins: [], sel: -1, density: 48, busy: false, msg: "", error: "", original: false,
             ovl: null, size: null, mode: "rigid", expand: 0, feather: 3, showMesh: true, showBg: true, whole: false,
             hist: [], fut: [],
@@ -659,7 +721,9 @@ const protoartApp = createApp({
       bxOne: null,      // the picture "Compress / export" was pressed on (it may not be in the Library list)
       // Create: sections you folded down to one line (at first: the image prompt and extras are folded)
       cfolds: loadJSON("protoart.createFolds", { ipa: true, extras: true }),
-      ipaParked: "", regionsParked: false,  // 🗺 regions and 🖼 image prompt switch each other off (see watch)
+      ipaParked: "", regionsParked: false,
+      errorTab: "",
+      engineStatus: "",  // the engine's last status message (shown on the running job until its first step)  // the tab the error message above the pictures belongs to  // 🗺 regions and 🖼 image prompt switch each other off (see watch)
       adjSections: ADJ_SECTIONS,
       ProtoLooks: window.ProtoAdjust ? window.ProtoAdjust.LOOKS : [],
       adjFilters: ADJ_FILTERS,
@@ -688,6 +752,18 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Since 1.6.2 (in the next version): 🔤 Replace text, ↻ keep training a LoRA, face swap picks and marks, ⚥ swap gender", items: [
+              "<b>🔤 Replace text</b> (Tools): swap the writing in a picture for your own. <b>1 · 🔍 Find the text</b> selects it, <b>2 · 🧽 Clear it</b> fills the background in where it was, and <b>3 · ✏️ Type</b> opens a Type tool: click the picture, type, then pick the font, size, colour (🎯 takes the old text's colour), bold, italic, alignment, outline, shadow and angle; drag the text to move it. <b>💾 Save</b> adds the picture to the Library.",
+              "<b>↻ Continue training</b> (Train → 3 · LoRA): pick a LoRA you made and it keeps what it learned and learns more from your pictures, for example a person whose likeness isn't quite there yet. It's saved under a new name (…-more), so you can compare the two.",
+              "<b>🔁 Face swap</b>: add up to 4 <b>more photos of the same person</b> for a steadier likeness; <b>👆 Pick faces</b> finds the faces in the picture so you click the ones to change; <b>✚ Mark by hand</b> lets you click the eyes, nose and mouth corners of a face the finder misses (a creature, a cartoon, a statue).",
+              "<b>🛡 Protect from Enhance</b> (in the ✨ Enhance module): paint over faces, hands or a logo and Enhance leaves them as they were (only upscaled, blended in softly), on its own and in the 🔌 patchbay, while the other modules (Restore faces…) still work on them.",
+              "<b>🎚 Adjust gets more of Camera Raw</b>: <b>Dehaze</b> and <b>Texture</b> (in Presence &amp; effects), the <b>Color mixer</b> (hue, saturation and luminance of reds, oranges, yellows, greens, aquas, blues, purples and magentas) and <b>Color grading</b> (tint the shadows, midtones and highlights, with Balance). Each paint layer under a filter now has its own <b>Layer opacity</b>, and its own <b>brush size and strength</b> right in the layer.",
+              "<b>⚥ Swap gender</b> (beside the prompt tools): turns the prompt's women into men and men into women, in sentences and in tags (1girl ↔ 1boy, her ↔ his). Undo puts it back.",
+              "<b>Detail with a LoRA</b> (Tools) has its own model picker, so it no longer depends on the model picked in Create.",
+              "<b>✨ Enhance → 🖌 Only a painted area</b>: paint over part of the picture and only that part is enhanced (the rest is just upscaled, the edge blended in). Quicker on a big picture.",
+              "<b>Run chain</b> shows your patchbay chain (PICTURE → … → RESULT) and a ▶ Run patch button while the patchbay is hidden.",
+              "<b>📄 Paper cut-out</b>'s preview now shows every setting live (torn edge, shadow, print, background), and <b>✂ Cut out</b>'s preview shows <i>Clean up small bits</i> and <i>Crop to the subject</i>.",
+              "Fixes: <b>Tiled upscale</b> shows progress for every tile (it looked stuck); deleting a picture no longer shows “Deleted…” on the running job's line; Image → prompt falls back to Quick describe when the Mac is short of memory (instead of a METAL “Insufficient Memory” error); Tools errors no longer show on the Create page (and the other way round); Create's live preview no longer appears in Tools; the sampler picks are no longer cut off; Select text in Inpaint no longer fails with “Cannot read properties of null”." ] },
             { h: "1.6.2: 📷 Camera angle turns further, picture viewer arrows, clear Image to image's results", items: [
               "Image to image's <b>Earlier results</b> have a <b>clear all</b> beside the heading, like Create's (the pictures stay in the Library). The <b>✕ Clear results</b> button by the preview does the same.",
               "The picture viewer's <b>‹ ›</b> arrows sit right on the edges of the picture box, so they're close to the picture on any window size.",
@@ -1061,7 +1137,7 @@ const protoartApp = createApp({
         { id: "i2i", go: "i2i", icon: "🖼", title: "Image to image", summary: "Change a picture, or follow its structure with ControlNet",
           sections: [
             { h: "🔁 Face swap, 🔗 model chain, Union ProMax", items: [
-              "<b>🔁 Face swap</b>: put the picture to change in 1 · Picture, pick 🔁 Face swap, drop a clear front-facing photo of the face to use, choose <i>All faces</i> or <i>The main face</i>, and tick that you have permission. <i>Sharper (256 px)</i> is for big, close-up faces. <i>Tidy the new face</i> runs CodeFormer (fidelity 0.7, blended 60%). ~460 MB the first time. The swap model (inswapper_128) is for non-commercial use only; every result is checked and explicit results aren't saved.",
+              "<b>🔁 Face swap</b>: put the picture to change in 1 · Picture, pick 🔁 Face swap, drop a clear front-facing photo of the face to use, choose <i>All faces</i>, <i>The main face</i>, <i>👆 Pick faces</i> (🔍 Find faces, then click the ones to change) or <i>✚ Mark by hand</i> (for a face the finder misses: click the two eyes, the tip of the nose and the two mouth corners; mark more faces the same way), and tick that you have permission. <b>More photos of the same person</b> (up to 4, different angles and light) give a steadier likeness: they're averaged with the first photo. <i>Sharper (256 px)</i> is for big, close-up faces. <i>Tidy the new face</i> runs CodeFormer (fidelity 0.7, blended 60%). ~460 MB the first time. The swap model (inswapper_128) is for non-commercial use only; every result is checked and explicit results aren't saved.",
               "<b>🔗 Model chain</b> (🔄 Change it): ＋ Add a model for each step, set how much each may change (0.3–0.5 keeps the picture), write the prompt, and press ▶ Run chain. Each model redraws the last one's result: e.g. an SD 1.5 picture → SDXL for detail → FLUX.1 Schnell or ERNIE for the finish. Each step has its own <b>LoRA</b> (only ones made for that step's model type are listed) and <b>extra words</b> (picking a LoRA adds its trigger words): e.g. step 1 SD 1.5 with your character LoRA, step 2 FLUX.1 to finish it. ↑ ↓ reorder the steps; each step's result appears beside it (click it to start from that picture). Each step's picture is kept in the Library.",
               "<b>ControlNet Union ProMax</b> (SDXL models): in 2 · ControlNet pick a <i>Union ProMax</i> type (Canny, Depth, OpenPose, Line art, Scribble, Soft edges, Tile). One ~2.5 GB download covers them all. On 8 GB use 768–1024 px.",
               "<b>Which one should I use?</b> The same person in different pictures → Image prompt · <b>Face</b> (a close-up photo). A picture's style, outfit or colours → Image prompt · <b>Stronger</b>. A pose, drawing, silhouette or layout → <b>ControlNet</b> (OpenPose for poses, Line art or Scribble for drawings, Canny or Depth for shapes). They combine: Face + an OpenPose ControlNet keeps the person and copies the pose.",
@@ -1120,7 +1196,7 @@ const protoartApp = createApp({
             { h: "🔌 Patchbay: run the tools in your own order", items: [
               "<b>＋ Add a module</b> (above the panel) puts in another copy of Faces, Enhance, Remove or Depth, like a second rack unit: cable it in to run that tool twice in one chain (for example Restore faces, then Restore faces again). <b>✕ last added</b> takes the newest copy out.",
               "<b>Each module's settings</b>: press <b>SELECT</b> at the bottom of a module. Its rack unit below lights up and shows that module's settings, with a ⚙ badge naming it; a copy you added, such as FACES 2, keeps <b>its own settings</b> in the same rack unit (model, strength, fidelity for faces; upscale, detail, steps for enhance…), so each copy can do something different. Press SELECTED again to finish.",
-              "<b>✕</b> (top right of a module) takes it off the rack; <b>Add a module → ↩ put … back</b> returns it. <b>🔎 DETAIL</b> redraws lightly with the Create model and one LoRA (an “add detail” LoRA works well; change strength 0.2–0.4 keeps the picture). It needs an SD 1.5 or SDXL model in Create.",
+              "<b>✕</b> (top right of a module) takes it off the rack; <b>Add a module → ↩ put … back</b> returns it. <b>🔎 DETAIL</b> redraws lightly with its own SD 1.5 or SDXL model (picked in the Detail with a LoRA module: <i>automatic</i> uses Create's if it's one of those) and one LoRA (an “add detail” LoRA works well; change strength 0.2–0.4 keeps the picture). It needs an SD 1.5 or SDXL model on this Mac. When the patchbay is hidden, <b>Run chain</b> lists the patched modules in order and runs them with ▶ Run patch.",
               "<b>🛡 Protect areas…</b>: paint over parts the rack must not change (a face you like, a logo), press ✓ Done protecting, then ▶ Run patch: those parts are put back from your original at the end. The picture forming shows in the preview while it runs.",
               "<b>Saving a signal flow</b>: type a name next to <b>💾 Save flow</b> and press it: the cables, the copies you added, the module order and the copies' own settings are kept. Load it again from <i>load a saved flow…</i>; 🗑 deletes the saved one (the patchbay stays as it is).",
               "<b>Moving modules</b>: drag a module's name plate left or right, or point at it and press <b>‹</b> / <b>›</b>. PICTURE stays first and RESULT last. Moving a module doesn't change what runs: the <b>cables</b> set the order the picture goes through (shown in the amber readout). <b>↺ reset</b> puts the modules back in their places and pulls out every cable.",
@@ -1149,6 +1225,11 @@ const protoartApp = createApp({
               "<b>✂ Follow the edge exactly</b>: uses ✂ Cut out's model to follow hair and fur inside your selection (slower: about 15–30 s on an 8 GB Mac).",
               "The <b>layer list</b> (top first): rename a layer (that's its name in the .psd), 👁 hide it (it's saved hidden), ↑ ↓ change the order. <b>↶ Undo last peel</b> puts the last one back; <b>✕ Start over</b> returns to the original picture.",
               "<b>💾 Save layers</b>: one layered Photoshop file (.psd, next to your pictures: <b>📂 Show the .psd in Finder</b>) with the filled-in background at the bottom, plus each layer in the Library as a see-through PNG. Nothing is saved until you press it; the working files are tidied away after a few days." ] },
+            { h: "🔤 Replace text (a sign, a poster, a label)", items: [
+              "<b>1 · 🔍 Find the text</b> selects the writing (Florence-2 reads it, ~1.5 GB the first time). Add to the selection or take away from it with the brush if it missed a bit.",
+              "<b>2 · 🧽 Clear it</b> fills the background in where the text was (✨ Smart fill, as in Remove objects) and opens the Type tool on the cleared picture. The cleared picture is also kept in the Library.",
+              "<b>3 · ✏️ Type</b>: click the picture where the text goes and type it in the box (Return for a new line). Pick the <b>font</b>, <b>size</b>, <b>colour</b> (<b>🎯 from picture</b>, then click the old text, to match its colour), <b>B</b>old, <i>I</i>talic and the alignment; <i>outline, shadow, angle</i> has the rest (letter spacing, line height, opacity). Drag a text to move it; click beside it to add another. The chips list your texts (✕ deletes one).",
+              "<b>💾 Save</b> draws the text into the picture at full size and saves it as a new picture in the Library (the original stays). You can also use ✏️ Type on any picture without clearing anything first." ] },
             { h: "🩹 Remove objects and ✒️ Vectorize", items: [
               "<b>Remove objects in Tools</b>: press <b>🖌 Paint</b> in the module, paint on the picture on the left (all the selection tools work), choose <b>✨ Smart fill</b> (rebuilds what was behind it) or <b>⚡ Quick fill</b> (instant, for small spots), and press <b>🩹 Remove</b>.",
               "<b>🩹 Remove objects</b>: opens the picture in Image to image in Remove mode. Paint over what you want gone and press <b>🩹 Remove</b>; it's filled in from what's around it. The result is saved as a new picture in the Library (“Objects removed”); the original stays.",
@@ -1161,6 +1242,8 @@ const protoartApp = createApp({
               "<b>⏻ Force quit</b> closes the whole app immediately, even in the middle of a job (it asks once to confirm).",
               "Use them when a picture takes far too long, the Mac feels frozen, or ■ Stop doesn't respond. Pictures, settings and models are never affected." ] },
             { h: "Enhance & upscale", items: [
+              "<b>🛡 Protect from Enhance…</b>: paint over what Enhance mustn't change (faces, hands, text, a logo), then ✓ Done protecting. Those areas come back from the picture as it was (upscaled to the same size, with a soft edge). It's used whenever Enhance runs on this picture, on its own, in Run chain and in the 🔌 patchbay, so a chain like Enhance → Restore faces still restores the faces. The patchbay's own <b>🛡 Protect areas…</b> keeps areas away from <i>every</i> module instead. <b>clear</b> lets Enhance work on the whole picture again.",
+              "<b>🖌 Only a painted area</b>: switch it on and paint over the part to enhance (the same brush as Remove objects). Only that part is enhanced; the rest of the picture is upscaled as it is and the edge is blended in. Quicker on a big picture.",
               "<b>🎨 Keep the picture's style</b>: for paintings, drawings and anime. Adds detail in the picture's own look instead of a photo's; type a few style words if you like (oil painting, visible brush strokes).",
               "<b>Compare the result</b>: after any tool, the picture window shows <b>Original / Result / Split / Side by side</b> (drag the line in Split). <b>✕ Clear results</b> takes the results off the screen (they stay in the Library). The tools are rack modules: <b>Run chain</b> does Enhance then Restore faces in one go; Enhance's less-used settings are under <i>fine-tune</i>.",
               "Redraws the image bigger with fine detail (Finegrain enhancer, about 3.5 GB the first time).",
@@ -1193,6 +1276,8 @@ const protoartApp = createApp({
               "<b>📄 Paper cut-out</b> has its own <b>Threshold</b> and <b>Grow / shrink</b> (shared with Cut out): <b>👁 preview the outline</b> shows the result of those settings live on the left before you press 📄 Make it.",
               "<b>📄 Paper cut-out</b> makes the subject a torn paper sticker: <b>Border</b> width, the <b>Paper</b> (White, Cream, Kraft, Black), <b>Torn edge</b> (0 = cut with scissors), <b>Shadow</b>, <b>Print</b> (Photo, Poster = flatter colours, Mono) and what's behind it (None = see-through, Paper, its own Picture, White). It uses Cut out's model and Threshold." ] },
             { h: "🎚 Adjust: light, colour and filters", items: [
+              "<b>Camera Raw panels</b>: <b>Presence &amp; effects</b> has <b>Texture</b> (fine detail like skin, fabric and leaves, without hard edges; left smooths it), <b>Clarity</b>, <b>Dehaze</b> (right takes mist and haze away, left adds a soft haze), Sharpening and Vignette. <b>Color mixer · Hue / Saturation / Luminance</b> change one colour at a time (a deeper blue sky: Blue luminance left; greener grass: Yellow hue right; greys are never changed). <b>Color grading</b> tints the shadows, midtones and highlights: drag a hue to the colour, then raise its amount (teal shadows and warm highlights is the classic film look); <b>Balance</b> moves where shadows end and highlights begin. The newer panels start folded: click a heading to open it.",
+              "<b>Paint layers</b> (＋ new paint layer with its own settings, under a filter): open a layer to set its <b>Layer opacity</b> (how strongly it shows) and its own <b>🖌 Brush size</b> and <b>strength</b>: each layer remembers its own brush, so a big soft brush for the sky and a small one for a lantern.",
               "<b>🔒 Lock this order</b> (next to Filters): once the filters are in an order you like, lock it: every picture, look, preset and ↺ reset keeps that order, and ▲ ▼ are off until you press 🔒 again.",
               "<b>↶ Undo / ↷ Redo</b> (⌘Z / ⇧⌘Z, or the buttons at the top of Adjust): each brush stroke, Clear paint, slider move, look, filter and point can be taken back. While you paint, a <b>ring</b> shows the brush size under the pointer; it also shows while you move the Size slider or press [ ].",
               "<b>⚙ Own settings for each point or brush stroke</b>: choose a point and press <b>⚙ Own settings for this point</b>; while painting, <b>＋ New paint layer with its own settings</b>. The box that opens has that step's sliders, and they change only that point or those strokes (double-click a slider to match the step's own value). Each one is listed under ◎ Control points for as “· own settings 1, 2…”; ✕ remove takes it out. With own-settings layers, the step's own sliders show only at its own points and paint.",
@@ -1270,6 +1355,7 @@ const protoartApp = createApp({
               "<b>★ Recommended</b> (the default) sets steps, learning rate, rank, layers, size and mirroring for what you're training (1 · What: person, object, style, concept) and the model: people and objects learn at 0.0001 with ~80–100 steps a picture and no mirroring for faces; styles learn more gently (0.00005) with rank 32 and all layers. It updates when you change either. <b>Quick / Standard / Thorough</b> set only steps, learning rate and rank.",
               "<b>Pony / Illustrious</b> (SDXL models that read tags) have their own group in the model list: caption with <b>Tags</b> and leave score_9 and the like out of the captions. <b>ERNIE Turbo · ⚡ fast engine</b> trains a LoRA on the 4-bit model, so it runs on smaller Macs (on 8 GB: 512 px, rank 8, and close other apps).",
               "<b>Quick / Standard / Thorough</b> set steps, learning rate and rank. Standard is about 100 steps per image.",
+              "<b>↻ Continue training</b> (3 · LoRA): pick one of your LoRAs to train it further, for example when a person's likeness isn't quite there yet. Use the same kind of base model it was trained on (the list only shows LoRAs of the model's kind), add more or better pictures if you have them, and 300–800 more steps is usually enough. It keeps its own size and settings (Rank and What to train don't apply) and is saved under a new name (…-more), so the original stays to compare. LoRAs made by other programs may use a layout that can't be continued; ERNIE LoRAs can't be continued yet.",
               "Watch the progress, time left and the loss chart (it should drift down and level off). <b>Stop</b> keeps the progress so far.",
               "SD 1.5 suits 8 GB Macs. <b>SDXL and Pony / Illustrious / NoobAI</b> can be trained too: pick the built-in SDXL (it trains on the full-precision SDXL Base, a 7 GB download if it isn't on your Mac yet) or any full SDXL checkpoint you've added. Under 16 GB it works but is very slow (often many hours); train at 768 to lighten it. LoRAs trained on a Pony model are labelled Pony automatically. ERNIE can be trained on the <b>⚡ fast-engine ERNIE</b> (it learns a LoRA on top of the 4-bit model, with low-memory settings): it suits 16 GB+ Macs and is experimental on 8 GB, where it may run out of memory or take many hours. The full-precision ERNIE needs 32 GB+.",
               "FLUX.1 LoRAs can't be trained in the app yet: the fast engine's training only supports other models.",
@@ -1409,6 +1495,13 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "Since 1.6.2: if something doesn't work", items: [
+              "<b>Face swap: no face found</b> in the picture (a creature, a cartoon, a statue, a face from the side): pick <b>✚ Mark by hand</b> and click its eyes, nose and mouth corners. It works best on faces that are roughly human-shaped.",
+              "<b>Image → prompt said the Mac is short of memory</b> (METAL “Insufficient Memory”): it now falls back to <b>Quick describe</b> by itself. For the full description, quit other apps (or press ⟲ Force stop &amp; restart) and try again.",
+              "<b>Tiled upscale seems stuck</b>: each tile takes a while on 8 GB Macs (the bar now moves with every tile). If the Mac is swapping, close other apps or use a smaller upscale.",
+              "<b>Continue training says the LoRA doesn't fit</b>: pick the base model it was trained on (an SD 1.5 LoRA needs an SD 1.5 model, an SDXL one an SDXL model). LoRAs made by other programs may use a layout that can't be continued: train a new one instead.",
+              "<b>Replace text: the old letters still show</b>: grow the selection a little with the brush (cover outlines and shadows too), then 🧽 Clear it again on the result.",
+              "<b>Enhance → Only a painted area said to paint first</b>: the painting belongs to one picture; paint again after opening another one." ] },
             { h: "New in 1.6.0: if something doesn't work", items: [
               "<b>Combine changed the scene too</b>: with ✨ Let it decide the whole picture is redrawn. Use <b>✋ I'll place it</b> with <b>Keep the rest of the scene exactly as it is</b>: then only the area around the character changes.",
               "<b>The character's face or clothes came out different</b>: use a clearer, bigger picture of it, keep ✂ Cut it out first on, place it bigger (a tiny character loses detail), and try another seed.",
@@ -1654,7 +1747,7 @@ const protoartApp = createApp({
       localOk: "",  // "Model imported" note after Add from your Mac
       train: Object.assign({ model: "", folder: "", items: [], capMode: "tags", name: "", trigger: "", format: "kohya", kind: "character",
                              precision: "fp16", save_every: 0, preset: "recommended", steps: 1000, lr: 0.0001, rank: 16,
-                             resolution: 512, targets: "attention", flip: true, train_text_encoder: false,
+                             resolution: 512, targets: "attention", flip: true, train_text_encoder: false, resume: "",
                              dirty: false, result: null, lossHistory: [], secPerStep: null, spsBy: {},
                              mode: "lora", onlyIssues: false, emb: { name: "", init: "", kind: "object", vectors: 2, steps: 1500, save_every: 0, use: "prompt" } },
                            (() => { const t = loadJSON("protoart.train", {}); delete t.items; delete t.result; delete t.lossHistory; delete t.dirty; return t; })()),
@@ -1686,8 +1779,9 @@ const protoartApp = createApp({
       shopFolds: loadJSON("protoart.shopFolds", { get: true, big: true }),  // Models tab model groups folded (On this Mac open)
       dl: { path: "", default: "", custom: false, missing: null, free_gb: null, sizeGb: null, move: true, busy: false }, // downloaded-models folder
       modelSearch: "",
-      tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false, protecting: false, promptText: "", promptCopied: false, view: "split", split: 0.5 },
+      tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false, protecting: false, protectWhich: "all", enhArea: false, promptText: "", promptCopied: false, view: "split", split: 0.5 },
       PATCH_NODES,
+      ProtoText: window.ProtoText,  // 🔤 Replace text's fonts
       patchInY: PATCH_IN_Y,
       patchOutY: PATCH_OUT_Y,
       patch: { on: loadJSON("protoart.patchOn", false), cables: loadJSON("protoart.patchV2", false) ? loadJSON("protoart.patch", PATCH_DEFAULT) : [],  // 1.2.1: cables start cleared
@@ -1700,6 +1794,7 @@ const protoartApp = createApp({
                preset: "", presetName: "",
                hidden: loadJSON("protoart.patchHidden", []),  // modules you took off the rack (＋ Add a module puts them back)
                protect: null,       // 🛡 areas painted to keep as they were: {data, for}
+               enhProtect: null,    // 🛡 areas ✨ Enhance mustn't change (a face): {data, for}
                stash: null,         // the first copy's settings, while a copy's are shown in its rack unit
                drag: null, running: "", step: 0, steps: 0, stopped: false, msg: "" },
       freeConfirm: null,
@@ -2115,6 +2210,15 @@ const protoartApp = createApp({
     },
     trainFamily() {
       return this.models.find((m) => m.id === this.train.model)?.family || "sd15";
+    },
+    // ↻ Continue training: LoRAs of the base model's kind that can be trained further
+    trainResumeList() {
+      if (this.trainFamily === "ernie") return [];
+      return this.loras.filter((l) => l.family === this.trainFamily && /\.safetensors$/i.test(l.file || ""))
+        .sort((a, b) => (b.added || 0) - (a.added || 0));
+    },
+    trainResume() {
+      return this.trainResumeList.find((l) => l.file === this.train.resume) || null;
     },
     trainModelNote() {
       const ram = this.sys.ram_gb || 0;
@@ -2707,7 +2811,8 @@ const protoartApp = createApp({
     },
     progressText() {
       const p = this.progress;
-      if (!p) return this.status;
+      // before the first step: what the engine said last (not the app's own notes, like "Deleted …" in the Library)
+      if (!p) return this.engineStatus || "Working…";
       let text = `Image ${p.image}/${p.images} · step ${p.step}/${p.steps}`;
       const left = this.genLeft(p);
       if (left) text += ` · ${left.perStep.toFixed(1)} s/step · ${this.formatDuration(left.seconds)} left`;
@@ -2791,6 +2896,13 @@ const protoartApp = createApp({
   },
 
   watch: {
+    // which tab an error message belongs to: the tab of the job that failed (if it just failed), else the open tab
+    error: { flush: "sync", handler(v) {
+      if (!v) return;
+      const f = lastFail && Date.now() - lastFail.at < 1500 ? lastFail : null;
+      this.errorTab = f ? f.tab : currentTab;
+      lastFail = null;
+    } },
     // 🗺 Regional prompts and 🖼 the image prompt (IP-Adapter) can't run together yet: switching one on switches the
     // other off (and puts it back when the first is switched off again, if nothing else changed)
     "form.regions.on"(on) {
@@ -2878,7 +2990,7 @@ const protoartApp = createApp({
 
   async mounted() {
     currentTab = this.tab;  // the tab the app opened on: jobs started before any tab change are filed under it
-    window.addEventListener("resize", () => { if (this.adj.open) this.adjPlaceOverlay(); if (this.pw.open) this.pwPlaceOverlay(); });
+    window.addEventListener("resize", () => { if (this.adj.open) this.adjPlaceOverlay(); if (this.pw.open) this.pwPlaceOverlay(); if (this.tx.open) this.txMeasure(); });
     // the saved form remembers whose prompt is in the box (Create's or Image to image's): match it to the tab the
     // app opens on, or Image to image's prompt would show (and be written) in Create
     this.swapPrompts(this.tab === "i2i" ? "i2i" : "create");
@@ -2952,7 +3064,7 @@ const protoartApp = createApp({
     // -------------------------------------------------------------- startup
     onEvent(m) {
       if (m.type === "ready") { this.setPaused(false); return this.init(); }
-      if (m.type === "status") this.status = m.msg;
+      if (m.type === "status") { this.status = m.msg; this.engineStatus = m.msg; }
       if (m.type === "progress") this.onProgress(m);
       if (m.type === "enhanced_prompt") this.lastEnhanced = { prompt: m.prompt, original: m.original };
       if (m.type === "model_ready") this.readyModel = m.model;
@@ -2970,6 +3082,7 @@ const protoartApp = createApp({
           if (this.runningJob && this.runningJob.model !== this.readyModel) this.readyModel = ""; // another job may unload it
           if (prev) this.recordPerf(prev);
           this.jobStartedAt = nowRunning ? Date.now() : 0;
+          this.engineStatus = "";
           this.firstStepAt = 0;
         }
         if (!m.jobs.length) {
@@ -3586,6 +3699,22 @@ const protoartApp = createApp({
         else this.onSamplerChange();
         this.form.fast_prev = null;
       }
+    },
+    toolPreviewMine() {  // Tools shows the live preview only of its own job (not a Create job running meanwhile)
+      const lp = this.livePreview, j = this.runningJob;
+      return !!(lp && j && j.id === lp.job && jobTabOf(j) === "tools");
+    },
+    swapGender() {  // ⚥ Swap gender: women ⇄ men in the prompt (sentences and tags); ↩ undo puts it back
+      const r = window.GenderSwap ? window.GenderSwap.swap(this.form.prompt || "") : { text: this.form.prompt, count: 0 };
+      if (!r.count) { this.status = "Swap gender: no gendered words found in the prompt (woman, man, she, his, 1girl…)"; return; }
+      this.undoPrompt = this.form.prompt;
+      this.form.prompt = r.text;
+      this.status = `⚥ Swapped ${r.count} word${r.count === 1 ? "" : "s"} (↩ undo puts the prompt back)`;
+    },
+    errorHere() {  // show the error in its own tab (a Tools job's error stays in Tools), or anywhere if it's not a tab's
+      const t = this.errorTab, here = this.tab;
+      if (!t || !["create", "i2i", "tools"].includes(t)) return true;
+      return t === here || !["create", "i2i", "tools"].includes(here);
     },
     chipLabel(s) { return String(s.label || s.id).replace(/\s*\([^)]*\)\s*$/, ""); },  // the quick-pick buttons: names without the notes in brackets (they're in the tip)
     samplerPicks() {
@@ -4444,16 +4573,38 @@ const protoartApp = createApp({
         this.tool.working = null;
       }
     },
+    enhAreaArgs() {  // 🖌 Enhance only a painted area: the painting on the picture (null = say so)
+      if (!this.tool.enhArea) return {};
+      if (!this.maskIsFor("tools", this.tool.source.path) || !this.mask.data) {
+        this.toolPaintRemove(true);
+        this.status = "Paint over the part to enhance on the picture, then press Enhance again";
+        return null;
+      }
+      return { mask: this.mask.data };
+    },
+    toggleEnhArea() {
+      this.tool.enhArea = !this.tool.enhArea;
+      if (this.tool.enhArea && this.tool.source && !this.maskIsFor("tools", this.tool.source.path)) {
+        this.toolPaintRemove(true);
+        this.status = "Paint over the part to enhance on the picture (the rest stays as it is, just upscaled), then press Enhance";
+      }
+    },
     async toolEnhance() {
+      if (this.tool.protecting) this.patchProtect(false);  // finish painting the protected areas
       const { seed, ...options } = this.post.enh;
-      return this.toolRun("Enhancing & upscaling", { action: "enhance", seed, options });
+      const area = this.enhAreaArgs();
+      if (!area) return null;
+      return this.toolRun(area.mask ? "Enhancing the painted area" : "Enhancing & upscaling", { action: "enhance", seed, options, ...area, ...this.enhProtectArgs() });
     },
     async toolRunSelected() {
       const { do_enhance, do_faces } = this.post;
       if (do_enhance && !do_faces) return this.toolEnhance();
       if (do_faces && !do_enhance) return this.toolRestore();
+      if (this.tool.protecting) this.patchProtect(false);
       const { seed, ...options } = this.post.enh;
-      return this.toolRun("Enhancing, then restoring faces", { action: "both", seed, options, ...this.faceArgs() });
+      const area = this.enhAreaArgs();
+      if (!area) return null;
+      return this.toolRun("Enhancing, then restoring faces", { action: "both", seed, options, ...area, ...this.enhProtectArgs(), ...this.faceArgs() });
     },
     async toolRestore() {
       return this.toolRun("Restoring faces", { action: "faces", ...this.faceArgs() });
@@ -4587,25 +4738,36 @@ const protoartApp = createApp({
       this.patch.hidden = (this.patch.hidden || []).filter((x) => x !== id);
       saveJSON("protoart.patchHidden", this.patch.hidden);
     },
-    patchProtect(on) {  // 🛡 paint areas the chain mustn't change (they're put back from your picture at the end)
+    patchProtect(on, which) {  // 🛡 paint areas the chain (or just ✨ Enhance) mustn't change: put back from the picture
       if (!this.tool.source) return;
+      const slot = (which || this.tool.protectWhich) === "enhance" ? "enhProtect" : "protect";
       if (on) {
         if (this.adj.open) this.closeAdjust();
         if (this.pw.open) this.closePuppet();
-      if (this.cut.open) this.closeCutout();
-        this.mask.data = this.patch.protect && this.patch.protect.for === this.tool.source.path ? this.patch.protect.data : null;
+        if (this.cut.open) this.closeCutout();
+        if (this.tx.open) this.txClose();
+        if (this.tool.protecting && this.tool.protectWhich !== (which || "all")) this.patchProtect(false);
+        const had = this.patch[slot];
+        this.mask.data = had && had.for === this.tool.source.path ? had.data : null;
         this.mask.for = this.tool.source.path;
         this.mask.tab = "tools";
+        this.tool.protectWhich = which || "all";
         this.tool.protecting = true;
         this.tool.healing = true;  // the paint area on the left
-        this.status = "Paint over what the patch mustn't change, then press ✓ Done";
+        this.status = slot === "enhProtect" ? "Paint over what ✨ Enhance mustn't change (a face, hands, a logo), then press ✓ Done"
+          : "Paint over what the patch mustn't change, then press ✓ Done";
       } else {
-        if (this.mask.data) this.patch.protect = { data: this.mask.data, for: this.tool.source.path };
+        if (this.mask.data) this.patch[slot] = { data: this.mask.data, for: this.tool.source.path };
         this.tool.protecting = false;
         this.tool.healing = false;
         this.mask.data = null;
-        this.status = this.patch.protect ? "Protected areas set: they stay as they are when the patch runs" : "";
+        this.status = !this.patch[slot] ? "" : slot === "enhProtect" ? "Protected from Enhance: those areas stay as they are (just upscaled) whenever Enhance runs, on its own or in the patch"
+          : "Protected areas set: they stay as they are when the patch runs";
       }
+    },
+    enhProtectArgs() {  // ✨ Enhance's 🛡 protected areas, for this picture
+      const pr = this.patch.enhProtect;
+      return pr && this.tool.source && pr.for === this.tool.source.path ? { protect: pr.data } : {};
     },
     patchSavePreset() {
       const name = (this.patch.presetName || "").trim().slice(0, 40);
@@ -4782,8 +4944,8 @@ const protoartApp = createApp({
         this.toolPaintRemove(true);
         return (this.error = "REMOVE is patched in: paint over what to remove on the picture (Remove objects → 🖌 Paint is now on), then press ▶ Run patch again.");
       }
-      if (steps.some((x) => String(x).split("#")[0] === "detail") && !["sd15", "sdxl"].includes(this.family))
-        return (this.error = "DETAIL redraws the picture lightly with an SD 1.5 or SDXL model and a LoRA: pick an SD 1.5 or SDXL model in Create first.");
+      if (steps.some((x) => String(x).split("#")[0] === "detail") && !this.detModel())
+        return (this.error = "DETAIL redraws the picture lightly with an SD 1.5 or SDXL model and a LoRA: download one first (Models tab → SD 1.5).");
       if (this.tool.protecting) this.patchProtect(false);  // finish painting the protected areas
       this.error = "";
       const mask = this.maskIsFor("tools", this.tool.source.path) ? this.mask.data : null;
@@ -4811,7 +4973,7 @@ const protoartApp = createApp({
           } else if (id === "enhance") {
             const c = this.patch.copySettings[node];
             const { seed, ...options } = (c && c.enh) || this.post.enh;
-            rec = await this.runJob("postprocess", { ...cur, action: "enhance", seed, options });
+            rec = await this.runJob("postprocess", { ...cur, action: "enhance", seed, options, ...this.enhProtectArgs() });
           } else if (id === "depth") {
             const dset = (this.patch.copySettings[node] && this.patch.copySettings[node].depth) || this.post.depth;
             rec = await this.runJob("postprocess", { ...cur, action: "depth", depth_model: dset.model, style: dset.style });
@@ -4854,11 +5016,20 @@ const protoartApp = createApp({
         }
       }
     },
-    detailArgs(d, path) {  // 🔎 DETAIL: a light image-to-image pass with the Create model and one LoRA
+    detailArgs(d, path) {  // 🔎 DETAIL: a light image-to-image pass with its own SD 1.5 / SDXL model and one LoRA
       const f = JSON.parse(JSON.stringify(this.form));
       this.cleanExtras(f);
       delete f.hires; delete f.control; delete f.outpaint; delete f.inpaint; delete f.face_detailer;
-      const lora = d.lora && this.compatibleLoras.some((l) => l.name === d.lora) ? [{ name: d.lora, weight: Number(d.weight) || 0.8 }] : [];
+      delete f.ip_adapter; delete f.regions; delete f.seamless;
+      const m = (d.model && this.detModels().find((x) => x.id === d.model)) || this.detModel();
+      if (m && m.id !== f.model) {  // another model than Create's: its own defaults, not Create's sampler / VAE / CLIP skip
+        const cm = (this.models || []).find((x) => x.id === f.model);
+        f.model = m.id;
+        if (!cm || cm.family !== m.family) { f.sampler = ""; f.vae = ""; f.cfg = m.family === "sdxl" ? 6 : 7; }
+        f.clip_skip = m.clip_skip || 1;
+      }
+      const fam = m ? m.family : this.family;
+      const lora = d.lora && (this.loras || []).some((l) => l.name === d.lora && l.family === fam) ? [{ name: d.lora, weight: Number(d.weight) || 0.8 }] : [];
       return { ...f, init_image: path, i2i_mode: "change", i2i_use_init: true, use_init_size: true, strength: Number(d.strength) || 0.35,
                steps: Number(d.steps) || 20, num_images: 1, loras: lora, fast: false, enhance_prompt: false, from_tools: true,
                prompt: (this.form.prompt || "").trim() || "highly detailed, sharp focus, intricate details" };
@@ -5625,6 +5796,7 @@ const protoartApp = createApp({
     },
     selStamp(imageData, sub) {  // add (or cut) a picked area into the painted area
       const cv = this.$refs.maskCanvas;
+      if (!cv) return this.selStampOffscreen(imageData, sub);  // the painting area was redrawn while it worked
       const tmp = document.createElement("canvas");
       tmp.width = cv.width;
       tmp.height = cv.height;
@@ -5634,6 +5806,25 @@ const protoartApp = createApp({
       ctx.drawImage(tmp, 0, 0);
       ctx.globalCompositeOperation = "source-over";
       this.maskSave();
+    },
+    // the painting area isn't on screen right now (it was redrawn while the text / subject was being found): add the
+    // picked area to the saved selection, so it's there when the painting area comes back
+    async selStampOffscreen(imageData, sub) {
+      const off = document.createElement("canvas");
+      off.width = imageData.width; off.height = imageData.height;
+      const ctx = off.getContext("2d");
+      if (this.maskIsFor(this.maskTab(), this.maskTarget()) && this.mask.data) {
+        const prev = new Image();
+        await new Promise((ok) => { prev.onload = ok; prev.onerror = ok; prev.src = this.mask.data; });
+        ctx.drawImage(prev, 0, 0, off.width, off.height);
+      }
+      const tmp = document.createElement("canvas");
+      tmp.width = off.width; tmp.height = off.height;
+      tmp.getContext("2d").putImageData(imageData, 0, 0);
+      ctx.globalCompositeOperation = sub ? "destination-out" : "source-over";
+      ctx.drawImage(tmp, 0, 0);
+      Object.assign(this.mask, { data: off.toDataURL("image/png"), for: this.maskTarget(), tab: this.maskTab() });
+      this.$nextTick(() => this.initMaskCanvas());
     },
     async selAutoSubject(sub) {  // 👤 Subject: the people / animals / main thing, found by the Cut out model
       const cv = this.$refs.maskCanvas;
@@ -5648,9 +5839,10 @@ const protoartApp = createApp({
         const img = new Image();
         await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = r.mask; });
         const cv2 = this.$refs.maskCanvas || cv, tmp = document.createElement("canvas");
-        tmp.width = cv2.width; tmp.height = cv2.height;
-        tmp.getContext("2d").drawImage(img, 0, 0, cv2.width, cv2.height);
-        this.selStamp(tmp.getContext("2d").getImageData(0, 0, cv2.width, cv2.height), sub);
+        const W = cv2.width || cv.width, H = cv2.height || cv.height;
+        tmp.width = W; tmp.height = H;
+        tmp.getContext("2d").drawImage(img, 0, 0, W, H);
+        this.selStamp(tmp.getContext("2d").getImageData(0, 0, W, H), sub);
         if (this.mask.tool === "subject") this.mask.tool = "brush";
         this.status = "Subject selected: fix the edge with 🖌 Brush / 🧽 Erase (or ＋ Add / － Subtract) if needed";
       } catch (e) {
@@ -5956,6 +6148,7 @@ const protoartApp = createApp({
       }
       const g = Math.round(o.grow * c.k);
       if (g) a = window.ProtoPuppet.grow(a, c.w, c.h, g);
+      if (o.clean || this.cut.paperView) a = cleanBits(a, c.w, c.h);  // like the engine: small specks dropped
       return a;
     },
     cutRender() {
@@ -5975,6 +6168,7 @@ const protoartApp = createApp({
             d[j + 3] = Math.max(a[i], inPaper * 255);
           }
           cv.getContext("2d").putImageData(out, 0, 0);
+          this.paperLive();  // then the real look (torn edge, shadow, print, background), drawn by the backend
           return;
         }
         const col = o.bg === "transparent" ? null : (o.bg === "white" ? [255, 255, 255] : o.bg === "black" ? [0, 0, 0]
@@ -5985,8 +6179,42 @@ const protoartApp = createApp({
           if (col) { for (let q = 0; q < 3; q++) d[j + q] = src[j + q] * al + col[q] * (1 - al); d[j + 3] = 255; }
           else { d[j] = src[j]; d[j + 1] = src[j + 1]; d[j + 2] = src[j + 2]; d[j + 3] = a[i]; }
         }
+        if (o.crop && this.cut.view !== "mask") {  // ✂ Crop to the subject: show only the part that will be kept
+          let x0 = c.w, y0 = c.h, x1 = -1, y1 = -1;
+          for (let y = 0; y < c.h; y++) for (let x = 0; x < c.w; x++) if (a[y * c.w + x] > 8) {
+            if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+          }
+          if (x1 >= 0) {
+            cv.width = x1 - x0 + 1; cv.height = y1 - y0 + 1;
+            cv.getContext("2d").putImageData(out, -x0, -y0, x0, y0, cv.width, cv.height);
+            return;
+          }
+        }
         cv.getContext("2d").putImageData(out, 0, 0);
       });
+    },
+    paperLive() {  // 📄 the paper cut-out exactly as 📄 Make it will make it, small and quick (not saved)
+      clearTimeout(this._paperT);
+      const seq = (this._paperSeq = (this._paperSeq || 0) + 1);
+      this._paperT = setTimeout(async () => {
+        const s = this.tool.source;
+        if (!s || !this.cut.open || !this.cut.paperView) return;
+        let r = null;
+        try {
+          r = await call("papercut_preview", { ...this.toolArgs(), ...this.post.paper, threshold: this.post.cut.threshold, grow: this.post.cut.grow });
+        } catch { return; }
+        if (!r || seq !== this._paperSeq || !this.cut.open || !this.cut.paperView || this.cut.view === "mask") return;
+        const im = new Image();
+        im.onload = () => {
+          const cv = this.$refs.cutCanvas;
+          if (!cv || seq !== this._paperSeq || !cutCache) return;
+          cv.width = cutCache.w; cv.height = cutCache.h;
+          const ctx = cv.getContext("2d");
+          ctx.clearRect(0, 0, cv.width, cv.height);
+          ctx.drawImage(im, 0, 0, cv.width, cv.height);
+        };
+        im.src = r.image;
+      }, 180);
     },
     cutBg(b) { this.post.cut.bg = b; this.cutRender(); },
     async paperPreview() {  // 📄 👁 preview: Cut out's live outline, with the paper border drawn around it
@@ -6375,6 +6603,16 @@ const protoartApp = createApp({
         if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.querySelector("textarea")?.focus(); }
       });
     },
+    onTrainResume() {
+      const r = this.trainResume;
+      if (!r) return;
+      // a new name, so the LoRA you have stays as it is to compare with
+      const base = r.name.replace(/-(more\d*|step\d+|stopped-step\d+)$/i, "");
+      let n = `${base}-more`, i = 2;
+      while (this.loras.some((l) => l.name === n)) n = `${base}-more${i++}`;
+      this.train.name = n;
+      if (this.train.steps > 600) this.train.steps = 500;
+    },
     applyTrainPreset(p) {
       Object.assign(this.train, { preset: p.id, steps: p.steps, lr: p.lr, rank: p.rank });
       if (p.id === "recommended") {  // the rest of what suits this kind of LoRA
@@ -6406,6 +6644,7 @@ const protoartApp = createApp({
       const args = { model: t.model, folder: t.folder, name: t.name.trim(), trigger: t.trigger.trim(), format: t.format,
                      precision: t.precision, save_every: t.save_every, steps: t.steps, lr: t.lr, rank: t.rank, alpha: t.rank,
                      resolution: t.resolution, targets: t.targets, flip: t.flip, train_text_encoder: t.train_text_encoder };
+      if (this.trainResume) args.resume_from = this.trainResume.file;  // keeps that LoRA's learning and trains it further
       const res = await this.runJob("train_lora", args);
       if (res) {
         this.train.result = res;
@@ -6835,9 +7074,21 @@ const protoartApp = createApp({
       this.saveOpts();
       this.status = on ? `${name} is no longer a detail LoRA` : `${name} marked as a detail LoRA (★)`;
     },
+    // 🔎 Detail with a LoRA has its own model (SD 1.5 / SDXL): it doesn't depend on the model picked in Create
+    detModels() {
+      return (this.models || []).filter((m) => ["sd15", "sdxl"].includes(m.family) && m.engine !== "mlx" && !m.inpaint && this.isInstalled(m));
+    },
+    detModel() {
+      const all = this.detModels(), want = this.post.det.model;
+      return all.find((m) => m.id === want) || all.find((m) => m.id === this.form.model) || all.find((m) => m.family === "sd15") || all[0] || null;
+    },
+    detLorasAll() {  // LoRAs that fit the Detail module's model
+      const m = this.detModel(), fam = m ? m.family : this.family;
+      return (this.loras || []).filter((l) => l.family === fam && !(this.hideNsfw && l.nsfw) && !(this.opts.hide_people && l.people));
+    },
     detLoras() {  // the Detail module's LoRA list: ★ detail LoRAs only (or all), narrowed by its search box
       const q = (this.detLoraQ || "").trim().toLowerCase();
-      let all = this.compatibleLoras || [];
+      let all = this.detLorasAll();
       if (this.opts.det_all_loras !== true && all.some((l) => this.isDetailLora(l.name))) all = all.filter((l) => this.isDetailLora(l.name));
       if (!q) return all;
       return all.filter((l) => [l.name, l.file, l.label, ...(l.triggers || l.trigger_words || [])]
@@ -7488,8 +7739,21 @@ const protoartApp = createApp({
         if (!sw.face) return (this.error = "Add the photo of the face to use.");
         if (!sw.consent) return (this.error = "Tick “I have permission from the person whose face this is” first.");
         this.error = "";
-        await this.runJob("faceswap", { init_image: f.init_image, face: sw.face, which: sw.which || "all", boost: sw.boost || 1,
-                                        restore: sw.restore !== false, consent: true });
+        const extra = {};
+        if ((sw.more || []).length) extra.more_faces = sw.more.slice(0, 4);
+        let which = sw.which || "all";
+        if (which === "pick") {
+          if (!(sw.picks || []).length || this.swapView.for !== f.init_image) return (this.error = "Press 🔍 Find faces, then click the faces to change.");
+          which = sw.picks.slice();
+        }
+        if (which === "mark") {
+          const W = this.swapView.w, H = this.swapView.h;
+          if (!(sw.marks || []).length || !W) return (this.error = "Mark a face first: click its 2 eyes, nose and 2 mouth corners on the picture.");
+          extra.marks = sw.marks.map((m) => m.map(([x, y]) => [x * W, y * H]));
+          which = "all";
+        }
+        await this.runJob("faceswap", { init_image: f.init_image, face: sw.face, which, boost: sw.boost || 1,
+                                        restore: sw.restore !== false, consent: true, ...extra });
         return;
       }
       if (f.i2i_mode === "remove") {  // 🩹 spot healing: no model or prompt involved
@@ -7802,6 +8066,67 @@ const protoartApp = createApp({
       this.swapOver = false;
       const file = [...(e.dataTransfer?.files || [])].find(isPicture);
       if (file) { const p = await this.preparePicture(window.bee.pathForFile(file)); if (p) this.form.swap.face = p; }
+    },
+    async onSwapMore(e) {  // more photos of the same person (up to 4), for a steadier likeness
+      const files = [...(e.target?.files || e.dataTransfer?.files || [])].filter(isPicture);
+      if (e.target) e.target.value = "";
+      for (const file of files) {
+        if ((this.form.swap.more || []).length >= 4) break;
+        const p = await this.preparePicture(window.bee.pathForFile(file));
+        if (p && p !== this.form.swap.face && !this.form.swap.more.includes(p)) this.form.swap.more.push(p);
+      }
+    },
+    swapWhich(w) {
+      this.form.swap.which = w;
+      if (w === "pick" && this.swapView.for !== this.form.init_image) this.swapFindFaces();
+      if (w === "mark") { this.swapView.cur = []; if (this.swapView.for !== this.form.init_image) this.form.swap.marks = []; }
+    },
+    async swapFindFaces() {
+      const f = this.form;
+      if (!f.init_image || this.swapView.busy) return;
+      this.swapView.busy = true;
+      try {
+        const r = await this.runJob("faceswap_faces", { init_image: f.init_image });
+        if (r) {
+          Object.assign(this.swapView, { found: r.faces, for: f.init_image });
+          f.swap.picks = r.faces.length ? [0] : [];
+          this.status = r.faces.length ? `${r.faces.length} face${r.faces.length === 1 ? "" : "s"} found: click the ones to change`
+            : "No faces found: use ✚ Mark by hand for creatures, cartoons or faces seen from the side";
+        }
+      } finally { this.swapView.busy = false; }
+    },
+    swapTogglePick(i) {
+      const p = this.form.swap.picks;
+      const k = p.indexOf(i);
+      if (k >= 0) p.splice(k, 1); else p.push(i);
+    },
+    onSwapImgLoad(e) {
+      const src = this.form.init_image;
+      if (this.swapView.for && this.swapView.for !== src) { this.swapView.found = null; this.form.swap.picks = []; this.form.swap.marks = []; }
+      Object.assign(this.swapView, { w: e.target.naturalWidth, h: e.target.naturalHeight, for: this.swapView.found ? this.swapView.for : src });
+    },
+    swapMarkClick(e) {  // ✚ Mark by hand: the 2 eyes, the nose and the 2 mouth corners, in that order
+      if (this.form.swap.which !== "mark") return;
+      const r = e.currentTarget.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+      const cur = this.swapView.cur;
+      cur.push([Math.min(1, Math.max(0, x)), Math.min(1, Math.max(0, y))]);
+      if (cur.length === 5) {
+        // the template wants the eye on the picture's left first, and the mouth corner on the left first
+        const [a, b, n, m1, m2] = cur;
+        const eyes = a[0] <= b[0] ? [a, b] : [b, a], mouth = m1[0] <= m2[0] ? [m1, m2] : [m2, m1];
+        this.form.swap.marks.push([eyes[0], eyes[1], n, mouth[0], mouth[1]]);
+        this.swapView.cur = [];
+        this.swapView.for = this.form.init_image;
+        this.status = `Face ${this.form.swap.marks.length} marked. Mark another, or press 🔁 Swap`;
+      }
+    },
+    swapMarkUndo() {
+      if (this.swapView.cur.length) this.swapView.cur.pop();
+      else this.form.swap.marks.pop();
+    },
+    swapMarkHint() {
+      return ["Click the eye on the left", "Click the other eye", "Click the tip of the nose", "Click the mouth's left corner", "Click the mouth's right corner"][this.swapView.cur.length];
     },
     async onSwapPicked(e) {
       const file = e.target.files?.[0];
@@ -8596,6 +8921,122 @@ const protoartApp = createApp({
       this.pw.feather = Math.max(1, Math.round(m / 256));
       this.pw.expand = -Math.max(1, Math.round(m / 768));
     },
+    // -------------------------------------------------------------- Tools → 🔤 Replace text
+    async txFindText() {  // 1 · select the writing (Florence-2), on the painting layer, ready to clear
+      if (!this.tool.source || this.tx.finding) return;
+      if (this.tx.open) this.txClose();
+      this.toolPaintRemove(true);
+      this.tx.finding = true;
+      try {
+        for (let i = 0; i < 40 && !(this.$refs.maskCanvas && this.$refs.maskCanvas.width); i++) await new Promise((r) => setTimeout(r, 50));
+        await this.selAutoText(false);
+      } finally { this.tx.finding = false; }
+    },
+    async txClear() {  // 2 · fill the selected text's background in (Remove objects), then open the Type tool on it
+      if (!this.tool.source) return;
+      if (!this.maskIsFor("tools", this.tool.source.path)) return (this.error = "Select the text first (🔍 Find the text, or paint over it).");
+      await this.toolHeal();
+      if (this.tool.latest && this.tool.latest.kind === "healed") this.txOpen(this.tool.latest);
+    },
+    txOpen(rec) {  // 3 · the Type tool, on the cleared picture (or the picture as it is)
+      const base = rec || (this.tool.latest && this.tool.latest.kind === "healed" ? this.tool.latest : null) ||
+        { path: this.tool.source.path, id: this.tool.source.image_id ?? null };
+      if (this.adj.open) this.closeAdjust();
+      if (this.pw.open) this.closePuppet();
+      if (this.cut.open) this.closeCutout();
+      this.tool.healing = false;
+      Object.assign(this.tx, { open: true, base: { path: base.path, id: base.id ?? null }, sel: -1, pick: false, msg: "" });
+      if (!this.tx.keep) this.tx.layers = [];
+      this.tx.keep = false;
+      this.status = "Click the picture where the text goes, then type it in 🔤 Replace text";
+    },
+    txClose() { this.tx.open = false; this.tx.drag = null; this.tx.pick = false; },
+    txImgLoad(e) {
+      this.tx.nw = e.target.naturalWidth; this.tx.nh = e.target.naturalHeight;
+      this.txMeasure();
+    },
+    txMeasure() {
+      const im = this.$refs.txImg;
+      if (im && this.tx.nw) this.tx.scale = im.clientWidth / this.tx.nw;
+    },
+    txStyle(L) { return window.ProtoText.style(L, this.tx.scale || 1); },
+    txLayer() { return this.tx.layers[this.tx.sel] || null; },
+    txPoint(e) {
+      const r = this.$refs.txImg.getBoundingClientRect();
+      return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
+    },
+    async txStageDown(e) {
+      if (!this.$refs.txImg) return;
+      const [x, y] = this.txPoint(e);
+      if (this.tx.pick) {  // 🎯 the text colour from the original picture (the writing that was there)
+        const L = this.txLayer();
+        this.tx.pick = false;
+        try {
+          const bmp = await createImageBitmap(new Blob([await this.readImageBytes(this.tool.source.path)]));
+          const c = document.createElement("canvas");
+          c.width = 1; c.height = 1;
+          c.getContext("2d").drawImage(bmp, Math.floor(x * bmp.width), Math.floor(y * bmp.height), 1, 1, 0, 0, 1, 1);
+          const d = c.getContext("2d").getImageData(0, 0, 1, 1).data;
+          if (L) L.colour = "#" + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, "0")).join("");
+        } catch { this.status = "Couldn't read that colour"; }
+        return;
+      }
+      if (this.tx.sel >= 0) { this.tx.sel = -1; return; }  // a click beside a text: leave it (like the Type tool)
+      const size = Math.max(12, Math.min(this.tx.nw, this.tx.nh) * 0.07);
+      const L = window.ProtoText.layer(x, y, size);
+      const prev = this.tx.layers[this.tx.layers.length - 1];
+      if (prev) Object.assign(L, { font: prev.font, colour: prev.colour, bold: prev.bold, italic: prev.italic, stroke: prev.stroke,
+                                   strokeColour: prev.strokeColour, shadow: prev.shadow, size: prev.size });
+      this.tx.layers.push(L);
+      this.tx.sel = this.tx.layers.length - 1;
+      await this.$nextTick();
+      const ta = this.$refs.txText;
+      if (ta) { ta.focus(); ta.select(); }
+    },
+    txLayerDown(e, i) {  // drag a text to move it
+      this.tx.sel = i;
+      const L = this.tx.layers[i], [x0, y0] = this.txPoint(e), sx = L.x, sy = L.y;
+      const move = (ev) => { const [x, y] = this.txPoint(ev); L.x = Math.min(1, Math.max(0, sx + x - x0)); L.y = Math.min(1, Math.max(0, sy + y - y0)); };
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    },
+    txRemove(i) { this.tx.layers.splice(i, 1); this.tx.sel = Math.min(this.tx.sel, this.tx.layers.length - 1); },
+    async txSave() {  // the picture with the text drawn in, at full size, saved to the Library
+      if (!this.tx.base || !this.tx.layers.some((L) => String(L.text || "").trim())) return (this.error = "Click the picture and type some text first.");
+      this.tx.busy = true; this.tx.msg = "Saving…";
+      try {
+        const bmp = await createImageBitmap(new Blob([await this.readImageBytes(this.tx.base.path)]));
+        const c = document.createElement("canvas");
+        c.width = bmp.width; c.height = bmp.height;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(bmp, 0, 0);
+        await document.fonts.ready;
+        window.ProtoText.draw(ctx, this.tx.layers, c.width, c.height);
+        const blob = await new Promise((ok) => c.toBlob(ok, "image/png"));
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const args = { image_id: this.tx.base.id ?? null, path: this.tx.base.path, editor: "Text",
+                       adjust: { layers: JSON.parse(JSON.stringify(this.tx.layers)) } };
+        try {
+          if (!window.bee.writeAdjusted) throw new Error("No handler registered");
+          args.file = await window.bee.writeAdjusted(bytes);
+        } catch (e) {
+          if (!/No handler registered/.test(String(e.message || e))) throw e;
+          let bin = "";
+          for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+          args.data_b64 = btoa(bin);
+        }
+        const rec = await call("adjust_save", args);
+        if (rec && rec.id != null) {
+          this.tool.results.unshift(rec);
+          this.tool.latest = rec;
+          this.txClose();
+          this.status = "Picture with the new text saved to the Library (the original is unchanged)";
+        }
+      } catch (e) {
+        this.error = "Couldn't save the text: " + (e.message || e);
+      } finally { this.tx.busy = false; this.tx.msg = ""; }
+    },
     closePuppet() {
       if (this.pw.selecting) { this.pw.selecting = false; this.tool.healing = false; }
       this.pw.subject = null;
@@ -9055,7 +9496,7 @@ const protoartApp = createApp({
     },
     adjValue(k) {
       const v = this.adj.p[k];
-      return k === "exposure" ? (v > 0 ? "+" : "") + v.toFixed(2) : Math.round(v * 100);
+      return k === "exposure" ? (v > 0 ? "+" : "") + v.toFixed(2) : /Hue$/.test(k) ? Math.round(v) + "°" : Math.round(v * 100);
     },
     adjSectionOn(sec) {
       return sec.sliders.some((sl) => this.adj.p[sl.k] !== this.adjDefault(sl.k));
@@ -9169,6 +9610,23 @@ const protoartApp = createApp({
       this.adj.openLayer = keepOpen || this.adj.openLayer !== key ? key : "";
       this.adj.pointTarget = key;
       this.adj.pointSel = -1;
+      const b = (this._layerBrush || {})[key];  // each paint layer keeps its own brush size and strength
+      if (b) { this.adj.brush = b.brush; this.adj.brushOp = b.brushOp; }
+    },
+    adjLayerBrush(k, v) {  // the brush, set from inside a paint layer: remembered for that layer
+      this.adj[k] = Number(v);
+      const key = this.adj.pointTarget;
+      if (!this.adjLayer(key)) return;
+      this._layerBrush = this._layerBrush || {};
+      this._layerBrush[key] = { brush: this.adj.brush, brushOp: this.adj.brushOp };
+      if (k === "brush") this.adjRingPreview();
+    },
+    adjLayerSet(key, k, v) {  // a layer's own value (its opacity)
+      const hit = this.adjLayer(key);
+      if (!hit) return;
+      const layers = { ...this.adj.p.layers };
+      layers[hit.step] = layers[hit.step].map((x) => (x.key === key ? { ...x, [k]: Number(v) } : x));
+      this.adj.p = { ...this.adj.p, layers };
     },
     adjNewPaintLayer() {  // a new set of brush strokes with their own settings
       const cur = this.adj.pointTarget, l = this.adjLayer(cur), step = l ? l.step : cur;

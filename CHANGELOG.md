@@ -1,5 +1,39 @@
 # Changelog
 
+## Next (not released yet)
+
+- 🛡 Protect from Enhance (`patch.enhProtect`, `patchProtect(on, "enhance")`, `enhProtectArgs`): `protect` mask on
+  `postprocess` enhance (alone, Run chain and the patchbay's ENHANCE); `Engine._enhance_protect` puts the picture as
+  it was (upscaled) back there with a soft edge
+- 🎚 Adjust: Dehaze (dark-channel haze estimate, `dehaze` shader), Texture (small-radius midtone local contrast),
+  Color mixer (`mixer` shader, 8 hue bands × hue / saturation / luminance, `mh_` / `ms_` / `ml_` keys), Color grading
+  (`grade` shader: shadows / midtones / highlights hue + amount, balance); sections can start `folded`; paint layers
+  get `opacity` (`layerOp` in `pointMask`) and their own remembered brush size / strength (`adjLayerBrush`)
+- 🔤 Replace text (Tools module `#rack-text`): 1 · Find the text (`txFindText` → `selAutoText`), 2 · Clear it
+  (`toolHeal`), 3 · Type (`tx` state, `text_tool.js` `ProtoText.style` for the HTML preview and `ProtoText.draw` for
+  the full-size canvas, same maths); saved through `adjust_save` with `editor: "Text"` (kind suffix `text`,
+  `settings.text.layers`)
+- ↻ Continue training a LoRA: `trainer.read_resume` (rank from the tensors, alpha from `ss_network_alpha` or the
+  `.alpha` keys, attention/full and text encoder from the keys) and `load_resume` (Kohya `lora_unet_`/`lora_te_` or
+  diffusers `unet.`/`text_encoder.` keys copied into the fresh PEFT adapter); `ss_steps` adds the earlier steps;
+  Train → 3 · LoRA `train.resume` picker (`trainResumeList`, same family), name `…-more`
+- 🔁 Face swap: `more_faces` (up to 4, ArcFace identities averaged, `FaceSwapper.identity_of`), `which` as a list of
+  indexes (👆 Pick faces, `faceswap_faces` job → normalised boxes), `marks` (✚ Mark by hand: 5 points per face,
+  eyes/nose/mouth corners, sorted left→right) used instead of detection; `faceswap.find_faces`
+- ⚥ Swap gender (`gender_swap.js`, `swapGender`): gendered words, plurals, Danbooru tags, her → his/him heuristic
+- Detail with a LoRA: own model (`post.det.model`, `detModels`, `detModel`, `detLorasAll`); sampler / VAE / CFG reset
+  when its family differs from Create's
+- ✨ Enhance → 🖌 Only a painted area (`tool.enhArea`, `mask` arg): `Engine._enhance_area` crops to the painting
+  (+6 % room), enhances that, `_enhance_area_paste` puts it into the upscaled whole with a soft edge
+- Run chain lists the hidden patchbay chain and runs it (`.run-patch-list`)
+- 📄 Paper cut-out live preview from the backend (`papercut_preview`, quick thread, cached matte, ≤ 720 px);
+  ✂ Cut out preview applies Clean up (`cleanBits`) and Crop
+- Image → prompt: Metal / MPS out-of-memory falls back to Florence quick describe (`_out_of_memory`)
+- Tiled upscale progress per tile; `engineStatus` (backend status lines) reset when the running job changes, so
+  "Deleted…" no longer lands on the queue line
+- Errors are shown on the tab whose job failed (`errorTab`, `errorHere`); Tools' live preview only for Tools' jobs
+  (`toolPreviewMine`); sampler chips wrap; Select text no longer needs the mask canvas (`selStampOffscreen`)
+
 ## 1.6.2
 
 - Image to image → Earlier results: “· N pictures · clear all” beside the heading (`clearI2iResults`, like Create's)

@@ -356,6 +356,13 @@ def _hf_file_cached(repo, filename):
         return False
 
 
+def _out_of_memory(e):
+    """True for the graphics chip / PyTorch / MLX running out of memory (Metal "Insufficient Memory", MPS OOM)."""
+    t = f"{type(e).__name__}: {e}".lower()
+    return any(k in t for k in ("insufficient memory", "outofmemory", "out of memory", "mps backend out of memory",
+                                "failed to allocate", "kiogpucommandbuffercallbackerroroutofmemory"))
+
+
 def _max_side(family):
     """Largest side used when an image-to-image result takes the picture's own size. A big photo at full
     size (e.g. 1536 px with SD 1.5) needs far more memory than a small Mac has (one run asked for 20 GB)."""
@@ -3156,8 +3163,15 @@ class Engine:
                                     cancel_event=self.cancel_event, allow_download=net.is_online())
             except vlm.Cancelled:
                 raise Cancelled()
-            except vlm.VlmError as e:
-                raise UserError(str(e))
+            except Exception as e:
+                # an 8 GB Mac that's short of memory (other apps open): the 4B picture reader doesn't fit. Fall back to
+                # the small Florence-2 reader instead of failing with the graphics chip's "Insufficient Memory".
+                if not _out_of_memory(e):
+                    raise UserError(str(e)) if isinstance(e, vlm.VlmError) else e
+                print("[engine] picture reader out of memory, using Quick describe instead:", e, flush=True)
+                self.emit({"type": "status", "msg": "Not enough free memory for the detailed picture reader: using Quick describe instead (close other apps for the detailed one)."})
+                gc.collect()
+                return self.interrogate({**args, "mode": "quick", "_fallback": True})
             if not text:
                 raise UserError("The picture reader didn't write anything; try again or use Quick describe.")
             return {"prompt": text, "model": vlm.LABEL}
@@ -3174,7 +3188,10 @@ class Engine:
                 image, general_threshold=float(args.get("general_threshold", 0.35)),
                 include_characters=bool(args.get("include_characters", True)))
             return {"prompt": ", ".join(tags), "tags": tags, "rating": rating}
-        return {"prompt": self.interrogator.describe(image, detail=args.get("detail", "detailed"))}
+        out = {"prompt": self.interrogator.describe(image, detail=args.get("detail", "detailed"))}
+        if args.get("_fallback"):
+            out["model"] = "Florence-2 (Quick: the detailed reader didn't fit in the free memory)"
+        return out
 
     def find_text(self, args):
         """🔤 Text selection tool: the text in the picture (signs, logos, captions, watermarks) as a selection for the
@@ -3204,6 +3221,55 @@ class Engine:
         m.save(buf, "PNG")
         return {"mask": "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(), "found": bool(quads),
                 "count": len(quads)}
+
+    @staticmethod
+    def _enhance_area(image, mask_data):
+        """🖌 Enhance → Only a painted area: (box around the painting with some room, the painting) or None."""
+        if not mask_data:
+            return None
+        import detailer
+        try:
+            mk = detailer.decode_mask(mask_data, image.size).convert("L").point(lambda v: 255 if v > 127 else 0)
+        except Exception:
+            raise UserError("Couldn't read the painted area.")
+        bb = mk.getbbox()
+        if not bb:
+            raise UserError("Paint over the part to enhance first (or switch off 🖌 Only a painted area).")
+        pad = max(32, int(0.06 * max(image.size)))
+        box = (max(0, bb[0] - pad), max(0, bb[1] - pad), min(image.width, bb[2] + pad), min(image.height, bb[3] + pad))
+        if (box[2] - box[0]) < 64 or (box[3] - box[1]) < 64:  # the enhancer needs a little room to work
+            cx, cy = (box[0] + box[2]) // 2, (box[1] + box[3]) // 2
+            box = (max(0, cx - 64), max(0, cy - 64), min(image.width, cx + 64), min(image.height, cy + 64))
+        return box, mk
+
+    @staticmethod
+    def _enhance_protect(before, enhanced, mask_data):
+        """🛡 Protect from Enhance: where you painted, the picture as it was (upscaled), blended in softly."""
+        from PIL import Image, ImageFilter
+        import detailer
+        try:
+            mk = detailer.decode_mask(mask_data, enhanced.size).convert("L")
+        except Exception:
+            raise UserError("Couldn't read the protected areas.")
+        if not mk.getbbox():
+            return enhanced
+        soft = mk.filter(ImageFilter.GaussianBlur(max(2.0, min(enhanced.size) / 200)))
+        base = before.convert(enhanced.mode).resize(enhanced.size, Image.LANCZOS)
+        return Image.composite(base, enhanced, soft)
+
+    @staticmethod
+    def _enhance_area_paste(image, work, enhanced, area):
+        """The enhanced part back into the whole picture (upscaled the same amount), its edge blended in softly."""
+        from PIL import Image, ImageFilter
+        box, mk = area
+        f = enhanced.width / max(1, work.width)
+        big = image.resize((max(1, round(image.width * f)), max(1, round(image.height * f))), Image.LANCZOS)
+        bx = tuple(int(round(v * f)) for v in box)
+        part = enhanced.resize((bx[2] - bx[0], bx[3] - bx[1]), Image.LANCZOS)
+        soft = mk.resize(big.size, Image.BILINEAR).filter(ImageFilter.MaxFilter(5)).filter(
+            ImageFilter.GaussianBlur(max(2.0, 6 * f)))
+        big.paste(part.convert(big.mode), bx[:2], soft.crop(bx))
+        return big
 
     def postprocess(self, args, force=False):
         """args: {action: 'faces'|'enhance', image_id, ...options}. Saves a new linked library image."""
@@ -3280,11 +3346,19 @@ class Engine:
                     import preview
                     arr = lat[0].detach().float().cpu().numpy() if lat.dim() == 4 else lat.detach().float().cpu().numpy()
                     self.emit({"type": "preview", "image": 1, "src": preview.latent_to_data_url(arr, "sd15")})
+                area = self._enhance_area(out, args.get("mask"))  # 🖌 only a painted area: work on that part alone
+                work = out.crop(area[0]) if area else out
                 try:
-                    out, used = enh.enhance(out, seed=seed, cancel_event=self.cancel_event, on_progress=prog,
-                                            on_preview=pv, **opts)
+                    enh_out, used = enh.enhance(work, seed=seed, cancel_event=self.cancel_event, on_progress=prog,
+                                                on_preview=pv, **opts)
                 except EnhanceCancelled:
                     raise Cancelled()
+                out = self._enhance_area_paste(out, work, enh_out, area) if area else enh_out
+                if area:
+                    used = dict(used, area=list(area[0]))
+                if args.get("protect"):  # 🛡 areas Enhance mustn't change (a face): the picture as it was, upscaled
+                    out = self._enhance_protect(before_enh, out, args["protect"])
+                    used = dict(used, protected=True)
                 if keep_style:
                     try:  # the colours and light come back from the picture; the new detail stays
                         import color_match
@@ -3556,6 +3630,41 @@ class Engine:
         record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
         emit({"type": "image", "record": record})
         return record
+
+    def papercut_preview(self, args):
+        """📄 A small, quick preview of the paper cut-out with its settings, from the subject Cut out already found
+        (nothing is saved, no model is run). None if the subject hasn't been found yet."""
+        import base64
+        import io
+        import cv2
+        import postprocess.cutout as cut
+        import postprocess.papercut as paper
+        src, image = self._source_picture(args)
+        image = image.convert("RGB")
+        key = (src["path"], os.path.getmtime(src["path"]) if os.path.exists(src["path"]) else 0, image.size)
+        m = self._cut_cache.get(key)
+        if m is None:
+            return None
+        alpha = cut.refine(m, threshold=float(args.get("threshold") or 0.5), softness=0.08, grow=int(args.get("grow") or 0))
+        alpha = cut.clean_bits(alpha)
+        k = min(1.0, 720 / max(image.size))
+        if k < 1:
+            size = (max(1, round(image.width * k)), max(1, round(image.height * k)))
+            image = image.resize(size)
+            alpha = cv2.resize(alpha.astype("float32"), size, interpolation=cv2.INTER_AREA)
+        try:
+            out = paper.make(image, alpha, edge=float(args.get("edge") if args.get("edge") is not None else 2.0),
+                             edge_colour=args.get("edge_colour") or "white",
+                             rough=float(args.get("rough") if args.get("rough") is not None else 0.5),
+                             shadow=float(args.get("shadow") if args.get("shadow") is not None else 0.6),
+                             print_as=args.get("print_as") or "photo", background=args.get("background") or "transparent",
+                             seed=int(args.get("seed") or 7))
+        except ValueError:
+            return None
+        buf = io.BytesIO()
+        out.save(buf, "PNG")
+        return {"image": "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(),
+                "width": out.width, "height": out.height}
 
     def heal(self, args, emit=None):
         """🩹 Remove: fill the painted area from its surroundings (LaMa, or OpenCV's quick fill)."""
@@ -4341,9 +4450,18 @@ class Engine:
         _, target = self._source_picture({"image_id": args.get("image_id"), "path": args.get("init_image") or args.get("path")})
         _, face_pic = self._source_picture({"path": args.get("face")}, "face picture")
         target, face_pic = target.convert("RGB"), face_pic.convert("RGB")
+        extra = []
+        for p in (args.get("more_faces") or [])[:4]:  # more photos of the same person, for a steadier likeness
+            try:
+                extra.append(self._source_picture({"path": p}, "face picture")[1].convert("RGB"))
+            except UserError:
+                pass
+        marks = args.get("marks") or None  # faces marked by hand, in the picture's own pixels
         if max(target.size) > 3072:  # very big photos: work on a copy that fits memory
             s = 3072 / max(target.size)
             target = target.resize((int(target.width * s), int(target.height * s)))
+            if marks:
+                marks = [[[x * s, y * s] for x, y in m] for m in marks]
         if self.face_swapper is None:
             if self.face_finder is None:
                 self.emit({"type": "status", "msg": "Preparing the face finder…"})
@@ -4352,11 +4470,13 @@ class Engine:
         started = time.time()
         try:
             image, n = self.face_swapper.swap(face_pic, target, which=args.get("which") or "all",
-                                              source_index=args.get("face_index") or 0, boost=args.get("boost") or 1)
+                                              source_index=args.get("face_index") or 0, boost=args.get("boost") or 1,
+                                              extra_faces=extra, marks=marks)
         except ValueError as e:
             msg = str(e)
             raise UserError(msg[:1].upper() + msg[1:] + ".")
-        info = {"faces": n, "boost": int(args.get("boost") or 1), "licence": fsw.LICENCE}
+        info = {"faces": n, "boost": int(args.get("boost") or 1), "licence": fsw.LICENCE,
+                "likeness_photos": getattr(self.face_swapper, "photos_used", 1), "marked_by_hand": bool(marks)}
         if args.get("restore", True):  # tidy the new face (CodeFormer, blended so skin texture survives)
             image, finfo = self._restore_faces(image, {"face_model": args.get("face_model") or "codeformer",
                                                        "face_strength": args.get("face_strength", 0.6),
@@ -4383,6 +4503,24 @@ class Engine:
         record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
         self.emit({"type": "image", "record": record})
         return record
+
+    def faceswap_faces(self, args):
+        """🔁 The faces found in the picture, for picking which to swap: boxes as 0..1 of the picture's size,
+        biggest first (the same order the swap uses)."""
+        import detailer
+        import faceswap as fsw
+        _, target = self._source_picture({"image_id": args.get("image_id"), "path": args.get("init_image") or args.get("path")})
+        target = target.convert("RGB")
+        if max(target.size) > 3072:
+            s = 3072 / max(target.size)
+            target = target.resize((int(target.width * s), int(target.height * s)))
+        if self.face_finder is None:
+            self.emit({"type": "status", "msg": "Preparing the face finder…"})
+            self.face_finder = detailer.FaceFinder(paths.WEIGHTS_DIR / "facexlib")
+        faces = fsw.find_faces(self.face_finder.net, target)
+        W, H = target.size
+        return {"faces": [{"box": [f["box"][0] / W, f["box"][1] / H, f["box"][2] / W, f["box"][3] / H],
+                           "score": round(f["score"], 3)} for f in faces]}
 
     def protect_merge(self, args):
         """Patchbay 🛡 Protect: put back the original picture wherever you painted, over the chain's result, with a

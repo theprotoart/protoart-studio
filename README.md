@@ -29,7 +29,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   presets, 📒 saved prompts, wildcards, a random-prompt generator that writes tags or sentences to suit the model, negative
   prompt ✨ suggest / 🎲 random matched to the model, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop, and
   🔬 compare grids picked with keys, 🎲 small change (variation seed), 📒 saved prompts with export / import, ✨ enhance and 🔄 contrast prompts, and your own default sampler / steps / guidance per
-  model and default weight per LoRA, 🗺 regional prompts (✨ plan the layout from one sentence, or start from a template: before / after, day / night, face-off, comic…), A1111-style prompt editing, 🧱 seamless tiling
+  model and default weight per LoRA, 🗺 regional prompts (✨ plan the layout from one sentence, or start from a template: before / after, day / night, face-off, comic…), A1111-style prompt editing, ⚥ swap a prompt's gender, 🧱 seamless tiling
   clips, and 📥 settings from A1111 / ComfyUI / InvokeAI pictures or .json
 - **Image to image:** ✨ Edit with words (FLUX.2 Klein: describe a change; paint to limit it; add reference pictures),
   🧩 Combine (put a character from another picture into a scene by asking; let it decide where or place it yourself; 💡 match the scene's light),
@@ -38,10 +38,10 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   change / inpaint (your inpainting models offered first) / expand (any picture, with FLUX.2 Klein + an outpaint LoRA) / 🩹 remove, selection tools (brush, lasso, polygon lasso, magic wand, object selection, 👤 select subject),
   ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile, and your own SD 1.5 and SDXL ControlNets), image prompt
   (IP-Adapter), face detailer, CodeFormer presets, ControlNet Union ProMax for SDXL, 🔁 face swap (non-commercial,
-  consent required), and a 🔗 model chain (SD 1.5 → SDXL → FLUX / ERNIE)
-- **Tools** (rack modules): Finegrain enhance & upscale, face restoration (CodeFormer or RestoreFormer), 🩹 remove objects
+  consent required; several likeness photos, pick which faces, or mark a face by hand), and a 🔗 model chain (SD 1.5 → SDXL → FLUX / ERNIE)
+- **Tools** (rack modules): Finegrain enhance & upscale (or just a painted area; 🛡 protect faces from it), 🔤 replace text (find it, clear it, type new text with a font, size and colour), face restoration (CodeFormer or RestoreFormer), 🩹 remove objects
   (paint right in Tools; smart or quick fill), ✒️ vectorize to SVG, image → prompt (Qwen3.5 vision model, Florence-2 or
-  WD tagger), depth maps, ✂ cut out (background removal for people, animals and objects, with live threshold / softness / grow and see-through PNGs, or split into subject and background layers), 🎨 Procreate files (open the finished picture or bring in every layer), 📄 paper cut-out (torn-paper stickers), 🎚 Adjust (Lightroom / Color Efex-style with ◎ control points and 🖌 painted areas, each with its own settings if you like, a Procreate-style Bloom and Blur), 🪡 Puppet warp (Photoshop-style: three steps, a mesh, Rigid / Normal / Distort, density, expansion, joints you can turn, undo; ✂ a separate subject with the background filled in behind it and a feathered edge), a ↺ reset on every module, DiffusionBee file conversion, Original / Result /
+  WD tagger), depth maps, ✂ cut out (background removal for people, animals and objects, with live threshold / softness / grow and see-through PNGs, or split into subject and background layers), 🎨 Procreate files (open the finished picture or bring in every layer), 📄 paper cut-out (torn-paper stickers), 🎚 Adjust (Lightroom / Camera Raw / Color Efex-style: texture, clarity, dehaze, HSL color mixer, color grading, with ◎ control points and 🖌 painted areas, each with its own settings if you like, a Procreate-style Bloom and Blur), 🪡 Puppet warp (Photoshop-style: three steps, a mesh, Rigid / Normal / Distort, density, expansion, joints you can turn, undo; ✂ a separate subject with the background filled in behind it and a feathered edge), a ↺ reset on every module, DiffusionBee file conversion, Original / Result /
   Split / Side-by-side views, and a 🔌 patchbay to run Remove, Faces, Enhance, Depth, Vectorize and 🔎 Detail (with a LoRA)
   in any order with cables (modules can be moved, added twice or taken off; each copy has its own settings; 🛡 paint areas
   it must not change; live preview), 🧩 tiled upscale (MultiDiffusion), 🗜 smaller 8 / 6 / 4-bit model copies, 🧪 model
@@ -49,7 +49,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 - **Right-click menus everywhere:** models (incl. ⟲ Reconnect… for a moved or missing file, and 💾 Keep a copy on this Mac for a model on an external drive, so it loads in seconds), LoRAs, the queue, your folders, pictures and text boxes
 - **Library:** right-click menu; search by prompt, seed, model or LoRA; drag to select many; ⇆ compare side by side with linked zoom; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
   first); batch edit & export; 🗜 compress to the smallest file that still looks the same
-- **Train:** LoRA training (SD 1.5, SDXL incl. Pony / Illustrious, ERNIE Turbo on the ⚡ fast engine; full ERNIE on 32 GB+ Macs) with ★ recommended settings for people, objects, styles and concepts, embedding training (SD 1.5), square crop / keep-whole
+- **Train:** LoRA training (SD 1.5, SDXL incl. Pony / Illustrious, ERNIE Turbo on the ⚡ fast engine; full ERNIE on 32 GB+ Macs) with ★ recommended settings for people, objects, styles and concepts, ↻ continue training a LoRA you made, embedding training (SD 1.5), square crop / keep-whole
   framing, and merging LoRAs of the same type into one
 - **Models tab:** download models, add your own files or folders (removals locked and confirmed), Civitai downloads of
   LoRAs, checkpoints, embeddings, VAEs and SD 1.5 / SDXL ControlNets, Hugging Face downloads (sign-in keys kept only on your

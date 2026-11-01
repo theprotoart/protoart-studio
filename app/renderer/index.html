@@ -339,6 +339,7 @@
             <i class="ptool-lamp" :class="{on: rnd.every}"></i>🎲<b>Random</b></button>
           <button class="ptool" :class="{open: ptool === 'ideas'}" @click="togglePtool('ideas')" title="Ideas: hundreds of tested tags by category (pose, eyes, hair, hats, expressions, outfits, shoes, framing, styles): click one to add it, or 🎲 for a random one">📚<b>Ideas</b></button>
           <button class="ptool" :class="{open: ptool === 'convert'}" @click="togglePtool('convert')" title="Convert the prompt: plain sentences ⇄ Stable Diffusion tags, so a prompt you like works with any kind of model">⇄<b>Convert</b></button>
+          <button class="ptool" @click="swapGender" title="Swap gender: the women in the prompt become men and the men women (“a woman in a brown outfit” → “a man in a brown outfit”, 1girl → 1boy, her → his). Works on sentences and tags; ↩ undo puts it back">⚥<b>Swap gender</b></button>
           <button class="ptool" :class="{open: wild.open}" @click="togglePtool('wild')" title="Wildcards: {red|blue} picks one per image; __name__ picks a line from a wildcard file">{ }<b>Wildcards</b></button>
           <button class="ptool" :class="{open: batch.open}" @click="batch.open = true" title="Prompt list: queue one job per line of a list of prompts">📋<b>List</b></button>
           <button class="ptool" @click="$refs.settingsPick.click()" title="Load the settings a picture was made with (A1111, ComfyUI, InvokeAI or this app write them into PNGs), or a .json of settings / a ComfyUI workflow">📥<b>Settings</b></button>
@@ -968,7 +969,7 @@
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
-      <div v-if="error" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
+      <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
       <div v-if="livePreviewShown" class="live-preview" :class="{covered: previewCovered}">
         <img :src="livePreview.src" alt="live preview"><span v-if="previewCovered" class="nsfw-cover">NSFW prompt · preview hidden</span>
         <div class="live-caption">
@@ -1513,6 +1514,15 @@
           <span class="adjust-badge">{{ pw.original ? 'ORIGINAL' : pw.subject ? 'PUPPET WARP · SUBJECT ONLY' : 'PUPPET WARP' }}</span>
           <span v-if="pw.busy || pw.msg" class="adjust-badge busy">{{ pw.msg || 'Working…' }}</span>
         </div>
+        <div v-else-if="tx.open && tool.source && !tool.healing" class="adjust-canvas-wrap tx-wrap" @click.stop>
+          <div class="tx-stage">
+            <img ref="txImg" class="adjust-canvas" :class="{picking: tx.pick}" :src="fileUrl(tx.base.path)" @load="txImgLoad" draggable="false" @pointerdown="txStageDown">
+            <div v-for="(L, i) in tx.layers" :key="'tx' + i" class="tx-layer" :class="{sel: i === tx.sel}" :style="txStyle(L)"
+                 @pointerdown.stop="txLayerDown($event, i)" title="Drag to move · edit it in 🔤 Replace text">{{ L.text || ' ' }}</div>
+          </div>
+          <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE' }}</span>
+          <span v-if="tx.busy || tx.msg" class="adjust-badge busy">{{ tx.msg || 'Working…' }}</span>
+        </div>
         <div v-else-if="cut.open && !tool.healing" class="adjust-canvas-wrap cut-wrap" @click.stop>
           <canvas v-show="!cut.busy" ref="cutCanvas" class="adjust-canvas"></canvas>
           <span class="adjust-badge">{{ cut.view === 'mask' ? 'CUT OUT · MASK' : cut.paperView ? 'PAPER CUT-OUT · PREVIEW' : 'CUT OUT' }}</span>
@@ -1527,7 +1537,7 @@
           <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
              :style="{left: brush.x + 'px', top: brush.y + 'px', width: brushRingPx() + 'px', height: brushRingPx() + 'px'}"></i>
         </div>
-        <div v-else-if="tool.source && tool.working && opts.previews !== false && livePreview" class="tool-live" @click.stop>
+        <div v-else-if="tool.source && tool.working && opts.previews !== false && livePreview && toolPreviewMine()" class="tool-live" @click.stop>
           <img :src="livePreview.src" alt=""><span class="cmp-tag left">● live preview</span>
         </div>
         <div v-else-if="tool.source && tool.latest && !tool.working && tool.view !== 'original'" class="cmp-stage" :class="'cmp-' + tool.view" @click.stop
@@ -1810,13 +1820,13 @@
           </div>
           <div class="adjust-cols">
             <div>
-              <details v-for="sec in adjSections" :key="sec.id" class="fold adjust-sec" :open="!adj.fold[sec.id]"
+              <details v-for="sec in adjSections" :key="sec.id" class="fold adjust-sec" :open="adj.fold[sec.id] === undefined ? !sec.folded : !adj.fold[sec.id]"
                        @toggle="adj.fold[sec.id] = !$event.target.open">
                 <summary>{{ sec.label }} <span v-if="adjSectionOn(sec)" class="led green on" title="changed"></span>
                   <button v-if="adjSectionOn(sec)" class="link small" @click.prevent="adjResetSection(sec)">reset</button></summary>
                 <div v-for="sl in sec.sliders" :key="sl.k" class="adj-row" :title="sl.tip">
-                  <label>{{ sl.label }}</label>
-                  <input type="range" v-bind="adjSlider(sl)" v-model.number="adj.p[sl.k]" @dblclick="adj.p[sl.k] = adjDefault(sl.k)">
+                  <label><i v-if="sl.dot" class="adj-dot" :style="{background: sl.dot}"></i>{{ sl.label }}</label>
+                  <input type="range" v-bind="adjSlider(sl)" :class="{'adj-hue': sl.hue}" v-model.number="adj.p[sl.k]" @dblclick="adj.p[sl.k] = adjDefault(sl.k)">
                   <span class="adj-val">{{ adjValue(sl.k) }}</span>
                 </div>
               </details>
@@ -1863,6 +1873,21 @@
                         <button class="link small" @click.stop="adjRemoveLayer(l.key)" title="Take this layer out (its points and paint go too)">✕</button>
                       </div>
                       <div v-if="adj.openLayer === l.key" class="adj-layer-body">
+                        <div class="adj-row" title="How strongly this layer shows where it's painted (and around its points)">
+                          <label>Layer opacity</label>
+                          <input type="range" min="0" max="1" step="0.05" :value="l.opacity ?? 1" @input="adjLayerSet(l.key, 'opacity', $event.target.value)" @dblclick="adjLayerSet(l.key, 'opacity', 1)">
+                          <span class="adj-val">{{ Math.round((l.opacity ?? 1) * 100) }}%</span>
+                        </div>
+                        <div class="adj-row" title="This layer's brush size · [ ] keys (each paint layer remembers its own)">
+                          <label>🖌 Brush size</label>
+                          <input type="range" min="0.01" max="0.5" step="0.005" :value="adj.brush" @input="adjSelectLayer(l.key, true); adjLayerBrush('brush', $event.target.value)">
+                          <span class="adj-val">{{ Math.round(adj.brush * 100) }}</span>
+                        </div>
+                        <div class="adj-row" title="This layer's brush strength: lower builds it up gently with several strokes">
+                          <label>🖌 Brush strength</label>
+                          <input type="range" min="0.1" max="1" step="0.05" :value="adj.brushOp" @input="adjSelectLayer(l.key, true); adjLayerBrush('brushOp', $event.target.value)">
+                          <span class="adj-val">{{ Math.round(adj.brushOp * 100) }}%</span>
+                        </div>
                         <div v-for="sl in adjStepSliders(id)" :key="'ly' + l.key + sl.k" class="adj-row" :title="sl.tip">
                           <label>{{ sl.label }}</label>
                           <input type="range" v-bind="adjSlider(sl)" :value="l.own[sl.k]" @input="adjOwnSet(l.key, sl.k, $event.target.value)"
@@ -1947,9 +1972,10 @@
           <button v-if="patch.extra.length" class="ghost small" :disabled="!!patch.running" @click="patchRemoveModule()" title="Take out the last module you added (and its cables)">✕ last added</button>
         </div>
         <div class="patch-presets row patch-protect-row">
-          <button v-if="!tool.protecting" class="ghost small" :disabled="!tool.source || !!patch.running" @click="patchProtect(true)"
+          <button v-if="!tool.protecting || tool.protectWhich !== 'all'" class="ghost small" :disabled="!tool.source || !!patch.running" @click="patchProtect(true, 'all')"
                   title="Paint over parts of the picture the patch mustn't change (a face, a logo, the background): they're put back from your picture after the chain runs">🛡 Protect areas…</button>
           <button v-else class="primary small" @click="patchProtect(false)" title="Keep what you painted as the protected areas">✓ Done protecting</button>
+          <span v-if="patch.enhProtect && tool.source && patch.enhProtect.for === tool.source.path" class="hint">🛡 ENHANCE has protected areas (set in its module)</span>
           <span v-if="patch.protect && tool.source && patch.protect.for === tool.source.path && !tool.protecting" class="hint">🛡 protected areas set ·
             <button class="link small" @click="patch.protect = null" title="Let the patch change the whole picture again">clear</button></span>
         </div>
@@ -2069,6 +2095,20 @@
         <div class="card rack-module run-module">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">▶</span>
             <h3>Run chain</h3><span class="mod-sub">one finished picture</span></div>
+          <template v-if="!patch.on && patchChain.steps.length">
+          <p class="mod-desc">Your <b>patchbay</b> chain (hidden, cables kept). Each module uses its own settings below.</p>
+          <div class="run-patch-list" title="The order the picture goes through, following the cables. Switch on PATCHBAY above to change it.">
+            <span class="rp-step">PICTURE</span>
+            <template v-for="id in patchChain.steps" :key="'rp' + id"><i>→</i><span class="rp-step on">{{ (patchNodes.find((n) => n.id === id) || {}).label || id }}</span></template>
+            <i>→</i><span class="rp-step">{{ patchChain.done ? 'RESULT' : '…' }}</span>
+          </div>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!tool.source || !!patch.running" @click="patchRun">{{ patch.running ? 'Running…' : '▶ Run patch' }}</button>
+            <button class="ghost small" @click="patchToggle" title="Show the patchbay to change the cables">Edit</button>
+            <span class="mod-plate">Chain · CH-0</span>
+          </div>
+          </template>
+          <template v-else>
           <p class="mod-desc">Enhance, then restore faces, in one go. Each uses the settings in its own module. For any order (and Remove, Depth, Vectorize), switch on <b>PATCHBAY</b> above.</p>
           <div class="mod-switches">
             <button class="mod-switch" :class="{on: post.do_enhance}" @click="post.do_enhance = !post.do_enhance"
@@ -2081,6 +2121,7 @@
               {{ post.do_enhance && post.do_faces ? 'Run both' : post.do_enhance ? 'Enhance' : post.do_faces ? 'Restore faces' : 'Pick one' }}</button>
             <span class="mod-plate">Chain · CH-0</span>
           </div>
+          </template>
         </div>
 
         <div id="rack-enhance" class="card rack-module enh-module" :class="{active: post.do_enhance, 'patch-pick': patchPicked('enhance')}">
@@ -2105,6 +2146,17 @@
           <input v-if="post.enh.keep_style && !post.enh.instant" v-model="post.enh.style_words" class="mod-input"
                  placeholder="style words (optional): oil painting, visible brush strokes"
                  title="Words that describe the look, added to the picture's own prompt (e.g. watercolour, pencil sketch, anime cel shading)">
+          <div class="enh-protect">
+            <button v-if="!(tool.protecting && tool.protectWhich === 'enhance')" class="ghost small" :disabled="!tool.source" @click="patchProtect(true, 'enhance')"
+                    title="Paint over what Enhance mustn't change (faces, hands, a logo). Those areas are only upscaled, and blended in softly. Used when Enhance runs on its own and in the patchbay.">🛡 Protect from Enhance…</button>
+            <button v-else class="primary small" @click="patchProtect(false)" title="Keep what you painted as the areas Enhance leaves alone">✓ Done protecting</button>
+            <span v-if="patch.enhProtect && tool.source && patch.enhProtect.for === tool.source.path && !(tool.protecting && tool.protectWhich === 'enhance')" class="hint">🛡 set ·
+              <button class="link small" @click="patch.enhProtect = null" title="Let Enhance work on the whole picture again">clear</button></span>
+          </div>
+          <button class="mod-switch enh-area-sw" :class="{on: tool.enhArea}" :disabled="!tool.source" @click="toggleEnhArea"
+                  title="Enhance just part of the picture: paint over it on the picture (the same brush as Remove objects). The rest is only upscaled, and the edge is blended in. Quicker on a big picture."><i></i>🖌 Only a painted area</button>
+          <p v-if="tool.enhArea" class="hint enh-area-note">{{ tool.source && maskIsFor('tools', tool.source.path) ? 'Enhances only what you painted, blended in.' : 'Paint over the part to enhance on the picture.' }}
+            <button class="link small" @click="toolPaintRemove(true)">🖌 paint</button></p>
           <details class="mod-more">
             <summary>fine-tune</summary>
             <label title="How much new detail it may invent. Low = cleaner, faithful; high = more texture and changes.">Creativity <span class="mod-val">{{ post.enh.denoise_strength }}</span></label>
@@ -2296,15 +2348,20 @@
 
         <div id="rack-detail" class="card rack-module detail-card" :class="{'patch-pick': patchPicked('detail')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🔎</span>
-            <h3>Detail with a LoRA</h3><button class="mod-reset" @click.stop="resetToolPart('detail')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span v-if="patchPicked('detail')" class="mod-editing">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">patchbay · {{ currentModel ? currentModel.label : 'pick a model in Create' }}</span></div>
-          <p class="mod-desc">A light redraw with the model picked in Create and one LoRA (an “add detail” LoRA, a style…): sharper skin, fabric and texture, same picture. Runs as the patchbay's DETAIL module.</p>
-          <label>LoRA <span class="hint">{{ detLoras().length }} of {{ compatibleLoras.length }}</span></label>
+            <h3>Detail with a LoRA</h3><button class="mod-reset" @click.stop="resetToolPart('detail')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span v-if="patchPicked('detail')" class="mod-editing">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">patchbay · {{ detModel() ? detModel().label : 'no SD model yet' }}</span></div>
+          <p class="mod-desc">A light redraw with its own SD 1.5 / SDXL model and one LoRA (an “add detail” LoRA, a style…): sharper skin, fabric and texture, same picture. Runs as the patchbay's DETAIL module.</p>
+          <label>Model <span class="hint">its own · SD 1.5 or SDXL</span></label>
+          <select v-model="post.det.model" title="The model for the detail pass (it doesn't have to be the one picked in Create)">
+            <option value="">{{ detModel() ? 'automatic: ' + detModel().label : 'no SD 1.5 / SDXL model yet' }}</option>
+            <option v-for="m in detModels()" :key="'dm' + m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+          <label>LoRA <span class="hint">{{ detLoras().length }} of {{ detLorasAll().length }}</span></label>
           <div class="seg det-which">
             <button :class="{on: opts.det_all_loras !== true}" @click="opts.det_all_loras = false; saveOpts()" title="Only the LoRAs marked ★ as detail LoRAs (and ones named like one: add detail, sharpen, texture…)">★ Detail LoRAs ({{ (compatibleLoras || []).filter((l) => isDetailLora(l.name)).length }})</button>
-            <button :class="{on: opts.det_all_loras === true}" @click="opts.det_all_loras = true; saveOpts()" title="Every LoRA that fits the Create model">All LoRAs</button>
+            <button :class="{on: opts.det_all_loras === true}" @click="opts.det_all_loras = true; saveOpts()" title="Every LoRA that fits the model above">All LoRAs</button>
           </div>
           <input v-model="detLoraQ" class="mod-input" type="search" placeholder="🔍 Search LoRAs (name or trigger word)…" title="Type part of a LoRA's name or trigger word to narrow the list">
-          <select v-model="post.det.lora" title="The LoRA used for the detail pass (only ones that fit the Create model are listed)">
+          <select v-model="post.det.lora" title="The LoRA used for the detail pass (only ones that fit the model above are listed)">
             <option value="">none (just a light redraw)</option>
             <option v-if="post.det.lora && !detLoras().some((l) => l.name === post.det.lora)" :value="post.det.lora">{{ post.det.lora }}</option>
             <option v-for="l in detLoras()" :key="'det' + l.name" :value="l.name">{{ isDetailLora(l.name) ? '★ ' : '' }}{{ l.name }}</option>
@@ -2319,6 +2376,64 @@
           <input type="range" min="8" max="40" step="1" v-model.number="post.det.steps" title="More steps: finer detail, slower">
           <p v-if="!['sd15', 'sdxl'].includes(family)" class="mod-note warn-text">Pick an SD 1.5 or SDXL model in Create to use DETAIL.</p>
           <div class="mod-foot"><span class="mod-plate">Detailer · DT-1</span></div>
+        </div>
+
+        <div id="rack-text" class="card rack-module tx-module" :class="{active: tx.open}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🔤</span>
+            <h3>Replace text</h3><span class="mod-sub">find · clear · type</span></div>
+          <p class="mod-desc">Swap the writing in a picture (a sign, a poster, a label) for your own: find it, clear it away, then type the new text in the font, size and colour you want.</p>
+          <div class="tx-steps">
+            <button class="ghost small" :disabled="!tool.source || tx.finding || objFinding" @click="txFindText"
+                    title="Selects the writing in the picture (Florence-2 reads it). Add or take away with the brush if it missed a bit.">{{ tx.finding || objFinding ? 'Finding…' : '1 · 🔍 Find the text' }}</button>
+            <button class="ghost small" :disabled="!tool.source || !!tool.working || !(tool.source && maskIsFor('tools', tool.source.path))" @click="txClear"
+                    title="Fills in the background where the text was (like Remove objects), then opens the Type tool on it">2 · 🧽 Clear it</button>
+            <button class="ghost small" :disabled="!tool.source" @click="tx.open ? txClose() : txOpen()"
+                    :title="tx.open ? 'Close the Type tool (the text is kept until you open another picture)' : 'Type on the picture (the cleared one if you just cleared it)'">{{ tx.open ? '✕ Close' : '3 · ✏️ Type' }}</button>
+          </div>
+          <template v-if="tx.open">
+            <div v-if="!tx.layers.length" class="hint">Click the picture where the text goes.</div>
+            <div v-else class="tx-layers">
+              <button v-for="(L, i) in tx.layers" :key="'txl' + i" class="tx-chip" :class="{on: i === tx.sel}" @click="tx.sel = i">
+                {{ (L.text || '…').split('\n')[0].slice(0, 14) || '…' }}<b @click.stop="txRemove(i)" title="Delete this text">✕</b></button>
+            </div>
+            <template v-if="txLayer()">
+              <textarea ref="txText" v-model="txLayer().text" rows="2" class="mod-input tx-text" placeholder="Type the text (Return for a new line)"></textarea>
+              <label>Font</label>
+              <select v-model="txLayer().font" :style="{fontFamily: txLayer().font}">
+                <option v-for="f in ProtoText.FONTS" :key="f[0]" :value="f[0]" :style="{fontFamily: f[1]}">{{ f[0] }}</option>
+              </select>
+              <label>Size <span class="mod-val">{{ txLayer().size }} px</span></label>
+              <input type="range" min="8" :max="Math.max(200, Math.round(Math.min(tx.nw, tx.nh) * 0.5))" step="1" v-model.number="txLayer().size">
+              <div class="tx-row">
+                <label class="tx-col" title="The text's colour">Colour <input type="color" v-model="txLayer().colour"></label>
+                <button class="ghost small" :class="{on: tx.pick}" @click="tx.pick = !tx.pick" title="Click the old text on the picture to use its colour">🎯 from picture</button>
+              </div>
+              <div class="seg mod-seg">
+                <button :class="{on: txLayer().bold}" @click="txLayer().bold = !txLayer().bold" title="Bold"><b>B</b></button>
+                <button :class="{on: txLayer().italic}" @click="txLayer().italic = !txLayer().italic" title="Italic"><i>I</i></button>
+                <button v-for="a in [['left', '⇤'], ['center', '↔'], ['right', '⇥']]" :key="a[0]" :class="{on: txLayer().align === a[0]}" @click="txLayer().align = a[0]" :title="'Align ' + a[0]">{{ a[1] }}</button>
+              </div>
+              <details class="mod-more">
+                <summary>outline, shadow, angle</summary>
+                <label>Outline <span class="mod-val">{{ txLayer().stroke }}</span></label>
+                <div class="tx-row"><input type="range" min="0" max="20" step="1" v-model.number="txLayer().stroke"><input type="color" v-model="txLayer().strokeColour" title="Outline colour"></div>
+                <label>Shadow <span class="mod-val">{{ txLayer().shadow }}</span></label>
+                <input type="range" min="0" max="20" step="1" v-model.number="txLayer().shadow">
+                <label>Angle <span class="mod-val">{{ txLayer().rotate }}°</span></label>
+                <input type="range" min="-180" max="180" step="1" v-model.number="txLayer().rotate" @dblclick="txLayer().rotate = 0">
+                <label>Letter spacing <span class="mod-val">{{ txLayer().spacing }}</span></label>
+                <input type="range" min="-10" max="60" step="1" v-model.number="txLayer().spacing">
+                <label>Line height <span class="mod-val">{{ txLayer().lineHeight }}</span></label>
+                <input type="range" min="0.7" max="2" step="0.05" v-model.number="txLayer().lineHeight">
+                <label>Opacity <span class="mod-val">{{ Math.round(txLayer().opacity * 100) }}%</span></label>
+                <input type="range" min="0.1" max="1" step="0.05" v-model.number="txLayer().opacity">
+              </details>
+            </template>
+          </template>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!tx.open || tx.busy || !tx.layers.length" @click="txSave">{{ tx.busy ? 'Saving…' : '💾 Save' }}</button>
+            <span class="mod-plate">Typesetter · TX-1</span>
+          </div>
         </div>
 
         <div id="rack-vector" class="card rack-module vec-card" :class="{'patch-pick': patchPicked('vector')}">
@@ -2550,7 +2665,7 @@
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
-      <div v-if="error" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
+      <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
 
       <div v-if="tool.results.length">
         <h3 class="results-head">Results <button class="ghost small" @click="tool.results = []; tool.latest = null"
@@ -2814,10 +2929,47 @@
           <div v-else class="swap-face"><img :src="fileUrl(form.swap.face)" alt="Face to use">
             <button class="link" @click="form.swap.face = ''">remove</button></div>
           <input ref="swapPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff" hidden @change="onSwapPicked">
+          <template v-if="form.swap.face">
+            <label>More photos of the same person <span class="hint">optional, up to 4 · a steadier likeness</span></label>
+            <div class="swap-more" @dragover.prevent @drop.prevent="onSwapMore">
+              <div v-for="(p, i) in form.swap.more" :key="p" class="swap-more-pic"><img :src="fileUrl(p)" alt="">
+                <button class="swap-x" @click="form.swap.more.splice(i, 1)" title="Take this photo out">✕</button></div>
+              <button v-if="form.swap.more.length < 4" class="swap-more-add" @click="$refs.swapMorePick.click()"
+                      title="Add more photos of the same person (different angles and light). Their likeness is averaged with the first photo's.">＋</button>
+            </div>
+            <input ref="swapMorePick" type="file" multiple accept="image/*,.heic,.heif,.avif,.tif,.tiff" hidden @change="onSwapMore">
+          </template>
           <label>Which faces in the picture</label>
-          <div class="seg">
-            <button :class="{on: form.swap.which === 'all'}" @click="form.swap.which = 'all'" title="Every face in the picture gets the new face">All faces</button>
-            <button :class="{on: form.swap.which === 'biggest'}" @click="form.swap.which = 'biggest'" title="Only the biggest (nearest) face">The main face</button>
+          <div class="seg seg-wrap">
+            <button :class="{on: form.swap.which === 'all'}" @click="swapWhich('all')" title="Every face in the picture gets the new face">All faces</button>
+            <button :class="{on: form.swap.which === 'biggest'}" @click="swapWhich('biggest')" title="Only the biggest (nearest) face">The main face</button>
+            <button :class="{on: form.swap.which === 'pick'}" @click="swapWhich('pick')" title="Find the faces, then click the ones to change">👆 Pick faces</button>
+            <button :class="{on: form.swap.which === 'mark'}" @click="swapWhich('mark')" title="For faces the finder misses (a creature, a cartoon, a statue, a face in profile): click its eyes, nose and mouth corners">✚ Mark by hand</button>
+          </div>
+          <div v-if="(form.swap.which === 'pick' || form.swap.which === 'mark') && form.init_image" class="swap-picker">
+            <div class="swap-stage" :class="{marking: form.swap.which === 'mark'}" @click="swapMarkClick">
+              <img :src="fileUrl(form.init_image)" alt="The picture" @load="onSwapImgLoad" draggable="false">
+              <template v-if="form.swap.which === 'pick' && swapView.found && swapView.for === form.init_image">
+                <button v-for="(fc, i) in swapView.found" :key="'sf' + i" class="swap-box" :class="{on: form.swap.picks.includes(i)}"
+                        :style="{left: fc.box[0] * 100 + '%', top: fc.box[1] * 100 + '%', width: (fc.box[2] - fc.box[0]) * 100 + '%', height: (fc.box[3] - fc.box[1]) * 100 + '%'}"
+                        @click.stop="swapTogglePick(i)" :title="form.swap.picks.includes(i) ? 'This face will change (click to leave it)' : 'Click to change this face'">{{ i + 1 }}</button>
+              </template>
+              <template v-if="form.swap.which === 'mark'">
+                <template v-for="(m, k) in form.swap.marks" :key="'sm' + k">
+                  <i v-for="(pt, j) in m" :key="'smp' + k + j" class="swap-dot done" :style="{left: pt[0] * 100 + '%', top: pt[1] * 100 + '%'}"></i>
+                  <b class="swap-dot-n" :style="{left: m[2][0] * 100 + '%', top: m[2][1] * 100 + '%'}">{{ k + 1 }}</b>
+                </template>
+                <i v-for="(pt, j) in swapView.cur" :key="'sc' + j" class="swap-dot" :style="{left: pt[0] * 100 + '%', top: pt[1] * 100 + '%'}"></i>
+              </template>
+            </div>
+            <div v-if="form.swap.which === 'pick'" class="hint">
+              <button class="ghost small" :disabled="swapView.busy" @click="swapFindFaces">{{ swapView.busy ? 'Finding…' : '🔍 Find faces' }}</button>
+              <template v-if="swapView.found && swapView.for === form.init_image"> {{ swapView.found.length ? form.swap.picks.length + ' of ' + swapView.found.length + ' picked · click a face to pick or leave it' : 'No faces found: try ✚ Mark by hand' }}</template>
+            </div>
+            <div v-else class="hint"><b>{{ swapMarkHint() }}</b> · {{ form.swap.marks.length }} face{{ form.swap.marks.length === 1 ? '' : 's' }} marked
+              <button class="link small" :disabled="!swapView.cur.length && !form.swap.marks.length" @click="swapMarkUndo">undo</button> ·
+              <button class="link small" @click="form.swap.marks = []; swapView.cur = []">clear</button>
+              <div>Works best on faces that look roughly human (eyes, nose, mouth). The new face is fitted to the points you click.</div></div>
           </div>
           <label>Detail</label>
           <div class="seg">
@@ -3225,7 +3377,7 @@
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
-      <div v-if="error" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
+      <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
       <div v-if="form.i2i_mode === 'change' && form.control.type && cnGuide" class="card cn-guide cn-guide-card">
         <div class="cn-guide-head"><h3>🎛 {{ cnGuide.title }} <span class="hint">· ControlNet guide</span></h3><span class="grow"></span>
           <button class="ghost small" @click="applyCnGuide" title="Set the strength, timing and picture settings this ControlNet works best with">Use these settings</button></div>
@@ -3521,6 +3673,12 @@
       <div class="card">
         <h3>3 · LoRA</h3>
         <div class="grid2">
+          <div v-if="!trainFastErnie && trainFamily !== 'ernie'" class="span2"><label>↻ Continue training <span class="hint">optional · train a LoRA you made further</span></label>
+            <select title="Pick a LoRA to keep training (for example a person whose likeness isn't quite there yet). It keeps what it learned and learns more from these pictures; it's saved under a new name, so the original stays." v-model="train.resume" @change="onTrainResume">
+              <option value="">No, start a new LoRA</option>
+              <option v-for="l in trainResumeList" :key="l.file" :value="l.file">{{ l.name }}</option>
+            </select>
+            <div v-if="trainResume" class="hint">Continues “{{ trainResume.name }}” with its own size and settings (Rank and What to train below don't apply). Use the base model it was trained on; 300–800 more steps is usually enough. Saved as a new LoRA.</div></div>
           <div><label>Name</label><input v-model="train.name" placeholder="my_style"></div>
           <div><label>Trigger word <span class="hint">added to every caption</span></label>
             <input v-model="train.trigger" placeholder="e.g. pxlstyle"></div>
@@ -3547,14 +3705,14 @@
           <div><label>Learning rate</label>
             <select title="Learning rate: how big each learning step is. Standard suits most; gentle for styles, fast for quick tests" v-model.number="train.lr"><option :value="0.00003">0.00003 (very gentle)</option><option :value="0.00005">0.00005 (gentle · styles)</option><option :value="0.0001">0.0001 (standard · people, objects)</option><option :value="0.0002">0.0002 (fast)</option></select></div>
           <div><label>Rank <span class="hint">detail capacity</span></label>
-            <select title="Rank: how much the LoRA can hold. Higher = more detail and a bigger file" v-model.number="train.rank"><option :value="4">4 (tiny file)</option><option :value="8">8</option><option :value="16">16 (standard)</option><option :value="32">32 (more detail)</option></select></div>
+            <select title="Rank: how much the LoRA can hold. Higher = more detail and a bigger file" :disabled="!!trainResume" v-model.number="train.rank"><option :value="4">4 (tiny file)</option><option :value="8">8</option><option :value="16">16 (standard)</option><option :value="32">32 (more detail)</option></select></div>
           <div><label>Resolution</label>
             <select title="Training picture size: the model's own size works best; bigger is slower and needs more memory" v-model.number="train.resolution">
               <option :value="512">512{{ trainFamily === 'sd15' ? ' (SD 1.5 native)' : '' }}</option><option :value="640">640</option>
               <option :value="768">768{{ trainFamily === 'sdxl' ? ' (lighter for SDXL)' : ' (slower)' }}</option>
               <option v-if="trainFamily !== 'sd15'" :value="1024">1024 ({{ trainFamily === 'ernie' ? 'ERNIE' : 'SDXL' }} native)</option></select></div>
           <div class="span2"><label>What to train</label>
-            <select title="Which parts of the model learn: attention layers (lighter) or attention + feed-forward (stronger, bigger file)" v-model="train.targets"><option value="attention">Attention layers (lighter, good for styles/characters)</option><option value="full">Attention + feed-forward (stronger, bigger file)</option></select></div>
+            <select title="Which parts of the model learn: attention layers (lighter) or attention + feed-forward (stronger, bigger file)" :disabled="!!trainResume" v-model="train.targets"><option value="attention">Attention layers (lighter, good for styles/characters)</option><option value="full">Attention + feed-forward (stronger, bigger file)</option></select></div>
         </div>
         <label class="check" title="Also train on left-right flipped copies: doubles the variety, but leave it off for text, logos or one-sided details"><input type="checkbox" v-model="train.flip"> Mirror images too (doubles variety; skip for text or one-sided subjects)</label>
         <label class="check" :class="{dim: trainFamily !== 'sd15'}"><input type="checkbox" v-model="train.train_text_encoder" :disabled="trainFamily !== 'sd15'">
@@ -4491,7 +4649,7 @@
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
-      <div v-if="error" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
+      <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
         </div>
 
         <div class="row">
@@ -4517,6 +4675,8 @@
 <script src="adjust.js"></script>
 <script src="puppet.js"></script>
 <script src="tag_dictionary.js"></script>
+<script src="gender_swap.js"></script>
+<script src="text_tool.js"></script>
 <script src="prompt_generator.js"></script>
 <script src="natural_prompt.js"></script>
 <script src="negative_prompt.js"></script>
