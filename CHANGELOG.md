@@ -1,13 +1,10 @@
 # Changelog
 
-## Next (not released yet)
+## 1.6.3
 
 - 🎛 ControlNet in Create (`form.cc`, `.cc-sec`, `ccTypes`, goal buttons `ccGoals` / `ccPick` with `CN_GUIDES` settings,
   `ccPreview` via `control_preview`): `createArgs`
   sends `control` + `control_image` (Create's own size); "Which one should I use? → Use ControlNet…" stays in Create
-
-## 1.6.3
-
 - ✨ Edit with words: one progress bar for the whole job (`phase` in `edit_words`' `on_event`: `_more` / `_next`
   add each 🙂 Keep faces pass and each camera retry to the same total), clearer Keep faces status and hint
 - 🛡 Protect from Enhance (`patch.enhProtect`, `patchProtect(on, "enhance")`, `enhProtectArgs`): `protect` mask on
