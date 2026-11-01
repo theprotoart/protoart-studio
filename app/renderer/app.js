@@ -454,6 +454,10 @@ const ADJ_FILTERS = {
     { k: "bzSize", label: "Amount", min: 0, max: 1, tip: "How far the blur spreads" },
     { k: "bzMix", label: "Strength", min: 0, max: 1, tip: "How much of the blur shows" }],
     seg: { k: "bzKind", label: "Kind", options: [[0, "Blur"], [1, "Soft focus"]] } },
+  skin: { label: "Skin texture", on: "skinOn", tip: "Real skin's pores and fine texture, for smooth, waxy-looking skin (AI faces, over-retouched photos). Switch it on, then 🖌 paint it on over the skin (not the eyes, lips or hair).", paintFirst: true, sliders: [
+    { k: "skAmount", label: "Strength", min: 0, max: 1.5 }, { k: "skSize", label: "Pore size", min: 0, max: 1 },
+    { k: "skFine", label: "Fine texture", min: 0, max: 1 }, { k: "skFreckles", label: "Freckles", min: 0, max: 1 }],
+    seg: { k: "skSeed", label: "Pattern", options: [[0, "A"], [1.7, "B"], [3.3, "C"]] } },
   grain: { label: "Film Grain", on: "grainOn", tip: "Photographic grain. Usually best last in the stack.", sliders: [
     { k: "grainAmount", label: "Intensity", min: 0, max: 1 }, { k: "grainSize", label: "Grain size", min: 0, max: 1 },
     { k: "grainSoftness", label: "Softness", min: 0, max: 1 }], toggle: { k: "grainColor", off: "Mono", on: "Color" } },
@@ -786,7 +790,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.3: 🎛 ControlNet in Create, 🔤 Replace text, ↻ keep training a LoRA, face swap picks and marks, ⚥ swap gender", items: [
+            { h: "1.6.3: 🎛 ControlNet in Create, 🧴 Skin texture brush, 🔤 Replace text, ↻ keep training a LoRA, face swap picks and marks, ⚥ swap gender", items: [
+              "<b>🧴 Skin texture brush</b> (Tools, and beside 🎚 Adjust in Image to image): brush real skin onto smooth, waxy-looking skin (AI faces, over-retouched photos): pores of different sizes, fine texture and, if you like, freckles. It opens 🎚 Adjust with the new <b>Skin texture</b> filter on and the brush ready: paint over the cheeks, forehead, nose and chin (not the eyes, lips or hair), then set Strength, Pore size, Fine texture and Freckles.",
               "<b>🎛 ControlNet</b> is now in <b>Create</b> (SD 1.5 and SDXL models), under Image prompt: pick what to follow (<b>🦴 Pose</b>, <b>✏️ Drawing</b>, <b>🖍 Scribble</b>, <b>📐 Outlines</b>, <b>〰 Soft shapes</b>, <b>🧊 Depth &amp; layout</b>), drop the picture and write your prompt: the new picture follows it from the start, with no Image to image round trip. Each button sets the recommended strength and timing; <i>Follow its</i> lists every ControlNet you have (your own ones too); <b>👁 Show what it follows</b> shows the pose skeleton, lines or depth it found.",
               "<b>🔤 Replace text</b> (Tools): swap the writing in a picture for your own. <b>1 · 🔍 Find the text</b> selects it, <b>2 · 🧽 Clear it</b> fills the background in where it was, and <b>3 · ✏️ Type</b> opens a Type tool: click the picture, type, then pick the font, size, colour (🎯 takes the old text's colour), bold, italic, alignment, outline, shadow and angle; drag the text to move it. <b>💾 Save</b> adds the picture to the Library.",
               "<b>↻ Continue training</b> (Train → 3 · LoRA): pick a LoRA you made and it keeps what it learned and learns more from your pictures, for example a person whose likeness isn't quite there yet. It's saved under a new name (…-more), so you can compare the two.",
@@ -1317,6 +1322,7 @@ const protoartApp = createApp({
               "<b>📄 Paper cut-out</b> makes the subject a torn paper sticker: <b>Border</b> width, the <b>Paper</b> (White, Cream, Kraft, Black), <b>Torn edge</b> (0 = cut with scissors), <b>Shadow</b>, <b>Print</b> (Photo, Poster = flatter colours, Mono) and what's behind it (None = see-through, Paper, its own Picture, White). It uses Cut out's model and Threshold." ] },
             { h: "🎚 Adjust: light, colour and filters", items: [
               "<b>Camera Raw panels</b>: <b>Presence &amp; effects</b> has <b>Texture</b> (fine detail like skin, fabric and leaves, without hard edges; left smooths it), <b>Clarity</b>, <b>Dehaze</b> (right takes mist and haze away, left adds a soft haze), Sharpening and Vignette. <b>Color mixer · Hue / Saturation / Luminance</b> change one colour at a time (a deeper blue sky: Blue luminance left; greener grass: Yellow hue right; greys are never changed). <b>Color grading</b> tints the shadows, midtones and highlights: drag a hue to the colour, then raise its amount (teal shadows and warm highlights is the classic film look); <b>Balance</b> moves where shadows end and highlights begin. The newer panels start folded: click a heading to open it.",
+              "<b>🧴 Skin texture</b> (a filter, or <b>🧴 Skin texture brush</b> under the picture in Tools): for smooth, plastic-looking skin. Paint it over the skin only (cheeks, forehead, nose, chin; not the eyes, lips, brows or hair). <b>Strength</b> how visible it is; <b>Pore size</b> match it to how close the face is (bigger for close-ups); <b>Fine texture</b> the small bumps between the pores; <b>Freckles</b> adds clusters of freckles; <b>Pattern</b> A / B / C gives another arrangement. It only shades the skin you painted (no new colour), mostly in the mid-tones. Use a paint layer with its own settings for a softer texture on the forehead and a stronger one on the nose.",
               "<b>Paint layers</b> (＋ new paint layer with its own settings, under a filter): open a layer to set its <b>Layer opacity</b> (how strongly it shows) and its own <b>🖌 Brush size</b> and <b>strength</b>: each layer remembers its own brush, so a big soft brush for the sky and a small one for a lantern.",
               "<b>🔒 Lock this order</b> (next to Filters): once the filters are in an order you like, lock it: every picture, look, preset and ↺ reset keeps that order, and ▲ ▼ are off until you press 🔒 again.",
               "<b>↶ Undo / ↷ Redo</b> (⌘Z / ⇧⌘Z, or the buttons at the top of Adjust): each brush stroke, Clear paint, slider move, look, filter and point can be taken back. While you paint, a <b>ring</b> shows the brush size under the pointer; it also shows while you move the Size slider or press [ ].",
@@ -9068,6 +9074,14 @@ const protoartApp = createApp({
     },
     // -------------------------------------------------------------- Adjust: sliders and filters on the GPU
     // Adjust lives in the Tools tab: the picture on the left becomes the live preview, the controls are a card on the right.
+    async openSkinTexture(r) {  // 🧴 Skin texture brush: Adjust, with the Skin texture filter on and the brush ready
+      await this.openAdjust(r);
+      for (let i = 0; i < 40 && !(this.adj.open && this.adj.p); i++) await new Promise((ok) => setTimeout(ok, 50));
+      if (!this.adj.p) return;
+      if (!this.adj.p.skinOn) this.adjToggleFilter("skin");
+      else { this.adj.openFilter = "skin"; this.adj.pointTarget = "skin"; if (this.adj.paintMode !== "paint") this.adjPaintToggle("paint"); }
+      this.$nextTick(() => document.querySelector("#adjust-card")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    },
     async openAdjust(r, keepSettings = false) {
       if (this.pw.open) this.closePuppet();
       if (this.cut.open) this.closeCutout();
@@ -9730,6 +9744,10 @@ const protoartApp = createApp({
       this.adj.p[f.on] = !this.adj.p[f.on];
       this.adj.openFilter = this.adj.p[f.on] ? id : (this.adj.openFilter === id ? "" : this.adj.openFilter);
       if (this.adj.p[f.on]) { this.adj.pointTarget = id; this.adj.pointSel = -1; }  // ◎ Add now puts points for this filter
+      if (this.adj.p[f.on] && f.paintFirst && !this.adjHasPaint(id) && !this.adjPointCount(id)) {
+        this.adjPaintToggle("paint");  // 🧴 Skin texture: brushed on where the skin is, not on the whole picture
+        this.status = "Skin texture: paint over the skin (cheeks, forehead, nose, chin), not the eyes, lips or hair";
+      }
       else if (this.adj.pointTarget === id) { this.adj.pointTarget = "base"; this.adj.pointSel = -1; }
     },
     adjMove(id, dir) {

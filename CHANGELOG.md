@@ -2,6 +2,9 @@
 
 ## 1.6.3
 
+- 🧴 Skin texture: an Adjust filter (`skin` shader: seeded procedural pores of varying size and depth, fine bumps, optional
+  freckle clusters; mid-tone weighted, shading only) that starts in paint mode (`paintFirst`); 🧴 Skin texture brush
+  buttons in Tools and Image to image (`openSkinTexture`)
 - 🔁 Face swap ✚ Mark by hand in steps (eyes → nose → mouth, ✓ Done / Skip; click or paint: a stroke's middle, or a mouth stroke's ends, become the points), draggable markers, missing points filled
   in from ArcFace template proportions (`swapFivePoints`); marks are `{eyes, nose, mouth}`
 - 🎛 ControlNet in Create (`form.cc`, `.cc-sec`, `ccTypes`, goal buttons `ccGoals` / `ccPick` with `CN_GUIDES` settings,

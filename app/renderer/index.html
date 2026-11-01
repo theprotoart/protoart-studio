@@ -1632,6 +1632,8 @@
       <div v-if="tool.source && !adj.open && !pw.open" class="row adjust-open-row">
         <button class="adjust-big" @click="openAdjust(tool.source.image_id != null ? {id: tool.source.image_id, path: tool.source.path} : {path: tool.source.path})"
                 title="Lightroom-style light and colour sliders and Color Efex-style filters, with a live preview">🎚 Adjust the original</button>
+        <button class="adjust-big" @click="openSkinTexture(tool.latest && !tool.working ? tool.latest : (tool.source.image_id != null ? {id: tool.source.image_id, path: tool.source.path} : {path: tool.source.path}))"
+                title="Brush real skin texture (pores, fine texture, freckles) onto smooth, waxy-looking skin. Opens Adjust with 🧴 Skin texture on, ready to paint">🧴 Skin texture brush</button>
         <button class="adjust-big" @click="openPuppet(tool.source.image_id != null ? {id: tool.source.image_id, path: tool.source.path} : {path: tool.source.path})"
                 title="Like Photoshop's Puppet Warp: put pins on the picture and drag them to bend a pose, an arm, a tail…">🪡 Puppet warp</button>
         <button class="adjust-big" @click="useAsStart(tool.source)" title="Open this picture in Image to image as the starting picture">🖼 Send to Image to image</button>
@@ -3526,6 +3528,7 @@
         <div v-if="i2iLatest && !i2iRunning" class="row">
           <button class="ghost" @click="useAsStart(i2iLatest)">Use the result as the new picture</button>
           <button class="ghost" @click="openAdjust(i2iLatest)">🎚 Adjust</button>
+          <button class="ghost" @click="openSkinTexture(i2iLatest)" title="Brush real skin texture onto smooth, waxy-looking skin (opens it in Tools)">🧴 Skin texture</button>
           <button class="ghost" @click="editIn(i2iLatest)">✏️ Edit in {{ editorName() }}</button>
           <button class="ghost" @click="showInFolder(i2iLatest.path)">Show in Finder</button>
         </div>

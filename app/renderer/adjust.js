@@ -8,7 +8,7 @@
 (function () {
   "use strict";
 
-  const FILTER_ORDER = ["extract", "dark", "bleach", "glow", "bloom", "blur", "grain"];
+  const FILTER_ORDER = ["extract", "dark", "bleach", "glow", "bloom", "blur", "skin", "grain"];
   // Camera Raw's Color Mixer (HSL): the eight colour bands, centred at these hues (degrees)
   const MIX_HUES = ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"];
 
@@ -25,6 +25,7 @@
       glowOn: false, ggGlow: 0.5, ggSaturation: 0, ggWarmth: 0,
       bloomOn: false, blAmount: 0.6, blTransition: 0.4, blSize: 0.4, blBurn: 0,
       blurOn: false, bzSize: 0.3, bzMix: 1, bzKind: 0,
+      skinOn: false, skAmount: 0.5, skSize: 0.35, skFine: 0.5, skFreckles: 0, skSeed: 0,
       grainOn: false, grainAmount: 0.5, grainSize: 0.3, grainSoftness: 0.3, grainColor: false,
       order: FILTER_ORDER.slice(),
     };
@@ -290,6 +291,48 @@ void main() {
   float v = smoothstep(0.35, 1.05, r);
   c = amount >= 0.0 ? c * (1.0 - amount * 0.85 * v) : mix(c, vec3(1.0), -amount * 0.7 * v);
   o = vec4(c, 1.0);
+}`,
+    // 🧴 Skin texture: pores (cellular noise: soft dark dots), fine bumpy texture and optional freckles, drawn on
+    // the GPU from the pixel position, so the preview and the full-size picture get the same pattern. It only
+    // shades the picture (no new colours), most in the mid-tones, so it sits in the skin instead of on top of it.
+    skin: `uniform float amount, cell, fine, freckles, seed; uniform vec2 res;
+vec2 hash2(vec2 p) { p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3))); return fract(sin(p + seed) * 43758.5453); }
+float hash1(vec2 p) { return fract(sin(dot(p, vec2(41.7, 289.3)) + seed) * 24634.6345); }
+// a pore: each cell may hold one (not all do), of its own size and depth, at a random spot in the cell
+float pore(vec2 x, float keep) {
+  vec2 i = floor(x), f = fract(x); float best = 0.0;
+  for (int y = -1; y <= 1; y++) for (int k = -1; k <= 1; k++) {
+    vec2 g = vec2(float(k), float(y)), id = i + g;
+    float h = hash1(id + 7.3);
+    if (h > keep) continue;
+    vec2 r = g + hash2(id) - f;
+    float rad = 0.12 + 0.16 * hash1(id + 3.1), depth = 0.5 + 0.5 * hash1(id + 5.7);
+    best = max(best, depth * (1.0 - smoothstep(rad * 0.25, rad, length(r))));
+  }
+  return best;
+}
+float vnoise(vec2 x) {
+  vec2 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash1(i), hash1(i + vec2(1, 0)), f.x), mix(hash1(i + vec2(0, 1)), hash1(i + vec2(1, 1)), f.x), f.y);
+}
+void main() {
+  vec3 c = texture(img, uv).rgb;
+  vec2 px = uv * res;
+  float dens = 0.35 + 0.35 * vnoise(px / (cell * 12.0) + 5.0);                         // denser here, sparser there
+  float pores = pore(px / cell, dens) + 0.6 * pore(px / (cell * 1.8) + 13.0, dens * 0.5);
+  float bumps = (vnoise(px / (cell * 0.6)) - 0.5) + 0.5 * (vnoise(px / (cell * 0.3) + 9.0) - 0.5)
+              + 0.6 * (vnoise(px / (cell * 2.5) + 21.0) - 0.5);                          // fine grain + soft unevenness
+  float L = luma(c);
+  float mid = smoothstep(0.04, 0.3, L) * (1.0 - smoothstep(0.9, 1.0, L));             // not in black or blown highlights
+  float t = (-0.3 * pores + fine * 0.22 * bumps) * amount * mid;
+  float lit = smoothstep(0.45, 0.85, L);                                                // on lit skin, pores catch a tiny highlight
+  c = c * (1.0 + t) + vec3(0.025 * fine * max(0.0, bumps) * amount * mid * lit);
+  if (freckles > 0.0) {
+    float cluster = smoothstep(0.4, 0.75, vnoise(px / (cell * 40.0) + 3.0));            // freckles come in clusters
+    float spot = pore(px / (cell * 3.0) + 41.0, 0.3 + 0.4 * cluster);
+    c = mix(c, c * vec3(0.82, 0.66, 0.52), spot * freckles * 0.75 * mid);
+  }
+  o = vec4(max(c, 0.0), 1.0);
 }`,
     grain: `uniform sampler2D noise; uniform float amount; uniform bool colorGrain;
 void main() {
@@ -648,6 +691,10 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
           const bl = this._blur(cur, (0.5 + 40 * Math.pow(Math.min(1, Math.max(0, p.bzSize)), 1.6)) * unit);
           swap(this._step(cur, "blurMix", { amount: Math.min(1, Math.max(0, p.bzMix)), soft: (p.bzKind | 0) === 1 }, { blurred: bl }));
           this._release(bl);
+        } else if (id === "skin" && p.skinOn && p.skAmount > 0) {
+          swap(this._step(cur, "skin", { amount: Math.min(1.5, p.skAmount), cell: (1.2 + 5.5 * Math.min(1, Math.max(0, p.skSize))) * unit,
+                                         fine: Math.min(1, Math.max(0, p.skFine)), freckles: Math.min(1, Math.max(0, p.skFreckles)),
+                                         seed: Number(p.skSeed) || 0, res: [cur.w, cur.h] }));
         } else if (id === "grain" && p.grainOn) {
           const g = this._grainTexture(cur.w, cur.h, p);
           swap(this._step(cur, "grain", { amount: 0.7 * p.grainAmount, colorGrain: !!p.grainColor }, { noise: g.blurred || g.tex }));
@@ -656,7 +703,7 @@ void main() { o = vec4(clamp(texture(img, flipY ? vec2(uv.x, 1.0 - uv.y) : uv).r
         }
       };
       for (const id of fullOrder(p.order)) {
-        const on = { extract: p.extractOn, dark: p.darkOn, bleach: p.bleachOn, glow: p.glowOn, bloom: p.bloomOn, blur: p.blurOn, grain: p.grainOn }[id];
+        const on = { extract: p.extractOn, dark: p.darkOn, bleach: p.bleachOn, glow: p.glowOn, bloom: p.bloomOn, blur: p.blurOn, skin: p.skinOn, grain: p.grainOn }[id];
         if (on) withLayers(id, (P) => runFilter(id, P));
       }
       return cur;
