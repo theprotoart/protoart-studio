@@ -2520,3 +2520,14 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .enh-module .enh-protect { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0; }
 
 .cc-goals { margin: 4px 0 8px; }
+
+.swap-dot { pointer-events: auto; cursor: grab; width: 12px; height: 12px; margin: -6px 0 0 -6px; }
+.swap-dot.eye { background: #5ab0ff; } .swap-dot.nose { background: #ffb52e; } .swap-dot.mouth { background: #ff6b8a; }
+.swap-dot.done { box-shadow: 0 0 0 2px rgba(255,255,255,.85); }
+.swap-dot.guess { background: transparent; border: 2px dashed rgba(255,255,255,.8); pointer-events: none; }
+.swap-steps-row { display: flex; gap: 6px; margin: 6px 0 2px; flex-wrap: wrap; }
+.swap-step { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: rgba(255,255,255,.06); opacity: .6; }
+.swap-step.on { background: rgba(255,181,46,.22); color: #ffcf7a; opacity: 1; font-weight: 700; }
+.swap-step.done { opacity: .9; }
+.swap-step.done::before { content: "✓ "; }
+.swap-step-btns { gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0; }

@@ -2982,7 +2982,7 @@
           </div>
           <div v-if="(form.swap.which === 'pick' || form.swap.which === 'mark') && form.init_image" class="swap-picker">
             <div class="swap-stage" :class="{marking: form.swap.which === 'mark'}" @click="swapMarkClick">
-              <img :src="fileUrl(form.init_image)" alt="The picture" @load="onSwapImgLoad" draggable="false">
+              <img ref="swapImg" :src="fileUrl(form.init_image)" alt="The picture" @load="onSwapImgLoad" draggable="false">
               <template v-if="form.swap.which === 'pick' && swapView.found && swapView.for === form.init_image">
                 <button v-for="(fc, i) in swapView.found" :key="'sf' + i" class="swap-box" :class="{on: form.swap.picks.includes(i)}"
                         :style="{left: fc.box[0] * 100 + '%', top: fc.box[1] * 100 + '%', width: (fc.box[2] - fc.box[0]) * 100 + '%', height: (fc.box[3] - fc.box[1]) * 100 + '%'}"
@@ -2990,20 +2990,35 @@
               </template>
               <template v-if="form.swap.which === 'mark'">
                 <template v-for="(m, k) in form.swap.marks" :key="'sm' + k">
-                  <i v-for="(pt, j) in m" :key="'smp' + k + j" class="swap-dot done" :style="{left: pt[0] * 100 + '%', top: pt[1] * 100 + '%'}"></i>
-                  <b class="swap-dot-n" :style="{left: m[2][0] * 100 + '%', top: m[2][1] * 100 + '%'}">{{ k + 1 }}</b>
+                  <i v-for="(pt, j) in swapMarkGuess(k)" :key="'sg' + k + j" class="swap-dot guess" :style="{left: pt[0] * 100 + '%', top: pt[1] * 100 + '%'}"
+                     title="Filled in from the face's usual proportions (mark it for a better fit)"></i>
                 </template>
-                <i v-for="(pt, j) in swapView.cur" :key="'sc' + j" class="swap-dot" :style="{left: pt[0] * 100 + '%', top: pt[1] * 100 + '%'}"></i>
+                <i v-for="d in swapMarkDots()" :key="'sd' + d.owner + d.key + d.j" class="swap-dot" :class="[d.kind, {done: d.owner !== 'cur'}]"
+                   :style="{left: d.p[0] * 100 + '%', top: d.p[1] * 100 + '%'}" @pointerdown.stop="swapDotDown($event, d)" @click.stop
+                   :title="{eye: 'Eye', nose: 'Nose', mouth: 'Mouth'}[d.kind] + (d.owner === 'cur' ? '' : ' · face ' + (d.owner + 1)) + ' · drag to adjust'"></i>
               </template>
             </div>
             <div v-if="form.swap.which === 'pick'" class="hint">
               <button class="ghost small" :disabled="swapView.busy" @click="swapFindFaces">{{ swapView.busy ? 'Finding…' : '🔍 Find faces' }}</button>
               <template v-if="swapView.found && swapView.for === form.init_image"> {{ swapView.found.length ? form.swap.picks.length + ' of ' + swapView.found.length + ' picked · click a face to pick or leave it' : 'No faces found: try ✚ Mark by hand' }}</template>
             </div>
-            <div v-else class="hint"><b>{{ swapMarkHint() }}</b> · {{ form.swap.marks.length }} face{{ form.swap.marks.length === 1 ? '' : 's' }} marked
-              <button class="link small" :disabled="!swapView.cur.length && !form.swap.marks.length" @click="swapMarkUndo">undo</button> ·
-              <button class="link small" @click="form.swap.marks = []; swapView.cur = []">clear</button>
-              <div>Works best on faces that look roughly human (eyes, nose, mouth). The new face is fitted to the points you click.</div></div>
+            <div v-else class="swap-mark-steps">
+              <div v-if="swapView.cur" class="swap-steps-row">
+                <span v-for="st in [['eyes', '1 · 👀 Eyes'], ['nose', '2 · 👃 Nose'], ['mouth', '3 · 👄 Mouth']]" :key="st[0]" class="swap-step"
+                      :class="{on: swapView.cur.step === st[0], done: ['eyes', 'nose', 'mouth'].indexOf(st[0]) < ['eyes', 'nose', 'mouth'].indexOf(swapView.cur.step)}">{{ st[1] }}</span>
+              </div>
+              <div class="hint"><b>{{ swapMarkHint() }}</b></div>
+              <div class="row swap-step-btns">
+                <template v-if="swapView.cur">
+                  <button class="primary small" :disabled="!swapMarkCanDone()" @click="swapMarkNext(false)">✓ Done</button>
+                  <button class="ghost small" @click="swapMarkNext(true)" title="This face has none: it's filled in from the other features">Skip</button>
+                </template>
+                <button v-else class="ghost small" @click="swapMarkStart" title="Mark another face in the picture">＋ Mark another face</button>
+                <button class="link small" :disabled="!swapView.cur && !form.swap.marks.length" @click="swapMarkBack">↶ undo</button>
+                <button class="link small" @click="form.swap.marks = []; swapMarkStart()">clear</button>
+                <span class="hint">{{ form.swap.marks.length }} face{{ form.swap.marks.length === 1 ? '' : 's' }} marked</span>
+              </div>
+              <div class="hint">Drag any marker to adjust it. A face needs both eyes, or the nose and the mouth; what you skip is filled in (hollow markers). Works best on faces shaped roughly like a person's.</div></div>
           </div>
           <label>Detail</label>
           <div class="seg">
