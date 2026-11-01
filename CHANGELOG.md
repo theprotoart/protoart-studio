@@ -2,7 +2,7 @@
 
 ## 1.6.3
 
-- 🔁 Face swap ✚ Mark by hand in steps (eyes → nose → mouth, ✓ Done / Skip), draggable markers, missing points filled
+- 🔁 Face swap ✚ Mark by hand in steps (eyes → nose → mouth, ✓ Done / Skip; click or paint: a stroke's middle, or a mouth stroke's ends, become the points), draggable markers, missing points filled
   in from ArcFace template proportions (`swapFivePoints`); marks are `{eyes, nose, mouth}`
 - 🎛 ControlNet in Create (`form.cc`, `.cc-sec`, `ccTypes`, goal buttons `ccGoals` / `ccPick` with `CN_GUIDES` settings,
   `ccPreview` via `control_preview`): `createArgs`

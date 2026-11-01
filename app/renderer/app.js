@@ -687,7 +687,7 @@ const protoartApp = createApp({
       chain: { steps: loadJSON("protoart.chain", []).map((x) => ({ lora: "", lora_weight: 1, extra: "", ...x, result: "", q: "" })),
                running: false, stopped: false, at: -1, done: 0 },  // 🔗 Model chain
       swapOver: false,
-      swapView: { found: null, for: "", w: 0, h: 0, cur: null, busy: false },  // cur: the face being marked {step, eyes, nose, mouth}  // 🔁 the faces found / being marked
+      swapView: { found: null, for: "", w: 0, h: 0, cur: null, busy: false, stroke: null },  // cur: the face being marked {step, eyes, nose, mouth}  // 🔁 the faces found / being marked
       promptBox: null,       // the 📒 My prompts window: {name} = saving, {name: null} = managing
       undoNegative: null,
       lastAutoNegative: "",
@@ -790,7 +790,7 @@ const protoartApp = createApp({
               "<b>🎛 ControlNet</b> is now in <b>Create</b> (SD 1.5 and SDXL models), under Image prompt: pick what to follow (<b>🦴 Pose</b>, <b>✏️ Drawing</b>, <b>🖍 Scribble</b>, <b>📐 Outlines</b>, <b>〰 Soft shapes</b>, <b>🧊 Depth &amp; layout</b>), drop the picture and write your prompt: the new picture follows it from the start, with no Image to image round trip. Each button sets the recommended strength and timing; <i>Follow its</i> lists every ControlNet you have (your own ones too); <b>👁 Show what it follows</b> shows the pose skeleton, lines or depth it found.",
               "<b>🔤 Replace text</b> (Tools): swap the writing in a picture for your own. <b>1 · 🔍 Find the text</b> selects it, <b>2 · 🧽 Clear it</b> fills the background in where it was, and <b>3 · ✏️ Type</b> opens a Type tool: click the picture, type, then pick the font, size, colour (🎯 takes the old text's colour), bold, italic, alignment, outline, shadow and angle; drag the text to move it. <b>💾 Save</b> adds the picture to the Library.",
               "<b>↻ Continue training</b> (Train → 3 · LoRA): pick a LoRA you made and it keeps what it learned and learns more from your pictures, for example a person whose likeness isn't quite there yet. It's saved under a new name (…-more), so you can compare the two.",
-              "<b>🔁 Face swap</b>: add up to 4 <b>more photos of the same person</b> for a steadier likeness; <b>👆 Pick faces</b> finds the faces in the picture so you click the ones to change; <b>✚ Mark by hand</b> places a face the finder misses (a creature, a cartoon, a statue) step by step: eyes, nose, mouth, each with ✓ Done or Skip, and every marker can be dragged to adjust it.",
+              "<b>🔁 Face swap</b>: add up to 4 <b>more photos of the same person</b> for a steadier likeness; <b>👆 Pick faces</b> finds the faces in the picture so you click the ones to change; <b>✚ Mark by hand</b> places a face the finder misses (a creature, a cartoon, a statue) step by step: eyes, nose, mouth (click each, or paint over it with the brush), each with ✓ Done or Skip, and every marker can be dragged to adjust it.",
               "<b>🛡 Protect from Enhance</b> (in the ✨ Enhance module): paint over faces, hands or a logo and Enhance leaves them as they were (only upscaled, blended in softly), on its own and in the 🔌 patchbay, while the other modules (Restore faces…) still work on them.",
               "<b>🎚 Adjust gets more of Camera Raw</b>: <b>Dehaze</b> and <b>Texture</b> (in Presence &amp; effects), the <b>Color mixer</b> (hue, saturation and luminance of reds, oranges, yellows, greens, aquas, blues, purples and magentas) and <b>Color grading</b> (tint the shadows, midtones and highlights, with Balance). Each paint layer under a filter now has its own <b>Layer opacity</b>, and its own <b>brush size and strength</b> right in the layer.",
               "<b>⚥ Swap gender</b> (beside the prompt tools): turns the prompt's women into men and men into women, in sentences and in tags (1girl ↔ 1boy, her ↔ his). Undo puts it back.",
@@ -1177,7 +1177,7 @@ const protoartApp = createApp({
         { id: "i2i", go: "i2i", icon: "🖼", title: "Image to image", summary: "Change a picture, or follow its structure with ControlNet",
           sections: [
             { h: "🔁 Face swap, 🔗 model chain, Union ProMax", items: [
-              "<b>🔁 Face swap</b>: put the picture to change in 1 · Picture, pick 🔁 Face swap, drop a clear front-facing photo of the face to use, choose <i>All faces</i>, <i>The main face</i>, <i>👆 Pick faces</i> (🔍 Find faces, then click the ones to change) or <i>✚ Mark by hand</i> (for a face the finder misses, in three steps: <b>1 · Eyes</b> click both eyes → ✓ Done; <b>2 · Nose</b> click its tip; <b>3 · Mouth</b> click its two corners (or just its middle) → ✓ Done. A face without one of them? Press <b>Skip</b>: it's filled in from the others (shown as hollow markers); a face needs both eyes, or the nose and the mouth. Drag any marker to adjust it; ＋ Mark another face for more), and tick that you have permission. <b>More photos of the same person</b> (up to 4, different angles and light) give a steadier likeness: they're averaged with the first photo. <i>Sharper (256 px)</i> is for big, close-up faces. <i>Tidy the new face</i> runs CodeFormer (fidelity 0.7, blended 60%). ~460 MB the first time. The swap model (inswapper_128) is for non-commercial use only; every result is checked and explicit results aren't saved.",
+              "<b>🔁 Face swap</b>: put the picture to change in 1 · Picture, pick 🔁 Face swap, drop a clear front-facing photo of the face to use, choose <i>All faces</i>, <i>The main face</i>, <i>👆 Pick faces</i> (🔍 Find faces, then click the ones to change) or <i>✚ Mark by hand</i> (for a face the finder misses, in three steps: <b>1 · Eyes</b> click (or paint over) each eye → ✓ Done; <b>2 · Nose</b> click or paint its tip; <b>3 · Mouth</b> click its two corners, or paint along it from corner to corner → ✓ Done. A face without one of them? Press <b>Skip</b>: it's filled in from the others (shown as hollow markers); a face needs both eyes, or the nose and the mouth. Drag any marker to adjust it; ＋ Mark another face for more), and tick that you have permission. <b>More photos of the same person</b> (up to 4, different angles and light) give a steadier likeness: they're averaged with the first photo. <i>Sharper (256 px)</i> is for big, close-up faces. <i>Tidy the new face</i> runs CodeFormer (fidelity 0.7, blended 60%). ~460 MB the first time. The swap model (inswapper_128) is for non-commercial use only; every result is checked and explicit results aren't saved.",
               "<b>🔗 Model chain</b> (🔄 Change it): ＋ Add a model for each step, set how much each may change (0.3–0.5 keeps the picture), write the prompt, and press ▶ Run chain. Each model redraws the last one's result: e.g. an SD 1.5 picture → SDXL for detail → FLUX.1 Schnell or ERNIE for the finish. Each step has its own <b>LoRA</b> (only ones made for that step's model type are listed) and <b>extra words</b> (picking a LoRA adds its trigger words): e.g. step 1 SD 1.5 with your character LoRA, step 2 FLUX.1 to finish it. ↑ ↓ reorder the steps; each step's result appears beside it (click it to start from that picture). Each step's picture is kept in the Library.",
               "<b>ControlNet Union ProMax</b> (SDXL models): in 2 · ControlNet pick a <i>Union ProMax</i> type (Canny, Depth, OpenPose, Line art, Scribble, Soft edges, Tile). One ~2.5 GB download covers them all. On 8 GB use 768–1024 px.",
               "<b>Which one should I use?</b> The same person in different pictures → Image prompt · <b>Face</b> (a close-up photo). A picture's style, outfit or colours → Image prompt · <b>Stronger</b>. A pose, drawing, silhouette or layout → <b>ControlNet</b> (OpenPose for poses, Line art or Scribble for drawings, Canny or Depth for shapes). They combine: Face + an OpenPose ControlNet keeps the person and copies the pose.",
@@ -8231,22 +8231,52 @@ const protoartApp = createApp({
     // ✚ Mark by hand, step by step: 1 the eyes, 2 the nose, 3 the mouth (each: Done, or Skip when it has none);
     // the markers can be dragged afterwards. The 5 points the swapper needs are filled in from what was marked.
     swapMarkStart() {
-      this.swapView.cur = { step: "eyes", eyes: [], nose: [], mouth: [] };
+      this.swapView.cur = { step: "eyes", eyes: [], nose: [], mouth: [], paint: [] };
+    },
+    swapMarkDown(e) {  // click a feature, or paint over it with the brush (each stroke becomes its point)
+      if (this.form.swap.which !== "mark" || !this.swapView.cur || !this.$refs.swapImg || e.button) return;
+      e.preventDefault();
+      const c = this.swapView.cur, stroke = { step: c.step, pts: [this.swapMarkPoint(e)] };
+      this.swapView.stroke = stroke;
+      const live = this.swapView.stroke;  // (the reactive copy, so the paint shows while you drag)
+      const move = (ev) => { live.pts.push(this.swapMarkPoint(ev)); };
+      const up = () => {
+        window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+        this.swapView.stroke = null;
+        this.swapMarkStroke(live);
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    },
+    swapMarkStroke(st) {
+      const c = this.swapView.cur;
+      if (!c || c.step !== st.step) return;
+      const xs = st.pts.map((p) => p[0]), ys = st.pts.map((p) => p[1]);
+      const big = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) > 0.012;
+      if (!big) return this.swapMarkAdd(st.pts[0]);  // a click
+      c.paint.push(st);
+      if (c.step === "mouth") {  // painted along the mouth: its two ends are the corners
+        const l = st.pts.reduce((a, b) => (b[0] < a[0] ? b : a)), r = st.pts.reduce((a, b) => (b[0] > a[0] ? b : a));
+        c.mouth = [l, r];
+        return;
+      }
+      const n = st.pts.length;  // painted over an eye or the nose: the middle of the paint
+      this.swapMarkAdd([xs.reduce((a, b) => a + b, 0) / n, ys.reduce((a, b) => a + b, 0) / n]);
+    },
+    swapMarkAdd(pt) {
+      const c = this.swapView.cur;
+      const max = { eyes: 2, nose: 1, mouth: 2 }[c.step];
+      const list = c[c.step];
+      if (list.length >= max) list.shift();  // one more moves the older one
+      list.push(pt);
+      if (c.step === "nose" && list.length === 1) this.swapMarkNext();  // one is all the nose needs
+    },
+    swapStrokePath(st) {
+      return st.pts.map((p, i) => (i ? "L" : "M") + (p[0] * 1000).toFixed(1) + " " + (p[1] * 1000).toFixed(1)).join(" ");
     },
     swapMarkPoint(e) {  // the click as 0..1 of the picture
       const r = this.$refs.swapImg.getBoundingClientRect();
       return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
-    },
-    swapMarkClick(e) {
-      if (this.form.swap.which !== "mark" || !this.$refs.swapImg) return;
-      if (this._swapDragged) { this._swapDragged = false; return; }
-      const c = this.swapView.cur;
-      if (!c) return;
-      const max = { eyes: 2, nose: 1, mouth: 2 }[c.step];
-      const list = c[c.step];
-      if (list.length >= max) list.shift();  // a third click on the eyes moves the older one
-      list.push(this.swapMarkPoint(e));
-      if (c.step === "nose" && list.length === 1) this.swapMarkNext();  // one click is all the nose needs
     },
     swapMarkCanDone() {
       const c = this.swapView.cur;
@@ -8255,7 +8285,7 @@ const protoartApp = createApp({
     swapMarkNext(skip) {  // Done / Skip: on to the next feature; after the mouth the face is saved
       const c = this.swapView.cur;
       if (!c) return;
-      if (skip) c[c.step] = [];
+      if (skip) { c[c.step] = []; c.paint = c.paint.filter((x) => x.step !== c.step); }
       if (c.step !== "mouth") { c.step = c.step === "eyes" ? "nose" : "mouth"; return; }
       const face = { eyes: c.eyes.length === 2 ? c.eyes : null, nose: c.nose[0] || null, mouth: c.mouth.length ? c.mouth : null };
       if (!swapFivePoints(face, 1, 1)) {
@@ -8277,9 +8307,9 @@ const protoartApp = createApp({
     swapMarkHint() {
       const c = this.swapView.cur;
       if (!c) return this.form.swap.marks.length ? "Drag a marker to adjust it" : "";
-      return { eyes: `Step 1 of 3 · Eyes: click both eyes (${c.eyes.length}/2), then Done. No eyes? Skip`,
-               nose: "Step 2 of 3 · Nose: click the tip of the nose. No nose? Skip",
-               mouth: `Step 3 of 3 · Mouth: click its two corners (or just its middle), then Done. No mouth? Skip` }[c.step];
+      return { eyes: `Step 1 of 3 · Eyes: click (or paint over) each eye (${c.eyes.length}/2), then Done. No eyes? Skip`,
+               nose: "Step 2 of 3 · Nose: click (or paint over) the tip of the nose. No nose? Skip",
+               mouth: `Step 3 of 3 · Mouth: click its two corners, or paint along it from corner to corner, then Done. No mouth? Skip` }[c.step];
     },
     swapMarkDots() {  // every marker on the picture: [x, y, kind, owner] (owner: a face's index or "cur")
       const out = [];

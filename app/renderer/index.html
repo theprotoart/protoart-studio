@@ -2981,7 +2981,7 @@
             <button :class="{on: form.swap.which === 'mark'}" @click="swapWhich('mark')" title="For faces the finder misses (a creature, a cartoon, a statue, a face in profile): click its eyes, nose and mouth corners">✚ Mark by hand</button>
           </div>
           <div v-if="(form.swap.which === 'pick' || form.swap.which === 'mark') && form.init_image" class="swap-picker">
-            <div class="swap-stage" :class="{marking: form.swap.which === 'mark'}" @click="swapMarkClick">
+            <div class="swap-stage" :class="{marking: form.swap.which === 'mark'}" @pointerdown="swapMarkDown">
               <img ref="swapImg" :src="fileUrl(form.init_image)" alt="The picture" @load="onSwapImgLoad" draggable="false">
               <template v-if="form.swap.which === 'pick' && swapView.found && swapView.for === form.init_image">
                 <button v-for="(fc, i) in swapView.found" :key="'sf' + i" class="swap-box" :class="{on: form.swap.picks.includes(i)}"
@@ -2989,6 +2989,10 @@
                         @click.stop="swapTogglePick(i)" :title="form.swap.picks.includes(i) ? 'This face will change (click to leave it)' : 'Click to change this face'">{{ i + 1 }}</button>
               </template>
               <template v-if="form.swap.which === 'mark'">
+                <svg class="swap-paint" viewBox="0 0 1000 1000" preserveAspectRatio="none">
+                  <path v-for="(st, i) in [...((swapView.cur && swapView.cur.paint) || []), ...(swapView.stroke ? [swapView.stroke] : [])]" :key="'sp' + i"
+                        :d="swapStrokePath(st)" :class="'swap-paint-' + st.step" vector-effect="non-scaling-stroke"></path>
+                </svg>
                 <template v-for="(m, k) in form.swap.marks" :key="'sm' + k">
                   <i v-for="(pt, j) in swapMarkGuess(k)" :key="'sg' + k + j" class="swap-dot guess" :style="{left: pt[0] * 100 + '%', top: pt[1] * 100 + '%'}"
                      title="Filled in from the face's usual proportions (mark it for a better fit)"></i>
