@@ -4032,10 +4032,20 @@ class Engine:
             out = tmp / f"edit_out_{os.getpid()}.png"
             self.emit({"type": "status", "msg": "Editing with FLUX.2 Klein (fast engine)…"})
             face_files = []
+            # one progress bar for the whole job: a retry or a 🙂 Keep faces pass adds its steps to the same bar
+            # (each pass used to start the bar and the time left again, which looked like it was stuck)
+            phase = {"done": 0, "total": steps}
 
             def on_event(ev):
+                if ev.get("type") == "_more":
+                    phase["total"] += steps * int(ev.get("passes") or 1)
+                    return
+                if ev.get("type") == "_next":
+                    phase["done"] = min(phase["done"] + steps, phase["total"] - steps)
+                    return
                 if ev.get("type") == "progress":
-                    self.emit({"type": "progress", "image": 1, "images": 1, "step": ev["step"], "steps": ev["steps"]})
+                    self.emit({"type": "progress", "image": 1, "images": 1, "step": min(phase["total"], phase["done"] + ev["step"]),
+                               "steps": phase["total"]})
                 elif ev.get("type") == "preview":
                     self.emit({"type": "preview", "image": 1, "src": ev["src"]})
                 elif ev.get("type") == "status":
@@ -4053,6 +4063,7 @@ class Engine:
                     import postprocess.compose as comp
                     if comp.panel_seams(result):
                         self.emit({"type": "status", "msg": "It came out split into panels: trying once more as one picture…"})
+                        on_event({"type": "_more"}); on_event({"type": "_next"})
                         seed = (seed + 7919) % 2**32
                         self.mlx.request({"cmd": "generate", "prompt": prompt + " The whole frame is one single photograph "
                                           "of one moment: one person shown once, no grid, no split, no second view.",
@@ -4070,6 +4081,7 @@ class Engine:
                     import postprocess.compose as comp
                     if comp.turned_grey(image, result):
                         self.emit({"type": "status", "msg": "It came out black and white: trying once more in colour…"})
+                        on_event({"type": "_more"}); on_event({"type": "_next"})
                         seed = (seed + 104729) % 2**32
                         self.mlx.request({"cmd": "generate", "prompt": prompt + " In full colour, with exactly the colours "
                                           "of the original picture; not black and white, not monochrome, not greyscale.",
@@ -4155,10 +4167,13 @@ class Engine:
             return result, 0
         work = 768 if 0 < total_ram_gb() < 12 else 1024
         done = 0
+        if boxes:
+            on_event({"type": "_more", "passes": len(boxes)})  # the bar and time left cover the face passes too
         for i, box in enumerate(boxes):
             if self.cancel_event.is_set():
                 break
-            self.emit({"type": "status", "msg": f"Keeping the face close to the original ({i + 1} of {len(boxes)})…"})
+            on_event({"type": "_next"})
+            self.emit({"type": "status", "msg": f"🙂 Keep faces: redoing face {i + 1} of {len(boxes)} close up, so it stays the same person…"})
             crop, region, fmask = detailer.face_crop(base, box, padding=2.2, work=work)
             src_p, out_p = tmp / f"edit_face_{os.getpid()}_{i}.png", tmp / f"edit_face_out_{os.getpid()}_{i}.png"
             crop.save(src_p)

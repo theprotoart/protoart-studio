@@ -2777,7 +2777,7 @@
             <span class="hint">{{ mask.size }}</span>
           </div>
           <label class="check" title="After the edit, each face (up to 3) is edited again on its own, close up, with the original face beside it, and blended in: the person stays recognisable (restoring or colouring old photos, changing clothes or the background). Adds about one more edit per face. Not used when you paint an area (the rest stays exactly the same then)">
-            <input type="checkbox" :checked="form.keep_faces !== false" @change="form.keep_faces = $event.target.checked"> 🙂 Keep faces close to the original <span class="hint">(+1 edit per face)</span></label>
+            <input type="checkbox" :checked="form.keep_faces !== false" @change="form.keep_faces = $event.target.checked"> 🙂 Keep faces close to the original <span class="hint">(+1 full edit per face: switch it off when only the background changes)</span></label>
           <label>More pictures <span class="hint">optional · up to 3 · a style, an object, an outfit or a person to use</span></label>
           <div class="edit-refs">
             <div v-for="(r, i) in form.edit_refs" :key="r" class="edit-ref">

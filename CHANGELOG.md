@@ -2,6 +2,8 @@
 
 ## Next (not released yet)
 
+- ✨ Edit with words: one progress bar for the whole job (`phase` in `edit_words`' `on_event`: `_more` / `_next`
+  add each 🙂 Keep faces pass and each camera retry to the same total), clearer Keep faces status and hint
 - 🛡 Protect from Enhance (`patch.enhProtect`, `patchProtect(on, "enhance")`, `enhProtectArgs`): `protect` mask on
   `postprocess` enhance (alone, Run chain and the patchbay's ENHANCE); `Engine._enhance_protect` puts the picture as
   it was (upscaled) back there with a soft edge
