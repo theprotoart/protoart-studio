@@ -4498,15 +4498,21 @@ class Engine:
                                                        "face_strength": args.get("face_strength", 0.6),
                                                        "face_fidelity": args.get("face_fidelity", 0.7)})
             info["restore"] = finfo
-        # safeguard: a face swap is never saved when the picture checker finds the result explicit
+        # safeguard: a face swap is never saved when the picture checker finds the result explicit.
+        # The checker alone often scores ordinary portraits (bare shoulders, a close crop, warm skin) around 0.5–0.7,
+        # so for face swap it looks twice (the picture and its mirror image, averaged) and blocks what it is
+        # clearly sure about; clearly explicit pictures score well above that and are still never saved.
         try:
-            score = self._get_nsfw_checker().score(image)
+            from PIL import ImageOps
+            chk = self._get_nsfw_checker()
+            score = round((chk.score(image) + chk.score(ImageOps.mirror(image))) / 2, 4)
         except Exception as e:
             print("[engine] face swap check failed:", e, flush=True)
             raise UserError("Face swap needs the picture checker (it checks every result). Connect to the internet "
                             "once so it can download (~90 MB), then try again.")
         import nsfw
-        if score >= nsfw.THRESHOLD:
+        print(f"[engine] face swap check: {score}", flush=True)
+        if score >= nsfw.FACESWAP_THRESHOLD:
             raise UserError("This face swap wasn't saved: the result looks explicit. Face swap only makes "
                             "non-explicit pictures.")
         settings = {"prompt": "face swap", "model": "inswapper_128", "width": image.width, "height": image.height,

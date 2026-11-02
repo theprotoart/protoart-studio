@@ -1552,7 +1552,9 @@
           <div class="tx-stage">
             <img ref="txImg" class="adjust-canvas" :class="{picking: tx.pick}" :src="fileUrl(tx.base.path)" @load="txImgLoad" draggable="false" @pointerdown="txStageDown">
             <div v-for="(L, i) in tx.layers" :key="'tx' + i" class="tx-layer" :class="{sel: i === tx.sel}" :style="txStyle(L)"
-                 @pointerdown.stop="txLayerDown($event, i)" title="Drag to move · edit it in 🔤 Replace text">{{ L.text || ' ' }}</div>
+                 @pointerdown.stop="txLayerDown($event, i)" title="Drag to move · edit it in 🔤 Replace text"><template v-if="L.vertical"><span
+                   v-for="(col, ci) in ProtoText.columns(L, tx.scale || 1).cols" :key="'tc' + ci" class="tx-vcol"
+                   :style="{width: ProtoText.columns(L, tx.scale || 1).w + 'px'}"><span v-for="(ch, j) in col" :key="j">{{ ch === ' ' ? '\u00a0' : ch }}</span></span></template><template v-else>{{ L.text || ' ' }}</template></div>
           </div>
           <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE' }}</span>
           <span v-if="tx.busy || tx.msg" class="adjust-badge busy">{{ tx.msg || 'Working…' }}</span>
@@ -2447,7 +2449,12 @@
               <div class="seg mod-seg">
                 <button :class="{on: txLayer().bold}" @click="txLayer().bold = !txLayer().bold" title="Bold"><b>B</b></button>
                 <button :class="{on: txLayer().italic}" @click="txLayer().italic = !txLayer().italic" title="Italic"><i>I</i></button>
-                <button v-for="a in [['left', '⇤'], ['center', '↔'], ['right', '⇥']]" :key="a[0]" :class="{on: txLayer().align === a[0]}" @click="txLayer().align = a[0]" :title="'Align ' + a[0]">{{ a[1] }}</button>
+                <button v-for="a in [['left', '⇤'], ['center', '↔'], ['right', '⇥']]" :key="a[0]" :class="{on: txLayer().align === a[0]}" @click="txLayer().align = a[0]" :title="txLayer().vertical ? 'Align ' + ({left: 'to the top', center: 'to the middle', right: 'to the bottom'})[a[0]] : 'Align ' + a[0]">{{ a[1] }}</button>
+              </div>
+              <div class="seg mod-seg">
+                <button :class="{on: !txLayer().vertical}" @click="txLayer().vertical = false" title="Text across, left to right">A→ Across</button>
+                <button :class="{on: txLayer().vertical}" @click="txLayer().vertical = true" title="Vertical: the letters stacked top to bottom (each line is its own column, the first on the right). For text lying on its side, use Angle under outline, shadow, angle">A↓ Vertical</button>
+                <button @click="txLayer().rotate = txLayer().rotate === -90 ? 0 : -90" :class="{on: txLayer().rotate === -90}" title="Turn the text on its side (reads bottom to top), like a book's spine">⟲ 90°</button>
               </div>
               <details class="mod-more">
                 <summary>outline, shadow, angle</summary>

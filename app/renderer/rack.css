@@ -2534,3 +2534,4 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .swap-paint { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .swap-paint path { fill: none; stroke-width: 14px; stroke-linecap: round; stroke-linejoin: round; opacity: .45; }
 .swap-paint-eyes { stroke: #5ab0ff; } .swap-paint-nose { stroke: #ffb52e; } .swap-paint-mouth { stroke: #ff6b8a; }
+.tx-vcol { display: flex; flex-direction: column; align-items: center; }

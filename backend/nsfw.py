@@ -19,6 +19,7 @@ CHECKER_REPO = "Falconsai/nsfw_image_detection"
 CHECKER_FILES = ["config.json", "preprocessor_config.json", "model.safetensors"]
 CHECKER_GB = 0.34
 THRESHOLD = 0.5  # checker score at or above this = NSFW
+FACESWAP_THRESHOLD = 0.8  # 🔁 face swap: blocks results the checker is clearly sure about (it often scores plain portraits 0.5–0.7)
 
 # Words that mark a *prompt* as NSFW. Only the positive prompt is read: "nsfw" in a negative prompt means
 # the opposite. Kept to clearly explicit terms so ordinary prompts ("chicken breast", "bare trees") pass.

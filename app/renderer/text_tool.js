@@ -15,7 +15,7 @@
 
   function layer(x, y, size) {
     return { text: "Your text", x, y, size: Math.round(size), font: "Helvetica Neue", colour: "#ffffff", bold: true, italic: false,
-             align: "center", stroke: 0, strokeColour: "#000000", shadow: 0, rotate: 0, opacity: 1, spacing: 0, lineHeight: 1.15 };
+             align: "center", vertical: false, stroke: 0, strokeColour: "#000000", shadow: 0, rotate: 0, opacity: 1, spacing: 0, lineHeight: 1.15 };
   }
   function fontCss(L, px) {
     return `${L.italic ? "italic " : ""}${L.bold ? "700 " : "400 "}${px}px ${stack(L.font)}`;
@@ -28,6 +28,10 @@
       lineHeight: String(L.lineHeight), letterSpacing: (L.spacing || 0) * px / 100 + "px", opacity: String(L.opacity),
       transform: `translate(-50%, -50%) rotate(${L.rotate || 0}deg)`,
     };
+    if (L.vertical) {  // letters stacked top to bottom: columns (the first on the right), one letter per row, as draw() does
+      Object.assign(st, { display: "flex", flexDirection: "row-reverse", alignItems: { left: "flex-start", right: "flex-end" }[L.align] || "center",
+                          letterSpacing: "0px", lineHeight: (1 + (L.spacing || 0) / 100) * px + "px", textAlign: "center" });
+    }
     if (L.stroke > 0) { st.webkitTextStroke = `${L.stroke * px / 100 * 2}px ${L.strokeColour}`; st.paintOrder = "stroke fill"; }
     if (L.shadow > 0) st.textShadow = `${L.shadow * px / 100 * 0.6}px ${L.shadow * px / 100 * 0.8}px ${L.shadow * px / 100 * 1.2}px rgba(0,0,0,.75)`;
     return st;
@@ -47,8 +51,22 @@
       ctx.textAlign = L.align;
       const bw = Math.max(...lines.map((t) => ctx.measureText(t).width));
       const ax = L.align === "left" ? -bw / 2 : L.align === "right" ? bw / 2 : 0;
-      lines.forEach((t, i) => {
-        const y = (i - (lines.length - 1) / 2) * lh;
+      // ↕ vertical: each line is a column (the first on the right), its letters stacked upright, one em apart
+      const spots = [];
+      if (L.vertical) {
+        if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+        ctx.textAlign = "center";
+        const step = px * (1 + (L.spacing || 0) / 100), cols = lines.map((t) => [...t]);
+        const H = Math.max(...cols.map((c) => c.length)) * step;
+        cols.forEach((chars, i) => {
+          const x = ((lines.length - 1) / 2 - i) * lh, n = chars.length;
+          chars.forEach((ch, j) => {
+            const y = L.align === "left" ? -H / 2 + (j + 0.5) * step : L.align === "right" ? H / 2 - (n - j - 0.5) * step : (j - (n - 1) / 2) * step;
+            spots.push([ch, x, y]);
+          });
+        });
+      } else lines.forEach((t, i) => spots.push([t, ax, (i - (lines.length - 1) / 2) * lh]));
+      spots.forEach(([t, ax, y]) => {
         if (L.shadow > 0) {
           ctx.save();
           const s = L.shadow * px / 100;
@@ -66,7 +84,9 @@
       ctx.restore();
     }
   }
-  const api = { FONTS, layer, style, draw };
+  // the HTML preview's columns for vertical text: [[letters of line 1], …] and each column's width (px on screen)
+  function columns(L, scale) { return { cols: String(L.text || " ").split("\n").map((t) => [...t]), w: L.size * scale * L.lineHeight }; }
+  const api = { FONTS, layer, style, draw, columns };
   if (typeof window !== "undefined") window.ProtoText = api;
   if (typeof module !== "undefined") module.exports = api;
 })();

@@ -2,6 +2,10 @@
 
 ## 1.6.3
 
+- 🔤 Replace text: `vertical` layers (columns right to left, upright letters one em apart; HTML preview built as columns by
+  `ProtoText.columns` so it matches `draw`), ⟲ 90° button
+- 🔁 Face swap check: the result and its mirror image averaged, blocked at `nsfw.FACESWAP_THRESHOLD` (0.8) instead of 0.5
+  (plain portraits often scored 0.5–0.7); the score is logged
 - 🧴 Skin texture: an Adjust filter (`skin` shader: seeded procedural pores of varying size and depth, fine bumps, optional
   freckle clusters; mid-tone weighted, shading only) that starts in paint mode (`paintFirst`); 🧴 Skin texture brush
   buttons in Tools and Image to image (`openSkinTexture`)
