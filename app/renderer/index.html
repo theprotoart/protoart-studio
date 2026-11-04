@@ -1583,9 +1583,10 @@
             <figure><img :src="fileUrl(tool.latest.path)" alt=""><figcaption>{{ kindLabel(tool.latest.kind) }}</figcaption></figure>
           </template>
           <div v-else class="cmp-split" ref="cmpSplit">
-            <img :src="fileUrl(tool.latest.path)" alt="" draggable="false">
-            <img v-if="tool.view === 'split'" class="cmp-over" :src="fileUrl(tool.source.path)" alt="" draggable="false"
-                 :style="{clipPath: 'inset(0 ' + ((1 - tool.split) * 100) + '% 0 0)'}">
+            <img v-if="tool.view !== 'split'" :src="fileUrl(tool.latest.path)" alt="" draggable="false">
+            <!-- Split: both pictures drawn into one canvas, the same size (an overlaid, clipped <img> flickered on busy Macs
+                 and didn't line up when the result's shape differed by a few pixels) -->
+            <canvas v-else ref="cmpCanvas" class="cmp-canvas"></canvas>
             <template v-if="tool.view === 'split'">
               <i class="cmp-line" :style="{left: (tool.split * 100) + '%'}"><b></b></i>
               <span class="cmp-tag left">Original</span><span class="cmp-tag right">{{ kindLabel(tool.latest.kind) }}</span>
@@ -1597,6 +1598,27 @@
         </div>
       </div>
       <input ref="toolPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.procreate,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="toolPicked">
+      <!-- 🖌 Tools' painting tools, under the picture, for whatever is being painted now (each painting is kept apart) -->
+      <div v-if="tool.source && tool.healing && !pw.selecting" class="card tool-paintbar">
+        <div class="tpb-head"><span class="tpb-what">🖌 Painting <b>{{ TOOL_PAINT_LABELS()[tool.paintFor] }}</b></span><span class="grow"></span>
+          <button v-if="tool.paintFor !== 'remove'" class="primary small" @click="tool.protecting ? patchProtect(false) : toolPaintStop()" title="Keep this painting and stop painting">✓ Done</button>
+          <button class="link small" @click="maskClear" title="Take away everything painted here">clear paint</button>
+          <button class="link small" @click="maskClear(); toolPaintStop()" title="Stop painting and forget this painting">cancel</button></div>
+        <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
+          <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
+        </div>
+        <div class="sel-opts">
+          <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
+          <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
+          <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
+          <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
+          <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
+          <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
+        </div>
+        <label>Brush <span class="mod-val">{{ mask.size }}</span></label>
+        <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
+        <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
+      </div>
       <div v-if="adj.open" class="adjust-viewbar">
         <span class="hint">View</span>
         <div class="seg">
@@ -1894,6 +1916,13 @@
                   <div v-if="adjFilters[id].toggle" class="adj-row"><label>Grain</label>
                     <div class="seg"><button :class="{on: !adj.p[adjFilters[id].toggle.k]}" @click="adj.p[adjFilters[id].toggle.k] = false">{{ adjFilters[id].toggle.off }}</button>
                       <button :class="{on: adj.p[adjFilters[id].toggle.k]}" @click="adj.p[adjFilters[id].toggle.k] = true">{{ adjFilters[id].toggle.on }}</button></div></div>
+                  <div v-if="id === 'skin'" class="adj-skin-pick">
+                    <button class="ghost small" :disabled="adj.skinBusy" @click="adj.pointTarget = 'skin'; adjSelectSkin('skin')"
+                            title="Paints the skin for you: the skin-coloured parts of the picture (only on the person, if ticked). Then 🧽 Erase the eyes, lips and anything else it picked up">{{ adj.skinBusy ? 'Finding the skin…' : '👤 Select the skin' }}</button>
+                    <label class="check" title="Only on the person or animal (found by ✂ Cut out's model, ~224 MB the first time): a wooden wall or sand the colour of skin is left out"><input type="checkbox" v-model="adj.skinSubject"> only on the person</label>
+                    <label title="How much counts as skin: lower is pickier (less of the background), higher takes in more (shadows, unusual light)">Skin match <span class="adj-val">{{ Number(adj.skinTol).toFixed(2) }}</span></label>
+                    <input type="range" min="0.5" max="2" step="0.05" v-model.number="adj.skinTol" @change="adjHasPaint('skin') && adjSelectSkin('skin')" @dblclick="adj.skinTol = 1">
+                  </div>
                   <div class="adj-pt-line"><span class="hint">◎ {{ adjPointCount(id) || adjHasPaint(id) ? [adjPointCount(id) ? adjPointCount(id) + ' control point' + (adjPointCount(id) === 1 ? '' : 's') : '', adjHasPaint(id) ? 'painted' : ''].filter(Boolean).join(' + ') + ': only there' : 'whole picture' }}</span>
                     <button class="link small" @click="adj.pointTarget = id; adj.pointSel = -1; adjPaintToggle('paint')" title="Brush on where this filter should show">🖌 paint it on</button>
                     <button class="link small" @click="adj.pointTarget = id; adj.pointSel = -1; adjStartAdd()" title="Click the picture where this filter should show">＋ add a point</button>
@@ -1973,7 +2002,7 @@
             </div>
           </div>
         </details>
-        <div class="row">
+        <div class="row adj-actions">
           <button class="primary" @click="adjSave(false)" :disabled="adj.busy || !adjChanged()"
                   title="Saves a new adjusted picture in the Library, linked to this one (the original stays as it is)">Save as new picture</button>
           <button class="primary" @click="adjSave(true)" :disabled="adj.busy || !adjChanged()"
@@ -1985,6 +2014,7 @@
           <button class="ghost" @click="closeAdjust">✕ Close Adjust</button>
           <span class="hint" v-if="adj.size">{{ adj.size[0] }}×{{ adj.size[1] }}</span>
         </div>
+        <p class="hint adj-enh-hint">Save as new picture is instant. <b>Save &amp; enhance</b> also runs ✨ Enhance &amp; upscale on it{{ perf.jobs && perf.jobs.enhance ? ', which takes about ' + formatDuration(perf.jobs.enhance) + ' on this Mac' : ', which takes a few minutes (more on 8 GB Macs)' }}.</p>
       </div>
       <!-- Patchbay: the back of the rack. Cables from one module's OUT to the next one's IN set the order. -->
       <div v-if="patch.on" class="card patchbay-card" @pointerdown.self="patchCancel">
@@ -2193,8 +2223,8 @@
           </div>
           <button class="mod-switch enh-area-sw" :class="{on: tool.enhArea}" :disabled="!tool.source" @click="toggleEnhArea"
                   title="Enhance just part of the picture: paint over it on the picture (the same brush as Remove objects). The rest is only upscaled, and the edge is blended in. Quicker on a big picture."><i></i>🖌 Only a painted area</button>
-          <p v-if="tool.enhArea" class="hint enh-area-note">{{ tool.source && maskIsFor('tools', tool.source.path) ? 'Enhances only what you painted, blended in.' : 'Paint over the part to enhance on the picture.' }}
-            <button class="link small" @click="toolPaintRemove(true)">🖌 paint</button></p>
+          <p v-if="tool.enhArea" class="hint enh-area-note">{{ toolPaintFor('enhArea') ? 'Enhances only what you painted, blended in.' : 'Paint over the part to enhance on the picture.' }}
+            <button class="link small" @click="toolPaintStart('enhArea')">🖌 paint</button></p>
           <details class="mod-more">
             <summary>fine-tune</summary>
             <label title="How much new detail it may invent. Low = cleaner, faithful; high = more texture and changes.">Creativity <span class="mod-val">{{ post.enh.denoise_strength }}</span></label>
@@ -2264,6 +2294,12 @@
             <button :class="{on: post.depth.style === 'gray'}" @click="post.depth.style = 'gray'" title="Black and white: what ControlNet and most apps expect">Grey</button>
             <button :class="{on: post.depth.style === 'color'}" @click="post.depth.style = 'color'" title="Heat colours: easier to read by eye (not for ControlNet)">Colour</button>
           </div>
+          <label title="Everything farther away than this turns black: clears a busy background out of the map (0 = keep everything)">Threshold <span class="mod-val">{{ Number(post.depth.threshold || 0).toFixed(2) }}</span></label>
+          <input type="range" min="0" max="0.95" step="0.01" v-model.number="post.depth.threshold" @dblclick="post.depth.threshold = 0"
+                 title="0 keeps everything · higher blacks out the background, leaving only what's in front (double-click: 0)">
+          <label title="Where white starts: lower makes the nearest things fully white sooner (more contrast up front)">Near white <span class="mod-val">{{ Number(post.depth.near ?? 1).toFixed(2) }}</span></label>
+          <input type="range" min="0.3" max="1" step="0.01" v-model.number="post.depth.near" @dblclick="post.depth.near = 1"
+                 title="1 = as found · lower = the front reaches white sooner (double-click: 1)">
           <div class="mod-foot">
             <button class="primary mod-go" :disabled="!tool.source" @click="toolDepth">Make depth map</button>
             <span class="mod-plate">Depth unit · DM-2</span>
@@ -2273,7 +2309,7 @@
         <div id="rack-heal" class="card rack-module heal-card" :class="{'patch-pick': patchPicked('heal')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🩹</span>
             <h3>Remove objects</h3><button class="mod-reset" @click.stop="resetToolPart('heal')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span v-if="patchPicked('heal')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">spot healing</span></div>
-          <template v-if="!tool.healing || pw.selecting">
+          <template v-if="!(tool.healing && tool.paintFor === 'remove')">
             <p class="mod-desc">Paint over anything you don't want (a stray object, an extra finger, text, a blemish) and it's filled in from what's around it.</p>
             <ol class="mod-steps">
               <li>Press <b>Paint</b> below</li>
@@ -2282,21 +2318,7 @@
             </ol>
           </template>
           <template v-else>
-            <p class="mod-desc mod-live">← Paint on the picture. Cover it fully, a little past its edges.</p>
-            <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
-              <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
-            </div>
-            <div class="sel-opts">
-              <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
-              <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
-              <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
-              <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
-              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
-              <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
-            </div>
-            <label>Brush <span class="mod-val">{{ mask.size }}</span></label>
-            <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
-            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
+            <p class="mod-desc mod-live">← Paint over it on the picture (the painting tools are under the picture). Cover it fully, a little past its edges.</p>
             <label>Method</label>
             <div class="seg mod-seg">
               <button :class="{on: form.heal_method !== 'quick'}" @click="form.heal_method = 'lama'"
@@ -2304,10 +2326,10 @@
               <button :class="{on: form.heal_method === 'quick'}" @click="form.heal_method = 'quick'"
                       title="Instant, no download: blends the edges inward. Good for small spots, dust and scratches">Quick fill</button>
             </div>
-            <div class="mod-links"><button class="link" @click="maskClear">clear paint</button> · <button class="link" @click="tool.healing = false; maskClear()">cancel</button></div>
+
           </template>
           <div class="mod-foot">
-            <button v-if="!tool.healing || pw.selecting" class="primary mod-go" :disabled="!tool.source || pw.selecting" @click="toolPaintRemove(true)">🖌 Paint</button>
+            <button v-if="!(tool.healing && tool.paintFor === 'remove')" class="primary mod-go" :disabled="!tool.source || pw.selecting" @click="toolPaintRemove(true)">🖌 Paint</button>
             <button v-else class="primary mod-go" :disabled="!mask.data || !!tool.working" @click="toolHeal">🩹 Remove</button>
             <span class="mod-plate">Healer · RM-3</span>
           </div>
@@ -2423,7 +2445,7 @@
           <div class="tx-steps">
             <button class="ghost small" :disabled="!tool.source || tx.finding || objFinding" @click="txFindText"
                     title="Selects the writing in the picture (Florence-2 reads it). Add or take away with the brush if it missed a bit.">{{ tx.finding || objFinding ? 'Finding…' : '1 · 🔍 Find the text' }}</button>
-            <button class="ghost small" :disabled="!tool.source || !!tool.working || !(tool.source && maskIsFor('tools', tool.source.path))" @click="txClear"
+            <button class="ghost small" :disabled="!tool.source || !!tool.working || !toolPaintFor('remove')" @click="txClear"
                     title="Fills in the background where the text was (like Remove objects), then opens the Type tool on it">2 · 🧽 Clear it</button>
             <button class="ghost small" :disabled="!tool.source" @click="tx.open ? txClose() : txOpen()"
                     :title="tx.open ? 'Close the Type tool (the text is kept until you open another picture)' : 'Type on the picture (the cleared one if you just cleared it)'">{{ tx.open ? '✕ Close' : '3 · ✏️ Type' }}</button>

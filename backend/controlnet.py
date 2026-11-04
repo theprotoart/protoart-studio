@@ -536,13 +536,28 @@ def load_depth_estimator(device, size="small"):
     return pipeline("depth-estimation", model=DEPTH_MODELS[depth_size(size)][0], device=device)
 
 
-def depth_image(estimator, image, style="gray"):
+def depth_levels(depth, threshold=0.0, near=1.0):
+    """Depth map levels (a PIL 'L' picture): everything farther than `threshold` (0..1 of the depth range) turns
+    black, and the rest is stretched to fill the range up to `near` (lower = the nearest things reach white sooner).
+    Clears a busy background out of a depth map for ControlNet, or makes a mask of what's in front."""
+    from PIL import Image
+    t = float(np.clip(threshold or 0.0, 0.0, 0.98))
+    n = float(np.clip(near if near is not None else 1.0, t + 0.02, 1.0))
+    if t <= 0 and n >= 1:
+        return depth
+    a = np.asarray(depth, np.float32) / 255.0
+    a = np.clip((a - t) / (n - t), 0.0, 1.0)
+    return Image.fromarray((a * 255 + 0.5).astype(np.uint8), "L")
+
+
+def depth_image(estimator, image, style="gray", threshold=0.0, near=1.0):
     """Depth Anything V2 on a PIL image -> depth map at the image's own size (near = bright).
-    style "color" maps it to a heat palette that's easier to read by eye."""
+    style "color" maps it to a heat palette that's easier to read by eye. threshold / near: see depth_levels."""
     from PIL import Image
     depth = estimator(image.convert("RGB"))["depth"].convert("L")
     if depth.size != image.size:
         depth = depth.resize(image.size, Image.BICUBIC)
+    depth = depth_levels(depth, threshold, near)
     if style != "color":
         return depth.convert("RGB")
     import cv2

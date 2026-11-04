@@ -1503,6 +1503,7 @@ button.bat-toggle:hover:not(:disabled), button.bat-toggle:active:not(:disabled) 
 .cmp-split { position: relative; display: inline-block; line-height: 0; max-width: 100%; }
 .cmp-split img { display: block; max-width: 100%; max-height: 60vh; }
 .cmp-split .cmp-over { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+.cmp-split .cmp-canvas { display: block; max-width: 100%; max-height: 60vh; }
 .cmp-line { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #f4f1e8; box-shadow: 0 0 0 1px rgba(0, 0, 0, .6); pointer-events: none; }
 .cmp-line b { position: absolute; top: 50%; left: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #fff, #c4c7cb 50%, #6d7075); box-shadow: 0 2px 4px rgba(0, 0, 0, .6); }
@@ -2535,3 +2536,15 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .swap-paint path { fill: none; stroke-width: 14px; stroke-linecap: round; stroke-linejoin: round; opacity: .45; }
 .swap-paint-eyes { stroke: #5ab0ff; } .swap-paint-nose { stroke: #ffb52e; } .swap-paint-mouth { stroke: #ff6b8a; }
 .tx-vcol { display: flex; flex-direction: column; align-items: center; }
+
+/* 🖌 Tools' painting tools, under the picture */
+.tool-paintbar { margin: 8px 0; padding: 10px 12px; }
+.tool-paintbar .tpb-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.tool-paintbar .tpb-what b { color: #ffcf7a; }
+.tool-paintbar .sel-tools { flex-wrap: wrap; }
+
+.adj-actions { flex-wrap: wrap; gap: 8px; }
+.adj-actions > button { flex: 0 1 auto; white-space: nowrap; }
+.adj-enh-hint { margin: 4px 0 0; }
+.adj-skin-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0; }
+.adj-skin-pick input[type=range] { flex: 1 1 120px; }

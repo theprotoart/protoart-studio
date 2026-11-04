@@ -44,6 +44,17 @@ function swapFivePoints(f, W, H) {
   return [eL, eR, nose, mL, mR];
 }
 
+// A picked area as painted selection: see-through where nothing is picked. Accepts the pink selection the engine
+// sends, and also a plain black-and-white mask (white = picked), which would otherwise be stamped as paint everywhere.
+function asSelection(img) {
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const a = Math.round((d[i + 3] * Math.max(d[i], d[i + 1], d[i + 2])) / 255);
+    d[i] = 255; d[i + 1] = 64; d[i + 2] = 129; d[i + 3] = a >= 128 ? 255 : 0;
+  }
+  return img;
+}
+
 function cleanBits(a, w, h, keepFrac = 0.004) {  // ✂ drop small separate specks (as postprocess/cutout.py clean_bits)
   const n = w * h, lab = new Int32Array(n), sizes = [0], stack = new Int32Array(n);
   let next = 0;
@@ -175,7 +186,7 @@ const STOP_GRACE_MS = 2500; // after Stop, how long a job may take to stop by it
 // Create / Image to image settings as they are on a fresh install (also used by "reset all")
 function defaultPost() {  // Tools settings on a fresh install
   return {
-    depth: { model: "small", style: "gray" },
+    depth: { model: "small", style: "gray", threshold: 0, near: 1 },
     face_strength: 0.8,
     face_model: "codeformer",   // or "restoreformer"
     face_fidelity: 0.5,            // CodeFormer only
@@ -736,6 +747,7 @@ const protoartApp = createApp({
              // and the selected point
              pointTarget: "base", pointMode: false, pointSel: -1, pointDrag: null, ovl: null,
              paintMode: "", brush: 0.08, brushOp: 1, paintRev: 0,   // 🖌 paint where a step shows ("paint" / "erase")
+             skinTol: 1, skinSubject: true, skinBusy: false,         // 🧴 👤 Select the skin: how much counts as skin, only on the person
              hist: 0, fut: 0,   // ↶ / ↷: how many steps can be undone / redone (the steps themselves are kept outside Vue)
              ring: { show: false, x: 0.5, y: 0.5 },   // the brush ring over the picture while painting
              fold: {}, which: "original", view: "after", split: 0.5, presetName: "", savingPreset: false,
@@ -746,6 +758,7 @@ const protoartApp = createApp({
       // 🔍 zoom on the pictures you work on: Tools' picture, Image to image's preview and the picture you paint on there
       zoom: { tools: { z: 1, x: 0, y: 0 }, i2i: { z: 1, x: 0, y: 0 }, i2iSrc: { z: 1, x: 0, y: 0 } },
       zoomSpace: false,      // Space held: drag to move around (like Photoshop)
+      toolMasks: { remove: null, enhArea: null },  // Tools: each painting kept apart ({data, for}): Remove's, Enhance's area
       tx: { open: false, base: null, layers: [], sel: -1, scale: 1, nw: 0, nh: 0, pick: false, busy: false, msg: "", drag: null, finding: false },  // 🔤 Replace text
       pw: { open: false, rec: null, pins: [], sel: -1, density: 48, busy: false, msg: "", error: "", original: false,
             ovl: null, size: null, mode: "rigid", expand: 0, feather: 3, showMesh: true, showBg: true, whole: false,
@@ -790,6 +803,14 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Since 1.6.3 (in the next version): fixes from testing, 👤 select the skin, depth threshold", items: [
+              "<b>🔤 Replace text no longer clears the whole picture</b>: 🔍 Find the text marked the entire picture instead of just the letters, so 🧽 Clear it filled everything in. It now selects only the text.",
+              "<b>Split view no longer flickers</b> while you drag the line (Tools): both pictures are drawn together, so they always line up.",
+              "<b>Each painting in Tools is kept apart</b>: what 🩹 Remove takes out, ✨ Enhance's area, 🛡 Protect from Enhance and the patchbay's 🛡 Protect areas no longer share one painting. The painting tools now sit under the picture and say what you're painting for.",
+              "<b>🧴 Skin texture → 👤 Select the skin</b>: paints the skin for you (only on the person, if ticked), with a <b>Skin match</b> slider; then 🧽 Erase the eyes and lips.",
+              "<b>Depth map → Threshold and Near white</b>: black out the background of a depth map, or make the front reach white sooner.",
+              "<b>🙂 Keep faces</b> (Edit with words) skips faces the edit took away (“remove the people in the background”) and tiny faces in the distance, so it no longer pastes removed people back and finishes sooner. The queue's time left for Edit with words, Enhance and other jobs now matches their progress line.",
+              "<b>ControlNet in Create</b> lists your ControlNets straight away (before, Image to image had to be opened once). <b>Adjust</b>'s save buttons wrap instead of running off the edge, and say how long Save &amp; enhance takes." ] },
             { h: "1.6.3: 🎛 ControlNet in Create, 🧴 Skin texture brush, 🔤 Replace text, ↻ keep training a LoRA, face swap picks and marks, ⚥ swap gender", items: [
               "<b>🔤 Replace text</b> can type <b>vertical</b> text (letters stacked top to bottom) and turn text on its side (⟲ 90°). <b>🔁 Face swap</b> no longer blocks ordinary portraits as explicit (the checker looks twice and only blocks what it's clearly sure about).",
               "<b>🧴 Skin texture brush</b> (Tools, and beside 🎚 Adjust in Image to image): brush real skin onto smooth, waxy-looking skin (AI faces, over-retouched photos): pores of different sizes, fine texture and, if you like, freckles. It opens 🎚 Adjust with the new <b>Skin texture</b> filter on and the brush ready: paint over the cheeks, forehead, nose and chin (not the eyes, lips or hair), then set Strength, Pore size, Fine texture and Freckles.",
@@ -1289,6 +1310,7 @@ const protoartApp = createApp({
               "Use them when a picture takes far too long, the Mac feels frozen, or ■ Stop doesn't respond. Pictures, settings and models are never affected." ] },
             { h: "Enhance & upscale", items: [
               "<b>🛡 Protect from Enhance…</b>: paint over what Enhance mustn't change (faces, hands, text, a logo), then ✓ Done protecting. Those areas come back from the picture as it was (upscaled to the same size, with a soft edge). It's used whenever Enhance runs on this picture, on its own, in Run chain and in the 🔌 patchbay, so a chain like Enhance → Restore faces still restores the faces. The patchbay's own <b>🛡 Protect areas…</b> keeps areas away from <i>every</i> module instead. <b>clear</b> lets Enhance work on the whole picture again.",
+              "<b>Painting in Tools</b>: whenever you paint on the picture (🩹 Remove, ✨ Enhance's area, 🛡 Protect from Enhance, the patchbay's 🛡 Protect areas), the painting tools appear <b>under the picture</b> with what you're painting for. Each keeps its own painting: switch between them and each comes back as you left it. <b>✓ Done</b> keeps it, <b>cancel</b> forgets it.",
               "<b>🖌 Only a painted area</b>: switch it on and paint over the part to enhance (the same brush as Remove objects). Only that part is enhanced; the rest of the picture is upscaled as it is and the edge is blended in. Quicker on a big picture.",
               "<b>🎨 Keep the picture's style</b>: for paintings, drawings and anime. Adds detail in the picture's own look instead of a photo's; type a few style words if you like (oil painting, visible brush strokes).",
               "<b>Compare the result</b>: after any tool, the picture window shows <b>Original / Result / Split / Side by side</b> (drag the line in Split). <b>✕ Clear results</b> takes the results off the screen (they stay in the Library). The tools are rack modules: <b>Run chain</b> does Enhance then Restore faces in one go; Enhance's less-used settings are under <i>fine-tune</i>.",
@@ -1323,6 +1345,7 @@ const protoartApp = createApp({
               "<b>📄 Paper cut-out</b> makes the subject a torn paper sticker: <b>Border</b> width, the <b>Paper</b> (White, Cream, Kraft, Black), <b>Torn edge</b> (0 = cut with scissors), <b>Shadow</b>, <b>Print</b> (Photo, Poster = flatter colours, Mono) and what's behind it (None = see-through, Paper, its own Picture, White). It uses Cut out's model and Threshold." ] },
             { h: "🎚 Adjust: light, colour and filters", items: [
               "<b>Camera Raw panels</b>: <b>Presence &amp; effects</b> has <b>Texture</b> (fine detail like skin, fabric and leaves, without hard edges; left smooths it), <b>Clarity</b>, <b>Dehaze</b> (right takes mist and haze away, left adds a soft haze), Sharpening and Vignette. <b>Color mixer · Hue / Saturation / Luminance</b> change one colour at a time (a deeper blue sky: Blue luminance left; greener grass: Yellow hue right; greys are never changed). <b>Color grading</b> tints the shadows, midtones and highlights: drag a hue to the colour, then raise its amount (teal shadows and warm highlights is the classic film look); <b>Balance</b> moves where shadows end and highlights begin. The newer panels start folded: click a heading to open it.",
+              "<b>👤 Select the skin</b> (in the Skin texture filter): paints the skin-coloured parts for you; tick <i>only on the person</i> to leave out a wooden wall or sand of the same colour (uses ✂ Cut out's model). <b>Skin match</b>: lower is pickier, higher takes in shadows and unusual light (changing it selects again). Then 🧽 Erase the eyes, lips and brows.",
               "<b>🧴 Skin texture</b> (a filter, or <b>🧴 Skin texture brush</b> under the picture in Tools): for smooth, plastic-looking skin. Paint it over the skin only (cheeks, forehead, nose, chin; not the eyes, lips, brows or hair). <b>Strength</b> how visible it is; <b>Pore size</b> match it to how close the face is (bigger for close-ups); <b>Fine texture</b> the small bumps between the pores; <b>Freckles</b> adds clusters of freckles; <b>Pattern</b> A / B / C gives another arrangement. It only shades the skin you painted (no new colour), mostly in the mid-tones. Use a paint layer with its own settings for a softer texture on the forehead and a stronger one on the nose.",
               "<b>Paint layers</b> (＋ new paint layer with its own settings, under a filter): open a layer to set its <b>Layer opacity</b> (how strongly it shows) and its own <b>🖌 Brush size</b> and <b>strength</b>: each layer remembers its own brush, so a big soft brush for the sky and a small one for a lantern.",
               "<b>🔒 Lock this order</b> (next to Filters): once the filters are in an order you like, lock it: every picture, look, preset and ↺ reset keeps that order, and ▲ ▼ are off until you press 🔒 again.",
@@ -1349,6 +1372,7 @@ const protoartApp = createApp({
               "Each time you <b>save</b> there (⌘S), the new version is added to your Library as <i>Edited</i>, linked to the original; “Save As”/export into the same folder works too. Your original is never changed. Click <b>Done editing</b> in the bar at the top when you're finished.",
               "PhotoCraft is a separate app (early test version): the first time, <b>Get PhotoCraft</b> opens its download page; drag it to Applications. Prefer Photoshop, Pixelmator Pro, Affinity Photo, GIMP or Krita? Pick it in <b>Settings → Image editor</b>." ] },
             { h: "Depth map (Depth Anything V2)", items: [
+              "<b>Threshold</b>: everything farther away than this turns black, so a busy background drops out of the map (good for ControlNet Depth, or a mask of what's in front). <b>Near white</b>: lower makes the nearest things fully white sooner. Double-click a slider to put it back. Press Make depth map again to see the change (Small takes seconds).",
               "Works out how far away everything is: near = bright, far = dark. Saved to the Library, linked to the original.",
               "<b>Small</b> (~100 MB) is fast and free for any use; <b>Base</b> (~400 MB) and <b>Large</b> (~1.3 GB) show finer detail but are licensed for non-commercial use only.",
               "<b>Grey</b> is what ControlNet and other apps expect; <b>Colour</b> is easier to read by eye.",
@@ -1543,6 +1567,8 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "New in 1.6.3: if something doesn't work", items: [
+              "<b>Replace text turned the whole picture into a grey block</b>: fixed (the text finder marked the whole picture). Update the app, then Find the text again.",
+              "<b>Edit with words takes much longer than one edit</b>: 🙂 Keep faces redoes each big face once more (about the same time as the edit itself on an 8 GB Mac). Faces the edit removed and tiny faces are now skipped; switch Keep faces off when only the background changes.",
               "<b>Face swap said the result looks explicit, but it isn't</b>: the picture checker now looks twice (the picture and its mirror image) and only blocks what it's clearly sure about, so ordinary portraits get through. Clearly explicit results are still never saved. If a normal picture is still blocked, try a picture where the person is less closely cropped.",
               "<b>Face swap: no face found</b> in the picture (a creature, a cartoon, a statue, a face from the side): pick <b>✚ Mark by hand</b> and follow its three steps (eyes, nose, mouth; Skip what it doesn't have), then drag the markers until they sit right. It works best on faces that are roughly human-shaped.",
               "<b>Image → prompt said the Mac is short of memory</b> (METAL “Insufficient Memory”): it now falls back to <b>Quick describe</b> by itself. For the full description, quit other apps (or press ⟲ Force stop &amp; restart) and try again.",
@@ -1828,7 +1854,7 @@ const protoartApp = createApp({
       shopFolds: loadJSON("protoart.shopFolds", { get: true, big: true }),  // Models tab model groups folded (On this Mac open)
       dl: { path: "", default: "", custom: false, missing: null, free_gb: null, sizeGb: null, move: true, busy: false }, // downloaded-models folder
       modelSearch: "",
-      tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false, protecting: false, protectWhich: "all", enhArea: false, promptText: "", promptCopied: false, view: "split", split: 0.5 },
+      tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false, protecting: false, protectWhich: "all", enhArea: false, paintFor: "remove", promptText: "", promptCopied: false, view: "split", split: 0.5 },
       PATCH_NODES,
       ProtoText: window.ProtoText,  // 🔤 Replace text's fonts
       patchInY: PATCH_IN_Y,
@@ -2930,6 +2956,15 @@ const protoartApp = createApp({
           if ((key === "enhance" || key === "both") && j.upscale) est *= (j.upscale / 2) ** 2;
           measured = this.perf.jobs[key] != null;
         }
+        if (!["generate", "train_lora", "train_embedding", "model_download"].includes(j.cmd) && j.state === "running") {
+          // any other job showing steps (✨ Edit with words, Enhance, Tiled upscale…): the same figure as its progress
+          // line, not the typical time of that kind of job
+          const pr = this.progress;
+          if (pr && pr.job === j.id && pr.steps > 0 && pr.step > 0) {
+            const left = this.genLeft(pr);
+            est = elapsed + (left ? left.seconds : (elapsed * (pr.steps - pr.step)) / pr.step);
+          }
+        }
         const remaining = Math.max(1, est - elapsed);
         clock += remaining;
         return { id: j.id, remaining, finishIn: clock, measured };
@@ -2966,6 +3001,9 @@ const protoartApp = createApp({
   },
 
   watch: {
+    "tool.view"() { this.$nextTick(() => this.cmpDraw()); },
+    "tool.latest"() { this.$nextTick(() => this.cmpDraw()); },
+    "tool.working"(v) { if (!v) this.$nextTick(() => this.cmpDraw()); },
     // which tab an error message belongs to: the tab of the job that failed (if it just failed), else the open tab
     error: { flush: "sync", handler(v) {
       if (!v) return;
@@ -3049,7 +3087,7 @@ const protoartApp = createApp({
         this.zoomReset("i2iSrc"); this.zoomReset("i2i");  // a new picture: stop painting on the old one
       },
     },
-    "tool.source"() { this.tool.healing = false; this.zoomReset("tools"); if (this.cut.open) this.closeCutout(); },
+    "tool.source"() { this.tool.healing = false; this.zoomReset("tools"); if (this.cut.open) this.closeCutout(); this.$nextTick(() => this.cmpDraw()); },
     "train.kind"() { if (this.train.preset === "recommended") this.applyTrainPreset(this.trainRecommended); },
     "train.model"() { if (this.train.preset === "recommended") this.applyTrainPreset(this.trainRecommended); },
     train: { deep: true, handler(v) {
@@ -3228,6 +3266,8 @@ const protoartApp = createApp({
         await this.refreshLoras();
         call("diffusionbee_info").then((d) => { this.dbee = d; }).catch(() => {});
         call("list_embeddings").then((e) => { this.embeddings = e; }).catch(() => {});
+        // the ControlNet types: Create's 🎛 ControlNet needs them from the start (Image to image used to load them)
+        call("control_types").then((t) => { if (Array.isArray(t) && t.length) this.controlTypes = t; }).catch(() => {});
         this.refreshExtras(false);
         call("embedding_dirs_get").then((d) => { this.embDirs = d; }).catch(() => {});
         call("adjust_presets_get").then((d) => { this.adjPresets = Array.isArray(d) ? d : []; }).catch(() => {});
@@ -4645,17 +4685,18 @@ const protoartApp = createApp({
     },
     enhAreaArgs() {  // 🖌 Enhance only a painted area: the painting on the picture (null = say so)
       if (!this.tool.enhArea) return {};
-      if (!this.maskIsFor("tools", this.tool.source.path) || !this.mask.data) {
-        this.toolPaintRemove(true);
+      const data = this.toolPaintFor("enhArea");
+      if (!data) {
+        this.toolPaintStart("enhArea");
         this.status = "Paint over the part to enhance on the picture, then press Enhance again";
         return null;
       }
-      return { mask: this.mask.data };
+      return { mask: data };
     },
     toggleEnhArea() {
       this.tool.enhArea = !this.tool.enhArea;
-      if (this.tool.enhArea && this.tool.source && !this.maskIsFor("tools", this.tool.source.path)) {
-        this.toolPaintRemove(true);
+      if (this.tool.enhArea && this.tool.source && !this.toolPaintFor("enhArea")) {
+        this.toolPaintStart("enhArea");
         this.status = "Paint over the part to enhance on the picture (the rest stays as it is, just upscaled), then press Enhance";
       }
     },
@@ -4810,30 +4851,12 @@ const protoartApp = createApp({
     },
     patchProtect(on, which) {  // 🛡 paint areas the chain (or just ✨ Enhance) mustn't change: put back from the picture
       if (!this.tool.source) return;
-      const slot = (which || this.tool.protectWhich) === "enhance" ? "enhProtect" : "protect";
-      if (on) {
-        if (this.adj.open) this.closeAdjust();
-        if (this.pw.open) this.closePuppet();
-        if (this.cut.open) this.closeCutout();
-        if (this.tx.open) this.txClose();
-        if (this.tool.protecting && this.tool.protectWhich !== (which || "all")) this.patchProtect(false);
-        const had = this.patch[slot];
-        this.mask.data = had && had.for === this.tool.source.path ? had.data : null;
-        this.mask.for = this.tool.source.path;
-        this.mask.tab = "tools";
-        this.tool.protectWhich = which || "all";
-        this.tool.protecting = true;
-        this.tool.healing = true;  // the paint area on the left
-        this.status = slot === "enhProtect" ? "Paint over what ✨ Enhance mustn't change (a face, hands, a logo), then press ✓ Done"
-          : "Paint over what the patch mustn't change, then press ✓ Done";
-      } else {
-        if (this.mask.data) this.patch[slot] = { data: this.mask.data, for: this.tool.source.path };
-        this.tool.protecting = false;
-        this.tool.healing = false;
-        this.mask.data = null;
-        this.status = !this.patch[slot] ? "" : slot === "enhProtect" ? "Protected from Enhance: those areas stay as they are (just upscaled) whenever Enhance runs, on its own or in the patch"
-          : "Protected areas set: they stay as they are when the patch runs";
-      }
+      if (on) return this.toolPaintStart(which === "enhance" ? "enhProtect" : "protect");
+      const kind = this.tool.paintFor;
+      this.toolPaintStop();
+      const set = this.toolPaintSlot(kind);
+      this.status = !set ? "" : kind === "enhProtect" ? "Protected from Enhance: those areas stay as they are (just upscaled) whenever Enhance runs, on its own or in the patch"
+        : "Protected areas set: they stay as they are when the patch runs";
     },
     enhProtectArgs() {  // ✨ Enhance's 🛡 protected areas, for this picture
       const pr = this.patch.enhProtect;
@@ -5010,15 +5033,15 @@ const protoartApp = createApp({
       const steps = this.patchChain.steps;
       if (!this.tool.source) return (this.error = "Drop a picture into Tools first.");
       if (!steps.length) return (this.error = "Patch a cable from PICTURE's OUT into a module's IN first.");
-      if (steps.some((x) => String(x).split("#")[0] === "heal") && !this.maskIsFor("tools", this.tool.source.path)) {
-        this.toolPaintRemove(true);
+      if (steps.some((x) => String(x).split("#")[0] === "heal") && !this.toolPaintFor("remove")) {
+        this.toolPaintStart("remove");
         return (this.error = "REMOVE is patched in: paint over what to remove on the picture (Remove objects → 🖌 Paint is now on), then press ▶ Run patch again.");
       }
       if (steps.some((x) => String(x).split("#")[0] === "detail") && !this.detModel())
         return (this.error = "DETAIL redraws the picture lightly with an SD 1.5 or SDXL model and a LoRA: download one first (Models tab → SD 1.5).");
       if (this.tool.protecting) this.patchProtect(false);  // finish painting the protected areas
       this.error = "";
-      const mask = this.maskIsFor("tools", this.tool.source.path) ? this.mask.data : null;
+      const mask = this.toolPaintFor("remove");
       const reselect = this.patch.sel;
       this.patchUnswap();  // copies' settings shown in a rack unit are saved before running
       this.patch.sel = "";
@@ -5046,7 +5069,7 @@ const protoartApp = createApp({
             rec = await this.runJob("postprocess", { ...cur, action: "enhance", seed, options, ...this.enhProtectArgs() });
           } else if (id === "depth") {
             const dset = (this.patch.copySettings[node] && this.patch.copySettings[node].depth) || this.post.depth;
-            rec = await this.runJob("postprocess", { ...cur, action: "depth", depth_model: dset.model, style: dset.style });
+            rec = await this.runJob("postprocess", { ...cur, action: "depth", depth_model: dset.model, style: dset.style, threshold: dset.threshold || 0, near: dset.near ?? 1 });
           } else if (id === "detail") {
             const d = (this.patch.copySettings[node] && this.patch.copySettings[node].det) || this.post.det;
             rec = await this.runJob("generate", this.detailArgs(d, curPath));
@@ -5966,7 +5989,7 @@ const protoartApp = createApp({
         const W = cv2.width || cv.width, H = cv2.height || cv.height;
         tmp.width = W; tmp.height = H;
         tmp.getContext("2d").drawImage(img, 0, 0, W, H);
-        this.selStamp(tmp.getContext("2d").getImageData(0, 0, W, H), sub);
+        this.selStamp(asSelection(tmp.getContext("2d").getImageData(0, 0, W, H)), sub);
         if (this.mask.tool === "subject") this.mask.tool = "brush";
         this.status = "Subject selected: fix the edge with 🖌 Brush / 🧽 Erase (or ＋ Add / － Subtract) if needed";
       } catch (e) {
@@ -5990,7 +6013,7 @@ const protoartApp = createApp({
         const cv2 = this.$refs.maskCanvas || cv, tmp = document.createElement("canvas");
         tmp.width = cv2.width; tmp.height = cv2.height;
         tmp.getContext("2d").drawImage(img, 0, 0, cv2.width, cv2.height);
-        this.selStamp(tmp.getContext("2d").getImageData(0, 0, cv2.width, cv2.height), sub);
+        this.selStamp(asSelection(tmp.getContext("2d").getImageData(0, 0, cv2.width, cv2.height)), sub);
         this.status = `Text selected (${r.count} place${r.count === 1 ? "" : "s"}): add or take away with the brush if needed`;
       } catch (e) {
         this.error = "Select text failed: " + (e.message || e);
@@ -6013,7 +6036,7 @@ const protoartApp = createApp({
         tmp.height = cv.height;
         tmp.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
         if (r.found) {
-          this.selStamp(tmp.getContext("2d").getImageData(0, 0, cv.width, cv.height), sub);
+          this.selStamp(asSelection(tmp.getContext("2d").getImageData(0, 0, cv.width, cv.height)), sub);
           this.status = "Object selected (outlined): fix the edges with the brush or eraser if needed";
         } else {  // no clear outline: take the box itself, so something always happens
           this.selFill([{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }], sub);
@@ -6059,6 +6082,31 @@ const protoartApp = createApp({
       }
       this._ants = { w: W, h: H, img: out };
     },
+    async cmpDraw() {  // Tools → Split: the original (left of the line) over the result, drawn into one canvas
+      const cv = this.$refs.cmpCanvas, s = this.tool.source, r = this.tool.latest;
+      if (!cv || !s || !r) return;
+      const load = (p) => {
+        this._cmpImgs = this._cmpImgs || {};
+        if (this._cmpImgs[p]) return this._cmpImgs[p];
+        const im = new Image();
+        im.decoding = "async";
+        this._cmpImgs[p] = new Promise((ok) => { im.onload = () => ok(im); im.onerror = () => ok(null); im.src = this.fileUrl(p); });
+        const keys = Object.keys(this._cmpImgs);
+        if (keys.length > 6) delete this._cmpImgs[keys[0]];  // keep a few, not every picture ever compared
+        return this._cmpImgs[p];
+      };
+      const [a, b] = await Promise.all([load(s.path), load(r.path)]);
+      if (!a || !b || cv !== this.$refs.cmpCanvas) return;
+      const k = Math.min(1, 1600 / Math.max(b.naturalWidth, b.naturalHeight));
+      const W = Math.max(1, Math.round(b.naturalWidth * k)), H = Math.max(1, Math.round(b.naturalHeight * k));
+      if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+      const ctx = cv.getContext("2d"), x = Math.round(W * this.tool.split);
+      ctx.drawImage(b, 0, 0, W, H);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, 0, x, H); ctx.clip();
+      ctx.drawImage(a, 0, 0, W, H);  // the same box, so the two always line up
+      ctx.restore();
+    },
     cmpDrag(e) {  // Tools → Split view: drag on the picture to move the line
       const box = this.$refs.cmpSplit;
       if (!box) return;
@@ -6066,6 +6114,8 @@ const protoartApp = createApp({
       const move = (ev) => {
         const r = box.getBoundingClientRect();
         this.tool.split = Math.min(1, Math.max(0, (ev.clientX - r.left) / Math.max(1, r.width)));
+        cancelAnimationFrame(this._cmpF);
+        this._cmpF = requestAnimationFrame(() => this.cmpDraw());
       };
       move(e);
       const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
@@ -6215,10 +6265,62 @@ const protoartApp = createApp({
     },
     // Tools → 🩹 Remove objects, right in Tools: paint on the picture on the left, then Remove
     toolPaintRemove(on) {
-      if (!this.tool.source) return;
-      if (on && this.adj.open) this.closeAdjust();
-      this.tool.healing = !!on;
-      if (on) this.status = "Paint over what you want gone on the picture, then press 🩹 Remove";
+      if (on) this.toolPaintStart("remove");
+      else this.toolPaintStop();
+    },
+    // Tools has one painting area on the picture, used for several things: what 🩹 Remove takes out, ✨ Enhance's
+    // area, the areas ✨ Enhance or the whole patch must keep. Each keeps its own painting: switching keeps the one
+    // you were on and brings back the other's.
+    TOOL_PAINT_LABELS() {
+      return { remove: "what 🩹 Remove takes out", enhArea: "the part ✨ Enhance works on", enhProtect: "what ✨ Enhance must leave as it is",
+               protect: "what the patch must leave as it is", pw: "the part 🪡 Puppet warp moves" };
+    },
+    toolPaintSlot(kind) {  // where a painting is kept: {data, for}
+      if (kind === "protect") return this.patch.protect;
+      if (kind === "enhProtect") return this.patch.enhProtect;
+      return this.toolMasks[kind] || null;
+    },
+    toolPaintKeep() {  // the painting on screen, back into its own place
+      const kind = this.tool.paintFor, path = this.tool.source && this.tool.source.path;
+      if (!this.tool.healing || !path || kind === "pw") return;
+      const data = this.maskIsFor("tools", path) ? this.mask.data : null;
+      const val = data ? { data, for: path } : null;
+      if (kind === "protect") this.patch.protect = val;
+      else if (kind === "enhProtect") this.patch.enhProtect = val;
+      else this.toolMasks = { ...this.toolMasks, [kind]: val };
+    },
+    toolPaintStart(kind) {
+      const s = this.tool.source;
+      if (!s) return;
+      if (this.adj.open) this.closeAdjust();
+      if (this.pw.open && kind !== "pw") this.closePuppet();
+      if (this.cut.open) this.closeCutout();
+      if (this.tx.open) this.txClose();
+      if (this.tool.healing && this.tool.paintFor !== kind) this.toolPaintKeep();
+      const slot = this.toolPaintSlot(kind);
+      if (this.tool.paintFor !== kind || !this.tool.healing) {
+        this.mask.data = slot && slot.for === s.path ? slot.data : null;
+        Object.assign(this.mask, { for: s.path, tab: "tools" });
+        this.$nextTick(() => this.initMaskCanvas());
+      }
+      this.tool.paintFor = kind;
+      this.tool.protecting = kind === "protect" || kind === "enhProtect";
+      this.tool.protectWhich = kind === "enhProtect" ? "enhance" : "all";
+      this.tool.healing = true;
+      this.status = "Paint " + this.TOOL_PAINT_LABELS()[kind] + " on the picture" + (this.tool.protecting ? ", then press ✓ Done" : "");
+    },
+    toolPaintStop(keep = true) {
+      if (keep) this.toolPaintKeep();
+      this.tool.healing = false;
+      this.tool.protecting = false;
+      this.mask.data = null;
+    },
+    toolPaintFor(kind) {  // that painting for this picture (the one on screen if it's being painted now)
+      const path = this.tool.source && this.tool.source.path;
+      if (!path) return null;
+      if (this.tool.healing && this.tool.paintFor === kind) return this.maskIsFor("tools", path) ? this.mask.data : null;
+      const slot = this.toolPaintSlot(kind);
+      return slot && slot.for === path ? slot.data : null;
     },
     // ✂ Cut out: the model's matte comes back once; the threshold / softness / grow sliders then work on it live,
     // in the window (cutRefine mirrors backend/postprocess/cutout.py refine), and Save makes the file in the engine
@@ -6387,9 +6489,9 @@ const protoartApp = createApp({
     async toolHeal() {
       const s = this.tool.source;
       if (!s) return;
-      if (!this.maskIsFor("tools", s.path)) return (this.error = "Paint over what you want to remove first.");
+      const mask = this.toolPaintFor("remove");
+      if (!mask) return (this.error = "Paint over what you want to remove first.");
       this.error = "";
-      const mask = this.mask.data;
       this.tool.working = { label: "Removing what you painted", started: Date.now() };
       this.tool.latest = null;
       try {
@@ -6397,8 +6499,8 @@ const protoartApp = createApp({
         if (rec) {
           this.tool.latest = rec;
           this.afterPost(rec);
-          this.tool.healing = false;
-          this.mask.data = null;
+          if (this.tool.paintFor === "remove") this.toolPaintStop(false);
+          this.toolMasks = { ...this.toolMasks, remove: null };  // done: the next Remove starts from a clean slate
         }
       } finally {
         this.tool.working = null;
@@ -8725,7 +8827,7 @@ const protoartApp = createApp({
     },
     async toolDepth() {
       const { model, style } = this.post.depth;
-      return this.toolRun("Making a depth map", { action: "depth", depth_model: model, style });
+      return this.toolRun("Making a depth map", { action: "depth", depth_model: model, style, threshold: this.post.depth.threshold || 0, near: this.post.depth.near ?? 1 });
     },
     depthToControlNet(r) {
       // a ready-made depth map: ControlNet follows it as-is; the picture itself isn't the starting image
@@ -9164,7 +9266,7 @@ const protoartApp = createApp({
     },
     async txClear() {  // 2 · fill the selected text's background in (Remove objects), then open the Type tool on it
       if (!this.tool.source) return;
-      if (!this.maskIsFor("tools", this.tool.source.path)) return (this.error = "Select the text first (🔍 Find the text, or paint over it).");
+      if (!this.toolPaintFor("remove")) return (this.error = "Select the text first (🔍 Find the text, or paint over it).");
       await this.toolHeal();
       if (this.tool.latest && this.tool.latest.kind === "healed") this.txOpen(this.tool.latest);
     },
@@ -9284,6 +9386,8 @@ const protoartApp = createApp({
       this.mask.data = null;
       this.mask.tool = "brush";
       this.mask.erase = false;
+      if (this.tool.healing && this.tool.paintFor !== "pw") this.toolPaintKeep();
+      this.tool.paintFor = "pw";
       this.tool.healing = true;  // the picture on the left with the selection tools
       this.status = "Select the subject: 👤 Subject finds the person or animal by itself; ⬚ Object from a box; Brush or Lasso fix the edge. Then ✓ Use this subject";
       this.$nextTick(() => setTimeout(() => this.selAutoSubject(), 250));
@@ -9967,6 +10071,68 @@ const protoartApp = createApp({
       if (this.adj.paintMode) this.status = mode === "erase" ? "Paint over the parts where it shouldn't show · [ ] change the brush size"
         : "Paint where " + ((this.adjPointTargets().find((t) => t.id === this.adj.pointTarget) || {}).label || "it") + " should show · [ ] change the brush size";
       this.$nextTick(() => this.adjPaintShow());
+    },
+    // 🧴 Skin texture → 👤 Select the skin: paints the skin-coloured parts of the picture (optionally only on the
+    // person found by ✂ Cut out's model), as the painted area of the step being worked on. Eyes, lips, brows and hair
+    // mostly fall outside it; 🧽 Erase what's left over. Skin match widens or narrows what counts as skin.
+    async adjSelectSkin(target) {
+      target = target || this.adj.pointTarget;
+      const r = this.adj.rec;
+      if (!r || this.adj.skinBusy) return;
+      this.adj.skinBusy = true;
+      try {
+        this.adjPaintSnapshot(target);  // ⌘Z takes it back
+        const c = this.adjPaintCanvas(target), W = c.width, H = c.height;
+        if (!this._skinBmp || this._skinBmp.path !== r.path)
+          this._skinBmp = { path: r.path, bmp: await createImageBitmap(new Blob([await this.readImageBytes(r.path)])) };
+        const t = document.createElement("canvas");
+        t.width = W; t.height = H;
+        const tc = t.getContext("2d");
+        tc.drawImage(this._skinBmp.bmp, 0, 0, W, H);
+        const px = tc.getImageData(0, 0, W, H).data;
+        let subj = null;
+        if (this.adj.skinSubject) {  // only on the person (or animal): the subject found by the Cut out model
+          try {
+            const m = await call("cutout", { mode: "mask", path: r.path, width: W, height: H });
+            if (m && m.found && m.mask) {
+              const im = new Image();
+              await new Promise((ok, bad) => { im.onload = ok; im.onerror = bad; im.src = m.mask; });
+              tc.clearRect(0, 0, W, H); tc.drawImage(im, 0, 0, W, H);
+              subj = tc.getImageData(0, 0, W, H).data;
+            }
+          } catch { subj = null; }
+        }
+        const out = new ImageData(W, H), o = out.data, k = Math.max(0.3, Number(this.adj.skinTol) || 1);
+        let n = 0;
+        for (let i = 0; i < px.length; i += 4) {
+          const R = px[i], G = px[i + 1], B = px[i + 2];
+          const Y = 0.299 * R + 0.587 * G + 0.114 * B, Cb = 128 - 0.1687 * R - 0.3313 * G + 0.5 * B, Cr = 128 + 0.5 * R - 0.4187 * G - 0.0813 * B;
+          // skin tones sit in a small ellipse of Cb / Cr whatever the skin colour (light to dark), away from grey
+          const dx = (Cb - 110) / (18 * k), dy = (Cr - 152) / (17 * k);
+          let v = 1 - Math.min(1, dx * dx + dy * dy);
+          v = Math.min(1, v * 2.2) * Math.min(1, Math.max(0, (Y - 20) / 30)) * Math.min(1, Math.max(0, (250 - Y) / 25));
+          if (subj) v *= subj[i + 3] / 255;
+          if (v > 0.15) n++;
+          o[i] = o[i + 1] = o[i + 2] = 255; o[i + 3] = Math.round(v * 255);
+        }
+        tc.clearRect(0, 0, W, H);
+        tc.putImageData(out, 0, 0);
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);  // the skin replaces what was painted for this step
+        ctx.save();
+        ctx.filter = `blur(${Math.max(1, Math.round(Math.max(W, H) / 400))}px)`;  // a soft edge, like the brush's
+        ctx.drawImage(t, 0, 0);
+        ctx.restore();
+        adjEngine && adjEngine.setPaint(target, c);
+        this.adj.paintRev++;
+        if (this.adj.paintMode !== "paint") this.adjPaintToggle("paint");
+        this.adjPaintShow();
+        this.adjRender();
+        this.status = n < W * H * 0.002 ? "Hardly any skin found: raise Skin match, or paint it with the brush"
+          : "Skin selected: 🧽 Erase the eyes, lips, brows or anything else it picked up (⌘Z takes it back)";
+      } catch (e) {
+        this.adj.error = "Couldn't select the skin: " + (e.message || e);
+      } finally { this.adj.skinBusy = false; }
     },
     adjClearPaint(target) {
       if (!adjPaint[target]) return;

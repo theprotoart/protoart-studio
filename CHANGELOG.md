@@ -1,5 +1,18 @@
 # Changelog
 
+## Next (not released yet)
+
+- 🔤 Find the text returned an opaque black/white mask, stamped as paint over the whole picture (Clear it then filled
+  everything): `find_text` now returns an RGBA selection like 👤 Subject's, and `asSelection` normalises any picked area
+- Tools split view drawn into one canvas (`cmpDraw`): the clipped overlay `<img>` flickered on busy Macs
+- Tools paintings kept apart (`tool.paintFor`, `toolMasks`, `toolPaintStart/Keep/Stop/For`): Remove, Enhance's area,
+  Protect from Enhance, the patchbay's Protect; painting tools moved under the picture (`.tool-paintbar`)
+- 🙂 Keep faces skips faces gone from the result and faces under 4.5 % of the short side (`Engine._faces_to_keep`)
+- Queue time left for running non-generate jobs from their progress (`jobEtas` uses `genLeft`)
+- 🧴 👤 Select the skin (`adjSelectSkin`: YCbCr skin ellipse, Skin match, optional Cut out subject mask)
+- Depth map Threshold / Near white (`controlnet.depth_levels`)
+- Create's ControlNet types loaded at start; Adjust save buttons wrap (`.adj-actions`) with the enhance time
+
 ## 1.6.3
 
 - 🔤 Replace text: `vertical` layers (columns right to left, upright letters one em apart; HTML preview built as columns by

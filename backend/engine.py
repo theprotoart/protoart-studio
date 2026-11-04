@@ -3217,8 +3217,14 @@ class Engine:
         if quads:  # a little past the letters (outlines, shadows, glow)
             grow = max(3, int(min(W, H) * 0.008)) // 2 * 2 + 1
             m = m.filter(ImageFilter.MaxFilter(min(grow, 15)))
+        # as a painted selection (pink where the text is, see-through elsewhere), like 👤 Subject's: a plain black and
+        # white picture would be stamped as paint everywhere (black too), and Remove then cleared the whole picture
+        import numpy as np
+        on = np.asarray(m) >= 128
+        rgba = np.zeros((H, W, 4), np.uint8)
+        rgba[on] = (255, 64, 129, 255)
         buf = io.BytesIO()
-        m.save(buf, "PNG")
+        Image.fromarray(rgba, "RGBA").save(buf, "PNG")
         return {"mask": "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(), "found": bool(quads),
                 "count": len(quads)}
 
@@ -3307,8 +3313,10 @@ class Engine:
                 est = self._get_depth_estimator(size)
                 self.emit({"type": "status", "msg": f"Making a depth map (Depth Anything V2 {size.capitalize()})…"})
                 self.emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
-                out = cnet.depth_image(est, out, style)
-                settings["depth"] = {"model": cnet.DEPTH_MODELS[size][0], "size": size, "style": style}
+                thr, near = float(args.get("threshold") or 0), float(args.get("near") or 1)
+                out = cnet.depth_image(est, out, style, threshold=thr, near=near)
+                settings["depth"] = {"model": cnet.DEPTH_MODELS[size][0], "size": size, "style": style,
+                                     **({"threshold": thr} if thr > 0 else {}), **({"near": near} if near < 1 else {})}
                 continue
             if step == "enhance":
                 enh = self.get_enhancer(force=force)
@@ -4149,6 +4157,28 @@ class Engine:
         self.emit({"type": "image", "record": record})
         return record
 
+    @staticmethod
+    def _faces_to_keep(before, after, size, min_frac=0.045):
+        """🙂 Keep faces: of the faces in the original (boxes in the result's size), the ones to redo: at least
+        min_frac of the picture's shorter side across, and still a face in the edited picture (overlapping one)."""
+        side = min(size)
+
+        def iou(a, b):
+            ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+            iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+            inter = ix * iy
+            union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+            return inter / union if union > 0 else 0.0
+
+        keep = []
+        for bx in before:
+            if min(bx[2] - bx[0], bx[3] - bx[1]) < min_frac * side:
+                continue
+            if after is not None and not any(iou(bx, a) > 0.2 for a in after):
+                continue
+            keep.append(bx)
+        return keep
+
     def _klein_faces(self, original, result, prompt, seed, steps, tmp, on_event, files, max_faces=3):
         """🙂 Keep faces (Edit with words): find the faces in the original; for each, the same edit is made again on a
         close-up crop of the original face (with that face as a reference picture too), then blended into the result
@@ -4162,8 +4192,14 @@ class Engine:
             return result, 0
         try:
             boxes = ff.find(base, min_score=0.6, min_size=12)[:max_faces]
+            # only faces that are still there after the edit ("remove the people in the background" takes some away:
+            # redoing those would paste them back), and big enough to matter (a tiny face in the distance costs a
+            # whole extra edit for a few pixels)
+            boxes = self._faces_to_keep(boxes, ff.find(result, min_score=0.5, min_size=12), result.size)
         except Exception as e:
             print("[engine] face finder unavailable:", e, flush=True)
+            return result, 0
+        if not boxes:
             return result, 0
         work = 768 if 0 < total_ram_gb() < 12 else 1024
         done = 0
