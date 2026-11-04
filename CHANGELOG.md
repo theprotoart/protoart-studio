@@ -1,5 +1,13 @@
 # Changelog
 
+## Next (not released yet)
+
+- 🦴 Follow a pose on the fast engine (Create, `poseFast`): `pose_image` (Create's ControlNet picture) makes
+  `Engine._klein_pose_pass` draw each prompt with FLUX.2 Klein in the pose of the picture (`image_paths`, `POSE_PROMPT`;
+  Klein's output size follows the pose picture's shape, `_pose_size`); for ERNIE the Klein picture is the starting
+  point of an ERNIE image-to-image pass (`pose_ernie_change`, default 0.55). The 🧍 Pose library fills it in too
+- ✨ Edit with words recipe 🦴 Copy pose (Copy Pose [Qwen & Klein] LoRA, 4B / 9B, from Civitai on request)
+
 ## 1.6.6
 
 - ▶ Continue a stopped training: `trainer.remember_stop` / `stopped_info` / `continue_args` (`train_stopped.json` in the

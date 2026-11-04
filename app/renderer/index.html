@@ -707,6 +707,28 @@
         <input ref="ipPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.procreate,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onIpPicked">
       </section>
 
+      <!-- 🦴 Follow a pose without ControlNet: FLUX.2 Klein reads the pose picture; ERNIE redraws Klein's picture -->
+      <section v-if="poseFast" class="cc-sec ipa cfold" :class="{shut: cfShut('cc')}">
+        <label @click="cfToggle('cc', $event)">🦴 Follow a pose <span class="hint">{{ family === 'ernie' ? 'Klein draws the pose, ERNIE redraws it' : 'FLUX.2 Klein copies the pose of a picture' }}</span><span v-if="cfShut('cc')" class="cfold-sum">{{ form.cc.image ? 'on' : 'off' }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <button class="ghost small pose-lib-btn" @click="openPoseLib" title="Ready-made poses (standing, sitting, kneeling, lying…) from five angles">🧍 Pose library</button>
+        <div v-if="!form.cc.image" class="ipa-drop" :class="{over: ccDragOver}" @dragover.prevent="ccDragOver = true"
+             @dragleave="ccDragOver = false" @drop.prevent="onCcDrop" @click="$refs.ccPickFast.click()">
+          Drop a picture with the pose <span class="hint">(a photo, a drawing, a mannequin · or click to choose)</span></div>
+        <div v-else class="ipa-on">
+          <img :src="fileUrl(form.cc.image)" alt="The pose to follow">
+          <div class="ipa-opts">
+            <div class="hint">Describe who or what to draw in the prompt (“a knight in armour in a castle hall”); the pose, framing and camera angle come from this picture.{{ family === 'flux2' ? ' The new picture takes its shape.' : ' Pick a size of the same shape (tall or wide) for the best fit.' }}</div>
+            <template v-if="family === 'ernie'">
+              <label>How much ERNIE redraws <span class="hint">{{ Number(form.cc.ernie_change ?? 0.55).toFixed(2) }}</span></label>
+              <input type="range" min="0.3" max="0.8" step="0.05" v-model.number="form.cc.ernie_change"
+                     title="Lower keeps Klein's picture (and the pose) more exactly; higher gives ERNIE's own look more say but can loosen the pose">
+              <div class="hint slider-help">0.5–0.6 keeps the pose with ERNIE's look. Uses FLUX.2 Klein 4B too (a 4.6 GB download the first time).</div>
+            </template>
+            <div class="row"><button class="link" @click="form.cc.image = ''">remove</button></div>
+          </div>
+        </div>
+        <input ref="ccPickFast" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="onCcPicked">
+      </section>
       <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="cc-sec ipa cfold" :class="{shut: cfShut('cc')}">
         <label @click="cfToggle('cc', $event)">🎛 ControlNet <span class="hint">follow a picture's pose, drawing, outlines or layout</span><span v-if="cfShut('cc')" class="cfold-sum">{{ form.cc.image && form.cc.type ? ((ccTypes.find((t) => t.id === form.cc.type) || {}).label || form.cc.type) : 'off' }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <div v-if="!ccTypes.length" class="hint">No ControlNet for {{ family === 'sdxl' ? 'SDXL' : 'SD 1.5' }} models yet: download one in Models → ControlNet{{ family === 'sdxl' ? ' (Union ProMax covers every type)' : '' }}.</div>
@@ -4745,13 +4767,13 @@
           <button v-for="v in Object.keys(poseLib.sel.views)" :key="v" :class="{on: poseLib.view === v}" @click="poseLib.view = v">{{ POSE_VIEWS[v] || v }}</button>
         </div>
         <div class="row">
-          <button class="primary" :disabled="poseLib.busy || !ccGoals.some((g) => g.map === 'openpose') || !(poseLib.sel.views[poseLib.view] || {}).line && !(poseLib.sel.views[poseLib.view] || {}).photo && !(poseLib.sel.views[poseLib.view] || {}).mine" @click="poseLibUse('pose')"
+          <button class="primary" :disabled="poseLib.busy || !poseFast && !ccGoals.some((g) => g.map === 'openpose') || !(poseLib.sel.views[poseLib.view] || {}).line && !(poseLib.sel.views[poseLib.view] || {}).photo && !(poseLib.sel.views[poseLib.view] || {}).mine" @click="poseLibUse('pose')"
                   title="OpenPose reads the figure's pose; clothes, face and setting come from your prompt">🦴 Use for Pose</button>
-          <button class="primary" :disabled="poseLib.busy || !ccGoals.some((g) => g.map === 'depth') || !(poseLib.sel.views[poseLib.view] || {}).depth && !(poseLib.sel.views[poseLib.view] || {}).mine" @click="poseLibUse('depth')"
+          <button class="primary" :disabled="poseLib.busy || !poseFast && !ccGoals.some((g) => g.map === 'depth') || !(poseLib.sel.views[poseLib.view] || {}).depth && !(poseLib.sel.views[poseLib.view] || {}).mine" @click="poseLibUse('depth')"
                   title="Its depth map: keeps the body's shape and how it's turned (strongest)">🧊 Use for Depth</button>
         </div>
         <label class="check pose-desc"><input type="checkbox" v-model="poseLib.addDesc"> add the pose's description to the prompt</label>
-        <div class="hint">{{ poseLib.msg || (ccGoals.some((g) => g.map === 'openpose') ? '' : 'Download an OpenPose ControlNet in Models → ControlNet to use 🦴 Pose.') }}</div>
+        <div class="hint">{{ poseLib.msg || (poseFast ? (family === 'ernie' ? 'FLUX.2 Klein draws the pose, then ERNIE redraws it (Klein 4B downloads once if you don\'t have it).' : 'FLUX.2 Klein draws your prompt in this pose.') : ccGoals.some((g) => g.map === 'openpose') ? '' : 'Download an OpenPose ControlNet in Models → ControlNet to use 🦴 Pose.') }}</div>
       </div>
       <div class="hint">Poses from <a href="https://github.com/wquguru/shisei" target="_blank">Shisei</a> (free to use, CC0); pose list after ai-pose-gallery by ギア. The pictures download from GitHub the first time you see them.</div>
     </div>

@@ -238,7 +238,7 @@ function defaultForm() {
     init_image: "", strength: 0.6, use_init_size: false, size_link: false, size_ratio: 1,
     fast: false, fast_prev: null, i2i_use_init: true, control_image: "",
     control: { type: "", scale: 1.0, start: 0.0, end: 1.0, already_map: false },
-    cc: { image: "", type: "", scale: 0.8, start: 0.0, end: 0.8, already_map: false },  // 🦴 Create's own ControlNet (a pose…)
+    cc: { image: "", type: "", scale: 0.8, start: 0.0, end: 0.8, already_map: false, ernie_change: 0.55 },  // 🦴 Create's own ControlNet (a pose…)
     hires: { on: false, scale: 1.5, strength: 0.45, steps: 15 },
     face_detailer: { on: false, strength: 0.4, prompt: "", max_faces: 4, min_face_pct: 0, confidence: 0.6, mask_grow: 0.18, mask_blur: 1, hair: false },
     ip_adapter: { image: "", kind: "style", scale: 0.6 },
@@ -340,6 +340,12 @@ const EDIT_RECIPES = [
     licence: "non-commercial use only",
     files: { "4b": { url: "https://civitai.com/models/2508392?modelVersionId=2820876", name: "KleinBase4B_ReplaceSubject", mb: 46 },
              "9b": { url: "https://civitai.com/models/2508392?modelVersionId=2819585", name: "KleinBase9B_ReplaceSubject", mb: 83 } } },
+  { id: "copy_pose", label: "🦴 Copy pose", by: "Copy Pose [Qwen & Klein] (Civitai)",
+    tip: "Puts the person in Image 1 into the pose and framing of Image 2 (a photo, a drawing or a mannequin from the 🧍 Pose library), keeping their face, clothes and look. If the pose needs something they don't have (a cup, a chair), it's added.",
+    prompt: "change the actions and poses in Image 1 to match those in Image 2",
+    licence: "non-commercial use only",
+    files: { "4b": { url: "https://civitai.com/models/2380153?modelVersionId=2680617", name: "KleinBase4B_PoseTransfer", mb: 44 },
+             "9b": { url: "https://civitai.com/models/2380153?modelVersionId=2701726", name: "KleinBase9B_PoseTransfer", mb: 79 } } },
 ];
 const I2I_FORM_KEYS = [...I2I_PICTURE_KEYS, "strength", "use_init_size", "size_link", "size_ratio", "i2i_use_init", "control",
   "heal_method", "keep_faces", "cam", "combine", "i2i_mode", "inpaint", "outpaint", "outpaint_engine", "swap", "i2i_loras"];
@@ -835,6 +841,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Since 1.6.6 (in the next version): 🦴 poses with FLUX.2 Klein and ERNIE, 🦴 Copy pose", items: [
+              "<b>🦴 Follow a pose with FLUX.2 Klein</b> (Create): with a Klein model picked, <b>🦴 Follow a pose</b> takes a picture with the pose (a photo, a drawing, a mannequin from the 🧍 Pose library) and draws your prompt in exactly that pose. No ControlNet needed: Klein reads the pose picture itself.",
+              "<b>🦴 Poses with ERNIE</b>: ERNIE has no pose ControlNet, so FLUX.2 Klein draws the pose first and ERNIE redraws it (<b>How much ERNIE redraws</b>: 0.5–0.6 keeps the pose with ERNIE's look). Klein 4B downloads once (4.6 GB) if you don't have it.",
+              "<b>🦴 Copy pose</b> (Image to image → ✨ Edit with words → recipes): the person in Image 1 in the pose of Image 2, keeping their face, clothes and look (a community LoRA from Civitai, non-commercial)." ] },
             { h: "1.6.6: ▶ continue a stopped training, 🧍 pose library, two-picture recipes", items: [
               "<b>▶ Continue a stopped training</b> (Train): after <b>Stop training</b>, a card says how far it got, with <b>▶ Continue from step …</b>: it carries on with the same pictures and settings instead of starting over (also after closing the app). ERNIE on the fast engine now saves its progress every 50 steps, so Stop really keeps it.",
               "<b>🧍 Pose library</b> (Create → 🎛 ControlNet): about 100 ready-made poses (standing, sitting, kneeling, lying, cute poses…) from five angles. Pick one, pick the angle, then <b>🦴 Use for Pose</b> or <b>🧊 Use for Depth</b>; it can add the pose's description to your prompt. The pictures come from Shisei (free, CC0) and download the first time you see them. <b>＋ Add your own</b> keeps your own pose pictures (photos, drawings, 3-D renders) in <b>★ My poses</b>; ✕ on any pose removes it (yours) or hides it (the library's; ↺ Show hidden brings them back).",
@@ -1182,6 +1192,11 @@ const protoartApp = createApp({
               "Picks random LoRAs that work with the chosen model: set how many (e.g. 1 to 2) and the weight range.",
               "Their trigger words are added to the prompt (if auto-add is on in Settings) and taken back out on the next pick. LoRAs you added yourself stay.",
               "<b>new pick every Generate</b> re-rolls each time you press Generate. It only ever picks LoRAs made for the chosen model's type, and skips ones hidden by Hide NSFW / Hide People." ] },
+            { h: "🦴 Follow a pose with FLUX.2 Klein or ERNIE (in Create)", items: [
+              "FLUX.2 Klein and ERNIE have no ControlNet on the fast engine, so with one of them picked Create shows <b>🦴 Follow a pose</b> instead of 🎛 ControlNet. Drop a picture with the pose (a photo, a drawing, a 3-D render) or open the <b>🧍 Pose library</b>, then describe who or what to draw in the prompt, e.g. “a knight in armour in a castle hall”. The pose, framing and camera angle come from the picture; clothes, face, setting and style from your prompt.",
+              "<b>Klein</b> reads the pose picture itself (like ✨ Edit with words) and the new picture takes its shape (tall or wide). Mannequin poses from the library work especially well, as there's nothing in them to copy but the pose.",
+              "<b>ERNIE</b>: FLUX.2 Klein draws the pose first, then ERNIE redraws that picture. <b>How much ERNIE redraws</b>: lower keeps the pose more exactly, higher gives ERNIE's look more say (0.5–0.6 is a good start). Pick an ERNIE size of the same shape as the pose picture. It uses FLUX.2 Klein 4B too: a 4.6 GB download the first time, and each picture takes a Klein pass plus the ERNIE pass.",
+              "To keep a <b>particular person</b> and only change their pose, use <b>🦴 Copy pose</b> in Image to image → ✨ Edit with words (recipes) instead." ] },
             { h: "🎛 ControlNet (in Create)", items: [
               "<b>🧍 Pose library</b> (under the drop box): about 100 mannequin poses, each from up to five angles (front, ¾ turn, side, from above, from below). Search or pick a kind, click a pose, pick the angle, then <b>🦴 Use for Pose</b> (OpenPose reads the figure) or <b>🧊 Use for Depth</b> (its depth map, used as it is: keeps the body's shape most closely). Tick <i>add the pose's description</i> to put the pose into words in your prompt too. Free to use (Shisei, CC0); the pictures download from GitHub the first time and stay on this Mac. <b>＋ Add your own</b> (top of the library) adds your own pose pictures to <b>★ My poses</b>: a photo, a drawing or a 3-D render; OpenPose or the depth finder reads them like any picture. ✕ on one of yours removes the copy (your original stays); ✕ on one of the library's poses hides it, and <b>↺ Show hidden</b> brings them back.",
               "Make a new picture that follows another one, straight from Create (SD 1.5 and SDXL models). In <b>🎛 ControlNet</b> pick what to follow: <b>🦴 Pose</b> (a person's pose: a photo, a drawing or a 3D pose model all work), <b>✏️ Drawing</b> (colour and render a sketch, keeping its lines), <b>🖍 Scribble</b> (a rough doodle → a finished picture), <b>📐 Outlines</b> (exact edges: a product, a building, a logo), <b>〰 Soft shapes</b> (the main shapes, loosely) or <b>🧊 Depth &amp; layout</b> (what's near and far). Drop the picture and describe the result in the prompt as usual. The picture's size doesn't matter: Create's own size is used. <i>Follow its</i> lists every ControlNet you have, your own ones too.",
@@ -1265,7 +1280,7 @@ const protoartApp = createApp({
               "<b>Change strength</b>: low (0.3) keeps most of the original, high (0.8+) changes a lot.",
               "Pick the model right here; steps and CFG are next to it.",
               "<b>✨ Edit with words</b> (FLUX.2 Klein): describe the change in the prompt — “make the jacket red”, “add sunglasses”, “replace the sky with a sunset”, “turn it into a watercolour” — and press <b>✨ Edit</b>. It keeps the rest of the picture. Paint over a part first and only that part can change (everything else stays exactly as it was): best for precise edits. Add up to 3 <b>more pictures</b> to borrow from (“dress her in the outfit from the second picture”, “paint it in the style of the second picture”). It always uses FLUX.2 Klein, whatever model Create has (4.6 GB the first time), takes about as long as one FLUX.2 picture, and ignores LoRAs and the negative prompt.",
-              "<b>Two-picture recipes</b> (✨ Edit with words): <b>🧬 Mid-transformation</b> makes Image 1 halfway through turning into Image 2; <b>🔁 Replace subject</b> keeps Image 1's framing, pose and background and puts Image 2's person (or thing) in. The picture at the top is Image 1, the first picture under <i>More pictures</i> is Image 2. Pick the recipe (it fills in the wording its LoRA learned; add to it, e.g. “Give them an angry expression”), press <b>⤓ Download</b> once (a small LoRA from Civitai; save a Civitai API key in Models → Add from Civitai if it asks), then ✨ Edit. Mid-transformation may take a couple of tries. Replace subject has a 9B version for Macs using Klein 9B; it's for non-commercial use, and explicit results are never saved (like face swap).",
+              "<b>Two-picture recipes</b> (✨ Edit with words): <b>🦴 Copy pose</b> puts the person in Image 1 into the pose of Image 2 (a photo, a drawing or a 🧍 Pose library mannequin), keeping their face and clothes; <b>🧬 Mid-transformation</b> makes Image 1 halfway through turning into Image 2; <b>🔁 Replace subject</b> keeps Image 1's framing, pose and background and puts Image 2's person (or thing) in. The picture at the top is Image 1, the first picture under <i>More pictures</i> is Image 2. Pick the recipe (it fills in the wording its LoRA learned; add to it, e.g. “Give them an angry expression”), press <b>⤓ Download</b> once (a small LoRA from Civitai; save a Civitai API key in Models → Add from Civitai if it asks), then ✨ Edit. Mid-transformation may take a couple of tries. Replace subject has a 9B version for Macs using Klein 9B; it's for non-commercial use, and explicit results are never saved (like face swap).",
               "<b>🙂 Keep faces close to the original</b> (on by default): after the edit, each face (up to 3) is edited again on its own, close up, with the original face beside it, and blended in, so the person stays recognisable when you restore, colour or re-dress a photo. It adds about one more edit per face, and uses the face finder that Restore faces downloads (use Restore faces once). Small pictures are also worked on at up to twice their size and come back bigger.",
               "<b>🩹 Remove</b>: paint over what you want gone and press 🩹 Remove; it's filled in from its surroundings (no prompt or model needed). <b>✨ Smart fill</b> handles objects, people and patterns (~208 MB download the first time); <b>⚡ Quick fill</b> is instant for dust, spots and thin lines. Cover the thing fully, a little past its edges.",
               "<b>LoRAs</b> card: add a LoRA (search the list, or #tag for your 🏷 tags), set its weight with the slider, ✕ removes it. Under the search: the order (A → Z, <b>Newest first</b>, biggest…) and the kind list (<b>● People</b> / <b>Not People</b>, .safetensors, Pony…); <b>★</b> shows only favourites. They're the same LoRAs and the same filters as in Create (both tabs share the model); trigger words and 🎲 Random LoRAs are in Create." ] },
@@ -1619,6 +1634,9 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "Since 1.6.6: if something doesn't work", items: [
+              "<b>🦴 Follow a pose comes out with the mannequin still in it</b> (Klein): describe the subject fully in the prompt (who, what they wear, where), or try another seed. A photo of a real person as the pose picture can carry over their clothes and face too: a mannequin from the 🧍 Pose library avoids that.",
+              "<b>ERNIE loosens the pose</b>: lower <b>How much ERNIE redraws</b> (0.4–0.5)." ] },
             { h: "New in 1.6.6: if something doesn't work", items: [
               "<b>A recipe's ⤓ Download says Civitai wants a signed-in account</b>: save your Civitai API key in Models → Add from Civitai (the card shows how), then press Download again.",
               "<b>The pose library shows “…” instead of pictures</b>: they download from GitHub the first time; check the internet connection (and that Strict offline mode in Settings → Privacy is off).",
@@ -2734,7 +2752,7 @@ const protoartApp = createApp({
       }
       if (f.face_detailer && f.face_detailer.on && !sd) out.push("the face detailer (SD 1.5 and SDXL models only)");
       if (f.ip_adapter && f.ip_adapter.image && !sd) out.push("the image prompt (SD 1.5 and SDXL models only)");
-      if (cc && !sd) out.push("ControlNet (SD 1.5 and SDXL models only)");
+      if (cc && !sd && !this.poseFast) out.push("ControlNet (SD 1.5 and SDXL models only)");
       else if (cc && !this.ccAvailable) out.push("ControlNet (none downloaded for this model type yet)");
       if ((f.negative_prompt || "").trim() && !sd && Number(f.cfg) <= 1)
         out.push("the negative prompt (this model ignores it at guidance 1)");
@@ -2744,6 +2762,9 @@ const protoartApp = createApp({
       }).map((x) => x.name);
       if (names.length) out.push("LoRAs made for another model type: " + names.join(", "));
       return out;
+    },
+    poseFast() {  // 🦴 Follow a pose without ControlNet: FLUX.2 Klein on the fast engine, and ERNIE through Klein
+      return this.currentModel?.engine === "mlx" && ["flux2", "ernie"].includes(this.family);
     },
     ccAvailable() {
       return ["sd15", "sdxl"].includes(this.family) && this.currentModel?.engine !== "mlx" && this.ccTypes.length > 0;
@@ -5415,7 +5436,10 @@ const protoartApp = createApp({
       delete args.control_image;
       const cc = this.form.cc || {};
       delete args.cc;
-      if (cc.image && cc.type && this.ccAvailable) {  // 🦴 Pose & ControlNet: make the picture following a reference
+      if (cc.image && this.poseFast) {  // 🦴 Follow a pose with FLUX.2 Klein (and ERNIE, redrawing Klein's picture)
+        args.pose_image = cc.image;
+        if (this.family === "ernie") args.pose_ernie_change = cc.ernie_change ?? 0.55;
+      } else if (cc.image && cc.type && this.ccAvailable) {  // 🦴 Pose & ControlNet: make the picture following a reference
         args.control = { type: cc.type, scale: cc.scale, start: cc.start, end: cc.end, already_map: !!cc.already_map };
         args.control_image = cc.image;
         args.use_init_size = false;  // Create's own size
@@ -7057,7 +7081,7 @@ const protoartApp = createApp({
       pl.busy = true; pl.msg = "Getting the picture…";
       try {
         const r = await call("poselib_get", { id: p.id, view: pl.view, kind });
-        const goal = this.ccGoals.find((g) => g.map === (kind === "depth" ? "depth" : "openpose"));
+        const goal = this.poseFast ? null : this.ccGoals.find((g) => g.map === (kind === "depth" ? "depth" : "openpose"));
         this.form.cc.image = r.path;
         this.form.cc.already_map = !!r.already_map;
         this.ccMap = null;
@@ -7066,7 +7090,7 @@ const protoartApp = createApp({
           this.form.prompt = ((this.form.prompt || "").trim() + ((this.form.prompt || "").trim() ? ", " : "") + r.desc).trim();
         }
         pl.open = false;
-        this.status = `🧍 Following “${p.name}” (${POSE_VIEWS[pl.view] || pl.view}) with ${kind === "depth" ? "🧊 Depth" : "🦴 Pose"}`;
+        this.status = `🧍 Following “${p.name}” (${POSE_VIEWS[pl.view] || pl.view}) with ${this.poseFast ? "FLUX.2 Klein" : kind === "depth" ? "🧊 Depth" : "🦴 Pose"}`;
       } catch (e) {
         pl.msg = e.message;
       } finally {

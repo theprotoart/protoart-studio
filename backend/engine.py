@@ -697,6 +697,10 @@ def _tell_apart(m):
                         duplicate_of=[o for o in keys if o != k])
 
 
+class _PoseDone(Exception):
+    """Inside the fast engine's loop: this image is already made (by the 🦴 pose pass)."""
+
+
 class Engine:
     def wait_if_paused(self):
         """Pause: hold here (between steps) until Resume, Stop or Skip. Memory stays as it is, so it carries on
@@ -1621,6 +1625,9 @@ class Engine:
         from PIL import Image
         fam = spec["family"]
         fam_name = FAMILY_NAMES.get(fam, fam)
+        pose = args.get("pose_image") if fam in ("flux2", "ernie") and not args.get("init_image") else None
+        if pose and fam == "flux2":  # the new picture takes the pose picture's shape (Klein would crop it otherwise)
+            width, height = self._pose_size(pose, width, height)
         need = spec.get("min_ram_gb") or 8
         ram0 = total_ram_gb()
         if ram0 and ram0 < need * 0.5 and not force:
@@ -1629,7 +1636,12 @@ class Engine:
         if ram0 and ram0 < need:
             self.emit({"type": "status", "msg": f"Heads up: {ram0} GB is tight for {spec['label']}; it may be slow."})
         try:
-            ram = self._mlx_load(spec, args.get("loras") or [])
+            pose_files = []
+            if pose:  # 🦴 Follow a pose: FLUX.2 Klein draws the prompt in the pose of the picture (no ControlNet needed)
+                pose_files = self._klein_pose_pass(spec if fam == "flux2" else all_models()["flux2_klein_mlx_q4"],
+                                                   args, prompt, width, height, n, seed,
+                                                   args.get("loras") if fam == "flux2" else [], fam == "ernie")
+            ram = self._mlx_load(spec, args.get("loras") or []) if fam != "flux2" or not pose else total_ram_gb()
             self.loaded_key = None
             self.family = fam
             out_dir = paths.HOME / "tmp"
@@ -1657,14 +1669,24 @@ class Engine:
                         self.emit(ev)
 
                 self.skip_event.clear()
+                if pose and i >= len(pose_files):
+                    continue  # that image's pose pass was skipped
                 try:
+                    if pose and fam == "flux2":  # Klein's pose picture is the result
+                        out = Path(pose_files[i])
+                        raise _PoseDone()
                     req = {"cmd": "generate", "prompt": p_i, "negative_prompt": n_i,
                            "width": width, "height": height, "steps": steps, "cfg": cfg, "seed": img_seed,
                            "out": str(out), "preview": self.previews}
                     if mlx_init:  # start from a picture (model chain, image to image): FLUX.1 and ERNIE
                         req.update(init_image=mlx_init, image_strength=mlx_strength)
+                    if pose:  # ERNIE redraws Klein's posed picture: the pose stays, ERNIE's look takes over
+                        change = max(0.2, min(0.9, float(args.get("pose_ernie_change") or 0.55)))
+                        req.update(init_image=pose_files[i], image_strength=1.0 - change)
                     self.mlx.request(req, on_event=on_event,
                                      skip_event=self.skip_event)
+                except _PoseDone:
+                    pass
                 except mlx_engine.CancelledError:
                     if self.skip_event.is_set() and not self.cancel_event.is_set():
                         self.skip_event.clear()
@@ -1694,6 +1716,9 @@ class Engine:
                     settings.update(original_prompt=o_i)
                     if args.get("enhance_prompt"):
                         settings["enhance_prompt"] = True
+                if pose:
+                    settings["pose"] = {"picture": os.path.basename(str(pose)), "by": "FLUX.2 Klein",
+                                        **({"ernie_change": float(args.get("pose_ernie_change") or 0.55)} if fam == "ernie" else {})}
                 if face_info:
                     settings["face_restore"] = face_info
                 if args.get("_raw"):  # a step of a bigger job (regions on the fast engine): not saved on its own
@@ -1705,11 +1730,89 @@ class Engine:
                 record = self._people_check(self._content_check(record, image), image)
                 results.append(record)
                 self.emit({"type": "image", "record": record})
+            for f in pose_files:  # Klein's posed pictures (ERNIE's starting points)
+                try:
+                    os.unlink(f)
+                except OSError:
+                    pass
             return results
         except mlx_engine.CancelledError:
             raise Cancelled()
         except mlx_engine.EngineError as e:
             raise UserError(str(e))
+
+    @staticmethod
+    def _pose_size(pose, width, height):
+        """Create's size, reshaped to the pose picture's shape (same area, steps of 16)."""
+        try:
+            import pictures
+            from PIL import Image as _Im
+            with _Im.open(pictures.prepare(pose)) as im:
+                pw, ph = im.size
+        except Exception:
+            return width, height
+        area, r = width * height, pw / max(1, ph)
+        w = int(round((area * r) ** 0.5 / 16)) * 16
+        h = int(round((area / r) ** 0.5 / 16)) * 16
+        return max(256, min(2048, w)), max(256, min(2048, h))
+
+    POSE_PROMPT = ("Make a new picture of: {p}. The subject is in exactly the same pose as the figure in image 1: the "
+                   "same body position, arms, legs, hands, head turn, framing and camera angle. Draw a complete, fully "
+                   "detailed picture of the description, with its own clothes, face, setting and lighting; do not show "
+                   "a mannequin, a plain grey background, a line drawing or a skeleton.")
+
+    def _klein_pose_pass(self, kspec, args, prompt, width, height, n, seed, loras, for_ernie):
+        """🦴 Follow a pose on the fast engine: FLUX.2 Klein draws each prompt in the pose of the pose picture (it reads
+        the picture as image 1, like ✨ Edit with words). -> temporary picture files, one per image."""
+        import mlx_engine
+        import pictures
+        from PIL import Image as _Im, ImageOps
+        tmp = paths.HOME / "tmp"
+        tmp.mkdir(parents=True, exist_ok=True)
+        try:
+            src = ImageOps.exif_transpose(_Im.open(pictures.prepare(args["pose_image"]))).convert("RGB")
+        except Exception:
+            raise UserError("Couldn't open the pose picture.")
+        src.thumbnail((1024, 1024))
+        ref = tmp / f"pose_ref_{os.getpid()}.png"
+        src.save(ref)
+        if for_ernie:
+            self.emit({"type": "status", "msg": "🦴 Pose: FLUX.2 Klein draws the pose first, then ERNIE redraws it…"})
+        self._mlx_load(kspec, [l for l in (loras or []) if isinstance(l, dict) and l.get("name")], variant="edit")
+        ksteps = int(kspec["defaults"]["steps"])
+        files = []
+        try:
+            for i in range(n):
+                if self.cancel_event.is_set():
+                    raise Cancelled()
+                p_i = prompt[i] if isinstance(prompt, list) else prompt
+                out = tmp / f"pose_out_{os.getpid()}_{i}.png"
+                self.emit({"type": "status", "msg": f"🦴 Drawing image {i + 1} of {n} in the pose (FLUX.2 Klein)…"})
+
+                def on_event(ev, _i=i):
+                    if ev.get("type") == "progress":
+                        self.emit({"type": "progress", "image": _i + 1, "images": n, "step": ev["step"], "steps": ev["steps"]})
+                    elif ev.get("type") == "preview":
+                        self.emit({"type": "preview", "image": _i + 1, "src": ev["src"]})
+
+                self.skip_event.clear()
+                try:
+                    self.mlx.request({"cmd": "generate", "prompt": self.POSE_PROMPT.format(p=(p_i or "a person").strip()),
+                                      "negative_prompt": None, "width": width, "height": height, "steps": ksteps,
+                                      "cfg": 1.0, "seed": (seed + i) % 2**32, "out": str(out), "preview": self.previews,
+                                      "image_paths": [str(ref)]}, on_event=on_event, skip_event=self.skip_event)
+                except mlx_engine.CancelledError:
+                    if self.skip_event.is_set() and not self.cancel_event.is_set():
+                        self.skip_event.clear()
+                        break
+                    raise
+                files.append(str(out))
+        finally:
+            try:
+                ref.unlink()
+            except OSError:
+                pass
+        return files
 
     def _generate_moss(self, args, model_id, spec, prompt, negative, width, height, steps, cfg, n, seed,
                        original_prompt, force=False):
