@@ -2557,3 +2557,4 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
    always show scroll bars, a column just at its height limit grew a scroll bar, which narrowed the picture, which made
    the column short enough to lose the bar again: the picture jumped between two sizes many times a second. */
 .tools > .tool-source, .tools, .i2i, .train, .controls, .output, .library, .models-tab, .settings { scrollbar-gutter: stable; }
+.tx-chip.tx-add { border-style: dashed; color: #ffcf7a; }

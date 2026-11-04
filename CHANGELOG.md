@@ -2,6 +2,8 @@
 
 ## Next (not released yet)
 
+- 🔤 Type: ＋ Add text button and a hint for several texts; clicking an empty spot always adds a new text (it used to only
+  deselect); an untouched new text is dropped; the typing box takes the keys after the click (`txAdd`)
 - Tools picture jumping between two sizes (Type text and elsewhere) when macOS shows scroll bars always: `scrollbar-gutter: stable` on the Tools picture column and the other scrolling panes
 
 ## 1.6.4

@@ -818,6 +818,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Since 1.6.4 (in the next version)", items: [
+              "<b>🔤 Several texts on one picture</b> (Replace text → Type): <b>＋ Add text</b>, or click an empty spot on the picture, adds another text with its own words, font, size and colour; click a text (or its name above the box) to pick it, drag it to move it, ✕ deletes it. After clicking the picture you can type straight away.",
               "<b>The picture in Tools no longer jumps between two sizes</b> (seen while typing text): on Macs set to always show scroll bars, the picture's column kept gaining and losing its scroll bar. Room for it is now kept all the time." ] },
             { h: "1.6.4: new fast-engine models, add future models yourself, face detailer options, 👤 select the skin", items: [
               "<b>New models on the ⚡ fast engine</b> for Macs with more memory: <b>FLUX.2 Klein 9B</b> (16 GB+, sharper than 4B; non-commercial licence), <b>Z-Image Turbo</b> (“ZIT”, 16 GB+, photoreal in 9 steps, Apache-2.0), <b>Qwen-Image 2.1</b> and <b>Qwen-Image 2.1 Turbo</b> (24 GB+, non-commercial) and <b>Krea 2 Turbo</b> (32 GB+). They're in the Models tab under their own names; on a Mac with too little memory they're greyed out (Settings → Options → Load anyway lets you try).",
@@ -1318,6 +1319,7 @@ const protoartApp = createApp({
               "<b>1 · 🔍 Find the text</b> selects the writing (Florence-2 reads it, ~1.5 GB the first time). Add to the selection or take away from it with the brush if it missed a bit.",
               "<b>2 · 🧽 Clear it</b> fills the background in where the text was (✨ Smart fill, as in Remove objects) and opens the Type tool on the cleared picture. The cleared picture is also kept in the Library.",
               "<b>3 · ✏️ Type</b>: click the picture where the text goes and type it in the box (Return for a new line). Pick the <b>font</b>, <b>size</b>, <b>colour</b> (<b>🎯 from picture</b>, then click the old text, to match its colour), <b>B</b>old, <i>I</i>talic and the alignment; <b>A↓ Vertical</b> stacks the letters top to bottom (each line is a column, like a shop sign), and <b>⟲ 90°</b> turns the text on its side like a book's spine; <i>outline, shadow, angle</i> has the rest (letter spacing, line height, opacity). Drag a text to move it; click beside it to add another. The chips list your texts (✕ deletes one).",
+              "<b>Several texts</b>: <b>＋ Add text</b> (or a click on an empty spot of the picture) adds another one with its own words, font, size and colour. Its name appears above the box: click a name (or the text on the picture) to change that one, ✕ deletes it. A new text you didn't type in is dropped when you add the next.",
               "<b>💾 Save</b> draws the text into the picture at full size and saves it as a new picture in the Library (the original stays). You can also use ✏️ Type on any picture without clearing anything first." ] },
             { h: "🩹 Remove objects and ✒️ Vectorize", items: [
               "<b>Remove objects in Tools</b>: press <b>🖌 Paint</b> in the module, paint on the picture on the left (all the selection tools work), choose <b>✨ Smart fill</b> (rebuilds what was behind it) or <b>⚡ Quick fill</b> (instant, for small spots), and press <b>🩹 Remove</b>.",
@@ -9392,17 +9394,23 @@ const protoartApp = createApp({
         } catch { this.status = "Couldn't read that colour"; }
         return;
       }
-      if (this.tx.sel >= 0) { this.tx.sel = -1; return; }  // a click beside a text: leave it (like the Type tool)
+      this.txAdd(x, y);
+    },
+    async txAdd(x, y) {  // another text layer: where the picture was clicked, or (＋ Add text) below the last one
+      const cur = this.txLayer();
+      const blank = (t) => !String(t || "").trim() || t === "Your text";
+      if (cur && blank(cur.text) && cur === this.tx.layers[this.tx.layers.length - 1]) this.txRemove(this.tx.sel);  // a new text never typed in isn't kept
+      const prev = this.tx.layers[this.tx.layers.length - 1];
+      if (x == null) { x = prev ? prev.x : 0.5; y = prev ? Math.min(0.92, prev.y + 0.12) : 0.5; }
       const size = Math.max(12, Math.min(this.tx.nw, this.tx.nh) * 0.07);
       const L = window.ProtoText.layer(x, y, size);
-      const prev = this.tx.layers[this.tx.layers.length - 1];
       if (prev) Object.assign(L, { font: prev.font, colour: prev.colour, bold: prev.bold, italic: prev.italic, stroke: prev.stroke,
                                    strokeColour: prev.strokeColour, shadow: prev.shadow, size: prev.size });
       this.tx.layers.push(L);
       this.tx.sel = this.tx.layers.length - 1;
       await this.$nextTick();
-      const ta = this.$refs.txText;
-      if (ta) { ta.focus(); ta.select(); }
+      // after the click has finished (the mouse button coming up on the picture would take the typing away again)
+      setTimeout(() => { const ta = this.$refs.txText; if (ta) { ta.focus(); ta.select(); } }, 60);
     },
     txLayerDown(e, i) {  // drag a text to move it
       this.tx.sel = i;

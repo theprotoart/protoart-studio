@@ -2477,7 +2477,9 @@
             <div v-else class="tx-layers">
               <button v-for="(L, i) in tx.layers" :key="'txl' + i" class="tx-chip" :class="{on: i === tx.sel}" @click="tx.sel = i">
                 {{ (L.text || '…').split('\n')[0].slice(0, 14) || '…' }}<b @click.stop="txRemove(i)" title="Delete this text">✕</b></button>
+              <button class="tx-chip tx-add" @click="txAdd()" title="Another text, with its own words, font, size and colour (or click an empty spot on the picture)">＋ Add text</button>
             </div>
+            <div v-if="tx.layers.length" class="hint">Each text is separate: click an empty spot on the picture (or ＋ Add text) for another one; click a text to pick it, drag it to move it.</div>
             <template v-if="txLayer()">
               <textarea ref="txText" v-model="txLayer().text" rows="2" class="mod-input tx-text" placeholder="Type the text (Return for a new line)"></textarea>
               <label>Font</label>
