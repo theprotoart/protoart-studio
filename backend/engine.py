@@ -142,6 +142,47 @@ MODELS = {
         "download_gb": 4.6, "engine_gb": 1.5, "min_ram_gb": 8, "license": "Apache-2.0",
         "defaults": {"width": 1024, "height": 1024, "steps": 4, "cfg": 1.0},
     },
+    # FLUX.2 [klein] 9B: the bigger Klein (sharper detail, better text), community 4-bit MLX conversion. Needs 16 GB+.
+    # Its licence is FLUX Non-Commercial (the 4B is Apache-2.0).
+    "flux2_klein9b_mlx_q4": {
+        "label": "FLUX.2 Klein 9B · 4-bit · ⚡ fast engine (16 GB+, non-commercial)", "family": "flux2",
+        "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "mflux-community/flux2-klein-9b-mflux-q4",
+        "mlx_revision": "fcbc7528d6b4193cca919390a2a8b5b59e601f65", "mlx_base": "flux2-klein-9b",
+        "download_gb": 9.5, "engine_gb": 1.5, "min_ram_gb": 16, "license": "FLUX Non-Commercial",
+        "defaults": {"width": 1024, "height": 1024, "steps": 4, "cfg": 1.0},
+    },
+    # Z-Image Turbo ("ZIT", Tongyi-MAI / Alibaba, 6B, Apache-2.0): photoreal pictures and text in 9 steps. Needs 16 GB+.
+    "zimage_turbo_mlx_q4": {
+        "label": "Z-Image Turbo · 4-bit · ⚡ fast engine (16 GB+)", "family": "zimage",
+        "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "mflux-community/z-image-turbo-mflux-q4",
+        "mlx_revision": "f427e257d8e6ffa03edd4d9ac554a05809da456c", "mlx_base": "z-image-turbo",
+        "download_gb": 5.9, "engine_gb": 1.5, "min_ram_gb": 16, "license": "Apache-2.0",
+        "defaults": {"width": 1024, "height": 1024, "steps": 9, "cfg": 1.0},
+    },
+    # Qwen-Image 2.1 (Alibaba Qwen, 7B; Qwen research licence: non-commercial) and its 8-step Turbo. 24 GB+.
+    "qwen21_turbo_mlx_q4": {
+        "label": "Qwen-Image 2.1 Turbo · 4-bit · ⚡ fast engine (24 GB+, non-commercial)", "family": "qwen21",
+        "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "mflux-community/qwen-image-2-1-turbo-mflux-q4",
+        "mlx_revision": "84970354375db04f65d3cd23ee7890ca11956e37", "mlx_base": "qwen-image-2.1-turbo",
+        "mflux_min": [0, 24], "download_gb": 10.0, "engine_gb": 1.5, "min_ram_gb": 24,
+        "license": "Qwen Research (non-commercial)",
+        "defaults": {"width": 1024, "height": 1024, "steps": 8, "cfg": 1.0},
+    },
+    "qwen21_mlx_q4": {
+        "label": "Qwen-Image 2.1 · 4-bit · ⚡ fast engine (24 GB+, 40 steps, non-commercial)", "family": "qwen21",
+        "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "mflux-community/qwen-image-2-1-mflux-q4",
+        "mlx_revision": "b6c0fc76350650482d13aea89b316c28cd487f7f", "mlx_base": "qwen-image-2.1",
+        "download_gb": 10.6, "engine_gb": 1.5, "min_ram_gb": 24, "license": "Qwen Research (non-commercial)",
+        "defaults": {"width": 1024, "height": 1024, "steps": 40, "cfg": 1.0},
+    },
+    # Krea 2 Turbo (Krea, Qwen-Image VAE; Krea 2 Community licence): 8 steps, ~16 GB at 4-bit. 32 GB+.
+    "krea2_turbo_mlx_q4": {
+        "label": "Krea 2 Turbo · 4-bit · ⚡ fast engine (32 GB+)", "family": "krea2",
+        "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "mflux-community/krea-2-turbo-mflux-q4",
+        "mlx_revision": "fa0ba74dc2e50c4288a81216e05487c343196bf7", "mlx_base": "krea-2",
+        "download_gb": 15.8, "engine_gb": 1.5, "min_ram_gb": 32, "license": "Krea 2 Community",
+        "defaults": {"width": 1024, "height": 1024, "steps": 8, "cfg": 1.0},
+    },
     # Anima (CircleStone Labs, 2B, anime / illustration; tags or sentences). Official diffusers files; the Turbo
     # build uses the official distilled transformer. CircleStone Labs Non-Commercial License (pictures may be sold).
     "anima_turbo": {
@@ -591,6 +632,11 @@ def _from_tdict(cls, path, **kw):
         gc.collect()
 
 
+FAMILY_NAMES = {"ernie": "ERNIE", "flux": "FLUX", "flux2": "FLUX.2", "zimage": "Z-Image", "qwen21": "Qwen-Image 2.1",
+                "krea2": "Krea 2", "anima": "Anima", "sd15": "SD 1.5", "sdxl": "SDXL", "moss": "MOSS-Image",
+                "fast": "fast-engine model"}
+
+
 def all_models():
     m = dict(MODELS)
     m.update(_custom_models())
@@ -601,6 +647,7 @@ def all_models():
             m.setdefault(lm["id"], model_hub.local_to_spec(lm))
         except Exception as e:
             print("[engine] bad local model entry:", lm.get("path"), e, flush=True)
+    m.update(model_hub.fast_file_models(paths.HOME / "fast_models.json"))  # your own list of fast-engine models
     for um in model_hub.USER_MODELS:  # base models added from Hugging Face (Settings -> Models)
         try:
             m[um["id"]] = model_hub.to_spec(um)
@@ -1560,7 +1607,7 @@ class Engine:
         import mlx_engine
         mlx_init, mlx_strength = None, None
         if args.get("init_image"):
-            if spec["family"] not in ("flux", "ernie"):
+            if spec["family"] == "flux2":
                 raise UserError("FLUX.2 Klein changes a picture with ✨ Edit with words (Image to image): pick it there.")
             import pictures
             from PIL import Image as _Im
@@ -1573,7 +1620,7 @@ class Engine:
             mlx_strength = max(0.05, min(0.95, 1.0 - float(args.get("strength", 0.6))))
         from PIL import Image
         fam = spec["family"]
-        fam_name = {"ernie": "ERNIE", "flux": "FLUX", "flux2": "FLUX.2"}.get(fam, fam)
+        fam_name = FAMILY_NAMES.get(fam, fam)
         need = spec.get("min_ram_gb") or 8
         ram0 = total_ram_gb()
         if ram0 and ram0 < need * 0.5 and not force:
@@ -1784,7 +1831,7 @@ class Engine:
         import mlx_engine
         import net
         fam = spec["family"]
-        fam_name = {"ernie": "ERNIE", "flux": "FLUX", "flux2": "FLUX.2"}.get(fam, fam)
+        fam_name = FAMILY_NAMES.get(fam, fam)
         if self.pipe is not None or self.enhancer is not None:
             self.unload(keep_mlx=True)  # only one big model in memory at a time
             self.enhancer = None
@@ -1819,12 +1866,16 @@ class Engine:
             if not net.is_online():
                 raise UserError("offline: the fast engine isn't installed yet")  # retried online by the backend
         self.mlx.install()
+        need_v = tuple(spec.get("mflux_min") or (0, 0))
+        if self.mlx.mflux_version() < need_v:
+            raise UserError(f"{spec['label']} needs the newer fast engine ({need_v[0]}.{need_v[1]}), which updates by "
+                            "itself when the Mac is online: connect to the internet, quit and reopen the app, and try again.")
         if self.cancel_event.is_set():
             raise Cancelled()
         load_started = time.time()
         self.mlx.request({"cmd": "load", "repo": spec["mlx_repo"], "base": spec.get("mlx_base"),
                           "revision": spec.get("mlx_revision"), "variant": variant,
-                          "quantize": spec.get("mlx_quantize"), "patterns": spec.get("mlx_patterns"),
+                          "quantize": spec.get("mlx_quantize"), "patterns": spec.get("mlx_patterns"), "cls": spec.get("mlx_class"),
                           "label": spec["label"], "size_gb": spec.get("download_gb"),
                           "loras": loras, "low_ram": 0 < ram < 20,
                           "allow_download": bool(allow_download) and net.is_online()},
@@ -2390,8 +2441,8 @@ class Engine:
         # image-to-image
         init_image, strength = None, None
         if args.get("init_image"):
-            if not is_sd and family != "anima" and not (spec.get("engine") == "mlx" and family in ("flux", "ernie")):
-                raise UserError("Image-to-image works with SD 1.5, SDXL, Anima, FLUX.1 and ERNIE (fast engine). "
+            if not is_sd and family != "anima" and not (spec.get("engine") == "mlx" and family != "flux2"):
+                raise UserError("Image-to-image works with SD 1.5, SDXL, Anima and the fast-engine models. "
                                 "For FLUX.2 Klein use ✨ Edit with words.")
             init_image = open_image(args["init_image"], "start image for image-to-image")
             strength = max(0.05, min(1.0, float(args.get("strength", 0.6))))
@@ -2454,7 +2505,7 @@ class Engine:
         if family == "sdxl":
             clip_skip = max(2, clip_skip)  # SDXL always reads the second-to-last layer: that *is* "CLIP skip 2"
         extra_skip = clip_skip - (2 if family == "sdxl" else 1)  # diffusers' clip_skip
-        mult = 16 if family in ("ernie", "flux", "flux2", "anima") else 8
+        mult = 8 if family in ("sd15", "sdxl", "sd2") else 16  # the newer models' sizes go in steps of 16
         width, height = max(mult * 8, width - width % mult), max(mult * 8, height - height % mult)
 
         # extras
@@ -2999,14 +3050,22 @@ class Engine:
         if self.face_finder is None:
             self.emit({"type": "status", "msg": "Loading the face finder (first time ~100 MB)…"})
             self.face_finder = detailer.FaceFinder(paths.WEIGHTS_DIR / "facexlib")
-        boxes = self.face_finder.find(image)[: max(1, int(opts.get("max_faces", 4)))]
+        conf = max(0.2, min(0.99, float(opts.get("confidence") or 0.6)))
+        min_pct = max(0.0, min(50.0, float(opts.get("min_face_pct") or 0)))  # skip faces smaller than this % of the picture
+        boxes = [b for b in self.face_finder.find(image, min_score=conf)
+                 if max(b[2] - b[0], b[3] - b[1]) >= min(image.size) * min_pct / 100]
+        boxes = boxes[: max(1, int(opts.get("max_faces", 4)))]
         if not boxes:
             return image, {"faces": 0}
+        face_prompt = (opts.get("prompt") or "").strip()
+        per_face = "||" in face_prompt
+        if per_face:  # one prompt per face: faces are counted left to right
+            boxes.sort(key=lambda b: (b[0] + b[2]) / 2)
+        prompts = [p or prompt for p in detailer.face_prompts(face_prompt, len(boxes))] if face_prompt else [prompt] * len(boxes)
         work = 1024 if self.family == "sdxl" else 512
         strength = max(0.1, min(0.8, float(opts.get("strength", 0.4))))
         dsteps = max(6, int(opts.get("steps") or max(10, int(steps * 0.6))))
-        face_prompt = (opts.get("prompt") or "").strip()
-        kw = text_args(face_prompt or prompt, negative)
+        kws = {}
         pipe = self._inpaint_pipe()
         if scheduler is not None:
             pipe.scheduler = scheduler
@@ -3016,7 +3075,12 @@ class Engine:
             if self.cancel_event.is_set():
                 raise Cancelled()
             self.emit({"type": "status", "msg": f"Face detailer: face {k + 1} of {len(boxes)}…"})
-            crop, region, m = detailer.face_crop(image, box, padding=float(opts.get("padding", 1.8)), work=work)
+            if prompts[k] not in kws:
+                kws[prompts[k]] = text_args(prompts[k], negative)
+            kw = kws[prompts[k]]
+            crop, region, m = detailer.face_crop(image, box, padding=float(opts.get("padding", 1.8)), work=work,
+                                                 grow=float(opts.get("mask_grow", 0.18)),
+                                                 blur=float(opts.get("mask_blur", 1.0)), hair=bool(opts.get("hair")))
             call = dict(kw, image=crop, mask_image=m, strength=strength, width=work, height=work,
                         num_inference_steps=int(math.ceil(dsteps / strength)), guidance_scale=cfg,
                         generator=t.Generator("cpu").manual_seed(img_seed + k + 1), callback_on_step_end=on_step)
@@ -3025,7 +3089,8 @@ class Engine:
             new = pipe(**call).images[0]
             image = detailer.paste_back(image, new, region, m)
         return image, {"faces": len(boxes), "strength": strength, "steps": dsteps,
-                       **({"prompt": face_prompt} if face_prompt else {})}
+                       **({"prompt": face_prompt} if face_prompt else {}), **({"per_face": True} if per_face else {}),
+                       **({"hair": True} if opts.get("hair") else {})}
 
     # ------------------------------------------------------------ comparison grid
     def compare(self, args, force=False, low_memory=False):
@@ -3979,7 +4044,10 @@ class Engine:
         import detailer
         import mlx_engine
         from PIL import Image, ImageFilter
-        spec = all_models().get(self.EDIT_MODEL)
+        edit_id = args.get("edit_model") or self.EDIT_MODEL
+        spec = all_models().get(edit_id)
+        if spec is None or spec.get("family") != "flux2" or spec.get("engine") != "mlx":
+            edit_id, spec = self.EDIT_MODEL, all_models().get(self.EDIT_MODEL)  # only FLUX.2 Klein models can edit
         if spec is None:
             raise UserError("Edit with words needs the FLUX.2 Klein model, which isn't in this version.")
         prompt = (args.get("prompt") or "").strip()
@@ -4134,7 +4202,7 @@ class Engine:
             result = Image.composite(result, image, m)
         secs = time.time() - started
         print(f"[timing] edit with words: {secs:.1f}s for {steps} steps at {width}x{height}", flush=True)
-        settings = {"model": self.EDIT_MODEL, "prompt": prompt, "negative_prompt": "", "width": result.width,
+        settings = {"model": edit_id, "prompt": prompt, "negative_prompt": "", "width": result.width,
                     "height": result.height, "steps": steps, "cfg": 1.0, "sampler": "flow_euler", "seed": seed,
                     "engine": "mlx", "loras": [], "seconds": round(secs, 1),
                     "edit": {"painted": mask is not None, "extra_pictures": len(refs), "faces_redone": faces_redone}}

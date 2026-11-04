@@ -12,6 +12,20 @@
 - 🧴 👤 Select the skin (`adjSelectSkin`: YCbCr skin ellipse, Skin match, optional Cut out subject mask)
 - Depth map Threshold / Near white (`controlnet.depth_levels`)
 - Create's ControlNet types loaded at start; Adjust save buttons wrap (`.adj-actions`) with the enhance time
+- ⚡ New fast-engine catalog entries (greyed out under `min_ram_gb`): FLUX.2 Klein 9B (16 GB), Z-Image Turbo (16 GB),
+  Qwen-Image 2.1 / 2.1 Turbo (24 GB, Turbo needs mflux 0.24 via `mflux_min`), Krea 2 Turbo (32 GB), all pinned revisions
+- `mlx_worker`: generic loader (`GENERIC` family → `module:Class`, or a spec's `mlx_class`, restricted to the `mflux`
+  package) using `ModelConfig.from_name`; FLUX.2 9B/base names; new families in `loras.FAMILIES`, the frontend
+  (`FAMILY_LABEL`, `SD_FAMILIES`, `NEW_FAST`, model groups and filters)
+- Fast engine pinned to `mflux==0.24.0`; existing installs update once (`MlxEngine._update_if_needed`, retried daily offline)
+- ✨ Edit with words can use Klein 9B (`edit_model`, flux2 MLX models only; outpaint stays on 4B)
+- Future models: `model_hub.inspect` recognises fast-engine (MLX) repos by name (`FAST_ALIASES`) and pins the revision;
+  `fast_models.json` in the data folder (`model_hub.fast_file_models`) lists any fast-engine model, validated
+- 🙂 Face detailer: per-face prompts (`||`, left to right), max faces, min face size %, confidence, mask grow / blur,
+  include the hair (`detailer.face_prompts`, `face_crop(grow, blur, hair)`)
+- Resilience: `tmp_cleanup` (data folder `tmp`, items older than a day) at start; saved forms / presets / training
+  settings merged with defaults (`mergeDefaults`); brush rings moved directly instead of through reactive state;
+  `createSkips` note above Generate
 
 ## 1.6.3
 

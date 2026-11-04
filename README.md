@@ -121,6 +121,7 @@ Nothing is copied: files are used where they are (an external drive is fine, as 
 | Downloads from Civitai / Hugging Face | Models tab → **Add from Civitai** / **Add from Hugging Face** (paste a link). Some need a free account: the app shows the steps |
 | Where downloaded models are kept | Settings → **Model folders → Downloaded models folder** (default `~/.cache/huggingface/hub`; can be an external drive) |
 | A file listed under the wrong type | Models tab → **Fix a type** |
+| A ⚡ fast-engine (MLX) model, now or in future | Models tab → **Add from Hugging Face** (e.g. `mflux-community/z-image-turbo-mflux-q4`), or list it in `~/.protoartstudio/fast_models.json` (see How to → Models) |
 
 ### Where your data lives
 
@@ -144,6 +145,8 @@ allow commercial use, for example:
 - SD 1.5, Juggernaut Reborn, ControlNet 1.1: CreativeML OpenRAIL-M · SDXL: CreativeML OpenRAIL++-M
 - ERNIE-Image, MOSS-Image, FLUX.1 [schnell], IP-Adapter, Qwen2.5, WD tagger, Depth Anything V2 Small, Qwen3.5 4B, LaMa: Apache-2.0 · Florence-2, BiRefNet (Cut out): MIT · mlx-vlm: MIT
 - Xinsir ControlNet Union ProMax: Apache-2.0
+- Optional bigger fast-engine models (only on Macs with enough memory): Z-Image Turbo: Apache-2.0 · FLUX.2 Klein 9B:
+  FLUX Non-Commercial · Qwen-Image 2.1 / Turbo: Qwen research licence (non-commercial) · Krea 2 Turbo: Krea 2 Community
 - **Non-commercial:** the enhancer's 4x-UltraSharp upscaler (CC BY-NC-SA 4.0), Depth Anything V2 Base / Large
   (CC BY-NC 4.0), Anima / Anima Turbo (CircleStone Labs Non-Commercial; pictures may be used commercially), the face
   swap models inswapper_128 and ArcFace (InsightFace, non-commercial research only)

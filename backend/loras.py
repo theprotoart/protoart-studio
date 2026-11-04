@@ -10,7 +10,7 @@ from pathlib import Path
 
 import nsfw
 
-FAMILIES = ("sd15", "sdxl", "ernie", "flux", "flux2")
+FAMILIES = ("sd15", "sdxl", "ernie", "flux", "flux2", "zimage", "qwen21", "krea2")
 
 
 # SDXL "flavours": fine-tuned SDXL families that are used differently from plain SDXL

@@ -13,13 +13,92 @@ FAMILY_BY_PIPELINE = {
     "StableDiffusionXLPipeline": "sdxl",
     "ErnieImagePipeline": "ernie",
 }
-FAMILY_LABEL = {"sd15": "SD 1.5", "sdxl": "SDXL", "ernie": "ERNIE", "other": "Other"}
+FAMILY_LABEL = {"sd15": "SD 1.5", "sdxl": "SDXL", "ernie": "ERNIE", "other": "Other", "flux2": "FLUX.2 Klein",
+                "zimage": "Z-Image", "qwen21": "Qwen-Image 2.1", "krea2": "Krea 2", "fast": "Fast engine model"}
 DEFAULTS = {
     "sd15": {"width": 512, "height": 512, "steps": 25, "cfg": 7.0},
     "sdxl": {"width": 1024, "height": 1024, "steps": 30, "cfg": 6.0},
     "ernie": {"width": 1024, "height": 1024, "steps": 8, "cfg": 1.0},
     "other": {"width": 1024, "height": 1024, "steps": 28, "cfg": 4.5},
+    "flux2": {"width": 1024, "height": 1024, "steps": 4, "cfg": 1.0},
+    "zimage": {"width": 1024, "height": 1024, "steps": 9, "cfg": 1.0},
+    "qwen21": {"width": 1024, "height": 1024, "steps": 40, "cfg": 4.0},
+    "krea2": {"width": 1024, "height": 1024, "steps": 8, "cfg": 1.0},
+    "fast": {"width": 1024, "height": 1024, "steps": 20, "cfg": 3.5},
 }
+
+# ⚡ Fast-engine (MLX) conversions on Hugging Face, recognised by their name (most specific first):
+# (words in the repo name, mflux model name, family, steps, cfg). New models the fast engine learns can be added
+# here, or by anyone in ~/.protoartstudio/fast_models.json (see fast_file_models below) without an app update.
+FAST_ALIASES = [
+    (("klein", "9b"), "flux2-klein-9b", "flux2", 4, 1.0),
+    (("klein", "4b"), "flux2-klein-4b", "flux2", 4, 1.0),
+    (("z-image", "turbo"), "z-image-turbo", "zimage", 9, 1.0),
+    (("z-image",), "z-image", "zimage", 28, 4.0),
+    (("qwen-image-2", "turbo"), "qwen-image-2.1-turbo", "qwen21", 8, 1.0),
+    (("qwen-image-2",), "qwen-image-2.1", "qwen21", 40, 4.0),
+    (("krea-2", "raw"), "krea-2-raw", "krea2", 28, 4.0),
+    (("krea-2",), "krea-2", "krea2", 8, 1.0),
+]
+_CLASS_RE = re.compile(r"^mflux(\.[A-Za-z_]\w*)+:[A-Za-z_]\w*$")  # only classes from the fast engine's own package
+
+
+def fast_alias(repo):
+    name = repo.lower().replace("_", "-").replace(".", "-")
+    for words, alias, family, steps, cfg in FAST_ALIASES:
+        if all(w.replace(".", "-") in name for w in words):
+            return alias, family, steps, cfg
+    return None
+
+
+def fast_file_models(path):
+    """Your own list of fast-engine models (a JSON file you write; nothing is downloaded until you pick one):
+    [{"repo": "owner/some-model-mflux-q4", "mlx_base": "<mflux model name>", "label": "…", "min_ram_gb": 16,
+      "steps": 8, "cfg": 1.0, "revision": "<optional commit>", "mlx_class": "mflux.models.x.y:Class (only for a
+      kind of model this app doesn't know yet)"}]. Bad entries are skipped and reported in the log."""
+    out = {}
+    try:
+        with open(path) as f:
+            items = json.load(f)
+    except FileNotFoundError:
+        return out
+    except Exception as e:
+        print(f"[models] {path} couldn't be read: {e}", flush=True)
+        return out
+    for it in items if isinstance(items, list) else []:
+        try:
+            repo = str(it["repo"]).strip()
+            if not re.match(r"^[\w.-]+/[\w.-]+$", repo):
+                raise ValueError("repo should look like owner/name")
+            guess = fast_alias(repo)
+            base = str(it.get("mlx_base") or (guess and guess[0]) or "").strip()
+            if not re.match(r"^[\w.-]+$", base):
+                raise ValueError("mlx_base (the fast engine's name for the model) is missing")
+            cls = it.get("mlx_class")
+            if cls and not _CLASS_RE.match(str(cls)):
+                raise ValueError("mlx_class must be mflux.<module path>:<Class>")
+            family = it.get("family") if it.get("family") in DEFAULTS else (guess[1] if guess else "fast")
+            if family == "fast" and not cls:
+                raise ValueError("a kind of model this app doesn't know needs mlx_class")
+            d = dict(DEFAULTS[family])
+            if guess:
+                d.update(steps=guess[2], cfg=guess[3])
+            for k in ("steps", "cfg", "width", "height"):
+                if isinstance(it.get(k), (int, float)) and it[k] > 0:
+                    d[k] = it[k]
+            gb = float(it.get("download_gb") or 0)
+            mid = "fast:" + repo
+            out[mid] = {
+                "label": f"{it.get('label') or repo.split('/')[1]} · ⚡ fast engine (your list)", "family": family,
+                "quant": "MLX", "engine": "mlx", "mlx_repo": repo, "mlx_revision": it.get("revision") or None,
+                "mlx_base": base, **({"mlx_class": cls} if cls else {}),
+                "download_gb": gb, "engine_gb": 1.5, "source": "fast_list",
+                "min_ram_gb": int(it.get("min_ram_gb") or max(8, round(gb * 1.6))),
+                "defaults": d, **({"license": str(it["license"])} if it.get("license") else {}),
+            }
+        except Exception as e:
+            print(f"[models] skipped an entry in {path}: {e}", flush=True)
+    return out
 
 USER_MODELS = []  # set by the backend from the saved setting "user_models"
 
@@ -87,6 +166,21 @@ def inspect(text):
         size = files[filename]
         class_name = None
         variant = None
+    elif "model_index.json" not in files and fast_alias(repo) and any(n.endswith(".safetensors") for n in files):
+        import sys, platform
+        alias, family, steps, cfg = fast_alias(repo)
+        size = sum(sz for n, sz in files.items() if n.endswith(".safetensors"))
+        gb = round(size / 1e9, 1)
+        label = repo.split("/")[1].replace("_", " ")
+        notes.append(f"⚡ A fast-engine (MLX) version of {FAMILY_LABEL[family]} (“{alias}”).")
+        if not (sys.platform == "darwin" and platform.machine() == "arm64"):
+            notes.append("The fast engine needs a Mac with Apple Silicon.")
+        if getattr(info, "gated", False):
+            notes.append("This model is gated: accept its licence on huggingface.co first.")
+        return {"id": "fast:" + repo, "repo": repo, "file": None, "family": family,
+                "family_label": FAMILY_LABEL[family] + " · ⚡ fast engine", "class_name": None, "variant": None,
+                "download_gb": gb, "label": label, "notes": notes, "engine": "mlx", "mlx_base": alias,
+                "mlx_revision": getattr(info, "sha", None), "steps": steps, "cfg": cfg}
     else:
         if "model_index.json" not in files:
             raise ValueError(f"{repo} isn't a diffusers model (no model_index.json). If it's a single checkpoint, "
@@ -124,6 +218,15 @@ def to_spec(m):
     """Saved entry -> engine model spec."""
     family = m["family"]
     gb = float(m.get("download_gb") or 0)
+    if m.get("engine") == "mlx":  # ⚡ a fast-engine conversion
+        d = dict(DEFAULTS.get(family) or DEFAULTS["fast"])
+        guess = fast_alias(m["repo"])
+        if guess:
+            d.update(steps=guess[2], cfg=guess[3])
+        return {"label": f"{m.get('label') or m['repo']} · ⚡ fast engine (added)", "family": family, "quant": "MLX",
+                "engine": "mlx", "mlx_repo": m["repo"], "mlx_revision": m.get("mlx_revision"),
+                "mlx_base": m["mlx_base"], "download_gb": gb, "engine_gb": 1.5, "source": "hub",
+                "min_ram_gb": max(8, round(gb * 1.6)), "defaults": d}
     spec = {
         "label": f"{m.get('label') or m['repo']} (added)", "family": family, "repo": m["repo"],
         "download_gb": gb, "min_ram_gb": max(8, round(gb * 1.3)), "quant": None, "source": "hub",

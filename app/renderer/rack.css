@@ -2548,3 +2548,8 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .adj-enh-hint { margin: 4px 0 0; }
 .adj-skin-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 6px 0; }
 .adj-skin-pick input[type=range] { flex: 1 1 120px; }
+.skip-note { margin: 6px 0; padding: 6px 9px; border-radius: 4px; background: rgba(255,181,46,.10); border: 1px solid rgba(255,181,46,.3); }
+/* Face detailer: more options */
+.det-more { flex-basis: 100%; margin-top: 4px; }
+.det-more > summary { cursor: pointer; }
+.det-more > label { display: inline-flex; align-items: center; gap: 4px; margin: 4px 10px 0 0; }

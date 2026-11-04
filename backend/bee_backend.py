@@ -1003,6 +1003,12 @@ def handle_quick(cmd, a):
     if cmd == "model_add":
         m = a.get("model") or {}
         keep = {k: m.get(k) for k in ("id", "repo", "file", "family", "class_name", "variant", "download_gb", "label")}
+        if m.get("engine") == "mlx":  # ⚡ fast-engine conversion: only a name it recognises (checked again here)
+            guess = model_hub.fast_alias(str(keep["repo"] or ""))
+            if not guess:
+                raise ValueError("Check the model first.")
+            keep.update(engine="mlx", mlx_base=guess[0], family=guess[1], id="fast:" + keep["repo"],
+                        mlx_revision=m.get("mlx_revision") if isinstance(m.get("mlx_revision"), str) else None)
         if not keep["id"] or not keep["repo"] or keep["family"] not in model_hub.DEFAULTS:
             raise ValueError("Check the model first.")
         model_hub.USER_MODELS[:] = [x for x in model_hub.USER_MODELS if x.get("id") != keep["id"]] + [keep]
@@ -2138,7 +2144,42 @@ def run_job(kind, a):
     return eng.generate(a, force=settings["force_load"], low_memory=settings["low_memory"])
 
 
+def tmp_cleanup(max_age_h=24):
+    """The app's own working folder (~/.protoartstudio/tmp): take out what's older than a day. Pictures handed to
+    the engines (Edit with words, Expand, Puppet warp…), mattes, Peel's layers, training work and old speed tests
+    are left behind when a job is force-stopped or the app quits mid-job. Only this folder is touched; nothing of
+    yours (pictures, models, LoRAs) lives in it."""
+    import shutil
+    root = Path(paths.HOME) / "tmp"
+    if not root.is_dir():
+        return 0
+    cut = _t.time() - max_age_h * 3600
+    freed = 0
+    for p in list(root.iterdir()):
+        try:
+            if p.is_symlink():
+                continue
+            newest = p.stat().st_mtime
+            if p.is_dir():
+                for q in p.rglob("*"):
+                    try:
+                        newest = max(newest, q.stat().st_mtime)
+                    except OSError:
+                        pass
+            if newest > cut:
+                continue
+            size = sum(q.stat().st_size for q in p.rglob("*") if q.is_file()) if p.is_dir() else p.stat().st_size
+            shutil.rmtree(p) if p.is_dir() else p.unlink()
+            freed += size
+        except OSError:
+            continue
+    if freed > 50e6:
+        log(f"tmp cleanup: freed {freed / 1e9:.1f} GB of old working files")
+    return freed
+
+
 def main():
+    threading.Thread(target=tmp_cleanup, daemon=True).start()  # old working files (never your own files)
     make_default_type_folders()
     try:
         os.makedirs(embeddings.own_dir(), exist_ok=True)  # Settings → Embeddings: drop embedding files in here

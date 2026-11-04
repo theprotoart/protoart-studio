@@ -37,14 +37,34 @@ class Cancelled(Exception):
 
 
 FLUX_BASES = ("schnell", "dev", "krea-dev")
-FLUX2_BASES = ("flux2-klein-4b",)
+FLUX2_BASES = ("flux2-klein-4b", "flux2-klein-9b", "flux2-klein-9b-kv", "flux2-klein-base-4b", "flux2-klein-base-9b")
+
+# Every other model mflux can run is built and used the same way: its class, made with the model's config (found by
+# its mflux name, e.g. "z-image-turbo"), a folder of weights and LoRAs, then generate_image(...). So a newer model is
+# a catalog entry (its mflux name and, if mflux names its class differently, "module:Class"), not new code here.
+GENERIC = {
+    "zimage": "mflux.models.z_image.variants.z_image:ZImage",
+    "qwen21": "mflux.models.qwen21.variants.txt2img.qwen_image_21:QwenImage21",
+    "krea2": "mflux.models.krea2.variants.txt2img.krea2:Krea2",
+}
+GENERIC_BASES = (("z-image", "zimage"), ("qwen-image-2.1", "qwen21"), ("krea-2", "krea2"))
 
 
-def _family(base):
-    return "flux" if base in FLUX_BASES else "flux2" if base in FLUX2_BASES else "ernie"
+def _family(base, cls=None):
+    if cls:
+        return "generic"
+    if base in FLUX_BASES:
+        return "flux"
+    if base in FLUX2_BASES or str(base).startswith("flux2-klein"):
+        return "flux2"
+    for prefix, fam in GENERIC_BASES:
+        if str(base).startswith(prefix):
+            return fam
+    return "ernie"
 
 
-FAMILY_NAME = {"flux": "FLUX", "flux2": "FLUX.2", "ernie": "ERNIE"}
+FAMILY_NAME = {"flux": "FLUX", "flux2": "FLUX.2", "ernie": "ERNIE", "zimage": "Z-Image", "qwen21": "Qwen-Image 2.1",
+               "krea2": "Krea 2", "generic": "the model"}
 
 
 def total_ram_gb():
@@ -83,10 +103,11 @@ class Worker:
         self.revision = None
         self.quantize = None
         self.patterns = None
+        self.cls_path = None
         self.f2_cache = {}   # FLUX.2: encoded prompts, so the text encoder can be dropped between prompts
 
     def load(self, repo, base="ernie-image-turbo", loras=None, low_ram=False, force=False, allow_download=False,
-             label=None, size_gb=None, revision=None, variant=None, quantize=None, patterns=None):
+             label=None, size_gb=None, revision=None, variant=None, quantize=None, patterns=None, cls=None):
         loras = [tuple(x) for x in (loras or [])]
         variant = variant or None
         key = (repo, base, tuple(loras), variant)
@@ -98,7 +119,8 @@ class Worker:
             return
         import mlx.core as mx
         from mflux.models.common.config import ModelConfig
-        self.family = _family(base)
+        self.family = _family(base, cls)
+        self.cls_path = cls or GENERIC.get(self.family)
         name = label or FAMILY_NAME[self.family]
         self.f2_cache = {}
 
@@ -141,8 +163,18 @@ class Worker:
             # "edit": the same weights, but it also looks at reference pictures (Image to image → Edit with words)
             from mflux.models.flux2.variants import Flux2Klein, Flux2KleinEdit
             cls = Flux2KleinEdit if variant == "edit" else Flux2Klein
-            self.model = _make(cls, model_path=path, model_config=ModelConfig.flux2_klein_4b(), **lora_kw)
+            config = ModelConfig.flux2_klein_4b() if base == "flux2-klein-4b" else ModelConfig.from_name(base)
+            self.model = _make(cls, model_path=path, model_config=config, **lora_kw)
             self._cache_flux2_prompts(self.model)
+        elif self.cls_path:
+            import importlib
+            mod, _, name = self.cls_path.partition(":")
+            if not (mod == "mflux" or mod.startswith("mflux.")) or not name.isidentifier():
+                raise ValueError(f"{self.cls_path} isn't a fast-engine model class")
+            klass = getattr(importlib.import_module(mod), name)
+            q = getattr(self, "quantize", None)  # full-size files: shrink while loading
+            self.model = _make(klass, model_path=path, model_config=ModelConfig.from_name(base),
+                               **({"quantize": int(q)} if q else {}), **lora_kw)
         else:
             from mflux.models.ernie_image import ErnieImage
             config = ModelConfig.ernie_image_turbo() if base == "ernie-image-turbo" else ModelConfig.ernie_image()
@@ -186,10 +218,12 @@ class Worker:
             neg = None  # FLUX.2 [klein] is distilled: no negative prompt, guidance stays at 1
             cache_key = (a["prompt"], cfg > 1.0)
             missing = getattr(m, "text_encoder", None) is None
+        elif self.cls_path:
+            cache_key, missing = None, False  # these keep their text encoder (see _Hooks)
         else:
             cache_key = (a["prompt"], neg, cfg)
             missing = m.text_encoder is None
-        prompt_cache = self.f2_cache if self.family == "flux2" else m.prompt_cache
+        prompt_cache = self.f2_cache if self.family == "flux2" else getattr(m, "prompt_cache", {})
         if missing and cache_key not in prompt_cache:
             # Low-memory mode dropped the text encoder after the last prompt: reload to encode this one.
             repo, base, loras, variant = self.key
@@ -201,6 +235,11 @@ class Worker:
                   width=int(a["width"]), height=int(a["height"]), guidance=cfg)
         if self.family == "ernie":
             kw["negative_prompt"] = neg
+        elif self.cls_path:
+            import inspect
+            params = inspect.signature(m.generate_image).parameters
+            if neg and cfg > 1.0 and "negative_prompt" in params:
+                kw["negative_prompt"] = neg
         if a.get("init_image"):  # start from a picture: how much of it to keep (mflux image strength)
             import inspect
             if "image_path" not in inspect.signature(m.generate_image).parameters:
@@ -213,8 +252,9 @@ class Worker:
             kw["image_paths"] = list(a["image_paths"])
         res = m.generate_image(**kw)
         res.image.save(a["out"])
-        if self.family != "flux2" and len(m.prompt_cache) > 16:
-            m.prompt_cache.clear()
+        pc = getattr(m, "prompt_cache", None)
+        if self.family != "flux2" and isinstance(pc, dict) and len(pc) > 16:
+            pc.clear()
         gc.collect()
         mx.clear_cache()
         return a["out"]
@@ -232,6 +272,8 @@ class _Hooks:
             # The prompt is encoded and cached: drop the text encoder(s) while the picture is made, so the
             # image model has the memory to itself (on 8 GB Macs this avoids swapping, the main slowdown).
             fam = getattr(self.w, "family", "ernie")
+            if getattr(self.w, "cls_path", None):
+                return  # newer models: their text encoder stays (each is built differently; mflux frees what it can)
             if fam == "flux":
                 self.w.model.t5_text_encoder = None   # ~2-5 GB
                 self.w.model.clip_text_encoder = None
@@ -250,7 +292,7 @@ class _Hooks:
         done = (t - getattr(config, "init_time_step", 0)) + 1
         send({"type": "progress", "step": min(done, steps), "steps": steps})
         now = time.time()
-        if st.get("preview") and done < steps and now - st.get("last", 0) > 1.5:
+        if st.get("preview") and done < steps and now - st.get("last", 0) > 1.5 and not getattr(self.w, "cls_path", None):
             try:
                 import numpy as np
                 import mlx.core as mx
@@ -307,7 +349,7 @@ def main():
                 worker.load(msg["repo"], msg.get("base", "ernie-image-turbo"), msg.get("loras"), msg.get("low_ram"),
                             allow_download=bool(msg.get("allow_download")), label=msg.get("label"),
                             size_gb=msg.get("size_gb"), revision=msg.get("revision"), variant=msg.get("variant"),
-                            quantize=msg.get("quantize"), patterns=msg.get("patterns"))
+                            quantize=msg.get("quantize"), patterns=msg.get("patterns"), cls=msg.get("cls"))
                 send({"type": "loaded"})
             elif cmd == "generate":
                 send({"type": "done", "path": worker.generate(msg)})

@@ -45,6 +45,16 @@ function swapFivePoints(f, W, H) {
 }
 
 // A picked area as painted selection: see-through where nothing is picked. Accepts the pink selection the engine
+// Settings saved by an older version (the form, Train, presets) lack the options added since: fill those in from
+// the defaults, inside nested groups too (a saved face swap without "more photos" used to break its panel).
+const isPlainObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+function mergeDefaults(def, saved) {
+  if (!isPlainObj(def) || !isPlainObj(saved)) return saved === undefined ? def : saved;
+  const out = { ...def };
+  for (const [k, v] of Object.entries(saved)) out[k] = isPlainObj(def[k]) && isPlainObj(v) ? mergeDefaults(def[k], v) : v;
+  return out;
+}
+
 // sends, and also a plain black-and-white mask (white = picked), which would otherwise be stamped as paint everywhere.
 function asSelection(img) {
   const d = img.data;
@@ -230,7 +240,7 @@ function defaultForm() {
     control: { type: "", scale: 1.0, start: 0.0, end: 1.0, already_map: false },
     cc: { image: "", type: "", scale: 0.8, start: 0.0, end: 0.8, already_map: false },  // 🦴 Create's own ControlNet (a pose…)
     hires: { on: false, scale: 1.5, strength: 0.45, steps: 15 },
-    face_detailer: { on: false, strength: 0.4, prompt: "" },
+    face_detailer: { on: false, strength: 0.4, prompt: "", max_faces: 4, min_face_pct: 0, confidence: 0.6, mask_grow: 0.18, mask_blur: 1, hair: false },
     ip_adapter: { image: "", kind: "style", scale: 0.6 },
     heal_method: "lama",
     edit_refs: [],      // ✨ Edit with words: extra pictures to take a style, object or outfit from (🧩 Combine: what to add)
@@ -325,7 +335,11 @@ const TILED_PRESETS = [
   { id: "print", label: "Print", tip: "3× for printing; slow on 8 GB Macs", set: { scale: 3, strength: 0.25, steps: 24 } },
   { id: "quick", label: "Quick", tip: "1.5× with few steps: a fast check", set: { scale: 1.5, strength: 0.25, steps: 12 } },
 ];
-const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "Klein 4B", anima: "Anima", sd2: "SD 2", moss: "MOSS-Image" };  // FLUX.2 [klein] 4B: named by the model, so its LoRAs and models match
+const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "Klein", anima: "Anima", sd2: "SD 2", moss: "MOSS-Image",
+                       zimage: "Z-Image", qwen21: "Qwen-Image 2.1", krea2: "Krea 2", fast: "Fast engine" };
+// model types made by the fast engine that read sentences and draw at sizes in steps of 16 (newer ones too)
+const SD_FAMILIES = ["sd15", "sdxl", "sd2"];
+const NEW_FAST = ["zimage", "qwen21", "krea2"];  // FLUX.2 [klein] 4B: named by the model, so its LoRAs and models match
 const OPTS_KEY = "beestudio.opts";
 const PERF_KEY = "protoart.perf";
 // Tools → Patchbay: the back of the rack. Each module has an IN and an OUT jack; a cable from one module's OUT to the
@@ -641,7 +655,7 @@ const protoartApp = createApp({
       cmpAxes: { cfg: "Guidance (CFG)", steps: "Steps", sampler: "Sampler", seed: "Seed", clip_skip: "CLIP skip",
                  lora_weight: "LoRA weight", lora: "Which LoRA", strength: "Change strength (Image to image)" },
       form: (() => {
-        const f = Object.assign(defaultForm(), loadJSON(FORM_KEY, {}));
+        const f = mergeDefaults(defaultForm(), loadJSON(FORM_KEY, {}));
         f.regions = { ...defaultForm().regions, ...(f.regions || {}) };
         f.swap = { ...defaultForm().swap, ...(f.swap || {}), consent: false };
         f.cam = { ...defaultForm().cam, ...(f.cam || {}) };
@@ -803,7 +817,13 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Since 1.6.3 (in the next version): fixes from testing, 👤 select the skin, depth threshold", items: [
+            { h: "Since 1.6.3 (in the next version): new fast-engine models, add future models yourself, face detailer options, 👤 select the skin", items: [
+              "<b>New models on the ⚡ fast engine</b> for Macs with more memory: <b>FLUX.2 Klein 9B</b> (16 GB+, sharper than 4B; non-commercial licence), <b>Z-Image Turbo</b> (“ZIT”, 16 GB+, photoreal in 9 steps, Apache-2.0), <b>Qwen-Image 2.1</b> and <b>Qwen-Image 2.1 Turbo</b> (24 GB+, non-commercial) and <b>Krea 2 Turbo</b> (32 GB+). They're in the Models tab under their own names; on a Mac with too little memory they're greyed out (Settings → Options → Load anyway lets you try).",
+              "<b>✨ Edit with words with FLUX.2 Klein 9B</b> (16 GB+): pick it in Image to image's model list for sharper edits. 8 GB Macs keep using Klein 4B.",
+              "<b>Add future models yourself</b>: Models → Add from Hugging Face now takes fast-engine (MLX) versions too, e.g. <code>mflux-community/z-image-turbo-mflux-q4</code>. Kinds of model the fast engine learns later can be listed in <code>fast_models.json</code> (How to → Models).",
+              "<b>The fast engine updates itself once</b> (to mflux 0.24) the next time you use it, a few minutes. If you're offline it keeps the version it has and tries again a day later.",
+              "<b>🙂 Face detailer options</b> (Create): a different prompt for each face (<code>smiling || serious</code>, counted left to right), how many faces, skip small background faces, how sure the face finder must be, how far and how softly the new face blends in, and <b>include the hair</b>.",
+              "<b>Smoother brushes</b>: the brush circle follows the pointer without slowing the page. Create says <b>what it will skip</b> above Generate (e.g. Hi-res fix on a FLUX model). Old leftover files in Protoart's temporary folder are cleared at start (one Mac had 6.5 GB of them). Saved presets and settings from older versions get any new options filled in.",
               "<b>🔤 Replace text no longer clears the whole picture</b>: 🔍 Find the text marked the entire picture instead of just the letters, so 🧽 Clear it filled everything in. It now selects only the text.",
               "<b>Split view no longer flickers</b> while you drag the line (Tools): both pictures are drawn together, so they always line up.",
               "<b>Each painting in Tools is kept apart</b>: what 🩹 Remove takes out, ✨ Enhance's area, 🛡 Protect from Enhance and the patchbay's 🛡 Protect areas no longer share one painting. The painting tools now sit under the picture and say what you're painting for.",
@@ -1494,7 +1514,10 @@ const protoartApp = createApp({
               "<b>↻ Refresh</b> (here, under Create's model list, and in Settings) looks again for models and LoRAs: files you've just put in your folders, or a download that finished.",
               "<b>+ Add from Civitai…</b>: paste a civitai.com model link and press <b>Check</b>, then <b>⤓ Download</b>. LoRAs go into the folder set to their type, SD 1.5 / SDXL / Pony checkpoints into your checkpoints folder, with their trigger words. Only .safetensors files are downloaded (and .pt embeddings).",
               "<b>Sign in first (once):</b> Civitai now lets only signed-in accounts download most files. Make a free account on civitai.com, open <b>Account settings → API Keys → Add API key</b>, copy the key and paste it in the box in the Civitai card (<b>Save key only</b>, or <b>Save &amp; download</b>). The box shows until a key is saved; the key stays on this Mac and is only sent to civitai.com. Errors you may see and what they mean are in Troubleshooting → Civitai downloads.",
-              "Filter by type (ERNIE, SDXL, SD 1.5) or search. <b>+ Add from your Mac</b> and <b>+ Add from Hugging Face</b> bring in models from elsewhere. In Create, the link under the model list opens this tab." ] },
+              "Filter by type (ERNIE, SDXL, SD 1.5) or search. <b>+ Add from your Mac</b> and <b>+ Add from Hugging Face</b> bring in models from elsewhere. In Create, the link under the model list opens this tab.",
+              "<b>Bigger fast-engine models</b> (greyed out when this Mac has too little memory): <b>FLUX.2 Klein 9B</b> (16 GB+, 9.5 GB download, FLUX non-commercial licence), <b>Z-Image Turbo</b> (16 GB+, 5.9 GB, Apache-2.0, 9 steps), <b>Qwen-Image 2.1 Turbo</b> (24 GB+, 10 GB, 8 steps) and <b>Qwen-Image 2.1</b> (24 GB+, 40 steps; both Qwen research licence, non-commercial) and <b>Krea 2 Turbo</b> (32 GB+, 15.8 GB, Krea 2 Community licence). Write sentences; Z-Image, Qwen-Image and Krea 2 can also start from a picture (Image to image → Change it).",
+              "<b>Add new base models (future ones too)</b>: Models → Add from Hugging Face takes a diffusers model id, a single SD 1.5 / SDXL file, or a <b>⚡ fast-engine (MLX) version</b> of a kind of model the fast engine knows (FLUX.2 Klein, Z-Image, Qwen-Image 2.1, Krea 2; e.g. <code>mflux-community/qwen-image-2-1-turbo-mflux-q4</code>). It's recognised by its name and pinned to the version you checked.",
+              "<b>A brand-new kind of fast-engine model</b> (one this app doesn't know yet, once the fast engine supports it): make a file named <code>fast_models.json</code> in Protoart's data folder (<code>~/.protoartstudio</code>) with a list like <code>[{\"repo\": \"owner/model-mflux-q4\", \"mlx_base\": \"the fast engine's name for it\", \"mlx_class\": \"mflux.models.….:ClassName\", \"min_ram_gb\": 16, \"steps\": 8, \"cfg\": 1.0}]</code>, then ↻ Refresh. <code>mlx_class</code> is only needed for kinds this app doesn't know, and must be one of the fast engine's own classes. Bad entries are skipped (the backend log says why)." ] },
             { h: "Managing your models", items: [
               "<b>Embeddings, VAEs &amp; ControlNets</b> (bottom of the Models tab): the smaller files that work with a base model, with SD 1.5 / SDXL filters, search and Open folder.",
               "<b>Remove</b> buttons for your own models are locked 🔒: click the lock first, then Remove (it always asks). Two of your files with the same name show the folder each is in, and “a copy” when they're the same size.",
@@ -1566,6 +1589,11 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "Since 1.6.3: if something doesn't work", items: [
+              "<b>A new fast-engine model says it needs a newer fast engine</b>: the fast engine updates itself (once, a few minutes, needs internet) the next time you use it. Offline, it tries again a day later; the models you already used keep working.",
+              "<b>A model is greyed out</b>: this Mac has less memory than it needs (the label says how much). Settings → Options → <i>Load anyway</i> lets you try, but it may be very slow or stop part-way.",
+              "<b>A model in fast_models.json doesn't show up</b>: the entry was skipped; Settings → backend log says why (usually a missing <code>mlx_base</code>, or an <code>mlx_class</code> that isn't from the fast engine). Press ↻ Refresh after changing the file.",
+              "<b>The face detailer misses faces</b> (drawn, turned or small): lower <i>sureness</i> under More face options, and set <i>skip faces under</i> to 0. If it redraws things that aren't faces, raise sureness." ] },
             { h: "New in 1.6.3: if something doesn't work", items: [
               "<b>Replace text turned the whole picture into a grey block</b>: fixed (the text finder marked the whole picture). Update the app, then Find the text again.",
               "<b>Edit with words takes much longer than one edit</b>: 🙂 Keep faces redoes each big face once more (about the same time as the edit itself on an 8 GB Mac). Faces the edit removed and tiny faces are now skipped; switch Keep faces off when only the background changes.",
@@ -1820,7 +1848,7 @@ const protoartApp = createApp({
       libMsg: "",
       localErr: "",
       localOk: "",  // "Model imported" note after Add from your Mac
-      train: Object.assign({ model: "", folder: "", items: [], capMode: "tags", name: "", trigger: "", format: "kohya", kind: "character",
+      train: mergeDefaults({ model: "", folder: "", items: [], capMode: "tags", name: "", trigger: "", format: "kohya", kind: "character",
                              precision: "fp16", save_every: 0, preset: "recommended", steps: 1000, lr: 0.0001, rank: 16,
                              resolution: 512, targets: "attention", flip: true, train_text_encoder: false, resume: "",
                              dirty: false, result: null, lossHistory: [], secPerStep: null, spsBy: {},
@@ -2039,7 +2067,8 @@ const protoartApp = createApp({
       const list = [
         { id: "all", label: "All", count: this.installedModels.length },
         { id: "fav", label: "★ Favorites", count: count((m) => this.isFav(m)) },
-        { id: "flux2", label: "Klein 4B", count: count((m) => m.family === "flux2") },
+        { id: "flux2", label: "Klein", count: count((m) => m.family === "flux2") },
+        ...NEW_FAST.map((f) => ({ id: f, label: FAMILY_LABEL[f], count: count((m) => m.family === f) })),
         { id: "flux", label: "FLUX", count: count((m) => m.family === "flux") },
         { id: "ernie", label: "ERNIE", count: count((m) => m.family === "ernie") },
         { id: "anima", label: "Anima", count: count((m) => m.family === "anima") },
@@ -2116,12 +2145,16 @@ const protoartApp = createApp({
     },
     modelGroups() {
       const groups = [
-        { name: "FLUX.2 Klein 4B", models: this.models.filter((m) => m.family === "flux2") },
+        { name: "FLUX.2 Klein", models: this.models.filter((m) => m.family === "flux2") },
+        { name: "Z-Image", models: this.models.filter((m) => m.family === "zimage") },
+        { name: "Qwen-Image 2.1", models: this.models.filter((m) => m.family === "qwen21") },
+        { name: "Krea 2", models: this.models.filter((m) => m.family === "krea2") },
         { name: "FLUX.1", models: this.models.filter((m) => m.family === "flux") },
         { name: "ERNIE-Image", models: this.models.filter((m) => m.family === "ernie") },
         { name: "Anima (anime)", models: this.models.filter((m) => m.family === "anima") },
         { name: "MOSS-Image (lettering, posters, layouts)", models: this.models.filter((m) => m.family === "moss") },
-        { name: "Stable Diffusion", models: this.models.filter((m) => !["ernie", "flux", "flux2", "anima", "moss"].includes(m.family) && !m.id.includes(":")) },
+        { name: "Stable Diffusion", models: this.models.filter((m) => (SD_FAMILIES.includes(m.family) || !m.family || m.family === "unknown") && m.engine !== "mlx" && !m.id.includes(":")) },
+        { name: "Other models", models: this.models.filter((m) => !SD_FAMILIES.includes(m.family) && m.family && m.family !== "unknown" && !FAMILY_LABEL[m.family] && !m.id.includes(":")) },
         { name: "Your checkpoints", models: this.models.filter((m) => m.id.startsWith("file:")) },
         { name: "From DiffusionBee", models: this.models.filter((m) => m.id.startsWith("tdict:")) },
         { name: "Your model files", models: this.models.filter((m) => m.id.startsWith("local:")) },
@@ -2418,7 +2451,7 @@ const protoartApp = createApp({
     },
     mergeFamilies() {
       const c = (f) => this.loras.filter((l) => l.family === f && /\.safetensors$/i.test(l.file || "")).length;
-      return [["sd15", "SD 1.5"], ["sdxl", "SDXL"], ["flux", "FLUX"], ["flux2", "Klein 4B"], ["ernie", "ERNIE"]].map(([id, label]) => ({ id, label, count: c(id) }))
+      return [["sd15", "SD 1.5"], ["sdxl", "SDXL"], ["flux", "FLUX"], ["flux2", "Klein"], ["ernie", "ERNIE"], ...NEW_FAST.map((f) => [f, FAMILY_LABEL[f]])].map(([id, label]) => ({ id, label, count: c(id) }))
         .filter((f) => f.count);
     },
     mergeFamily() {
@@ -2655,6 +2688,27 @@ const protoartApp = createApp({
         const t = this.ccTypes.find((x) => x.id === map || x.id === "union:" + map || x.makes_map === map || x.map === map);
         if (t) out.push({ id: t.id, map, label, tip });
       }
+      return out;
+    },
+    createSkips() {  // what Create will leave out of the next picture, and why (instead of skipping it silently)
+      const f = this.form, out = [];
+      const sd = ["sd15", "sdxl"].includes(this.family) && this.currentModel?.engine !== "mlx";
+      const cc = f.cc && f.cc.image && f.cc.type;
+      if (f.hires && f.hires.on) {
+        if (!sd) out.push("Hi-res fix (SD 1.5 and SDXL models only)");
+        else if (cc) out.push("Hi-res fix (it doesn't run together with ControlNet)");
+      }
+      if (f.face_detailer && f.face_detailer.on && !sd) out.push("the face detailer (SD 1.5 and SDXL models only)");
+      if (f.ip_adapter && f.ip_adapter.image && !sd) out.push("the image prompt (SD 1.5 and SDXL models only)");
+      if (cc && !sd) out.push("ControlNet (SD 1.5 and SDXL models only)");
+      else if (cc && !this.ccAvailable) out.push("ControlNet (none downloaded for this model type yet)");
+      if ((f.negative_prompt || "").trim() && !sd && Number(f.cfg) <= 1)
+        out.push("the negative prompt (this model ignores it at guidance 1)");
+      const names = (f.loras || []).filter((x) => {
+        const l = this.loras.find((y) => y.name === x.name);
+        return l && l.family && l.family !== "unknown" && l.family !== this.family;
+      }).map((x) => x.name);
+      if (names.length) out.push("LoRAs made for another model type: " + names.join(", "));
       return out;
     },
     ccAvailable() {
@@ -3327,7 +3381,7 @@ const protoartApp = createApp({
     },
     // -------------------------------------------------------------- size / steps
     snap(v) {
-      const m = ["ernie", "flux", "flux2", "moss"].includes(this.family) ? 16 : 8;
+      const m = SD_FAMILIES.includes(this.family) || this.family === "anima" ? 8 : 16;
       return Math.min(2048, Math.max(256, Math.round(v / m) * m));
     },
     setSide(side, raw, final) {
@@ -4014,7 +4068,7 @@ const protoartApp = createApp({
       }
       this.form.clip_skip = this.clipSkipFor(m);
       Object.assign(this.form, { width: m.defaults.width, height: m.defaults.height, steps: m.defaults.steps, cfg: m.defaults.cfg });
-      if (["ernie", "flux", "flux2", "moss"].includes(m.family) && this.sys.ram_gb && this.sys.ram_gb < 12) {
+      if (["ernie", "flux", "flux2", "moss", ...NEW_FAST].includes(m.family) && this.sys.ram_gb && this.sys.ram_gb < 12) {
         Object.assign(this.form, { width: 768, height: 768 }); // 8 GB Macs: Medium is ~2x faster than 1024
         this.status = `Size set to Medium (768) for ${FAMILY_LABEL[m.family]} on this Mac; Large (1024) takes about twice as long`;
       }
@@ -5184,7 +5238,7 @@ const protoartApp = createApp({
     // -------------------------------------------------------------- generate
     chainModels() {  // models a chain step can use: anything that can start from a picture (FLUX.2 Klein edits it with words)
       return this.sortModels(this.models.filter((m) => this.isInstalled(m) && !m.inpaint &&
-        (["sd15", "sdxl", "anima"].includes(m.family) && m.engine !== "mlx" || (m.engine === "mlx" && ["flux", "ernie", "flux2"].includes(m.family)))));
+        (["sd15", "sdxl", "anima"].includes(m.family) && m.engine !== "mlx" || (m.engine === "mlx" && ["flux", "ernie", "flux2", ...NEW_FAST].includes(m.family)))));
     },
     chainAdd() {
       if (this.chain.steps.length >= 4) return;
@@ -5422,7 +5476,7 @@ const protoartApp = createApp({
       // a LoRA made for another model type (a FLUX.1 LoRA with FLUX.2, an SD 1.5 one with SDXL…) can't be used: it's
       // left out of this picture with a note, instead of the whole picture failing (presets and older settings
       // could bring one in). LoRAs whose type isn't known are left alone.
-      const fam = this.family, names = { flux: "FLUX.1", flux2: "FLUX.2", sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE" };
+      const fam = this.family, names = { flux: "FLUX.1", flux2: "FLUX.2", sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", zimage: "Z-Image", qwen21: "Qwen-Image 2.1", krea2: "Krea 2" };
       const bad = this.form.loras.filter((x) => {
         const l = this.loras.find((y) => y.name === x.name);
         return l && l.family && l.family !== "unknown" && l.family !== fam;
@@ -6128,7 +6182,18 @@ const protoartApp = createApp({
       const r = cv.getBoundingClientRect(), z = this.zoom[this.tab === "tools" ? "tools" : "i2iSrc"].z || 1;
       this._brushPtr = { x: e.clientX, y: e.clientY, t: Date.now() };
       clearTimeout(this._brushT);
-      this.brush = { show: !this.zoomSpace, x: (e.clientX - r.left) / z, y: (e.clientY - r.top) / z };
+      // the ring is moved directly (not through the page's data): following the pointer then never re-draws the
+      // whole window, which stuttered on busy Macs
+      const x = (e.clientX - r.left) / z, y = (e.clientY - r.top) / z, show = !this.zoomSpace;
+      this.brush.x = x; this.brush.y = y;
+      this.placeBrushRing();
+      if (this.brush.show !== show) this.brush.show = show;
+    },
+    placeBrushRing() {
+      for (const el of document.querySelectorAll(".brush-ring:not(.adj-ring)")) {
+        el.style.left = this.brush.x + "px";
+        el.style.top = this.brush.y + "px";
+      }
     },
     brushRingPx() {  // the ring sits inside the zoomed picture: keep it the brush's size on screen
       return this.mask.size / (this.zoom[this.tab === "tools" ? "tools" : "i2iSrc"].z || 1);
@@ -6223,7 +6288,9 @@ const protoartApp = createApp({
         if (p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom) { this.brushAt({ clientX: p.x, clientY: p.y }); return; }
       }
       const r = cv.getBoundingClientRect(), z = this.zoom[this.tab === "tools" ? "tools" : "i2iSrc"].z || 1;
-      this.brush = { show: true, x: r.width / 2 / z, y: r.height / 2 / z };
+      this.brush.x = r.width / 2 / z; this.brush.y = r.height / 2 / z;
+      this.brush.show = true;
+      this.$nextTick(() => this.placeBrushRing());
       this._brushT = setTimeout(() => { if (!this.mask.painting) this.brush.show = false; }, 900);
     },
     loraKindOf(l) {
@@ -7997,7 +8064,7 @@ const protoartApp = createApp({
         const placed = c.where === "place";
         if (placed) this.combineBoxesFill();
         this.error = "";
-        await this.runJob("edit_words", { init_image: f.init_image, prompt: f.prompt || "", refs, seed: f.seed,
+        await this.runJob("edit_words", { edit_model: this.editModelId(), init_image: f.init_image, prompt: f.prompt || "", refs, seed: f.seed,
           combine: { cutout: c.cutout !== false, match_light: c.match_light !== false, light_strength: c.light_strength ?? 0.7,
                      keep_scene: c.keep_scene !== false, place: placed ? refs.map((_, i) => ({ ...c.boxes[i] })) : null } });
         return;
@@ -8008,7 +8075,7 @@ const protoartApp = createApp({
         // the 8 views share one seed (a new random one each time if the seed is −1), so they stay alike
         const seed = c.turnaround && (f.seed == null || +f.seed < 0) ? Math.floor(Math.random() * 2 ** 31) : f.seed;
         for (const v of list) {
-          this.runJob("edit_words", { init_image: f.init_image, prompt: camPrompt(v.az, v.el, v.zoom, f.prompt, c.turnaround ? "single" : c.layout), seed,
+          this.runJob("edit_words", { edit_model: this.editModelId(), init_image: f.init_image, prompt: camPrompt(v.az, v.el, v.zoom, f.prompt, c.turnaround ? "single" : c.layout), seed,
                                       camera: { az: Math.round(v.az), el: Math.round(v.el), zoom: v.zoom, layout: c.turnaround ? "single" : (c.layout || "single"),
                                                 view: c.turnaround || (c.layout || "single") === "single" ? camWords(v.az, v.el, v.zoom).label : c.layout === "comic" ? "comic panels" : "character sheet" } });
           await new Promise((r) => setTimeout(r, 60));  // keeps them in order in the queue
@@ -8115,7 +8182,7 @@ const protoartApp = createApp({
       }
     },
     i2iModelValue() {  // what the Image to image model list shows as picked
-      if (this.i2iUsesKlein) return "flux2_klein_mlx_q4";
+      if (this.i2iUsesKlein) return this.form.i2i_mode === "outpaint" ? "flux2_klein_mlx_q4" : this.editModelId();
       if (this.i2iInpaintOnly) return (this.inpaintModel || {}).id || "";
       return this.form.model;
     },
@@ -8130,8 +8197,9 @@ const protoartApp = createApp({
         this.status = m.label + " will fill in what you paint";
         return;
       }
-      if (id === "flux2_klein_mlx_q4") {
-        if (this.form.i2i_mode === "outpaint") { this.form.outpaint_engine = "klein"; return; }
+      if (id === "flux2_klein_mlx_q4" || id === "flux2_klein9b_mlx_q4") {
+        if (this.form.i2i_mode === "outpaint") { this.form.outpaint_engine = "klein"; return; }  // (the outpaint LoRA is for 4B)
+        this.form.edit_model = id;
         return this.setI2iMode("edit");
       }
       if (this.form.i2i_mode === "edit") this.setI2iMode("change");
@@ -8140,6 +8208,13 @@ const protoartApp = createApp({
     },
     editModel() {  // the model Edit with words uses
       return this.models.find((m) => m.id === "flux2_klein_mlx_q4") || null;
+    },
+    editModel9() {  // FLUX.2 Klein 9B, for Edit with words on Macs with 16 GB or more
+      return this.models.find((m) => m.id === "flux2_klein9b_mlx_q4") || null;
+    },
+    editModelId() {  // Edit with words: 9B when picked and this Mac has room for it, else 4B
+      const nine = this.editModel9();
+      return this.form.edit_model === "flux2_klein9b_mlx_q4" && nine && !this.ramBlocked(nine) ? nine.id : "flux2_klein_mlx_q4";
     },
     // ---------------------------------------------------------------- 📷 Camera angle
     camLabel() { const c = this.form.cam; return camWords(c.az, c.el, c.zoom).label; },
@@ -8601,7 +8676,7 @@ const protoartApp = createApp({
 
     // -------------------------------------------------------------- random prompt
     naturalPrompts() {  // models that read sentences get sentence prompts from 🎲 Random prompt
-      return ["ernie", "flux", "flux2", "moss"].includes(this.family);
+      return ["ernie", "flux", "flux2", "moss", ...NEW_FAST].includes(this.family);
     },
     // 📚 a few extra details from the Ideas (safe ones), from categories picked at random.
     // People get pose/expression/hair/clothes/…; animals and scenery only get framing and style.
@@ -8876,6 +8951,8 @@ const protoartApp = createApp({
       if (!p) return;
       const s = JSON.parse(JSON.stringify(p.settings));
       for (const k of I2I_PICTURE_KEYS) delete s[k];  // (older presets saved them): keep the picture you're working on
+      const d = defaultForm();
+      for (const k of Object.keys(s)) if (isPlainObj(d[k]) && isPlainObj(s[k])) s[k] = mergeDefaults(d[k], s[k]);
       this.form.model = s.model || this.form.model;
       await this.loadSamplers(false);
       Object.assign(this.form, s);
@@ -9793,18 +9870,22 @@ const protoartApp = createApp({
       if (!this.adj.paintMode || !this.$refs.adjOverlay) { this.adj.ring.show = false; return; }
       const [x, y] = this.adjStageXY(e);
       this._adjRingPtr = Date.now();
-      Object.assign(this.adj.ring, { show: true, x, y });
+      this._adjRingXY = [x, y];  // kept outside the page's data and moved directly: no whole-window redraw per move
+      const el = document.querySelector(".adj-ring");
+      if (el) { el.style.left = x * 100 + "%"; el.style.top = y * 100 + "%"; }
+      if (!this.adj.ring.show) this.adj.ring.show = true;
     },
     adjRingPreview() {
       clearTimeout(this._adjRingT);
       const fresh = this._adjRingPtr && Date.now() - this._adjRingPtr < 4000;
-      if (!fresh) Object.assign(this.adj.ring, { x: 0.5, y: 0.5 });
+      if (!fresh) { this._adjRingXY = [0.5, 0.5]; const el = document.querySelector(".adj-ring"); if (el) { el.style.left = "50%"; el.style.top = "50%"; } }
       this.adj.ring.show = true;
       if (!fresh) this._adjRingT = setTimeout(() => { this.adj.ring.show = false; }, 1200);
     },
     adjRingStyle() {
       const o = this.adj.ovl || [0, 0, 1, 1], d = 2 * this.adj.brush * Math.max(o[2], o[3]);
-      return { left: this.adj.ring.x * 100 + "%", top: this.adj.ring.y * 100 + "%", width: d + "px", height: d + "px", "--iz": 1 };
+      const [x, y] = this._adjRingXY || [0.5, 0.5];
+      return { left: x * 100 + "%", top: y * 100 + "%", width: d + "px", height: d + "px", "--iz": 1 };
     },
     adjRender() {
       if (!adjEngine || !this.adj.p) return;

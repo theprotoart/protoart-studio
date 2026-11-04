@@ -92,6 +92,7 @@
         <select title="The model Image to image uses: FLUX.2 Klein for Edit with words and Expand, or an SD 1.5 / SDXL model for the other modes" :value="i2iModelValue()" @change="pickI2iModel($event.target.value)">
           <optgroup v-if="editModel()" label="FLUX.2 · ✨ Edit with words (uses More pictures instead of image prompt / ControlNet)">
             <option value="flux2_klein_mlx_q4" :disabled="form.i2i_mode === 'inpaint'">FLUX.2 Klein 4B · {{ form.i2i_mode === 'inpaint' ? '— not an inpainting model' : form.i2i_mode === 'outpaint' ? '↔ Expand with the outpaint LoRA' : '✨ Edit with words' }}{{ editModel().cached ? '' : ' · ' + Math.round(editModel().download_gb) + ' GB download' }}</option>
+            <option v-if="editModel9() && form.i2i_mode !== 'outpaint'" value="flux2_klein9b_mlx_q4" :disabled="form.i2i_mode === 'inpaint' || ramBlocked(editModel9())">FLUX.2 Klein 9B · ✨ Edit with words (sharper){{ ramBlocked(editModel9()) ? ' — needs ' + editModel9().min_ram_gb + ' GB memory' : editModel9().cached ? '' : ' · ' + Math.round(editModel9().download_gb) + ' GB download' }}</option>
           </optgroup>
           <optgroup v-for="g in i2iModelGroups" :key="g.name" :label="g.name">
             <option v-for="m in g.models" :key="m.id" :value="m.id" :disabled="!m.i2iOk || ramBlocked(m)">
@@ -162,7 +163,7 @@
         <span class="eng slot-label">Models <span class="hint">on this Mac appear in Create; the others download the first time you use them</span></span>
         <div class="slot-line">
           <div class="seg">
-            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein 4B'}, {id: 'ernie', label: 'ERNIE'}, {id: 'anima', label: 'Anima'}, {id: 'moss', label: 'MOSS'}, {id: 'sdxl', label: 'SDXL'}, {id: 'fl:pony', label: 'Pony'}, {id: 'fl:illustrious', label: 'Illustrious'}, {id: 'fl:noobai', label: 'NoobAI'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
+            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein'}, {id: 'zimage', label: 'Z-Image'}, {id: 'qwen21', label: 'Qwen-Image'}, {id: 'krea2', label: 'Krea 2'}, {id: 'ernie', label: 'ERNIE'}, {id: 'anima', label: 'Anima'}, {id: 'moss', label: 'MOSS'}, {id: 'sdxl', label: 'SDXL'}, {id: 'fl:pony', label: 'Pony'}, {id: 'fl:illustrious', label: 'Illustrious'}, {id: 'fl:noobai', label: 'NoobAI'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
                     :class="{on: shop.family === f.id}" @click="shop.family = f.id" :title="f.id.startsWith('fl:') ? f.label + ' models (SDXL-based, with their own prompt style and quality tags)' : ''">{{ f.label }}</button>
           </div>
           <button class="chip" :class="{on: shop.fav}" @click="shop.fav = !shop.fav" title="Show only your ★ favourite models">★ Favorites <small>{{ favModels.length }}</small></button>
@@ -879,7 +880,22 @@
             <span class="hint">change</span>
             <input type="range" min="0.15" max="0.7" step="0.05" v-model.number="form.face_detailer.strength" title="0.3–0.45 fixes faces and keeps the likeness">
             <span class="hint">{{ form.face_detailer.strength.toFixed(2) }}</span>
-            <input v-model="form.face_detailer.prompt" class="det-prompt tape" placeholder="face prompt (optional, e.g. detailed eyes, smile)">
+            <input v-model="form.face_detailer.prompt" class="det-prompt tape" placeholder="face prompt (optional, e.g. detailed eyes, smile) · one per face: smiling || serious"
+                   title="Different faces, different prompts: separate them with || — faces are counted left to right; extra faces use the last one">
+            <details class="det-more">
+              <summary class="hint">More face options</summary>
+              <label class="hint" title="How many faces to redraw at most (biggest first)">faces up to
+                <input type="number" min="1" max="12" v-model.number="form.face_detailer.max_faces" style="width:3.5em"></label>
+              <label class="hint" title="Skip faces smaller than this share of the picture (background people stay as they are). 0 = every face">skip faces under
+                <input type="number" min="0" max="50" step="1" v-model.number="form.face_detailer.min_face_pct" style="width:3.5em">%</label>
+              <label class="hint" title="How sure the face finder must be. Higher = fewer mistakes on things that aren't faces; lower = finds drawn or turned faces">sureness
+                <input type="range" min="0.3" max="0.95" step="0.05" v-model.number="form.face_detailer.confidence"> {{ (+form.face_detailer.confidence || 0.6).toFixed(2) }}</label>
+              <label class="hint" title="How far the redrawn area reaches past the face">area
+                <input type="range" min="0" max="0.6" step="0.02" v-model.number="form.face_detailer.mask_grow"></label>
+              <label class="hint" title="How soft the edge where the new face blends in is">soft edge
+                <input type="range" min="0.25" max="3" step="0.25" v-model.number="form.face_detailer.mask_blur"></label>
+              <label class="check hint"><input type="checkbox" v-model="form.face_detailer.hair"> include the hair</label>
+            </details>
           </div>
         </template>
         <label class="check"><input type="checkbox" v-model="form.restore_faces"> Restore faces
@@ -939,6 +955,8 @@
         </details>
       </section>
 
+      <div v-if="createSkips.length" class="hint skip-note" title="These are switched on but can't be used with this model or together, so this picture is made without them">
+        ⓘ Left out this time: {{ createSkips.join(' · ') }}</div>
       <div class="actions" :class="{busy}">
         <button class="primary" @click="generate" :disabled="backendDead">{{ busy ? 'Add to queue' : 'Generate' }} ⌘↵</button>
         <div v-if="busy" class="stop-group">
@@ -1243,6 +1261,10 @@
       <code>stabilityai/sdxl-turbo</code>), a link to the model page, or a link to a single SD 1.5 / SDXL
       <code>.safetensors</code> checkpoint. It downloads the first time you generate with it.
       Browse: <a href="https://huggingface.co/models?pipeline_tag=text-to-image&library=diffusers&sort=trending" target="_blank">huggingface.co text-to-image models</a></p>
+    <p class="hint">⚡ <b>Fast-engine versions</b> work too: paste an MLX conversion such as
+      <code>mflux-community/z-image-turbo-mflux-q4</code> (<a href="https://huggingface.co/mflux-community" target="_blank">mflux-community</a>
+      has FLUX.2 Klein, Z-Image, Qwen-Image 2.1 and Krea 2). Brand-new kinds of model the fast engine learns later can be
+      listed in <code>fast_models.json</code> in Protoart's data folder — see How to → Add new base models.</p>
     <div class="row">
       <input ref="hubInput" v-model="hub.source" placeholder="owner/model-name or https://huggingface.co/…" @keydown.enter="hubInspect" style="flex:1">
       <button @click="hubInspect" :disabled="hub.busy || !hub.source.trim()">{{ hub.busy ? 'Checking…' : 'Check' }}</button>
@@ -1306,7 +1328,7 @@
         <td class="lf-type"><button class="ghost small lock-btn" :class="{on: typeLocked(l)}" @click="toggleTypeLock(l)"
                   :title="typeLocked(l) ? 'Locked: this type can\'t be changed by accident. Click to unlock.' : 'Unlocked. Click to lock this type (picking a type locks it too).'">{{ typeLocked(l) ? '🔒' : '🔓' }}</button>
           <div class="seg" :class="{locked: typeLocked(l)}">
-          <button v-for="f in (l.kind === 'model' ? [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}] : [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein 4B'}, {id: 'ernie', label: 'ERNIE'}])" :key="f.id"
+          <button v-for="f in (l.kind === 'model' ? [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}] : [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein'}, {id: 'ernie', label: 'ERNIE'}, {id: 'zimage', label: 'Z-Image'}, {id: 'qwen21', label: 'Qwen-Image 2.1'}, {id: 'krea2', label: 'Krea 2'}])" :key="f.id"
                   :class="{on: f.id ? (l.family_set && l.family === f.id) : !l.family_set}" :disabled="typeLocked(l)" @click="setLoraFamily(l, f.id)">{{ f.label }}</button>
         </div></td></tr>
     </table>
@@ -1571,7 +1593,7 @@
           <canvas ref="selCanvas" class="sel-canvas"></canvas>
           <span v-if="objFinding" class="stage-busy">Finding the outline…</span>
           <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
-             :style="{left: brush.x + 'px', top: brush.y + 'px', width: brushRingPx() + 'px', height: brushRingPx() + 'px'}"></i>
+             :style="{width: brushRingPx() + 'px', height: brushRingPx() + 'px'}"></i>
         </div>
         <div v-else-if="tool.source && tool.working && opts.previews !== false && livePreview && toolPreviewMine()" class="tool-live" @click.stop>
           <img :src="livePreview.src" alt=""><span class="cmp-tag left">● live preview</span>
@@ -2777,7 +2799,7 @@
           <canvas ref="selCanvas" class="sel-canvas"></canvas>
           <span v-if="objFinding" class="stage-busy">Finding the outline…</span>
             <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
-               :style="{left: brush.x + 'px', top: brush.y + 'px', width: brushRingPx() + 'px', height: brushRingPx() + 'px'}"></i>
+               :style="{width: brushRingPx() + 'px', height: brushRingPx() + 'px'}"></i>
             <template v-if="form.i2i_mode === 'combine' && form.combine.where === 'place'">
               <div v-for="(r, i) in form.edit_refs" :key="'pb' + r" class="place-box" :class="{dragging: placeDrag && placeDrag.i === i}"
                    :style="placeBoxStyle(i)" @pointerdown="placeDown(i, $event, 'move')" @dblclick.stop="placeFlip(i)"
@@ -4207,7 +4229,7 @@
         <div class="row small lora-dir-type">
           <span class="hint">for</span>
           <div class="seg">
-            <button v-for="f in [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein 4B'}, {id: 'ernie', label: 'ERNIE'}]" :key="f.id"
+            <button v-for="f in [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein'}, {id: 'ernie', label: 'ERNIE'}, {id: 'zimage', label: 'Z-Image'}, {id: 'qwen21', label: 'Qwen-Image 2.1'}, {id: 'krea2', label: 'Krea 2'}]" :key="f.id"
                     :class="{on: ((loraDirs.families || {})[d] || '') === f.id}" @click="setLoraDirFamily(d, f.id)"
                     :title="f.id ? 'Every LoRA in this folder is used with ' + f.label + ' models, whatever the file says' : 'Work out each LoRA\'s model type from the file itself'">{{ f.label }}</button>
           </div>

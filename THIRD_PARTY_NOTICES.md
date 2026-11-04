@@ -37,7 +37,7 @@ These are not stored in this repository. The packaged app includes them, and eac
 | sentencepiece, torchsde | Apache-2.0 |
 | protobuf | BSD-3-Clause |
 | gguf, sdnq | see each package's licence file |
-| mflux (fast engine for ERNIE and FLUX, installed on first use, not bundled) | MIT |
+| mflux (fast engine for ERNIE, FLUX, Z-Image, Qwen-Image and Krea 2; installed on first use, not bundled) | MIT |
 | MLX (Apple, used by mflux) | MIT |
 | mlx-vlm (picture reader, installed on first use, not bundled) | MIT |
 
@@ -52,6 +52,10 @@ when you first use them, and each comes with its own licence that you accept by 
 | Stable Diffusion XL | CreativeML OpenRAIL++-M |
 | ERNIE-Image | Apache-2.0 |
 | FLUX.1 [schnell] (Black Forest Labs; MLX conversions by mflux-community) | Apache-2.0 |
+| FLUX.2 [klein] 9B (Black Forest Labs; 4-bit MLX conversion by mflux-community), optional, 16 GB+ | FLUX Non-Commercial |
+| Z-Image Turbo (Tongyi-MAI; 4-bit MLX conversion by mflux-community), optional, 16 GB+ | Apache-2.0 |
+| Qwen-Image 2.1 and 2.1 Turbo (Qwen; 4-bit MLX conversions by mflux-community), optional, 24 GB+ | Qwen research licence (non-commercial) |
+| Krea 2 Turbo (Krea; 4-bit MLX conversion by mflux-community), optional, 32 GB+ | Krea 2 Community |
 | Qwen3.5 4B (Alibaba Qwen; 4-bit MLX conversion [mlx-community/Qwen3.5-4B-MLX-4bit](https://huggingface.co/mlx-community/Qwen3.5-4B-MLX-4bit), downloaded on first use, not bundled) | Apache-2.0 |
 | sd-vae-ft-mse-original (Stability AI) and sdxl-vae-fp16-fix (madebyollin), recommended VAEs, downloaded on request | MIT |
 | FLUX.1 [dev] (Black Forest Labs, official gated files, offered for Macs with 32 GB+) | FLUX.1 [dev] Non-Commercial License |

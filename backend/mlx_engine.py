@@ -20,7 +20,7 @@ _HOME = Path(os.environ.get("PROTOART_HOME") or (Path.home() / ".protoartstudio"
 VENV = _OLD_VENV if (_OLD_VENV / ".protoart-installed").exists() else _HOME / "venv-mlx"
 PY = VENV / "bin" / "python"
 MARKER = VENV / ".protoart-installed"
-MFLUX_SPEC = "mflux==0.22.0"  # exact tested version
+MFLUX_SPEC = "mflux==0.24.0"  # exact tested version (0.24: Qwen-Image 2.1 Turbo, Krea 2 ControlNet, newer FLUX.2 conversions)
 INSTALL_GB = 1.5
 
 
@@ -69,6 +69,7 @@ class MlxEngine:
         if not supported():
             raise EngineError("The fast engine needs a Mac with Apple Silicon (M1 or newer).")
         if installed():
+            self._update_if_needed()
             return
         VENV.parent.mkdir(parents=True, exist_ok=True)
         free = shutil.disk_usage(VENV.parent).free / 2**30
@@ -85,6 +86,46 @@ class MlxEngine:
         self._run([str(PY), "-m", "pip", "install", MFLUX_SPEC])
         MARKER.write_text(MFLUX_SPEC)
         self.emit({"type": "status", "msg": "Fast engine installed"})
+
+    def _update_if_needed(self):
+        """An install made by an older Protoart has an older mflux: bring it up to the tested version, once. If that
+        can't happen now (no internet), the installed one keeps working for the models it knows, and it's tried
+        again a day later (newer models say they need the update)."""
+        try:
+            have = MARKER.read_text().strip()
+        except OSError:
+            have = ""
+        if have == MFLUX_SPEC:
+            return
+        tried = VENV / ".protoart-update-tried"
+        try:
+            if tried.exists() and time.time() - tried.stat().st_mtime < 86400:
+                return
+        except OSError:
+            pass
+        self.emit({"type": "status", "msg": "Updating the fast engine (one time, a few minutes)…"})
+        try:
+            tried.write_text(MFLUX_SPEC)
+            self._run([str(PY), "-m", "pip", "install", MFLUX_SPEC])
+            MARKER.write_text(MFLUX_SPEC)
+            tried.unlink(missing_ok=True)
+            if self.proc is not None:
+                self.stop()  # a worker started before the update still has the old version loaded
+            self.emit({"type": "status", "msg": "Fast engine updated"})
+        except CancelledError:
+            raise
+        except Exception as e:
+            print(f"[mlx] update to {MFLUX_SPEC} didn't happen ({e}); keeping {have or 'the installed version'}",
+                  file=sys.stderr, flush=True)
+
+    def mflux_version(self):
+        try:
+            have = MARKER.read_text().strip()
+        except OSError:
+            return (0, 0)
+        import re
+        m = re.search(r"(\d+)\.(\d+)", have)
+        return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
 
     def _run(self, cmd, quiet=False):
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=str(HERE))
