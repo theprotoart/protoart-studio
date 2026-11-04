@@ -1,6 +1,6 @@
 # Changelog
 
-## Next (not released yet)
+## 1.6.4
 
 - 🔤 Find the text returned an opaque black/white mask, stamped as paint over the whole picture (Clear it then filled
   everything): `find_text` now returns an RGBA selection like 👤 Subject's, and `asSelection` normalises any picked area

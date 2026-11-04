@@ -530,7 +530,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.3";  // keep in step with app/package.json
+const APP_VERSION = "1.6.4";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -817,7 +817,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Since 1.6.3 (in the next version): new fast-engine models, add future models yourself, face detailer options, 👤 select the skin", items: [
+            { h: "1.6.4: new fast-engine models, add future models yourself, face detailer options, 👤 select the skin", items: [
               "<b>New models on the ⚡ fast engine</b> for Macs with more memory: <b>FLUX.2 Klein 9B</b> (16 GB+, sharper than 4B; non-commercial licence), <b>Z-Image Turbo</b> (“ZIT”, 16 GB+, photoreal in 9 steps, Apache-2.0), <b>Qwen-Image 2.1</b> and <b>Qwen-Image 2.1 Turbo</b> (24 GB+, non-commercial) and <b>Krea 2 Turbo</b> (32 GB+). They're in the Models tab under their own names; on a Mac with too little memory they're greyed out (Settings → Options → Load anyway lets you try).",
               "<b>✨ Edit with words with FLUX.2 Klein 9B</b> (16 GB+): pick it in Image to image's model list for sharper edits. 8 GB Macs keep using Klein 4B.",
               "<b>Add future models yourself</b>: Models → Add from Hugging Face now takes fast-engine (MLX) versions too, e.g. <code>mflux-community/z-image-turbo-mflux-q4</code>. Kinds of model the fast engine learns later can be listed in <code>fast_models.json</code> (How to → Models).",
@@ -1589,7 +1589,7 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
-            { h: "Since 1.6.3: if something doesn't work", items: [
+            { h: "New in 1.6.4: if something doesn't work", items: [
               "<b>A new fast-engine model says it needs a newer fast engine</b>: the fast engine updates itself (once, a few minutes, needs internet) the next time you use it. Offline, it tries again a day later; the models you already used keep working.",
               "<b>A model is greyed out</b>: this Mac has less memory than it needs (the label says how much). Settings → Options → <i>Load anyway</i> lets you try, but it may be very slow or stop part-way.",
               "<b>A model in fast_models.json doesn't show up</b>: the entry was skipped; Settings → backend log says why (usually a missing <code>mlx_base</code>, or an <code>mlx_class</code> that isn't from the fast engine). Press ↻ Refresh after changing the file.",
