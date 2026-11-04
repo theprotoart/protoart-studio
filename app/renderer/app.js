@@ -547,7 +547,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.5";  // keep in step with app/package.json
+const APP_VERSION = "1.6.6";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -835,7 +835,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Since 1.6.5 (in the next version): ▶ continue a stopped training, 🧍 pose library, two-picture recipes", items: [
+            { h: "1.6.6: ▶ continue a stopped training, 🧍 pose library, two-picture recipes", items: [
               "<b>▶ Continue a stopped training</b> (Train): after <b>Stop training</b>, a card says how far it got, with <b>▶ Continue from step …</b>: it carries on with the same pictures and settings instead of starting over (also after closing the app). ERNIE on the fast engine now saves its progress every 50 steps, so Stop really keeps it.",
               "<b>🧍 Pose library</b> (Create → 🎛 ControlNet): about 100 ready-made poses (standing, sitting, kneeling, lying, cute poses…) from five angles. Pick one, pick the angle, then <b>🦴 Use for Pose</b> or <b>🧊 Use for Depth</b>; it can add the pose's description to your prompt. The pictures come from Shisei (free, CC0) and download the first time you see them. <b>＋ Add your own</b> keeps your own pose pictures (photos, drawings, 3-D renders) in <b>★ My poses</b>; ✕ on any pose removes it (yours) or hides it (the library's; ↺ Show hidden brings them back).",
               "<b>Two-picture recipes</b> (Image to image → ✨ Edit with words): <b>🧬 Mid-transformation</b> (Image 1 halfway through turning into Image 2) and <b>🔁 Replace subject</b> (Image 2's person in Image 1's place, pose and background). Each uses a community LoRA from Civitai, downloaded with one click the first time (a Civitai API key may be needed). Replace subject has the same safeguard as face swap: explicit results are never saved.",
@@ -1619,7 +1619,7 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
-            { h: "Since 1.6.5: if something doesn't work", items: [
+            { h: "New in 1.6.6: if something doesn't work", items: [
               "<b>A recipe's ⤓ Download says Civitai wants a signed-in account</b>: save your Civitai API key in Models → Add from Civitai (the card shows how), then press Download again.",
               "<b>The pose library shows “…” instead of pictures</b>: they download from GitHub the first time; check the internet connection (and that Strict offline mode in Settings → Privacy is off).",
               "<b>▶ Continue isn't offered after stopping an ERNIE training</b>: it stopped before its first checkpoint (step 50), so there was nothing to keep yet. Start it again." ] },

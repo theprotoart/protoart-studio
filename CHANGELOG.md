@@ -1,6 +1,6 @@
 # Changelog
 
-## Next (not released yet)
+## 1.6.6
 
 - ▶ Continue a stopped training: `trainer.remember_stop` / `stopped_info` / `continue_args` (`train_stopped.json` in the
   data folder), `train_stopped` / `train_stopped_forget` commands, `continue_stopped` in `train_lora`, the Train tab's
