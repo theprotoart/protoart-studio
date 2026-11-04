@@ -714,10 +714,10 @@
         <div class="seg seg-wrap cc-goals">
           <button v-for="g in ccGoals" :key="g.id" :class="{on: form.cc.type === g.id}" @click="ccPick(g.id)" :title="g.tip">{{ g.label }}</button>
         </div>
+        <button class="ghost small pose-lib-btn" @click="openPoseLib" title="Ready-made poses (standing, sitting, kneeling, lying…) from five angles, to follow with 🦴 Pose or 🧊 Depth">🧍 Pose library</button>
         <div v-if="!form.cc.image" class="ipa-drop" :class="{over: ccDragOver}" @dragover.prevent="ccDragOver = true"
              @dragleave="ccDragOver = false" @drop.prevent="onCcDrop" @click="$refs.ccPick.click()">
           Drop the picture to follow <span class="hint">({{ (ccGoals.find((g) => g.id === form.cc.type) || {}).tip || 'a pose, a drawing, outlines or a layout' }} · or click to choose)</span></div>
-        <button class="ghost small pose-lib-btn" @click="openPoseLib" title="Ready-made poses (standing, sitting, kneeling, lying…) from five angles, to follow with 🦴 Pose or 🧊 Depth">🧍 Pose library</button>
         <div v-else class="ipa-on">
           <img :src="ccMap && ccMap.for === form.cc.image + '|' + form.cc.type ? ccMap.src : fileUrl(form.cc.image)" alt="The picture to follow">
           <div class="ipa-opts">
