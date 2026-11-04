@@ -1,6 +1,6 @@
 # Changelog
 
-## Next (not released yet)
+## 1.6.5
 
 - 🔤 Type: ＋ Add text button and a hint for several texts; clicking an empty spot always adds a new text (it used to only
   deselect); an untouched new text is dropped; the typing box takes the keys after the click (`txAdd`)

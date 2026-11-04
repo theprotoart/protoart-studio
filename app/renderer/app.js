@@ -530,7 +530,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.4";  // keep in step with app/package.json
+const APP_VERSION = "1.6.5";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -817,7 +817,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Since 1.6.4 (in the next version)", items: [
+            { h: "1.6.5: several texts on one picture, the Tools picture no longer jumps", items: [
               "<b>🔤 Several texts on one picture</b> (Replace text → Type): <b>＋ Add text</b>, or click an empty spot on the picture, adds another text with its own words, font, size and colour; click a text (or its name above the box) to pick it, drag it to move it, ✕ deletes it. After clicking the picture you can type straight away.",
               "<b>The picture in Tools no longer jumps between two sizes</b> (seen while typing text): on Macs set to always show scroll bars, the picture's column kept gaining and losing its scroll bar. Room for it is now kept all the time." ] },
             { h: "1.6.4: new fast-engine models, add future models yourself, face detailer options, 👤 select the skin", items: [
