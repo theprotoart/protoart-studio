@@ -817,6 +817,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Since 1.6.4 (in the next version)", items: [
+              "<b>The picture in Tools no longer jumps between two sizes</b> (seen while typing text): on Macs set to always show scroll bars, the picture's column kept gaining and losing its scroll bar. Room for it is now kept all the time." ] },
             { h: "1.6.4: new fast-engine models, add future models yourself, face detailer options, 👤 select the skin", items: [
               "<b>New models on the ⚡ fast engine</b> for Macs with more memory: <b>FLUX.2 Klein 9B</b> (16 GB+, sharper than 4B; non-commercial licence), <b>Z-Image Turbo</b> (“ZIT”, 16 GB+, photoreal in 9 steps, Apache-2.0), <b>Qwen-Image 2.1</b> and <b>Qwen-Image 2.1 Turbo</b> (24 GB+, non-commercial) and <b>Krea 2 Turbo</b> (32 GB+). They're in the Models tab under their own names; on a Mac with too little memory they're greyed out (Settings → Options → Load anyway lets you try).",
               "<b>✨ Edit with words with FLUX.2 Klein 9B</b> (16 GB+): pick it in Image to image's model list for sharper edits. 8 GB Macs keep using Klein 4B.",

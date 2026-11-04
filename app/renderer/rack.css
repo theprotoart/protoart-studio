@@ -2553,3 +2553,7 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .det-more { flex-basis: 100%; margin-top: 4px; }
 .det-more > summary { cursor: pointer; }
 .det-more > label { display: inline-flex; align-items: center; gap: 4px; margin: 4px 10px 0 0; }
+/* Tools' picture column (and the other scrolling panes): keep room for the scroll bar at all times. With macOS set to
+   always show scroll bars, a column just at its height limit grew a scroll bar, which narrowed the picture, which made
+   the column short enough to lose the bar again: the picture jumped between two sizes many times a second. */
+.tools > .tool-source, .tools, .i2i, .train, .controls, .output, .library, .models-tab, .settings { scrollbar-gutter: stable; }

@@ -1,5 +1,9 @@
 # Changelog
 
+## Next (not released yet)
+
+- Tools picture jumping between two sizes (Type text and elsewhere) when macOS shows scroll bars always: `scrollbar-gutter: stable` on the Tools picture column and the other scrolling panes
+
 ## 1.6.4
 
 - 🔤 Find the text returned an opaque black/white mask, stamped as paint over the whole picture (Clear it then filled
