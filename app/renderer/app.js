@@ -243,6 +243,7 @@ function defaultForm() {
     face_detailer: { on: false, strength: 0.4, prompt: "", max_faces: 4, min_face_pct: 0, confidence: 0.6, mask_grow: 0.18, mask_blur: 1, hair: false },
     ip_adapter: { image: "", kind: "style", scale: 0.6 },
     heal_method: "lama",
+    edit_recipe: "",    // ✨ Edit with words: a two-picture recipe (EDIT_RECIPES), or "" for none
     edit_refs: [],      // ✨ Edit with words: extra pictures to take a style, object or outfit from (🧩 Combine: what to add)
     keep_faces: true,  // ✨ Edit with words: each face redone close-up so it stays like the original
     cam: { az: 0, el: 0, zoom: 5, turnaround: false, layout: "single" },  // 📷 Camera angle: around (0–360°), up / down (−30–60°), how close (0–10)
@@ -324,6 +325,22 @@ function camPrompt(az, el, zoom, extra, layout) {
 if (typeof module !== "undefined") module.exports = { camWords, camPrompt };
 // Image to image's picture and settings: Create's ↺ reset all, presets and ↺ reuse leave them alone
 const I2I_PICTURE_KEYS = ["init_image", "control_image", "edit_refs"];
+// ✨ Edit with words → two-picture recipes: community FLUX.2 Klein LoRAs from Civitai (downloaded when first used,
+// never bundled). Each takes the picture above as “Image 1” and the first extra picture as “Image 2”.
+const POSE_VIEWS = { front: "Front", diag: "¾ turn", side: "Side", above: "From above", below: "From below" };
+const EDIT_RECIPES = [
+  { id: "mid_transform", label: "🧬 Mid-transformation", by: "Mid Transformation [2 image input] (Civitai)",
+    tip: "A picture of someone halfway through turning into something else: Image 1 changing into Image 2 (a person into a statue, a werewolf, a robot…). It may take a few tries.",
+    prompt: "Make image 1 mid-transformation into image 2. Give them a surprised expression.",
+    licence: "its author allows any use, also commercial",
+    files: { "4b": { url: "https://civitai.com/models/2377407?modelVersionId=2673571", name: "mid-tf-klein-4b", mb: 92 } } },
+  { id: "replace_subject", label: "🔁 Replace subject", by: "Replace Subject [Klein 4B & 9B] (Civitai)",
+    tip: "Keeps Image 1's framing, pose and background and puts the subject of Image 2 in its place. Works best when both pictures are framed alike (same angle, same number of people). Say “man” or “woman” instead of “person” if you like.",
+    prompt: "replace the person in Image 1 with the person in Image 2",
+    licence: "non-commercial use only",
+    files: { "4b": { url: "https://civitai.com/models/2508392?modelVersionId=2820876", name: "KleinBase4B_ReplaceSubject", mb: 46 },
+             "9b": { url: "https://civitai.com/models/2508392?modelVersionId=2819585", name: "KleinBase9B_ReplaceSubject", mb: 83 } } },
+];
 const I2I_FORM_KEYS = [...I2I_PICTURE_KEYS, "strength", "use_init_size", "size_link", "size_ratio", "i2i_use_init", "control",
   "heal_method", "keep_faces", "cam", "combine", "i2i_mode", "inpaint", "outpaint", "outpaint_engine", "swap", "i2i_loras"];
 const I2I_KINDS = ["img2img", "healed", "word_edit", "combined", "camera_angle", "inpaint", "outpaint", "controlnet", "faceswap"];  // pictures made in Image to image
@@ -688,7 +705,8 @@ const protoartApp = createApp({
       pausedAt: 0,
       requeue: [],           // jobs to re-send after a Force stop restart
       libHasMore: false,
-      startDragOver: false, editRefOver: false,
+      startDragOver: false, editRefOver: false, recipeBusy: false, recipeMsg: "",
+      POSE_VIEWS, poseLib: { open: false, again: false, list: null, cat: "", q: "", thumbs: {}, sel: null, view: "front", busy: false, msg: "", addDesc: true, loading: false },
       lastEnhanced: null,
       undoPrompt: null,
       timing: { job: null, image: 0, lastAt: 0, stepTimes: [] },
@@ -817,6 +835,11 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Since 1.6.5 (in the next version): ▶ continue a stopped training, 🧍 pose library, two-picture recipes", items: [
+              "<b>▶ Continue a stopped training</b> (Train): after <b>Stop training</b>, a card says how far it got, with <b>▶ Continue from step …</b>: it carries on with the same pictures and settings instead of starting over (also after closing the app). ERNIE on the fast engine now saves its progress every 50 steps, so Stop really keeps it.",
+              "<b>🧍 Pose library</b> (Create → 🎛 ControlNet): about 100 ready-made poses (standing, sitting, kneeling, lying, cute poses…) from five angles. Pick one, pick the angle, then <b>🦴 Use for Pose</b> or <b>🧊 Use for Depth</b>; it can add the pose's description to your prompt. The pictures come from Shisei (free, CC0) and download the first time you see them. <b>＋ Add your own</b> keeps your own pose pictures (photos, drawings, 3-D renders) in <b>★ My poses</b>; ✕ on any pose removes it (yours) or hides it (the library's; ↺ Show hidden brings them back).",
+              "<b>Two-picture recipes</b> (Image to image → ✨ Edit with words): <b>🧬 Mid-transformation</b> (Image 1 halfway through turning into Image 2) and <b>🔁 Replace subject</b> (Image 2's person in Image 1's place, pose and background). Each uses a community LoRA from Civitai, downloaded with one click the first time (a Civitai API key may be needed). Replace subject has the same safeguard as face swap: explicit results are never saved.",
+              "<b>Fix</b>: deleting pictures in the Library no longer shows “Deleted …” on the running job's line in the queue." ] },
             { h: "1.6.5: several texts on one picture, the Tools picture no longer jumps", items: [
               "<b>🔤 Several texts on one picture</b> (Replace text → Type): <b>＋ Add text</b>, or click an empty spot on the picture, adds another text with its own words, font, size and colour; click a text (or its name above the box) to pick it, drag it to move it, ✕ deletes it. After clicking the picture you can type straight away.",
               "<b>The picture in Tools no longer jumps between two sizes</b> (seen while typing text): on Macs set to always show scroll bars, the picture's column kept gaining and losing its scroll bar. Room for it is now kept all the time." ] },
@@ -1160,6 +1183,7 @@ const protoartApp = createApp({
               "Their trigger words are added to the prompt (if auto-add is on in Settings) and taken back out on the next pick. LoRAs you added yourself stay.",
               "<b>new pick every Generate</b> re-rolls each time you press Generate. It only ever picks LoRAs made for the chosen model's type, and skips ones hidden by Hide NSFW / Hide People." ] },
             { h: "🎛 ControlNet (in Create)", items: [
+              "<b>🧍 Pose library</b> (under the drop box): about 100 mannequin poses, each from up to five angles (front, ¾ turn, side, from above, from below). Search or pick a kind, click a pose, pick the angle, then <b>🦴 Use for Pose</b> (OpenPose reads the figure) or <b>🧊 Use for Depth</b> (its depth map, used as it is: keeps the body's shape most closely). Tick <i>add the pose's description</i> to put the pose into words in your prompt too. Free to use (Shisei, CC0); the pictures download from GitHub the first time and stay on this Mac. <b>＋ Add your own</b> (top of the library) adds your own pose pictures to <b>★ My poses</b>: a photo, a drawing or a 3-D render; OpenPose or the depth finder reads them like any picture. ✕ on one of yours removes the copy (your original stays); ✕ on one of the library's poses hides it, and <b>↺ Show hidden</b> brings them back.",
               "Make a new picture that follows another one, straight from Create (SD 1.5 and SDXL models). In <b>🎛 ControlNet</b> pick what to follow: <b>🦴 Pose</b> (a person's pose: a photo, a drawing or a 3D pose model all work), <b>✏️ Drawing</b> (colour and render a sketch, keeping its lines), <b>🖍 Scribble</b> (a rough doodle → a finished picture), <b>📐 Outlines</b> (exact edges: a product, a building, a logo), <b>〰 Soft shapes</b> (the main shapes, loosely) or <b>🧊 Depth &amp; layout</b> (what's near and far). Drop the picture and describe the result in the prompt as usual. The picture's size doesn't matter: Create's own size is used. <i>Follow its</i> lists every ControlNet you have, your own ones too.",
               "<b>How closely</b> 0.7–1.0 keeps the pose; lower lets the prompt bend it. <b>Until</b> 70–80 % of the steps stops following the pose before the end, so hands, clothes and details come from your prompt. <b>👁 Show what it follows</b> shows the skeleton it found (if it found none, use a clearer, full-body picture). Tick <i>It's already a map</i> for a pose skeleton or outline you made elsewhere.",
               "It combines with an <b>Image prompt · Face</b> (the same person, in that pose) or <b>Stronger</b> (that picture's style, on this layout). Hi-res fix is skipped while it's on. The first time, the ControlNet model downloads (SDXL: Union ProMax, ~2.5 GB, slow on 8 GB Macs)." ] },
@@ -1241,6 +1265,7 @@ const protoartApp = createApp({
               "<b>Change strength</b>: low (0.3) keeps most of the original, high (0.8+) changes a lot.",
               "Pick the model right here; steps and CFG are next to it.",
               "<b>✨ Edit with words</b> (FLUX.2 Klein): describe the change in the prompt — “make the jacket red”, “add sunglasses”, “replace the sky with a sunset”, “turn it into a watercolour” — and press <b>✨ Edit</b>. It keeps the rest of the picture. Paint over a part first and only that part can change (everything else stays exactly as it was): best for precise edits. Add up to 3 <b>more pictures</b> to borrow from (“dress her in the outfit from the second picture”, “paint it in the style of the second picture”). It always uses FLUX.2 Klein, whatever model Create has (4.6 GB the first time), takes about as long as one FLUX.2 picture, and ignores LoRAs and the negative prompt.",
+              "<b>Two-picture recipes</b> (✨ Edit with words): <b>🧬 Mid-transformation</b> makes Image 1 halfway through turning into Image 2; <b>🔁 Replace subject</b> keeps Image 1's framing, pose and background and puts Image 2's person (or thing) in. The picture at the top is Image 1, the first picture under <i>More pictures</i> is Image 2. Pick the recipe (it fills in the wording its LoRA learned; add to it, e.g. “Give them an angry expression”), press <b>⤓ Download</b> once (a small LoRA from Civitai; save a Civitai API key in Models → Add from Civitai if it asks), then ✨ Edit. Mid-transformation may take a couple of tries. Replace subject has a 9B version for Macs using Klein 9B; it's for non-commercial use, and explicit results are never saved (like face swap).",
               "<b>🙂 Keep faces close to the original</b> (on by default): after the edit, each face (up to 3) is edited again on its own, close up, with the original face beside it, and blended in, so the person stays recognisable when you restore, colour or re-dress a photo. It adds about one more edit per face, and uses the face finder that Restore faces downloads (use Restore faces once). Small pictures are also worked on at up to twice their size and come back bigger.",
               "<b>🩹 Remove</b>: paint over what you want gone and press 🩹 Remove; it's filled in from its surroundings (no prompt or model needed). <b>✨ Smart fill</b> handles objects, people and patterns (~208 MB download the first time); <b>⚡ Quick fill</b> is instant for dust, spots and thin lines. Cover the thing fully, a little past its edges.",
               "<b>LoRAs</b> card: add a LoRA (search the list, or #tag for your 🏷 tags), set its weight with the slider, ✕ removes it. Under the search: the order (A → Z, <b>Newest first</b>, biggest…) and the kind list (<b>● People</b> / <b>Not People</b>, .safetensors, Pony…); <b>★</b> shows only favourites. They're the same LoRAs and the same filters as in Create (both tabs share the model); trigger words and 🎲 Random LoRAs are in Create." ] },
@@ -1451,6 +1476,7 @@ const protoartApp = createApp({
               "<b>Pony / Illustrious</b> (SDXL models that read tags) have their own group in the model list: caption with <b>Tags</b> and leave score_9 and the like out of the captions. <b>ERNIE Turbo · ⚡ fast engine</b> trains a LoRA on the 4-bit model, so it runs on smaller Macs (on 8 GB: 512 px, rank 8, and close other apps).",
               "<b>Quick / Standard / Thorough</b> set steps, learning rate and rank. Standard is about 100 steps per image.",
               "<b>↻ Continue training</b> (3 · LoRA): pick one of your LoRAs to train it further, for example when a person's likeness isn't quite there yet. Use the same kind of base model it was trained on (the list only shows LoRAs of the model's kind), add more or better pictures if you have them, and 300–800 more steps is usually enough. It keeps its own size and settings (Rank and What to train don't apply) and is saved under a new name (…-more), so the original stays to compare. LoRAs made by other programs may use a layout that can't be continued; ERNIE LoRAs can't be continued yet.",
+              "<b>▶ Continue a stopped training</b>: <b>Stop training</b> keeps the progress so far (SD 1.5 / SDXL: as <i>name</i>-stopped-step…; ERNIE on the fast engine: its last checkpoint, saved every 50 steps). A card then offers <b>▶ Continue from step …</b>, which trains the remaining steps with the same pictures and settings and saves the finished LoRA under the original name. It's remembered after closing the app; <b>✕ Not now</b> hides it (the LoRA saved so far stays).",
               "Watch the progress, time left and the loss chart (it should drift down and level off). <b>Stop</b> keeps the progress so far.",
               "SD 1.5 suits 8 GB Macs. <b>SDXL and Pony / Illustrious / NoobAI</b> can be trained too: pick the built-in SDXL (it trains on the full-precision SDXL Base, a 7 GB download if it isn't on your Mac yet) or any full SDXL checkpoint you've added. Under 16 GB it works but is very slow (often many hours); train at 768 to lighten it. LoRAs trained on a Pony model are labelled Pony automatically. ERNIE can be trained on the <b>⚡ fast-engine ERNIE</b> (it learns a LoRA on top of the 4-bit model, with low-memory settings): it suits 16 GB+ Macs and is experimental on 8 GB, where it may run out of memory or take many hours. The full-precision ERNIE needs 32 GB+.",
               "FLUX.1 LoRAs can't be trained in the app yet: the fast engine's training only supports other models.",
@@ -1593,6 +1619,10 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "Since 1.6.5: if something doesn't work", items: [
+              "<b>A recipe's ⤓ Download says Civitai wants a signed-in account</b>: save your Civitai API key in Models → Add from Civitai (the card shows how), then press Download again.",
+              "<b>The pose library shows “…” instead of pictures</b>: they download from GitHub the first time; check the internet connection (and that Strict offline mode in Settings → Privacy is off).",
+              "<b>▶ Continue isn't offered after stopping an ERNIE training</b>: it stopped before its first checkpoint (step 50), so there was nothing to keep yet. Start it again." ] },
             { h: "New in 1.6.4: if something doesn't work", items: [
               "<b>A new fast-engine model says it needs a newer fast engine</b>: the fast engine updates itself (once, a few minutes, needs internet) the next time you use it. Offline, it tries again a day later; the models you already used keep working.",
               "<b>A model is greyed out</b>: this Mac has less memory than it needs (the label says how much). Settings → Options → <i>Load anyway</i> lets you try, but it may be very slow or stop part-way.",
@@ -1856,7 +1886,7 @@ const protoartApp = createApp({
                              precision: "fp16", save_every: 0, preset: "recommended", steps: 1000, lr: 0.0001, rank: 16,
                              resolution: 512, targets: "attention", flip: true, train_text_encoder: false, resume: "",
                              dirty: false, result: null, lossHistory: [], secPerStep: null, spsBy: {},
-                             mode: "lora", onlyIssues: false, emb: { name: "", init: "", kind: "object", vectors: 2, steps: 1500, save_every: 0, use: "prompt" } },
+                             mode: "lora", onlyIssues: false, stopped: null, emb: { name: "", init: "", kind: "object", vectors: 2, steps: 1500, save_every: 0, use: "prompt" } },
                            (() => { const t = loadJSON("protoart.train", {}); delete t.items; delete t.result; delete t.lossHistory; delete t.dirty; return t; })()),
       merge: { family: "", items: [], q: "", mode: "exact", rank: 32, name: "", result: null, error: "", busy: false },
       hub: { source: "", busy: false, error: "", found: null, needToken: false, token: "", tokenSet: false, msg: "" },
@@ -3326,6 +3356,7 @@ const protoartApp = createApp({
         call("list_embeddings").then((e) => { this.embeddings = e; }).catch(() => {});
         // the ControlNet types: Create's 🎛 ControlNet needs them from the start (Image to image used to load them)
         call("control_types").then((t) => { if (Array.isArray(t) && t.length) this.controlTypes = t; }).catch(() => {});
+        this.loadStoppedTraining();  // ▶ Continue a training stopped last time
         this.refreshExtras(false);
         call("embedding_dirs_get").then((d) => { this.embDirs = d; }).catch(() => {});
         call("adjust_presets_get").then((d) => { this.adjPresets = Array.isArray(d) ? d : []; }).catch(() => {});
@@ -6943,12 +6974,172 @@ const protoartApp = createApp({
                      resolution: t.resolution, targets: t.targets, flip: t.flip, train_text_encoder: t.train_text_encoder };
       if (this.trainResume) args.resume_from = this.trainResume.file;  // keeps that LoRA's learning and trains it further
       const res = await this.runJob("train_lora", args);
+      await this.loadStoppedTraining();  // ■ Stop keeps the progress: offer ▶ Continue
       if (res) {
         this.train.result = res;
         await this.refreshLoras();
         if (res.trigger) await call("lora_triggers_save", { name: res.name, words: [res.trigger] });
         this.status = `LoRA ${res.name} saved`;
       }
+    },
+    EDIT_RECIPES() { return EDIT_RECIPES; },
+    // -------------------------------------------------------------- 🧍 Pose library (Shisei) for Create's ControlNet
+    async openPoseLib() {
+      const pl = this.poseLib;
+      pl.open = true; pl.msg = "";
+      if (!pl.list) {
+        try { pl.list = (await call("poselib_list")).poses || []; } catch (e) { pl.list = []; pl.msg = e.message; }
+      }
+      this.poseLibThumbs();
+    },
+    poseLibCats() { return [...new Set((this.poseLib.list || []).map((p) => p.cat))]; },
+    poseLibShown() {
+      const pl = this.poseLib, q = (pl.q || "").trim().toLowerCase();
+      return (pl.list || []).filter((p) => !p.hidden && (!pl.cat || p.cat === pl.cat) && (!q || (p.name + " " + p.desc + " " + p.cat).toLowerCase().includes(q)));
+    },
+    async poseLibThumbs() {  // the small pictures for what's shown, a few at a time (downloaded once)
+      const pl = this.poseLib;
+      if (pl.loading) { pl.again = true; return; }
+      pl.loading = true;
+      try {
+        do {
+          pl.again = false;
+          const want = this.poseLibShown().filter((p) => !(p.id in pl.thumbs)).map((p) => p.id);
+          for (let i = 0; i < want.length && pl.open && !pl.again; i += 12) {
+            const got = await call("poselib_thumbs", { ids: want.slice(i, i + 12) });
+            for (const id of want.slice(i, i + 12)) pl.thumbs[id] = got[id] || "";
+          }
+        } while (pl.again && pl.open);
+      } catch (e) {
+        pl.msg = e.message;
+      } finally {
+        pl.loading = false;
+      }
+    },
+    async poseLibAdd(e) {  // ＋ your own pose pictures, kept in ★ My poses
+      const files = [...(e.target.files || [])];
+      e.target.value = "";
+      if (!files.length) return;
+      const pl = this.poseLib;
+      pl.msg = "Adding…";
+      try {
+        const r = await call("poselib_add", { paths: files.map((f) => window.bee.pathForFile(f)) });
+        pl.list = (await call("poselib_list")).poses || [];
+        pl.cat = "★ My poses";
+        pl.msg = r.added ? `Added ${r.added} pose${r.added === 1 ? "" : "s"} to ★ My poses` : "Those pictures couldn't be opened.";
+        this.poseLibThumbs();
+      } catch (err) { pl.msg = err.message; }
+    },
+    async poseLibRemove(p) {
+      const pl = this.poseLib;
+      try {
+        await call("poselib_remove", { id: p.id });
+        pl.list = p.series === "mine" ? pl.list.filter((x) => x.id !== p.id) : pl.list.map((x) => (x.id === p.id ? { ...x, hidden: true } : x));
+        if (pl.sel && pl.sel.id === p.id) pl.sel = null;
+      } catch (err) { pl.msg = err.message; }
+    },
+    async poseLibUnhide() {
+      const pl = this.poseLib;
+      try {
+        await call("poselib_unhide", {});
+        pl.list = pl.list.map((x) => ({ ...x, hidden: false }));
+        this.poseLibThumbs();
+      } catch (err) { pl.msg = err.message; }
+    },
+    poseLibPick(p) {
+      const pl = this.poseLib;
+      pl.sel = p; pl.msg = "";
+      if (!p.views[pl.view]) pl.view = Object.keys(p.views)[0];
+    },
+    async poseLibUse(kind) {
+      const pl = this.poseLib, p = pl.sel;
+      if (!p || pl.busy) return;
+      pl.busy = true; pl.msg = "Getting the picture…";
+      try {
+        const r = await call("poselib_get", { id: p.id, view: pl.view, kind });
+        const goal = this.ccGoals.find((g) => g.map === (kind === "depth" ? "depth" : "openpose"));
+        this.form.cc.image = r.path;
+        this.form.cc.already_map = !!r.already_map;
+        this.ccMap = null;
+        if (goal) this.ccPick(goal.id);
+        if (pl.addDesc && r.desc && !(this.form.prompt || "").includes(r.desc)) {
+          this.form.prompt = ((this.form.prompt || "").trim() + ((this.form.prompt || "").trim() ? ", " : "") + r.desc).trim();
+        }
+        pl.open = false;
+        this.status = `🧍 Following “${p.name}” (${POSE_VIEWS[pl.view] || pl.view}) with ${kind === "depth" ? "🧊 Depth" : "🦴 Pose"}`;
+      } catch (e) {
+        pl.msg = e.message;
+      } finally {
+        pl.busy = false;
+      }
+    },
+    editRecipe() { return EDIT_RECIPES.find((r) => r.id === this.form.edit_recipe) || null; },
+    editRecipeFile(r = this.editRecipe()) {  // the LoRA for the Klein model Edit with words uses now (9B when picked and there's one)
+      if (!r) return null;
+      return (this.editModelId() === "flux2_klein9b_mlx_q4" && r.files["9b"]) || r.files["4b"];
+    },
+    editRecipeLora(r = this.editRecipe()) {  // that LoRA in your LoRA list, if it's downloaded
+      const f = this.editRecipeFile(r);
+      return f ? (this.loras || []).find((l) => l.name === f.name) || null : null;
+    },
+    pickEditRecipe(id) {
+      const old = this.editRecipe(), f = this.form;
+      f.edit_recipe = f.edit_recipe === id ? "" : id;
+      const r = this.editRecipe();
+      // the recipe's own wording (it was trained on it); a prompt you wrote yourself is kept unless it was the last recipe's
+      if (r && (!(f.prompt || "").trim() || (old && f.prompt === old.prompt))) f.prompt = r.prompt;
+      if (!r && old && f.prompt === old.prompt) f.prompt = "";
+      if (r && !r.files["9b"] && this.form.edit_model === "flux2_klein9b_mlx_q4") this.status = `${r.label} is made for Klein 4B: it uses 4B.`;
+      this.recipeMsg = "";
+    },
+    async downloadEditRecipe() {  // the recipe's LoRA from Civitai, into your LoRA folder for FLUX.2
+      const r = this.editRecipe(), file = this.editRecipeFile(r);
+      if (!r || !file || this.recipeBusy) return;
+      this.recipeBusy = true;
+      this.recipeMsg = `Downloading ${r.by} (~${file.mb} MB)…`;
+      try {
+        const found = await callWithin(90000, "civitai_inspect", { url: file.url });
+        const dest = (found.destinations[0] || {}).path || "";
+        await call("civitai_download", { url: file.url, dest, name: found.name });
+        await this.refreshLoras();
+        this.recipeMsg = this.editRecipeLora(r) ? "✓ Ready" : "Downloaded, but it isn't in the LoRA list yet: press ↻ Refresh in Models.";
+      } catch (e) {
+        if (e.cancelled) { this.recipeMsg = ""; return; }
+        const m = String(e.message || e);
+        this.recipeMsg = /signed-in accounts|log in|API key/.test(m)
+          ? "Civitai wants a signed-in account for this download: save your Civitai API key in Models → Add from Civitai (it shows how), then press Download again."
+          : "Couldn't download it: " + m;
+      } finally {
+        this.recipeBusy = false;
+      }
+    },
+    recipeEditArgs() {  // what a recipe adds to the Edit with words job
+      const r = this.editRecipe();
+      if (!r) return {};
+      const l = this.editRecipeLora(r), file = this.editRecipeFile(r);
+      return { recipe: r.id, loras: l ? [{ name: l.name, weight: 1.0 }] : [],
+               edit_model: file === r.files["9b"] ? "flux2_klein9b_mlx_q4" : "flux2_klein_mlx_q4" };
+    },
+    async loadStoppedTraining() {  // ▶ Continue: the last stopped training, if its progress is still there
+      try { this.train.stopped = await call("train_stopped", {}); } catch { this.train.stopped = null; }
+    },
+    async continueTraining() {
+      const st = this.train.stopped;
+      if (!st) return;
+      this.train.result = null;
+      this.train.lossHistory = [];
+      this.train.stopped = null;
+      const res = await this.runJob("train_lora", { continue_stopped: true, name: st.name, model: st.model, steps: st.steps - st.done });
+      await this.loadStoppedTraining();  // stopped again: show it again
+      if (res) {
+        this.train.result = res;
+        await this.refreshLoras();
+        this.status = `LoRA ${res.name} saved`;
+      }
+    },
+    async forgetStoppedTraining() {
+      this.train.stopped = null;
+      try { await call("train_stopped_forget", {}); } catch { /* nothing to forget */ }
     },
     setTrainMode(mode) {
       this.train.mode = mode;
@@ -8094,8 +8285,14 @@ const protoartApp = createApp({
         if (!(f.prompt || "").trim()) return (this.error = "Describe the change in the prompt, e.g. “make the jacket red” or “turn it into a watercolour”.");
         this.error = "";
         const painted = this.maskIsFor("i2i", f.init_image) ? this.mask.data : null;
-        await this.runJob("edit_words", { init_image: f.init_image, prompt: f.prompt, mask: painted, keep_faces: !painted && f.keep_faces !== false,
-                                          refs: (f.edit_refs || []).slice(0, 3), seed: f.seed });
+        const rec = this.editRecipe();
+        if (rec) {  // 🧬 / 🔁 two-picture recipes
+          if (!(f.edit_refs || []).length) return (this.error = `${rec.label} needs a second picture: add it under “More pictures”.`);
+          if (!this.editRecipeLora(rec)) return (this.error = `${rec.label} needs its LoRA first: press ⤓ Download under the recipe.`);
+        }
+        await this.runJob("edit_words", { edit_model: this.editModelId(), init_image: f.init_image, prompt: f.prompt, mask: painted,
+                                          keep_faces: !painted && f.keep_faces !== false && !rec,
+                                          refs: (f.edit_refs || []).slice(0, 3), seed: f.seed, ...this.recipeEditArgs() });
         return;
       }
       if (f.i2i_mode === "outpaint" && f.outpaint_engine !== "model") {  // ↔ Expand with FLUX.2 Klein + outpaint LoRA

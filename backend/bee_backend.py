@@ -250,6 +250,8 @@ def job_label(cmd, a):
     if cmd == "control_preview":
         return f"ControlNet map ({a.get('type')})"
     if cmd == "train_lora":
+        if a.get("continue_stopped"):
+            return f"Continue training · {a.get('name') or 'LoRA'}"
         return f"Train LoRA · {a.get('name') or 'my_lora'} · {a.get('steps') or '?'} steps"
     if cmd == "train_embedding":
         return f"Train embedding · {a.get('name') or 'my_embedding'} · {a.get('steps') or '?'} steps"
@@ -992,6 +994,36 @@ def handle_quick(cmd, a):
             return model_hub.inspect(a.get("source"))
         finally:
             net.set_online(was)
+    if cmd == "poselib_list":  # 🧍 Pose library (Shisei, CC0, and your own): the poses, angles and what each has
+        import poselib
+        return poselib.listing()
+    if cmd == "poselib_add":  # ＋ your own pose pictures
+        import poselib
+        return {"added": poselib.add_mine([str(x) for x in (a.get("paths") or [])])}
+    if cmd == "poselib_remove":
+        import poselib
+        poselib.remove_mine(a.get("id"))
+        return None
+    if cmd == "poselib_unhide":  # ↺ Show hidden: the library's poses you hid come back
+        import poselib
+        for pid in list(poselib.hidden()):
+            poselib.set_hidden(pid, False)
+        return None
+    if cmd in ("poselib_thumbs", "poselib_get"):
+        ids = [str(x) for x in (a.get("ids") or [a.get("id")])]
+        if net.strict and not all(i.startswith("mine:") for i in ids):  # your own poses are on this Mac already
+            raise ValueError("Strict offline mode is on (Settings → Privacy): the pose pictures download from GitHub.")
+        import poselib
+        if cmd == "poselib_thumbs":
+            return poselib.thumbs([str(x) for x in (a.get("ids") or [])], str(a.get("view") or "front"))
+        return poselib.get(str(a.get("id")), str(a.get("view") or "front"), str(a.get("kind") or "pose"))
+    if cmd == "train_stopped":  # ▶ Continue training: the last stopped training, if its progress is still there
+        import trainer
+        return trainer.stopped_info()
+    if cmd == "train_stopped_forget":
+        import trainer
+        trainer.forget_stop()
+        return None
     if cmd == "privacy_get":
         return {"strict": net.strict}
     if cmd == "privacy_set":
@@ -1888,7 +1920,7 @@ def run_side(mid, cmd, a):
 # quick commands that talk to a website (up to ~25 s if it's slow or blocked): run beside the reader, so the
 # app stays responsive (an unanswered Check used to leave every other button waiting)
 NET_QUICK = ("select_object", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
-             "train_square_copies")  # (that one isn't online, but can take a while for a big folder)
+             "train_square_copies", "poselib_thumbs", "poselib_get")  # (that one isn't online, but can take a while for a big folder)
 
 
 def run_quick(mid, cmd, a):

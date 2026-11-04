@@ -151,6 +151,7 @@ allow commercial use, for example:
   (CC BY-NC 4.0), Anima / Anima Turbo (CircleStone Labs Non-Commercial; pictures may be used commercially), the face
   swap models inswapper_128 and ArcFace (InsightFace, non-commercial research only)
 - Models and LoRAs from Civitai: whatever their author chose (shown on the model's page)
+- 🧍 Pose library pictures: Shisei (CC0, free for any use), downloaded the first time you open it
 
 The full list is in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Check a model's own page for its current terms
 before using results commercially. AI pictures can be inaccurate or contain unexpected content; you are responsible

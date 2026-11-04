@@ -717,6 +717,7 @@
         <div v-if="!form.cc.image" class="ipa-drop" :class="{over: ccDragOver}" @dragover.prevent="ccDragOver = true"
              @dragleave="ccDragOver = false" @drop.prevent="onCcDrop" @click="$refs.ccPick.click()">
           Drop the picture to follow <span class="hint">({{ (ccGoals.find((g) => g.id === form.cc.type) || {}).tip || 'a pose, a drawing, outlines or a layout' }} · or click to choose)</span></div>
+        <button class="ghost small pose-lib-btn" @click="openPoseLib" title="Ready-made poses (standing, sitting, kneeling, lying…) from five angles, to follow with 🦴 Pose or 🧊 Depth">🧍 Pose library</button>
         <div v-else class="ipa-on">
           <img :src="ccMap && ccMap.for === form.cc.image + '|' + form.cc.type ? ccMap.src : fileUrl(form.cc.image)" alt="The picture to follow">
           <div class="ipa-opts">
@@ -1003,7 +1004,7 @@
           </div>
           <div v-if="j.state==='running'" class="job-progress">
             <div class="bar"><div :style="{width: (jobProgress(j) ?? 0) + '%'}"></div></div>
-            <span class="hint">{{ jobProgress(j) !== null ? progressText : status + elapsedText }}</span>
+            <span class="hint">{{ jobProgress(j) !== null ? progressText : (engineStatus || "Working…") + elapsedText }}</span>
           </div>
           <button v-if="j.state==='running' && j.cmd==='generate' && (j.images || 1) > 1 && canSkipImage" class="ghost job-skip"
                   @click="skipImage" title="Skip the image being made now; the job carries on with its next image">⏭</button>
@@ -2878,7 +2879,21 @@
                  @click="$refs.editRefPick.click()" title="Then say how to use it, e.g. “paint it in the style of the second picture”">+ add</div>
             <input ref="editRefPick" type="file" multiple accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="onEditRefPicked">
           </div>
-          <div v-if="(form.edit_refs || []).length" class="hint">Refer to them in the prompt as “the second picture”, “the third picture”.</div>
+          <div v-if="(form.edit_refs || []).length && !editRecipe()" class="hint">Refer to them in the prompt as “the second picture”, “the third picture”.</div>
+          <label>Two-picture recipes <span class="hint">optional · community LoRAs for FLUX.2 Klein, downloaded the first time</span></label>
+          <div class="seg seg-wrap edit-recipes">
+            <button v-for="r in EDIT_RECIPES()" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
+          </div>
+          <div v-if="editRecipe()" class="recipe-card">
+            <div class="hint">{{ editRecipe().tip }} The picture above is <b>Image 1</b>; the first picture under “More pictures” is <b>Image 2</b>. Keep the prompt's wording (the LoRA learned it) and add to it.</div>
+            <div class="hint">LoRA: {{ editRecipe().by }} · {{ editRecipe().licence }}{{ editRecipeFile() === editRecipe().files['9b'] ? ' · the 9B version' : '' }}</div>
+            <div class="row">
+              <span v-if="editRecipeLora()" class="hint ok">✓ Downloaded</span>
+              <button v-else class="ghost small" :disabled="recipeBusy" @click="downloadEditRecipe">{{ recipeBusy ? 'Downloading…' : '⤓ Download it (~' + editRecipeFile().mb + ' MB, from Civitai)' }}</button>
+              <span v-if="recipeMsg" class="hint">{{ recipeMsg }}</span>
+            </div>
+            <div v-if="!(form.edit_refs || []).length" class="hint warn">Add Image 2 under “More pictures”.</div>
+          </div>
         </template>
         <template v-else-if="form.i2i_mode === 'combine'">
           <div class="hint">The picture above is the <b>scene</b>. Add the character (or anything else) below, then say what you
@@ -3541,7 +3556,7 @@
           </div>
           <div v-if="j.state==='running'" class="job-progress">
             <div class="bar"><div :style="{width: (jobProgress(j) ?? 0) + '%'}"></div></div>
-            <span class="hint">{{ jobProgress(j) !== null ? progressText : status + elapsedText }}</span>
+            <span class="hint">{{ jobProgress(j) !== null ? progressText : (engineStatus || "Working…") + elapsedText }}</span>
           </div>
           <button v-if="j.state==='running' && j.cmd==='generate' && (j.images || 1) > 1 && canSkipImage" class="ghost job-skip"
                   @click="skipImage" title="Skip the image being made now; the job carries on with its next image">⏭</button>
@@ -3905,6 +3920,14 @@
         <div class="row"><button class="ghost pause-btn" :class="{on: paused}" @click="togglePause"
                   :title="paused ? 'Carry on training' : 'Pause training between steps (it keeps its memory; nothing is lost)'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
           <button class="danger" @click="cancelJob(trainJob.id)">Stop training (keeps progress so far)</button></div>
+      </div>
+      <div v-if="!trainJob && train.stopped && train.mode === 'lora'" class="card train-stopped">
+        <h3>⏸ Training “{{ train.stopped.name }}” was stopped at step {{ train.stopped.done }} of {{ train.stopped.steps }}</h3>
+        <div class="hint">Its progress is kept{{ train.stopped.kind === 'sd' ? ' (as ' + train.stopped.name + '-stopped-step' + train.stopped.done + ')' : '' }}. Continue to train the remaining {{ Math.max(0, train.stopped.steps - train.stopped.done) }} steps with the same pictures and settings; the finished LoRA is saved as “{{ train.stopped.name }}”.</div>
+        <div class="row">
+          <button class="primary" @click="continueTraining" :disabled="!!trainJob">▶ Continue from step {{ train.stopped.done }}</button>
+          <button class="ghost" @click="forgetStoppedTraining" title="Hide this (the LoRA saved so far stays in your LoRA folder)">✕ Not now</button>
+        </div>
       </div>
       <div v-if="train.result && train.result.kind === 'embedding' && train.mode === 'embedding'" class="card">
         <h3>✅ Embedding {{ train.result.name }} is ready</h3>
@@ -4694,6 +4717,43 @@
           <button class="link small-link" @click="compareView = null; openDetail(r)">details</button>
           <span class="hint">{{ (r.prompt || '').slice(0, 90) }}{{ (r.prompt || '').length > 90 ? '…' : '' }}</span></figcaption>
       </figure>
+    </div>
+  </div>
+  <!-- 🧍 Pose library (Shisei, CC0): pick a pose and an angle for Create's ControlNet -->
+  <div v-if="poseLib.open" class="modal" @click.self="poseLib.open = false">
+    <div class="card pose-lib">
+      <div class="row"><h3>🧍 Pose library</h3><span class="grow"></span>
+        <button class="ghost small" @click="$refs.posePick.click()" title="Add your own pose pictures (a photo, a drawing, a 3-D render…): they're kept in “★ My poses”">＋ Add your own</button>
+        <input ref="posePick" type="file" multiple accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="poseLibAdd">
+        <input v-model="poseLib.q" placeholder="search (sitting, arms up…)" class="pose-q" @input="poseLibThumbs">
+        <button class="ghost small" @click="poseLib.open = false">✕ Close</button></div>
+      <div class="seg seg-wrap">
+        <button :class="{on: !poseLib.cat}" @click="poseLib.cat = ''; poseLibThumbs()">All</button>
+        <button v-for="c in poseLibCats()" :key="c" :class="{on: poseLib.cat === c}" @click="poseLib.cat = c; poseLibThumbs()">{{ c }}</button>
+      </div>
+      <div class="pose-grid">
+        <button v-for="p in poseLibShown()" :key="p.id" class="pose-tile" :class="{on: poseLib.sel && poseLib.sel.id === p.id}" @click="poseLibPick(p)" :title="p.desc">
+          <img v-if="poseLib.thumbs[p.id]" :src="fileUrl(poseLib.thumbs[p.id])" alt="" loading="lazy"><span v-else class="pose-wait">…</span>
+          <small>{{ p.name }}</small>
+          <b class="pose-del" @click.stop="poseLibRemove(p)" :title="p.series === 'mine' ? 'Remove it from My poses (only the copy here; your original picture stays)' : 'Hide this pose (↺ Show hidden brings it back)'">✕</b></button>
+        <div v-if="!poseLibShown().length" class="hint">No pose matches that.</div>
+        <button v-if="(poseLib.list || []).some((p) => p.hidden)" class="link pose-unhide" @click="poseLibUnhide">↺ Show hidden ({{ poseLib.list.filter((p) => p.hidden).length }})</button>
+      </div>
+      <div v-if="poseLib.sel" class="pose-use">
+        <b>{{ poseLib.sel.name }}</b>
+        <div class="seg">
+          <button v-for="v in Object.keys(poseLib.sel.views)" :key="v" :class="{on: poseLib.view === v}" @click="poseLib.view = v">{{ POSE_VIEWS[v] || v }}</button>
+        </div>
+        <div class="row">
+          <button class="primary" :disabled="poseLib.busy || !ccGoals.some((g) => g.map === 'openpose') || !(poseLib.sel.views[poseLib.view] || {}).line && !(poseLib.sel.views[poseLib.view] || {}).photo && !(poseLib.sel.views[poseLib.view] || {}).mine" @click="poseLibUse('pose')"
+                  title="OpenPose reads the figure's pose; clothes, face and setting come from your prompt">🦴 Use for Pose</button>
+          <button class="primary" :disabled="poseLib.busy || !ccGoals.some((g) => g.map === 'depth') || !(poseLib.sel.views[poseLib.view] || {}).depth && !(poseLib.sel.views[poseLib.view] || {}).mine" @click="poseLibUse('depth')"
+                  title="Its depth map: keeps the body's shape and how it's turned (strongest)">🧊 Use for Depth</button>
+        </div>
+        <label class="check pose-desc"><input type="checkbox" v-model="poseLib.addDesc"> add the pose's description to the prompt</label>
+        <div class="hint">{{ poseLib.msg || (ccGoals.some((g) => g.map === 'openpose') ? '' : 'Download an OpenPose ControlNet in Models → ControlNet to use 🦴 Pose.') }}</div>
+      </div>
+      <div class="hint">Poses from <a href="https://github.com/wquguru/shisei" target="_blank">Shisei</a> (free to use, CC0); pose list after ai-pose-gallery by ギア. The pictures download from GitHub the first time you see them.</div>
     </div>
   </div>
   <div v-if="detail" class="modal" @click.self="detail=null">

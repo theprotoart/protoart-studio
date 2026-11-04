@@ -2558,3 +2558,26 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
    the column short enough to lose the bar again: the picture jumped between two sizes many times a second. */
 .tools > .tool-source, .tools, .i2i, .train, .controls, .output, .library, .models-tab, .settings { scrollbar-gutter: stable; }
 .tx-chip.tx-add { border-style: dashed; color: #ffcf7a; }
+/* ✨ Edit with words → two-picture recipes */
+.edit-recipes { margin: 4px 0; }
+.recipe-card { border: 1px solid rgba(255,255,255,.12); border-radius: 6px; padding: 8px 10px; margin: 6px 0; display: grid; gap: 6px; }
+/* 🧍 Pose library */
+.pose-lib-btn { margin-top: 6px; }
+.pose-lib { width: min(980px, 100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+.pose-lib .pose-q { width: 220px; }
+.pose-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; overflow-y: auto; min-height: 160px; flex: 1; padding: 2px; }
+.pose-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border-radius: 6px; border: 1px solid rgba(255,255,255,.1); background: #f4f1ea; color: #222; cursor: pointer; }
+.pose-tile.on { outline: 2px solid #ffb52e; }
+.pose-tile img { width: 100%; aspect-ratio: 3 / 4; object-fit: contain; }
+.pose-tile small { font-size: 10.5px; line-height: 1.2; text-align: center; }
+.pose-wait { width: 100%; aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center; color: #999; }
+.pose-use { display: grid; gap: 6px; border-top: 1px solid rgba(255,255,255,.1); padding-top: 8px; }
+.pose-tile small { white-space: normal; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; width: 100%; }
+.pose-tile { white-space: normal; min-width: 0; }
+.pose-tile { position: relative; }
+.pose-del { position: absolute; top: 4px; right: 6px; font-weight: 400; color: #666; cursor: pointer; }
+.pose-del:hover { color: #c33; }
+.pose-lib .pose-desc { margin: 0; }
+.pose-unhide { grid-column: 1 / -1; justify-self: start; }
+.pose-lib > * { flex-shrink: 0; }
+.pose-lib > .pose-grid { flex: 1 1 auto; flex-shrink: 1; }

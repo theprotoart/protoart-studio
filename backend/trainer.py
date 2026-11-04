@@ -14,6 +14,7 @@ reads back to fill in trigger words automatically.
 """
 import json
 import math
+import os
 import random
 import re
 import time
@@ -324,6 +325,62 @@ def load_resume(model, sd, kohya_prefix, diffusers_prefix):
 
 
 # ------------------------------------------------------------------ training
+# ▶ Continue a stopped training: the last Stop is remembered (what was trained, how far it got and where its
+# progress is), so the Train tab can carry on from there instead of starting over.
+def _stop_file():
+    import paths as _paths
+    return _paths.HOME / "train_stopped.json"
+
+
+def stopped_info():
+    try:
+        rec = json.loads(_stop_file().read_text())
+    except Exception:
+        return None
+    if rec.get("kind") == "sd" and not os.path.exists(rec.get("lora_file") or ""):
+        return None
+    if rec.get("kind") == "mlx" and not os.path.exists(rec.get("checkpoint") or ""):
+        return None
+    return {k: rec.get(k) for k in ("name", "done", "steps", "kind", "model", "at")}
+
+
+def remember_stop(args, done, steps, **where):
+    keep = {k: v for k, v in (args or {}).items()
+            if k not in ("continue_stopped", "mlx_resume", "resume_from", "overwrite") and not k.startswith("_")}
+    rec = {"name": keep.get("name"), "model": keep.get("model"), "args": keep, "done": int(done), "steps": int(steps),
+           "at": time.time(), **where}
+    try:
+        _stop_file().write_text(json.dumps(rec))
+    except OSError as e:
+        print("[train] couldn't remember the stop:", e, flush=True)
+
+
+def forget_stop(name=None):
+    try:
+        if name is None or json.loads(_stop_file().read_text()).get("name") == name:
+            _stop_file().unlink()
+    except Exception:
+        pass
+
+
+def continue_args(args):
+    """The arguments to carry on the last stopped training (raises TrainError if there's nothing to continue)."""
+    try:
+        rec = json.loads(_stop_file().read_text())
+    except Exception:
+        rec = None
+    if not rec or not stopped_info():
+        raise TrainError("There's no stopped training to continue (its saved progress was moved or deleted).")
+    a = dict(rec["args"], overwrite=True, continue_stopped=True)
+    if rec["kind"] == "sd":
+        a["resume_from"] = rec["lora_file"]
+        a["steps"] = max(1, int(rec["steps"]) - int(rec["done"]))
+    else:
+        a["mlx_resume"] = rec["checkpoint"]
+    a["_total_steps"], a["_done_before"] = int(rec["steps"]), int(rec["done"])
+    return a
+
+
 def train(engine, args, emit, cancel_event, lora_dir):
     """Runs on the backend's job thread. engine: the loaded Engine (used to load the base model)."""
     import numpy as np
@@ -331,6 +388,8 @@ def train(engine, args, emit, cancel_event, lora_dir):
     import torch.nn.functional as F
     from PIL import Image, ImageOps
 
+    if args.get("continue_stopped"):
+        args = continue_args(args)
     folder = args.get("folder")
     items = scan_dataset(folder)
     if len(items) < 3:
@@ -377,10 +436,16 @@ def train(engine, args, emit, cancel_event, lora_dir):
         import mlx_train
         import paths as _paths
         try:
-            return mlx_train.train(spec=spec, items=items, caption_for=_caption_for, args=args, name=name,
-                                   final_path=final_path, work_dir=_paths.HOME / "tmp" / "mlx_train",
+            res = mlx_train.train(spec=spec, items=items, caption_for=_caption_for, args=args, name=name,
+                                   final_path=final_path, work_dir=_paths.HOME / "train_work" / "ernie",
                                    emit=emit, cancel_event=cancel_event, ram_gb=total_ram_gb(),
                                    pause_event=getattr(engine, "pause_event", None))
+            if res.get("stopped_early") and res.get("checkpoint"):
+                remember_stop(args, res["steps"], res.get("total_steps") or args.get("steps") or 0, kind="mlx",
+                              checkpoint=res["checkpoint"])
+            else:
+                forget_stop(name)
+            return res
         except mlx_train.Cancelled:
             raise _Cancelled()
         except mlx_train.TrainError as e:
@@ -613,12 +678,15 @@ def train(engine, args, emit, cancel_event, lora_dir):
         if losses:
             p = save(out_dir / f"{name}-stopped-step{len(losses)}.safetensors", len(losses))
             emit({"type": "status", "msg": f"Training stopped; saved progress as {Path(p).name}"})
+            before = int(args.get("_done_before") or 0)
+            remember_stop(args, before + len(losses), int(args.get("_total_steps") or steps), kind="sd", lora_file=str(p))
         raise
     finally:
         # leave the base model clean: the training LoRA must not stay attached
         engine.unload()
 
     path = save(final_path, steps)
+    forget_stop(name)
     secs = time.time() - started
     return {"path": path, "name": name, "steps": steps, "seconds": round(secs), "checkpoints": saved,
             "loss": round(sum(losses[-20:]) / max(1, len(losses[-20:])), 4), "format": fmt, "trigger": trigger}
@@ -781,5 +849,6 @@ def train_ernie(engine, spec, args, items, cfg, name, fmt, precision, trigger, r
             emit({"type": "status", "msg": f"Training stopped; saved progress as {Path(p).name}"})
         raise
     path = save(final_path, steps)
+    forget_stop(name)
     return {"path": path, "name": name, "steps": steps, "seconds": round(time.time() - started), "checkpoints": saved,
             "loss": round(sum(losses[-20:]) / max(1, len(losses[-20:])), 4), "format": "diffusers", "trigger": trigger}

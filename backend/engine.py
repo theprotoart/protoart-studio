@@ -4217,6 +4217,13 @@ class Engine:
                                    "match_light": combine.get("match_light") is not False}
         if args.get("loras"):
             settings["loras"] = [{"name": l["name"], "weight": float(l.get("weight", 1.0))} for l in args["loras"] if isinstance(l, dict) and l.get("name")]
+        recipe = args.get("recipe") if args.get("recipe") in ("mid_transform", "replace_subject") else None
+        if recipe:
+            settings["recipe"] = recipe
+        if recipe == "replace_subject":
+            # 🔁 Replace subject puts a person from another photo into the picture: the same safeguard as face swap
+            # (never saved when the checker is clearly sure the result is explicit)
+            self._swap_safeguard(result, "Replace subject")
         kind = "combined" if combine is not None else "camera_angle" if isinstance(args.get("camera"), dict) else "word_edit"
         path = self._save(result, settings, suffix={"combined": "combined", "camera_angle": "angle"}.get(kind, "wordedit"))
         record = self.library.add_image(path, settings, parent_id=src.get("id"), kind=kind)
@@ -4602,23 +4609,7 @@ class Engine:
                                                        "face_strength": args.get("face_strength", 0.6),
                                                        "face_fidelity": args.get("face_fidelity", 0.7)})
             info["restore"] = finfo
-        # safeguard: a face swap is never saved when the picture checker finds the result explicit.
-        # The checker alone often scores ordinary portraits (bare shoulders, a close crop, warm skin) around 0.5–0.7,
-        # so for face swap it looks twice (the picture and its mirror image, averaged) and blocks what it is
-        # clearly sure about; clearly explicit pictures score well above that and are still never saved.
-        try:
-            from PIL import ImageOps
-            chk = self._get_nsfw_checker()
-            score = round((chk.score(image) + chk.score(ImageOps.mirror(image))) / 2, 4)
-        except Exception as e:
-            print("[engine] face swap check failed:", e, flush=True)
-            raise UserError("Face swap needs the picture checker (it checks every result). Connect to the internet "
-                            "once so it can download (~90 MB), then try again.")
-        import nsfw
-        print(f"[engine] face swap check: {score}", flush=True)
-        if score >= nsfw.FACESWAP_THRESHOLD:
-            raise UserError("This face swap wasn't saved: the result looks explicit. Face swap only makes "
-                            "non-explicit pictures.")
+        score = self._swap_safeguard(image, "Face swap")
         settings = {"prompt": "face swap", "model": "inswapper_128", "width": image.width, "height": image.height,
                     "seed": 0, "faceswap": info, "seconds": round(time.time() - started, 1),
                     "licence": fsw.LICENCE}
@@ -4697,6 +4688,27 @@ class Engine:
         self.emit({"type": "status", "msg": f"Vector saved: {out.name} ({stats['shapes']} shapes)"})
         return {"path": str(out), "source": src["path"], "source_id": src.get("id"), **stats,
                 "colors_asked": colors, "detail": detail}
+
+    def _swap_safeguard(self, image, what):
+        """A result that puts a real person's face or body into a picture (face swap, 🔁 Replace subject) is never
+        saved when the picture checker finds it explicit. The checker alone often scores ordinary portraits (bare
+        shoulders, a close crop, warm skin) around 0.5–0.7, so it looks twice (the picture and its mirror image,
+        averaged) and blocks what it is clearly sure about; clearly explicit pictures score well above that and are
+        still never saved. -> the score."""
+        try:
+            from PIL import ImageOps
+            chk = self._get_nsfw_checker()
+            score = round((chk.score(image) + chk.score(ImageOps.mirror(image))) / 2, 4)
+        except Exception as e:
+            print(f"[engine] {what} check failed:", e, flush=True)
+            raise UserError(f"{what} needs the picture checker (it checks every result). Connect to the internet "
+                            "once so it can download (~90 MB), then try again.")
+        import nsfw
+        print(f"[engine] {what} check: {score}", flush=True)
+        if score >= nsfw.FACESWAP_THRESHOLD:
+            raise UserError(f"This {what.lower()} wasn't saved: the result looks explicit. {what} only makes "
+                            "non-explicit pictures.")
+        return score
 
     def _save(self, image, settings, suffix=None):
         from PIL.PngImagePlugin import PngInfo

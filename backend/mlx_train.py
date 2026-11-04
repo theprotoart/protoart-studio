@@ -56,7 +56,8 @@ def build_config(*, model_path, data_dir, out_dir, steps, n_samples, lr, rank, r
         "gradient_checkpointing": 0 < ram_gb < 64,  # ~30% slower, much less memory
         "training_loop": {"num_epochs": epochs, "batch_size": 1, "timestep_low": 1, "timestep_high": 8},
         "optimizer": {"name": "AdamW", "learning_rate": float(lr)},
-        "checkpoint": {"output_path": str(out_dir), "save_frequency": int(save_every) if save_every else max(1, epochs * n_samples)},
+        # saved every 50 steps (or as set), so ■ Stop keeps the progress and ▶ Continue can carry on from it
+        "checkpoint": {"output_path": str(out_dir), "save_frequency": int(save_every) if save_every else min(50, max(1, epochs * n_samples))},
         "lora_layers": {"targets": lora},
     }
     if 0 < ram_gb < 24:
@@ -83,11 +84,24 @@ def latest_adapter(out_dir):
     """The newest *_adapter.safetensors inside mflux's checkpoint zips (it saves to a dated sub-folder)."""
     zips = sorted(Path(out_dir).rglob("*_checkpoint.zip"), key=lambda p: (p.stat().st_mtime, p.name))
     for z in reversed(zips):
-        with zipfile.ZipFile(z) as zf:
-            names = [n for n in zf.namelist() if n.endswith("_adapter.safetensors")]
-            if names:
-                return z, sorted(names)[-1]
+        try:  # one being written when Stop was pressed is incomplete: use the one before it
+            with zipfile.ZipFile(z) as zf:
+                names = [n for n in zf.namelist() if n.endswith("_adapter.safetensors")]
+                if names and zf.testzip() is None:
+                    return z, sorted(names)[-1]
+        except (zipfile.BadZipFile, OSError, EOFError):
+            continue
     return None, None
+
+
+def prune_checkpoints(out_dir, keep=2):
+    """Keep only the newest few checkpoint zips (each holds the LoRA and the optimizer: tens of MB to ~1 GB)."""
+    zips = sorted(Path(out_dir).rglob("*_checkpoint.zip"), key=lambda p: (p.stat().st_mtime, p.name))
+    for z in zips[:-keep]:
+        try:
+            z.unlink()
+        except OSError:
+            pass
 
 
 def parse_progress(line):
@@ -121,13 +135,17 @@ def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, c
     rank = int(args.get("rank") or 16)
     flip = bool(args.get("flip", True))
 
-    # 1. data folder: every picture with its caption (trigger word first), plus mirrored copies
-    shutil.rmtree(work_dir, ignore_errors=True)
+    resume_zip = args.get("mlx_resume")
+    if resume_zip and not os.path.exists(resume_zip):
+        raise TrainError("The stopped training's saved progress isn't there any more: start it again.")
     data_dir = Path(work_dir) / "data"
     out_dir = Path(work_dir) / "out"
-    data_dir.mkdir(parents=True)
     n = 0
-    for i, it in enumerate(items):
+    if not resume_zip:
+        # 1. data folder: every picture with its caption (trigger word first), plus mirrored copies
+        shutil.rmtree(work_dir, ignore_errors=True)
+        data_dir.mkdir(parents=True)
+    for i, it in enumerate([] if resume_zip else items):
         if cancel_event.is_set():
             raise Cancelled()
         emit({"type": "status", "msg": f"Preparing images {i + 1}/{len(items)}…"})
@@ -144,6 +162,8 @@ def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, c
             v.save(data_dir / f"{stem}.png")
             (data_dir / f"{stem}.txt").write_text(cap, encoding="utf-8")
             n += 1
+    if resume_zip:
+        n = len(list(data_dir.glob("*.png")))
     if n < 3:
         raise TrainError("None of the images could be opened.")
 
@@ -151,16 +171,20 @@ def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, c
                        rank=rank, res=res, targets=args.get("targets"), save_every=int(args.get("save_every") or 0),
                        ram_gb=ram_gb)
     cfg_path = Path(work_dir) / "train.json"
-    cfg_path.write_text(json.dumps(cfg, indent=2))
+    if not resume_zip:
+        cfg_path.write_text(json.dumps(cfg, indent=2))
 
     # 2. run mflux's trainer in the fast engine's Python
-    emit({"type": "status", "msg": "Loading ERNIE for training (fast engine)…"})
+    emit({"type": "status", "msg": "Loading ERNIE to carry on training (fast engine)…" if resume_zip
+          else "Loading ERNIE for training (fast engine)…"})
     env = dict(os.environ, PYTHONUNBUFFERED="1", HF_HUB_OFFLINE="1")
-    proc = subprocess.Popen([str(mlx_engine.PY), "-m", "mflux.models.common.cli.train", "--config", str(cfg_path)],
+    how = ["--resume", str(resume_zip)] if resume_zip else ["--config", str(cfg_path)]
+    proc = subprocess.Popen([str(mlx_engine.PY), "-m", "mflux.models.common.cli.train", *how],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=str(work_dir), env=env)
     total_iters = cfg["training_loop"]["num_epochs"] * n
     started, last_emit, tail, buf = time.time(), 0.0, [], b""
     cancelled = False
+    last_prune = time.time()
     if pause_event is not None:
         def hold():  # Pause: suspend the trainer process (it keeps its memory); Resume / Stop wake it
             frozen = False
@@ -189,6 +213,9 @@ def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, c
                 line = raw.decode("utf-8", "replace").strip()
                 if not line:
                     continue
+                if time.time() - last_prune > 30:
+                    prune_checkpoints(out_dir)
+                    last_prune = time.time()
                 pr = parse_progress(line)
                 if pr:
                     done, total, sps = pr
@@ -224,6 +251,15 @@ def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, c
         "ss_output_name": name, "ss_steps": step_done, "ss_resolution": res, "ss_network_dim": rank,
         "ss_learning_rate": lr, "ss_sd_model_name": spec["label"],
     })
-    shutil.rmtree(work_dir, ignore_errors=True)
+    if cancelled:  # kept for ▶ Continue: the pictures, the settings and the last good checkpoint (with the optimizer)
+        for z in Path(out_dir).rglob("*_checkpoint.zip"):
+            if z != zpath:
+                try:
+                    z.unlink()
+                except OSError:
+                    pass
+    else:
+        shutil.rmtree(work_dir, ignore_errors=True)
     return {"name": name, "path": str(final_path), "steps": step_done, "seconds": round(time.time() - started),
-            "format": "mflux (fast engine)", "stopped_early": cancelled}
+            "format": "mflux (fast engine)", "stopped_early": cancelled, "total_steps": total_iters,
+            **({"checkpoint": str(zpath)} if cancelled else {})}

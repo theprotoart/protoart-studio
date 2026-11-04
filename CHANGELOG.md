@@ -1,5 +1,21 @@
 # Changelog
 
+## Next (not released yet)
+
+- ▶ Continue a stopped training: `trainer.remember_stop` / `stopped_info` / `continue_args` (`train_stopped.json` in the
+  data folder), `train_stopped` / `train_stopped_forget` commands, `continue_stopped` in `train_lora`, the Train tab's
+  ⏸ card (`loadStoppedTraining`, `continueTraining`). SD 1.5 / SDXL continue from the `-stopped-step` LoRA for the
+  remaining steps; ERNIE (fast engine) resumes mflux's checkpoint (`--resume`, optimizer included), saved every 50
+  steps (`build_config`), older checkpoints pruned, the work folder moved out of `tmp` (`train_work/ernie`)
+- 🧍 Pose library (`poselib.py`, `data/shisei_poses.json`: Shisei's "general" poses, CC0, pinned commit; pictures
+  fetched from GitHub on first use and cached in `poselib/`): `poselib_list` / `poselib_thumbs` / `poselib_get`,
+  Create → 🎛 ControlNet → 🧍 Pose library (🦴 Pose from the photo or line render, 🧊 Depth from its depth map with
+  `already_map`); ＋ Add your own (`poselib_add` / `poselib_remove`, copies in `poselib/mine`, listed as ★ My poses)
+- ✨ Edit with words two-picture recipes (`EDIT_RECIPES`: Mid Transformation, Replace Subject 4B / 9B LoRAs downloaded
+  from Civitai on request, never bundled); `recipe` and `loras` in `edit_words`; Replace subject results go through
+  `Engine._swap_safeguard` (shared with face swap)
+- Queue: a running job without step progress shows the engine's last status, not the app's own notes ("Deleted …")
+
 ## 1.6.5
 
 - 🔤 Type: ＋ Add text button and a hint for several texts; clicking an empty spot always adds a new text (it used to only
