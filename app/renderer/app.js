@@ -841,10 +841,12 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Since 1.6.6 (in the next version): 🦴 poses with FLUX.2 Klein and ERNIE, 🦴 Copy pose", items: [
+            { h: "1.6.6 (also): 🦴 poses with FLUX.2 Klein and ERNIE, 🦴 Copy pose, a more inventive ✨ Enhance", items: [
               "<b>🦴 Follow a pose with FLUX.2 Klein</b> (Create): with a Klein model picked, <b>🦴 Follow a pose</b> takes a picture with the pose (a photo, a drawing, a mannequin from the 🧍 Pose library) and draws your prompt in exactly that pose. No ControlNet needed: Klein reads the pose picture itself.",
               "<b>🦴 Poses with ERNIE</b>: ERNIE has no pose ControlNet, so FLUX.2 Klein draws the pose first and ERNIE redraws it (<b>How much ERNIE redraws</b>: 0.5–0.6 keeps the pose with ERNIE's look). Klein 4B downloads once (4.6 GB) if you don't have it.",
-              "<b>🦴 Copy pose</b> (Image to image → ✨ Edit with words → recipes): the person in Image 1 in the pose of Image 2, keeping their face, clothes and look (a community LoRA from Civitai, non-commercial)." ] },
+              "<b>🦴 Copy pose</b> (Image to image → ✨ Edit with words → recipes): the person in Image 1 in the pose of Image 2, keeping their face, clothes and look (a community LoRA from Civitai, non-commercial).",
+              "<b>🧍 Pose library downloads fixed</b>: on Macs where a VPN or firewall cuts the app's own connections, the pose pictures stayed blank (“Errno 53”). They now download the way models do. Double-click a pose to use it straight away; <b>↻ Try again</b> appears if some couldn't load.",
+              "<b>✨ Enhance is more inventive</b>: it adds specific new details (materials, props, light, camera, a small story, a style) instead of repeating your words, and each press tries a different direction. Pressing it again on its own answer gives <b>another take on your prompt</b>, not a longer version of the last one. When the picture reader (Qwen3.5 4B) is set up on this Mac, Enhance uses it: much richer ideas than the small enhancer, which is still used otherwise. Repeated words and sentences are cleaned out." ] },
             { h: "1.6.6: ▶ continue a stopped training, 🧍 pose library, two-picture recipes", items: [
               "<b>▶ Continue a stopped training</b> (Train): after <b>Stop training</b>, a card says how far it got, with <b>▶ Continue from step …</b>: it carries on with the same pictures and settings instead of starting over (also after closing the app). ERNIE on the fast engine now saves its progress every 50 steps, so Stop really keeps it.",
               "<b>🧍 Pose library</b> (Create → 🎛 ControlNet): about 100 ready-made poses (standing, sitting, kneeling, lying, cute poses…) from five angles. Pick one, pick the angle, then <b>🦴 Use for Pose</b> or <b>🧊 Use for Depth</b>; it can add the pose's description to your prompt. The pictures come from Shisei (free, CC0) and download the first time you see them. <b>＋ Add your own</b> keeps your own pose pictures (photos, drawings, 3-D renders) in <b>★ My poses</b>; ✕ on any pose removes it (yours) or hides it (the library's; ↺ Show hidden brings them back).",
@@ -1174,6 +1176,7 @@ const protoartApp = createApp({
               "<b>📒 My prompts</b> (under the prompt): <b>＋ save</b> keeps the prompt and negative prompt under a name; pick one from the list to put it back; <b>manage…</b> to use or delete them (asks first). Kept on this Mac.",
               "<b>🎲 Random · { } Wildcards · 📋 List</b> are the three keys under the prompt: a random prompt, wildcards ({red|blue}, __name__) and a list of prompts (one job per line).",
               "<b>✨ Enhance prompt</b> turns a short idea into a full prompt in the model's style: tags for SD 1.5, a detailed description for SDXL and ERNIE (small built-in language model, ~1 GB the first time).",
+              "<b>Every press is a new take</b>: ✨ Enhance picks a different direction each time (the light, the materials, a small story, the camera, the colours, the setting, the style), so pressing it again on its answer gives fresh ideas for <i>your</i> prompt rather than a longer version of the last one (↩ undo goes back to yours). If the <b>picture reader</b> (Qwen3.5 4B, used by 🖼 From image) is set up, Enhance uses it for much more inventive results; otherwise the small enhancer writes it.",
               "<b>🔄 Contrast prompt</b> (next to ✨ Enhance now, and in Image to image) suggests the same scene turned into its striking opposite: another season, weather, time of day or material (a waterfall → frozen blue-white ice with icicles; a summer street → winter after light snowfall). ↩ undo brings your prompt back.",
               "<b>Your own defaults</b>: set the sampler, steps and guidance you like, then <b>💾 Save as this model's defaults</b> (next to Reset). Picking that model again loads them; ↺ my defaults puts them back after changes, <i>forget</i> clears them. For a LoRA, set its weight and press ☆ under the active LoRAs: it starts at that weight from then on.",
               "<b>Restore faces presets</b> (CodeFormer): Balanced (fidelity 0.5), Keep likeness (0.8, for real people or person LoRAs), Heavy repair (0.3, tiny or badly distorted faces), Subtle touch-up (0.7, blended 60% so skin texture stays), Old photo (0.4) and Gentle (0.85, already clear faces).",
@@ -1634,7 +1637,7 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
-            { h: "Since 1.6.6: if something doesn't work", items: [
+            { h: "New in 1.6.6 (poses, Enhance): if something doesn't work", items: [
               "<b>🦴 Follow a pose comes out with the mannequin still in it</b> (Klein): describe the subject fully in the prompt (who, what they wear, where), or try another seed. A photo of a real person as the pose picture can carry over their clothes and face too: a mannequin from the 🧍 Pose library avoids that.",
               "<b>ERNIE loosens the pose</b>: lower <b>How much ERNIE redraws</b> (0.4–0.5)." ] },
             { h: "New in 1.6.6: if something doesn't work", items: [
@@ -7011,6 +7014,7 @@ const protoartApp = createApp({
     async openPoseLib() {
       const pl = this.poseLib;
       pl.open = true; pl.msg = "";
+      for (const k of Object.keys(pl.thumbs)) if (!pl.thumbs[k]) delete pl.thumbs[k];  // ones that failed: try again
       if (!pl.list) {
         try { pl.list = (await call("poselib_list")).poses || []; } catch (e) { pl.list = []; pl.msg = e.message; }
       }
@@ -7030,7 +7034,7 @@ const protoartApp = createApp({
           pl.again = false;
           const want = this.poseLibShown().filter((p) => !(p.id in pl.thumbs)).map((p) => p.id);
           for (let i = 0; i < want.length && pl.open && !pl.again; i += 12) {
-            const got = await call("poselib_thumbs", { ids: want.slice(i, i + 12) });
+            const got = await callWithin(120000, "poselib_thumbs", { ids: want.slice(i, i + 12) });
             for (const id of want.slice(i, i + 12)) pl.thumbs[id] = got[id] || "";
           }
         } while (pl.again && pl.open);
@@ -7069,6 +7073,12 @@ const protoartApp = createApp({
         pl.list = pl.list.map((x) => ({ ...x, hidden: false }));
         this.poseLibThumbs();
       } catch (err) { pl.msg = err.message; }
+    },
+    poseLibRetry() {
+      const pl = this.poseLib;
+      for (const k of Object.keys(pl.thumbs)) if (!pl.thumbs[k]) delete pl.thumbs[k];
+      pl.msg = "";
+      this.poseLibThumbs();
     },
     poseLibPick(p) {
       const pl = this.poseLib;
@@ -7491,7 +7501,9 @@ const protoartApp = createApp({
       const edit = style === "edit" || style === "outpaint";  // instructions for FLUX.2 Klein, not a whole prompt
       const contrast = style === "contrast";  // 🔄 the same scene turned into its striking opposite
       const f = this.form, owner = f.prompt_owner === "i2i" ? "i2i" : "create";  // the tab that asked
-      const res = await this.runJob("enhance_prompt", { prompt: f.prompt, width: f.width, height: f.height,
+      // pressed again on its own answer: another take on YOUR prompt (not an enhancement of the enhancement)
+      const last = this._lastEnhance, again = !!last && last.to === f.prompt && last.style === (style || "");
+      const res = await this.runJob("enhance_prompt", { prompt: again ? last.from : f.prompt, width: f.width, height: f.height,
                                                         model: f.model, family: edit ? style : this.family, contrast });
       if (res) {
         const here = (f.prompt_owner === "i2i" ? "i2i" : "create") === owner;
@@ -7504,7 +7516,9 @@ const protoartApp = createApp({
         } else {
           f.create_prompt = res.prompt;
         }
-        this.status = (contrast ? "Contrast prompt written (↩ undo puts yours back)" : style === "outpaint" ? "Described what goes around the picture" : edit ? "Instruction made clearer" : "Prompt enhanced (and a matching negative prompt written if yours was empty)")
+        this._lastEnhance = { from: res.original, to: res.prompt, style: style || "" };
+        this.status = (contrast ? "Contrast prompt written (↩ undo puts yours back)" : style === "outpaint" ? "Described what goes around the picture" : edit ? "Instruction made clearer"
+          : (again ? "Another take on your prompt" : "Prompt enhanced") + (res.by && res.by !== "small" ? ` by ${res.by}` : "") + " · press ✨ Enhance again for different ideas")
           + (here ? "" : ` (in ${owner === "i2i" ? "Image to image" : "Create"})`);
       }
     },

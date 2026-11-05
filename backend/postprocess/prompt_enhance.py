@@ -17,15 +17,21 @@ DOWNLOAD_GB = {SMALL_REPO: 1.0, LARGE_REPO: 3.1}
 
 SYSTEM = {
     "natural": (
-        "You expand short image ideas into one vivid, detailed description for a text-to-image model. "
-        "Describe the subject, its appearance, the setting, lighting, colours, composition, mood and art style in "
-        "2 to 4 sentences. Keep everything the user asked for and don't change the subject. "
+        "You are an imaginative art director. Expand a short image idea into one vivid, specific description for a "
+        "text-to-image model, in 3 to 5 sentences. Keep everything the user asked for and don't change the subject, "
+        "but invent concrete, unexpected details the user didn't think of: exact materials and textures, small "
+        "objects and props, what is happening a moment before or after, the time of day and kind of light, the "
+        "colour palette, the camera (lens, angle, distance) and a fitting art style or medium. Every sentence adds new "
+        "information: never repeat a word, a phrase or an idea from the user's prompt or an earlier sentence, and "
+        "avoid empty words like beautiful, stunning, amazing, detailed, high quality. "
         "No lists, no captions or text in the image, no explanations. Always write in English. "
         "Output only the description."),
     "tags": (
-        "You turn short image ideas into a Stable Diffusion 1.5 prompt made of short comma-separated tags "
+        "You turn short image ideas into a Stable Diffusion prompt made of short comma-separated tags "
         "(Danbooru-style tags when they fit, e.g. 1girl, long hair, smile). Start with the user's subject, then add "
-        "15 to 25 tags for details, clothing, pose, expression, background, lighting, composition and art style. "
+        "15 to 25 NEW tags with specific, inventive details: clothing and accessories, materials, pose, expression, "
+        "props, background objects, weather, time of day, lighting, colour palette, camera angle and art style. "
+        "Every tag must be different: never repeat a tag or reuse the user's words in another tag. "
         "No sentences. Always write in English. Output only the tags on one line."),
     "edit": (
         "You rewrite a short request for changing a picture into one clear editing instruction for an image editing "
@@ -111,6 +117,39 @@ EXAMPLES = {
 }
 QUALITY_TAGS = ["masterpiece", "best quality", "highly detailed"]
 
+# Extra examples for the bigger model: different subjects, so it doesn't copy one example's ideas every time
+MORE_EXAMPLES = {
+    "natural": [("an old robot",
+                 "A rust-streaked maintenance robot sits on an overturned crate in an abandoned greenhouse, cradling a "
+                 "cracked teacup it has filled with soil and a single green sprout. Morning light pours through broken "
+                 "glass panes overhead, catching the dust and the moss creeping over its riveted copper shoulders. "
+                 "Warm amber and faded teal tones, shot at eye level with a 50 mm lens, quiet and tender, like a still "
+                 "from a Studio Ghibli film."),
+                ("city at night",
+                 "Rain-slick streets of a narrow Hong Kong market alley at 2 a.m., neon signs in pink and cyan "
+                 "reflected in puddles between shuttered stalls. A lone delivery cyclist in a yellow poncho cuts "
+                 "through steam rising from a noodle stand, motion-blurred against the static crowd of hanging "
+                 "lanterns. Low-angle wide shot on 35 mm film with heavy grain, moody and electric.")],
+    "tags": [("a wizard",
+              "1boy, old man, wizard, long white beard, pointed hat, star embroidery, deep blue robe, holding staff, "
+              "glowing crystal, spell book, floating candles, cluttered study, bookshelves, potion bottles, "
+              "moonlight through window, dust motes, warm rim light, low angle, fantasy illustration")],
+}
+
+# One fresh direction per press of ✨ Enhance, so pressing it again gives new ideas instead of the same answer
+ANGLES = [
+    "focus on unusual lighting (for example rim light, a single lamp, golden hour, moonlight, neon, candlelight)",
+    "focus on textures and materials (worn fabric, wet stone, brushed metal, peeling paint, fur, glass)",
+    "add a small story: what is happening right now, and one surprising detail in the scene",
+    "pick a striking camera choice (low angle, overhead, close-up, wide establishing shot, shallow focus)",
+    "focus on a distinctive colour palette and the mood it gives",
+    "set it in a specific place, season and weather",
+    "choose a fitting art medium or style (oil painting, film photograph, watercolour, 3-D render, ink drawing)",
+    "add meaningful props, clothing and accessories that suit the subject",
+    "give the subject an expression, gesture or action that tells something about them",
+    "make the background rich: what is behind and around the subject",
+]
+
 
 def style_for(family, contrast=False):
     """Tags for the Stable Diffusion models (SD 1.5, SDXL incl. Pony / Illustrious / NoobAI), sentences for the
@@ -141,19 +180,30 @@ class PromptEnhancer:
             self._model = AutoModelForCausalLM.from_pretrained(self.repo, torch_dtype=dtype).to(self.device).eval()
         return self._tok, self._model
 
-    def enhance(self, prompt, width=1024, height=1024, cancel_event=None, family="sdxl", contrast=False):
+    def enhance(self, prompt, width=1024, height=1024, cancel_event=None, family="sdxl", contrast=False, angle=None):
+        style = style_for(family, contrast)
+        creative = style in ("natural", "tags")
+        result = self._enhance_once(prompt, width, height, cancel_event, style, angle if creative else None)
+        if creative and repetitive(result, prompt) and not (cancel_event is not None and cancel_event.is_set()):
+            # it mostly echoed the prompt or repeated itself: once more, from another angle and a little bolder
+            import random
+            result = self._enhance_once(prompt, width, height, cancel_event, style,
+                                        random.choice([a for a in ANGLES if a != angle]), bolder=True)
+        return result
+
+    def _enhance_once(self, prompt, width, height, cancel_event, style, angle=None, bolder=False):
         import torch
         from transformers import LogitsProcessor, LogitsProcessorList, StoppingCriteria, StoppingCriteriaList
 
-        style = style_for(family, contrast)
         tok, model = self._load()
         shape = "portrait" if height > width * 1.1 else "landscape" if width > height * 1.1 else "square"
         ex_in, ex_out = EXAMPLES[style]
+        extra = f" This time, {angle}." if angle else ""
         messages = [
             {"role": "system", "content": SYSTEM[style]},
             {"role": "user", "content": ex_in},
             {"role": "assistant", "content": ex_out},
-            {"role": "user", "content": f"{prompt}\n(The image is {shape}. Answer in English.)"},
+            {"role": "user", "content": f"{prompt}\n(The image is {shape}.{extra} Answer in English.)"},
         ]
         text = tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         inputs = tok(text, return_tensors="pt").to(self.device)
@@ -183,8 +233,11 @@ class PromptEnhancer:
                 return scores.masked_fill(m.unsqueeze(0), float("-inf"))
 
         with torch.no_grad():
-            out = model.generate(**inputs, max_new_tokens=limit, do_sample=True, temperature=0.3 if style.startswith("to_") else 0.6, top_p=0.9,
-                                 repetition_penalty=1.1, pad_token_id=tok.eos_token_id,
+            convert = style.startswith("to_") or style in ("edit", "outpaint")
+            out = model.generate(**inputs, max_new_tokens=limit, do_sample=True,
+                                 temperature=0.3 if convert else (0.95 if bolder else 0.85), top_p=0.92,
+                                 repetition_penalty=1.1 if convert else 1.2,
+                                 no_repeat_ngram_size=0 if convert else 3, pad_token_id=tok.eos_token_id,
                                  logits_processor=LogitsProcessorList([BlockForeign()]),
                                  stopping_criteria=StoppingCriteriaList([Watch()]))
         result = tok.decode(out[0][start:], skip_special_tokens=True)
@@ -290,6 +343,7 @@ def clean(text, original, style):
                 tags.append(tag)
         return ", ".join(tags)
     if style in ("tags", "contrast_tags"):
+        t = dedupe_tags(t)
         if style == "contrast_tags":
             original = ""  # a contrast is a new scene: the user's own tags aren't put back in front
         seen, tags = set(), []
@@ -320,4 +374,55 @@ def clean(text, original, style):
             budget -= tok(tag)
         kept += quality
         return ", ".join(kept)
-    return t
+    return dedupe_sentences(t)
+
+
+def _words(t):
+    return re.findall(r"[a-z']+", (t or "").lower())
+
+
+def repetitive(text, original):
+    """True when an answer is mostly the prompt again, or keeps repeating itself (small models do that)."""
+    w = _words(text)
+    if len(w) < 6:
+        return True
+    orig = set(_words(original))
+    new = [x for x in w if x not in orig and len(x) > 3]
+    if len(set(new)) < 6:  # hardly anything the prompt didn't already say
+        return True
+    trigrams = [tuple(w[i:i + 3]) for i in range(len(w) - 2)]
+    return len(trigrams) > 8 and len(set(trigrams)) < 0.8 * len(trigrams)
+
+
+def dedupe_sentences(t):
+    """Drop sentences (and runs of words) the model said twice."""
+    out, seen = [], set()
+    for sent in re.split(r"(?<=[.!?])\s+", t):
+        key = " ".join(_words(sent))
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        sent = re.sub(r"\b(\w+(?:\s+\w+){0,3})(?:[,\s]+\1\b)+", r"\1", sent, flags=re.IGNORECASE)  # "very very", "a red, a red"
+        out.append(sent)
+    return " ".join(out)
+
+
+def dedupe_tags(t):
+    """Tags said twice (also as "red dress" next to "dress, red") kept once."""
+    seen, tags = set(), []
+    for raw in re.split(r",", t):
+        tag = raw.strip()
+        key = " ".join(sorted(_words(tag)))
+        if tag and key not in seen:
+            seen.add(key)
+            tags.append(tag)
+    return ", ".join(tags)
+
+
+def vlm_question(prompt, style, shape, angle=None):
+    """The same request for the bigger model (Qwen3.5 4B, the picture reader), with a few varied examples."""
+    exs = [EXAMPLES[style]] + MORE_EXAMPLES.get(style, [])
+    shots = "\n\n".join(f"Idea: {a}\nAnswer: {b}" for a, b in exs)
+    extra = f" This time, {angle}." if angle else ""
+    return (SYSTEM[style] + "\n\nExamples:\n\n" + shots +
+            f"\n\nIdea: {prompt}\n(The image is {shape}.{extra})\nAnswer:")

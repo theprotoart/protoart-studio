@@ -31,7 +31,10 @@ def main():
         except TypeError:
             prompt = apply_chat_template(processor, model.config, req["prompt"], num_images=n)
         out = generate(model, processor, prompt, image=[image] if image else None,
-                       max_tokens=int(req.get("max_tokens") or 320), temperature=0.0, verbose=False)
+                       max_tokens=int(req.get("max_tokens") or 320), verbose=False,
+                       temperature=float(req.get("temperature") or 0.0),
+                       **({"top_p": float(req["top_p"])} if req.get("top_p") else {}),
+                       **({"repetition_penalty": float(req["repetition_penalty"])} if req.get("repetition_penalty") else {}))
         text = getattr(out, "text", out)
         send({"type": "done", "text": str(text)})
     except Exception as e:

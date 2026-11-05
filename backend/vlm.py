@@ -120,12 +120,13 @@ def ready():
     return supported() and installed() and downloaded()
 
 
-def chat(text, emit=None, cancel_event=None, max_tokens=500):
+def chat(text, emit=None, cancel_event=None, max_tokens=500, temperature=0.0):
     """A text-only answer from the same model (no picture), as written: line breaks kept, thinking removed.
-    Only when ready(); runs the worker once, like describe()."""
+    Only when ready(); runs the worker once, like describe(). temperature > 0: a different answer each time."""
     if not ready():
         raise VlmError(f"{LABEL} isn't set up")
-    raw = _ask({"repo": REPO, "revision": REVISION, "image": None, "max_tokens": int(max_tokens), "prompt": text},
+    sampling = {"temperature": float(temperature), "top_p": 0.92, "repetition_penalty": 1.12} if temperature else {}
+    raw = _ask({"repo": REPO, "revision": REVISION, "image": None, "max_tokens": int(max_tokens), "prompt": text, **sampling},
                emit or (lambda m: None), cancel_event, dict(os.environ, PYTHONUNBUFFERED="1", HF_HUB_OFFLINE="1"))
     if "</think>" in raw:
         raw = raw.split("</think>", 1)[1]

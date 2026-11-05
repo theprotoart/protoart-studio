@@ -4754,13 +4754,17 @@
         <button v-for="c in poseLibCats()" :key="c" :class="{on: poseLib.cat === c}" @click="poseLib.cat = c; poseLibThumbs()">{{ c }}</button>
       </div>
       <div class="pose-grid">
-        <button v-for="p in poseLibShown()" :key="p.id" class="pose-tile" :class="{on: poseLib.sel && poseLib.sel.id === p.id}" @click="poseLibPick(p)" :title="p.desc">
-          <img v-if="poseLib.thumbs[p.id]" :src="fileUrl(poseLib.thumbs[p.id])" alt="" loading="lazy"><span v-else class="pose-wait">…</span>
+        <button v-for="p in poseLibShown()" :key="p.id" class="pose-tile" :class="{on: poseLib.sel && poseLib.sel.id === p.id}" @click="poseLibPick(p)"
+                @dblclick="poseLibPick(p); poseLibUse('pose')" :title="p.desc + ' · double-click to use it'">
+          <img v-if="poseLib.thumbs[p.id]" :src="fileUrl(poseLib.thumbs[p.id])" alt="" loading="lazy"><span v-else class="pose-wait">{{ poseLib.thumbs[p.id] === '' ? '✕' : '…' }}</span>
           <small>{{ p.name }}</small>
           <b class="pose-del" @click.stop="poseLibRemove(p)" :title="p.series === 'mine' ? 'Remove it from My poses (only the copy here; your original picture stays)' : 'Hide this pose (↺ Show hidden brings it back)'">✕</b></button>
         <div v-if="!poseLibShown().length" class="hint">No pose matches that.</div>
         <button v-if="(poseLib.list || []).some((p) => p.hidden)" class="link pose-unhide" @click="poseLibUnhide">↺ Show hidden ({{ poseLib.list.filter((p) => p.hidden).length }})</button>
       </div>
+      <div v-if="Object.values(poseLib.thumbs).some((t) => t === '')" class="row pose-err">
+        <span class="hint warn">Some pose pictures couldn't download{{ poseLib.msg ? ': ' + poseLib.msg : '' }}</span>
+        <button class="ghost small" @click="poseLibRetry">↻ Try again</button></div>
       <div v-if="poseLib.sel" class="pose-use">
         <b>{{ poseLib.sel.name }}</b>
         <div class="seg">

@@ -1,14 +1,20 @@
 # Changelog
 
-## Next (not released yet)
+## 1.6.6
 
+- 🧍 Pose library pictures download with curl first (`poselib._fetch`; Python's own connection was cut on a Mac
+  with a VPN: Errno 53), thumbnails several at once; picker: ✕ for ones that failed, ↻ Try again, double-click to use
 - 🦴 Follow a pose on the fast engine (Create, `poseFast`): `pose_image` (Create's ControlNet picture) makes
   `Engine._klein_pose_pass` draw each prompt with FLUX.2 Klein in the pose of the picture (`image_paths`, `POSE_PROMPT`;
   Klein's output size follows the pose picture's shape, `_pose_size`); for ERNIE the Klein picture is the starting
   point of an ERNIE image-to-image pass (`pose_ernie_change`, default 0.55). The 🧍 Pose library fills it in too
+- ✨ Enhance prompt: uses Qwen3.5 4B (`vlm.chat`, now with sampling: temperature / top_p / repetition penalty passed
+  to `vlm_worker`) when the picture reader is set up, with varied examples (`MORE_EXAMPLES`, `vlm_question`); a random
+  creative direction per press (`ANGLES`); the small enhancer samples hotter with `no_repeat_ngram_size=3`, retries
+  once from another angle when the answer mostly echoes the prompt (`repetitive`); repeated sentences / tags removed
+  (`dedupe_sentences`, `dedupe_tags`); system prompts ask for specific new details and no repeated words; pressing
+  Enhance again on its own answer rewrites the original prompt (`_lastEnhance`)
 - ✨ Edit with words recipe 🦴 Copy pose (Copy Pose [Qwen & Klein] LoRA, 4B / 9B, from Civitai on request)
-
-## 1.6.6
 
 - ▶ Continue a stopped training: `trainer.remember_stop` / `stopped_info` / `continue_args` (`train_stopped.json` in the
   data folder), `train_stopped` / `train_stopped_forget` commands, `continue_stopped` in `train_lora`, the Train tab's

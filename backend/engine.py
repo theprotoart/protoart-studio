@@ -2411,14 +2411,37 @@ class Engine:
         ram = total_ram_gb()
         if 0 < ram < 12 and self.family in ("sdxl", "ernie") and self.pipe is not None:
             self.unload()  # 8 GB Macs: a big image model and the enhancer don't fit together
-        text = self.get_prompt_enhancer().enhance(prompt, int(args.get("width") or 1024),
-                                                  int(args.get("height") or 1024),
-                                                  cancel_event=self.cancel_event, family=family,
-                                                  contrast=bool(args.get("contrast")))
+        import random
+        from postprocess import prompt_enhance as pe
+        style = pe.style_for(family, bool(args.get("contrast")))
+        w, h = int(args.get("width") or 1024), int(args.get("height") or 1024)
+        angle = random.choice(pe.ANGLES) if style in ("natural", "tags") else None  # new ideas on every press
+        text, by = None, "small"
+        import vlm
+        if style in ("natural", "tags", "contrast", "contrast_tags") and vlm.ready() and not args.get("quick"):
+            # the bigger model (Qwen3.5 4B, already on this Mac as the picture reader) is far more inventive
+            # than the 0.5B / 1.5B enhancer, which tends to repeat the prompt's own words
+            shape = "portrait" if h > w * 1.1 else "landscape" if w > h * 1.1 else "square"
+            try:
+                if self.pipe is not None and 0 < ram < 12:
+                    self.unload()
+                self.emit({"type": "status", "msg": f"Enhancing the prompt with {vlm.LABEL}…"})
+                raw = vlm.chat(pe.vlm_question(prompt, style, shape, angle), emit=self.emit,
+                               cancel_event=self.cancel_event, max_tokens=260, temperature=0.9)
+                raw = re.sub(r"^\s*answer\s*:\s*", "", raw.strip(), flags=re.I).split("\nIdea:")[0]
+                cand = pe.clean(raw, prompt, style)
+                if cand != prompt and not pe.repetitive(cand, prompt):
+                    text, by = cand, vlm.LABEL
+            except Exception as e:
+                if self.cancel_event.is_set():
+                    raise Cancelled()
+                print("[enhance] bigger model unavailable, using the small one:", e, flush=True)
+        if text is None:
+            text = self.get_prompt_enhancer().enhance(prompt, w, h, cancel_event=self.cancel_event, family=family,
+                                                      contrast=bool(args.get("contrast")), angle=angle)
         if self.cancel_event.is_set():
             raise Cancelled()
-        from postprocess.prompt_enhance import style_for
-        return {"prompt": text, "original": prompt, "style": style_for(family, bool(args.get("contrast")))}
+        return {"prompt": text, "original": prompt, "style": style, "by": by, **({"angle": angle} if angle else {})}
 
     def plan_regions(self, args):
         """✨ Plan the layout (Create → Regions): one sentence -> areas (layout, ratios, prompts) and the scene prompt.

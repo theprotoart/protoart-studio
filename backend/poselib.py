@@ -126,50 +126,71 @@ def _fetch(kind, width, name):
     dest.parent.mkdir(parents=True, exist_ok=True)
     url = f"https://raw.githubusercontent.com/wquguru/shisei/{catalog()['commit']}/images/{kind}/w{width}/{name}"
     import net
-    was = net.is_online()
-    net.set_online(True)
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "ProtoartStudio"})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            data = r.read(8 * 1024 * 1024)
-    except Exception as e:
-        raise ValueError(f"Couldn't download the pose picture from GitHub ({e}). Check the internet connection.")
-    finally:
-        net.set_online(was)
+    data = None
+    tmp = dest.with_suffix(".part")
+    # curl first: on some Macs (a VPN, a firewall) Python's own connections are cut ("Errno 53, connection abort")
+    # while curl gets through; the app downloads models the same way
+    if net.CURL and os.path.exists(net.CURL):
+        import subprocess
+        r = subprocess.run([net.CURL, "-sS", "-L", "--fail", "--connect-timeout", "20", "--max-time", "90",
+                            "-A", "ProtoartStudio", "-o", str(tmp), url], capture_output=True, text=True)
+        if r.returncode == 0 and tmp.exists():
+            data = tmp.read_bytes()
+        else:
+            print(f"[poselib] curl: {r.stderr.strip()[:200]}", flush=True)
+    if data is None:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "ProtoartStudio"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                data = r.read(8 * 1024 * 1024)
+        except Exception as e:
+            raise ValueError(f"Couldn't download the pose picture from GitHub ({e}). Check the internet connection "
+                             "(a VPN or firewall can block it).")
     if not data.startswith(b"RIFF") or b"WEBP" not in data[:16]:
         raise ValueError("The pose picture didn't download properly; try again.")
-    tmp = dest.with_suffix(".part")
     tmp.write_bytes(data)
     tmp.replace(dest)
     return dest
 
 
 def thumbs(ids, view="front"):
-    """Small line drawings for the picker -> {id: png path}; poses whose picture can't be fetched are left out."""
+    """Small line drawings for the picker -> {id: png path}; poses whose picture can't be fetched are left out.
+    Several download at once (each is ~20 KB)."""
+    from concurrent.futures import ThreadPoolExecutor
     from PIL import Image
-    out = {}
-    for pid in ids[:200]:
-        try:
-            p = _pose(pid)
-            v = p["views"].get(view) or next(iter(p["views"].values()))
-            if v.get("mine"):  # your own: a small copy for the picker
-                png = _cache() / "w300" / "mine" / v["mine"]
-                if not png.exists():
-                    png.parent.mkdir(parents=True, exist_ok=True)
-                    im = Image.open(_mine_dir() / v["mine"]).convert("RGB")
-                    im.thumbnail((300, 400))
-                    im.save(png)
-                out[pid] = str(png)
-                continue
-            name = v.get("line") or v.get("photo") or v.get("depth")
-            kind = "line" if v.get("line") else "photo" if v.get("photo") else "depth"
-            src = _fetch(kind, 300, name)
-            png = src.with_suffix(".png")
+
+    def one(pid):
+        p = _pose(pid)
+        v = p["views"].get(view) or next(iter(p["views"].values()))
+        if v.get("mine"):  # your own: a small copy for the picker
+            png = _cache() / "w300" / "mine" / v["mine"]
             if not png.exists():
-                Image.open(src).convert("RGB").save(png)
-            out[pid] = str(png)
+                png.parent.mkdir(parents=True, exist_ok=True)
+                im = Image.open(_mine_dir() / v["mine"]).convert("RGB")
+                im.thumbnail((300, 400))
+                im.save(png)
+            return str(png)
+        name = v.get("line") or v.get("photo") or v.get("depth")
+        kind = "line" if v.get("line") else "photo" if v.get("photo") else "depth"
+        src = _fetch(kind, 300, name)
+        png = src.with_suffix(".png")
+        if not png.exists():
+            Image.open(src).convert("RGB").save(png)
+        return str(png)
+
+    out, errors = {}, []
+
+    def safe(pid):
+        try:
+            out[pid] = one(pid)
         except Exception as e:
+            errors.append(str(e))
             print(f"[poselib] thumbnail {pid}: {e}", flush=True)
+
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        list(ex.map(safe, [str(i) for i in ids[:200]]))
+    if errors and not out:  # nothing at all came: say why (no internet, a VPN or firewall in the way)
+        raise ValueError(errors[0])
     return out
 
 
