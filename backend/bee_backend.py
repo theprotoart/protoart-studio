@@ -169,7 +169,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("lora_hf_download", "quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -231,6 +231,8 @@ def job_label(cmd, a):
         return "Check Library pictures (content filter)"
     if cmd == "people_scan":
         return "Find people in Library pictures (Hide People)"
+    if cmd == "lora_hf_download":
+        return f"Download LoRA · {a.get('file') or ''}"
     if cmd == "civitai_download":
         return "Download from Civitai · " + str(a.get("name") or a.get("url") or "")
     if cmd == "model_keep_local":
@@ -1263,7 +1265,7 @@ def handle_quick(cmd, a):
         else:
             paths.save_hub_cache(None)
         return {"path": str(p) if new else str(paths.DEFAULT_HUB_CACHE), "restart": True}
-
+    if cmd == "images_dir_set":
         return set_images_dir(a.get("path"), bool(a.get("move_existing")))
     if cmd == "presets_list":
         return library.list_presets()
@@ -1732,6 +1734,47 @@ def civitai_job(a, eng):
     return {"path": path, "name": name, "kind": info["kind"], "family": info.get("family"), "dest": dest}
 
 
+# ✨ Edit with words recipes whose LoRA is on Hugging Face: only these files can be fetched this way
+RECIPE_HF_LORAS = {
+    ("Alissonerdx/BFS-Best-Face-Swap", "bfs_head_v1_flux-klein_4b.safetensors"),
+    ("Alissonerdx/BFS-Best-Face-Swap", "bfs_head_v1_flux-klein_9b_step3750_rank64.safetensors"),
+}
+
+
+def lora_hf_job(a, eng):
+    """A recipe's LoRA from Hugging Face, into the LoRA folder for FLUX.2 (like a Civitai download)."""
+    from engine import UserError
+    repo, fname = str(a.get("repo") or ""), str(a.get("file") or "")
+    if (repo, fname) not in RECIPE_HF_LORAS:
+        raise UserError("That LoRA isn't one of the recipes' LoRAs.")
+    if net.strict:
+        raise UserError("Strict offline mode is on (Settings → Privacy): turn it off to download the LoRA.")
+    dests = [d["path"] for d in civitai_destinations({"kind": "lora", "family": "flux2"})]
+    if not dests:
+        raise UserError("No LoRA folder to save it in.")
+    dest = os.path.join(dests[0], fname)
+    if os.path.exists(dest):
+        return {"path": dest, "name": os.path.splitext(fname)[0], "already": True}
+    eng.emit({"type": "status", "msg": f"Downloading {fname} from Hugging Face…"})
+    was = net.is_online()
+    net.set_online(True)
+    try:
+        from huggingface_hub import hf_hub_download
+        src = hf_hub_download(repo, fname)
+    except Exception as e:
+        raise UserError(f"Couldn't download {fname}: {e}")
+    finally:
+        net.set_online(was)
+    import shutil
+    tmp = dest + ".part"
+    shutil.copyfile(src, tmp)
+    os.replace(tmp, dest)
+    loras.NAME_FAMILY[os.path.splitext(fname)[0]] = "flux2"
+    library.set_setting("lora_families", dict(loras.NAME_FAMILY))
+    eng.emit({"type": "status", "msg": f"{fname} downloaded to {dests[0]}"})
+    return {"path": dest, "name": os.path.splitext(fname)[0]}
+
+
 def keep_local_job(a, eng):
     """Models → right-click → 💾 Keep a copy on this Mac: copy a drive's model file into Protoart's models folder.
     The original is only read. Your marks (NSFW, People) and the type you picked move to the copy."""
@@ -2043,6 +2086,8 @@ def run_job(kind, a):
         return eng.people_scan(a)
     if kind == "model_delete":
         return eng.delete_model(a)
+    if kind == "lora_hf_download":
+        return lora_hf_job(a, eng)
     if kind == "civitai_download":
         return civitai_job(a, eng)
     if kind == "model_keep_local":

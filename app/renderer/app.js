@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "faceswap_faces", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["lora_hf_download", "ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "faceswap_faces", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
@@ -346,6 +346,19 @@ const EDIT_RECIPES = [
     licence: "non-commercial use only",
     files: { "4b": { url: "https://civitai.com/models/2380153?modelVersionId=2680617", name: "KleinBase4B_PoseTransfer", mb: 44 },
              "9b": { url: "https://civitai.com/models/2380153?modelVersionId=2701726", name: "KleinBase9B_PoseTransfer", mb: 79 } } },
+  { id: "head_swap", label: "🧑 Head swap", by: "BFS Best Face Swap (Hugging Face, MIT)",
+    tip: "Puts the head (face, hair, eye colour) of the person in Image 2 onto the person in Image 1, keeping Image 1's body, pose, light and background, and its head turn and expression. Only with people who agreed to it; explicit results are never saved (like 🔁 Face swap).",
+    prompt: "head_swap: start with Picture 1 as the base image, keeping its lighting, environment, and background. remove the head from Picture 1 completely and replace it with the head from Picture 2, strictly preserving the hair, eye color, nose structure of Picture 2. copy the direction of the eye, head rotation, micro expressions from Picture 1, high quality, sharp details, 4k.",
+    licence: "MIT; only with people's consent, never public figures",
+    files: { "4b": { hf: { repo: "Alissonerdx/BFS-Best-Face-Swap", file: "bfs_head_v1_flux-klein_4b.safetensors" }, name: "bfs_head_v1_flux-klein_4b", mb: 0 },
+             "9b": { hf: { repo: "Alissonerdx/BFS-Best-Face-Swap", file: "bfs_head_v1_flux-klein_9b_step3750_rank64.safetensors" }, name: "bfs_head_v1_flux-klein_9b_step3750_rank64", mb: 0 } } },
+];
+// ✨ Edit with words: ready-made instructions (no download), e.g. old photo repair
+const EDIT_QUICK = [
+  { label: "🧽 Repair & colourize", prompt: "Repair and colourize this old photo: fix the cracks, scratches, stains and torn or missing areas, and give it natural, realistic colours. Keep the person's face, expression, hair, clothes and the composition exactly the same." },
+  { label: "🧹 Repair, keep black & white", prompt: "Repair this old photo: remove the cracks, scratches, dust, stains and fold lines and fill in torn or missing areas. Keep it black and white, and keep the faces, clothes and composition exactly the same." },
+  { label: "🎨 Colourize", prompt: "Colourize this black and white photo with natural, realistic colours for the time it was taken. Change nothing else." },
+  { label: "🔍 Sharpen & restore detail", prompt: "Make this photo sharp and clear: restore fine detail in faces, hair and fabric, remove blur, noise and compression blocks. Keep everything exactly the same otherwise." },
 ];
 const I2I_FORM_KEYS = [...I2I_PICTURE_KEYS, "strength", "use_init_size", "size_link", "size_ratio", "i2i_use_init", "control",
   "heal_method", "keep_faces", "cam", "combine", "i2i_mode", "inpaint", "outpaint", "outpaint_engine", "swap", "i2i_loras"];
@@ -615,6 +628,7 @@ const protoartApp = createApp({
       lorasAside: loadJSON("protoart.lorasAside", {}),  // model type -> LoRAs put aside when you switched type
       frame: { size: 512, busy: false, msg: "", copied: null },  // Train tab: square framing of the pictures
       cropEd: null,
+      dlAsk: null,         // ⬇ "this needs a download first" box: {list, gb, resolve, mute}
       slowWarn: null,      // the "this will be slow on this Mac" box: {title, lines, fixes, id, resolve, mute}
       // Train tab → ✂ Crop by hand: {it, x, y, s, w, h} (x, y, s as in trainer.parse_box)
       forcing: false,
@@ -841,6 +855,12 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Since 1.6.6 (in the next version): your image folder setting works, ask before downloads, 🧑 Head swap, quick photo repair", items: [
+              "<b>Settings → Image folder now works</b>: choosing another folder (an external drive, a NAS) didn't take effect and pictures kept going to the default folder. Fixed. Tick <i>move the existing pictures</i> to bring them along.",
+              "<b>The app no longer fails to start</b> (“the backend is not running”) when a folder inside Protoart's data folder was replaced by a Finder alias or points to a drive that isn't plugged in: it uses a folder next to it and says so in the backend log. Use Settings → Image folder to keep pictures elsewhere.",
+              "<b>⬇ Asks before downloading a model</b>: the first time you use a model that isn't on this Mac yet (Create, Image to image, Edit with words, 🦴 poses with ERNIE), it says which model and how big, and where it will go, before downloading. Switch it off in Settings → Options.",
+              "<b>🧑 Head swap</b> (✨ Edit with words → recipes): the head of the person in Image 2 on the person in Image 1, keeping Image 1's body, pose, light and background (BFS Best Face Swap LoRA, MIT, from Hugging Face). Only with people's consent; explicit results are never saved, like face swap.",
+              "<b>Quick edits</b> (✨ Edit with words): one click writes the instruction for 🧽 <b>Repair &amp; colourize</b> an old photo, 🧹 repair but keep it black and white, 🎨 colourize, or 🔍 sharpen and restore detail." ] },
             { h: "1.6.6 (also): 🦴 poses with FLUX.2 Klein and ERNIE, 🦴 Copy pose, a more inventive ✨ Enhance", items: [
               "<b>🦴 Follow a pose with FLUX.2 Klein</b> (Create): with a Klein model picked, <b>🦴 Follow a pose</b> takes a picture with the pose (a photo, a drawing, a mannequin from the 🧍 Pose library) and draws your prompt in exactly that pose. No ControlNet needed: Klein reads the pose picture itself.",
               "<b>🦴 Poses with ERNIE</b>: ERNIE has no pose ControlNet, so FLUX.2 Klein draws the pose first and ERNIE redraws it (<b>How much ERNIE redraws</b>: 0.5–0.6 keeps the pose with ERNIE's look). Klein 4B downloads once (4.6 GB) if you don't have it.",
@@ -1637,6 +1657,10 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "Since 1.6.6: if something doesn't work", items: [
+              "<b>“The backend is not running”</b>: the part of the app that makes pictures stopped or couldn't start. Press Restart (or quit and reopen). If it keeps happening, Settings → Backend log says why in its last lines: often an external drive that isn't plugged in, a Finder alias put inside Protoart's data folder (use Settings → Image folder instead), or not enough memory.",
+              "<b>The first launch takes very long</b> from an external drive: macOS checks the whole app the first time. Keep the app in Applications on your Mac's own disk; models, LoRAs and pictures can still be on the external drive (Settings → Image folder, Model folders).",
+              "<b>Pictures still go to the old folder</b> after changing Settings → Image folder: update to this version (the setting didn't take effect before)." ] },
             { h: "New in 1.6.6 (poses, Enhance): if something doesn't work", items: [
               "<b>🦴 Follow a pose comes out with the mannequin still in it</b> (Klein): describe the subject fully in the prompt (who, what they wear, where), or try another seed. A photo of a real person as the pose picture can carry over their clothes and face too: a mannequin from the 🧍 Pose library avoids that.",
               "<b>ERNIE loosens the pose</b>: lower <b>How much ERNIE redraws</b> (0.4–0.5)." ] },
@@ -5511,6 +5535,36 @@ const protoartApp = createApp({
       const muted = loadJSON("protoart.slowWarnOff", {});
       return out.filter((w) => !muted[w.id]);
     },
+    jobDownloads(cmd, args) {  // the models a job would download first (not on this Mac yet)
+      const ids = [];
+      if (cmd === "generate" || cmd === "compare") {
+        const m = cmd === "compare" ? args.base?.model : args.model;
+        if (m) ids.push(m);
+        if (args.pose_image && this.models.find((x) => x.id === m)?.family === "ernie") ids.push("flux2_klein_mlx_q4");
+      } else if (cmd === "edit_words") ids.push(args.edit_model || "flux2_klein_mlx_q4");
+      else if (cmd === "preload" && args.model) ids.push(args.model);
+      return [...new Set(ids)].map((id) => this.models.find((x) => x.id === id))
+        .filter((m) => m && !this.isInstalled(m) && !m.path && Number(m.download_gb) > 0);
+    },
+    async downloadCheck(cmd, args) {  // true = go ahead (nothing to download, already asked to skip, or "Download")
+      if (loadJSON("protoart.askDownloads", true) === false) return true;
+      const list = this.jobDownloads(cmd, args);
+      if (!list.length) return true;
+      if (!this.dl.path) await this.loadDownloadsDir();
+      return new Promise((resolve) => {
+        this.dlAsk = { list, gb: list.reduce((t, m) => t + Number(m.download_gb || 0), 0), resolve, mute: false };
+      });
+    },
+    askDownloads() { return loadJSON("protoart.askDownloads", true) !== false; },
+    setAskDownloads(on) { saveJSON("protoart.askDownloads", !!on); },
+    answerDownload(go) {
+      const d = this.dlAsk;
+      if (!d) return;
+      this.dlAsk = null;
+      if (go && d.mute) saveJSON("protoart.askDownloads", false);
+      if (!go) this.status = "Not downloaded: nothing was started";
+      d.resolve(!!go);
+    },
     async slowCheck(mode) {  // true = go ahead (nothing to warn about, or "Go ahead anyway" / a fix was picked)
       const list = this.slowWarnings(mode);
       if (!list.length) return true;
@@ -6735,6 +6789,7 @@ const protoartApp = createApp({
     async runJob(cmd, args) {
       // Heavy work goes into the backend's queue; this resolves when the job finishes.
       this.error = "";
+      if (!(await this.downloadCheck(cmd, args || {}))) return null;  // ⬇ a model to download first: ask
       try {
         return await call(cmd, args);
       } catch (e) {
@@ -7010,6 +7065,13 @@ const protoartApp = createApp({
       }
     },
     EDIT_RECIPES() { return EDIT_RECIPES; },
+    EDIT_QUICK() { return EDIT_QUICK; },
+    useEditQuick(q) {  // a ready-made instruction into the prompt (↩ undo puts yours back)
+      if (this.form.prompt && this.form.prompt !== q.prompt) this.undoPrompt = this.form.prompt;
+      this.form.prompt = q.prompt;
+      if (this.form.edit_recipe) this.form.edit_recipe = "";
+      this.status = `${q.label}: instruction written in the prompt (edit it if you like), then press ✨ Edit`;
+    },
     // -------------------------------------------------------------- 🧍 Pose library (Shisei) for Create's ControlNet
     async openPoseLib() {
       const pl = this.poseLib;
@@ -7121,7 +7183,8 @@ const protoartApp = createApp({
       f.edit_recipe = f.edit_recipe === id ? "" : id;
       const r = this.editRecipe();
       // the recipe's own wording (it was trained on it); a prompt you wrote yourself is kept unless it was the last recipe's
-      if (r && (!(f.prompt || "").trim() || (old && f.prompt === old.prompt))) f.prompt = r.prompt;
+      const mine = (f.prompt || "").trim() && !(old && f.prompt === old.prompt) && !EDIT_QUICK.some((q) => q.prompt === f.prompt);
+      if (r && !mine) f.prompt = r.prompt;
       if (!r && old && f.prompt === old.prompt) f.prompt = "";
       if (r && !r.files["9b"] && this.form.edit_model === "flux2_klein9b_mlx_q4") this.status = `${r.label} is made for Klein 4B: it uses 4B.`;
       this.recipeMsg = "";
@@ -7130,11 +7193,15 @@ const protoartApp = createApp({
       const r = this.editRecipe(), file = this.editRecipeFile(r);
       if (!r || !file || this.recipeBusy) return;
       this.recipeBusy = true;
-      this.recipeMsg = `Downloading ${r.by} (~${file.mb} MB)…`;
+      this.recipeMsg = `Downloading ${r.by}${file.mb ? ` (~${file.mb} MB)` : ""}…`;
       try {
-        const found = await callWithin(90000, "civitai_inspect", { url: file.url });
-        const dest = (found.destinations[0] || {}).path || "";
-        await call("civitai_download", { url: file.url, dest, name: found.name });
+        if (file.hf) {  // from Hugging Face
+          await call("lora_hf_download", file.hf);
+        } else {
+          const found = await callWithin(90000, "civitai_inspect", { url: file.url });
+          const dest = (found.destinations[0] || {}).path || "";
+          await call("civitai_download", { url: file.url, dest, name: found.name });
+        }
         await this.refreshLoras();
         this.recipeMsg = this.editRecipeLora(r) ? "✓ Ready" : "Downloaded, but it isn't in the LoRA list yet: press ↻ Refresh in Models.";
       } catch (e) {

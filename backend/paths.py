@@ -29,8 +29,21 @@ CONTROLNET_DIR = HOME / "controlnets"  # your own SD 1.5 ControlNet files (e.g. 
 
 
 def ensure_dirs():
-    for d in (HOME, IMAGES_DIR, LORAS_DIR, MODELS_DIR, WEIGHTS_DIR, QUANT_DIR, VAE_DIR, CONTROLNET_DIR):
-        d.mkdir(parents=True, exist_ok=True)
+    """Make the app's folders. One that can't be made (a Finder alias or a file in its place, a link to a drive that
+    isn't plugged in) no longer stops the app from starting: the images go to "images (Protoart)" next to it instead,
+    and the other folders are skipped and reported. (To keep images elsewhere, use Settings → Image folder.)"""
+    global IMAGES_DIR
+    HOME.mkdir(parents=True, exist_ok=True)
+    for d in (IMAGES_DIR, LORAS_DIR, MODELS_DIR, WEIGHTS_DIR, QUANT_DIR, VAE_DIR, CONTROLNET_DIR):
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+            if not d.is_dir():
+                raise NotADirectoryError(str(d))
+        except OSError as e:
+            print(f"[paths] can't use {d} as a folder ({e}); is it a Finder alias or an unplugged drive?", flush=True)
+            if d == IMAGES_DIR:
+                IMAGES_DIR = HOME / "images (Protoart)"
+                IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ------------------------------------------------------------------ where downloaded models are kept

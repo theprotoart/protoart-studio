@@ -2902,6 +2902,10 @@
             <input ref="editRefPick" type="file" multiple accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="onEditRefPicked">
           </div>
           <div v-if="(form.edit_refs || []).length && !editRecipe()" class="hint">Refer to them in the prompt as “the second picture”, “the third picture”.</div>
+          <label>Quick edits <span class="hint">a ready-made instruction in the prompt; edit it if you like</span></label>
+          <div class="seg seg-wrap edit-recipes">
+            <button v-for="q in EDIT_QUICK()" :key="q.label" @click="useEditQuick(q)" :title="q.prompt">{{ q.label }}</button>
+          </div>
           <label>Two-picture recipes <span class="hint">optional · community LoRAs for FLUX.2 Klein, downloaded the first time</span></label>
           <div class="seg seg-wrap edit-recipes">
             <button v-for="r in EDIT_RECIPES()" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
@@ -2911,7 +2915,7 @@
             <div class="hint">LoRA: {{ editRecipe().by }} · {{ editRecipe().licence }}{{ editRecipeFile() === editRecipe().files['9b'] ? ' · the 9B version' : '' }}</div>
             <div class="row">
               <span v-if="editRecipeLora()" class="hint ok">✓ Downloaded</span>
-              <button v-else class="ghost small" :disabled="recipeBusy" @click="downloadEditRecipe">{{ recipeBusy ? 'Downloading…' : '⤓ Download it (~' + editRecipeFile().mb + ' MB, from Civitai)' }}</button>
+              <button v-else class="ghost small" :disabled="recipeBusy" @click="downloadEditRecipe">{{ recipeBusy ? 'Downloading…' : '⤓ Download it (' + (editRecipeFile().mb ? '~' + editRecipeFile().mb + ' MB, ' : '') + (editRecipeFile().hf ? 'from Hugging Face)' : 'from Civitai)') }}</button>
               <span v-if="recipeMsg" class="hint">{{ recipeMsg }}</span>
             </div>
             <div v-if="!(form.edit_refs || []).length" class="hint warn">Add Image 2 under “More pictures”.</div>
@@ -4475,6 +4479,7 @@
     <div class="hint" v-else>SDXL models always load in 8-bit on this {{ sys.ram_gb }} GB Mac: half the memory, practically the same pictures, and far faster than swapping to disk.</div>
     <div class="hint" v-if="(sys.ram_gb || 0) < 24">⏳ Before a picture starts, settings that are too heavy for this Mac's {{ sys.ram_gb }} GB get a short warning with a faster choice.
       <button class="link" @click="resetSlowWarnings" title="Show again the warnings you switched off with “Don't warn me about this again”">show the warnings I switched off again</button></div>
+    <label class="check" title="Before a model is downloaded (the first time you use it), say what it is and how big, and wait for OK"><input type="checkbox" :checked="askDownloads()" @change="setAskDownloads($event.target.checked)"> Ask before downloading a model</label>
     <label class="check"><input type="checkbox" v-model="opts.force_load" @change="saveOpts">
       Load anyway when a model needs more memory than this Mac has</label>
     <div class="hint">Off (recommended): models that need more memory than this {{ sys.ram_gb || '?' }} GB Mac has are greyed out and can't be picked or downloaded. On: they can be tried, but may be very slow or stop part-way.</div>
@@ -4633,6 +4638,18 @@
   </div>
 
   <!-- ============================ ARE YOU SURE? ============================ -->
+  <div v-if="dlAsk" class="modal top" @click.self="answerDownload(false)">
+    <div class="confirm">
+      <h3>⬇ This needs a download first</h3>
+      <p v-for="m in dlAsk.list" :key="m.id"><b>{{ m.label }}</b> · about {{ Number(m.download_gb).toFixed(1) }} GB{{ m.license ? ' · licence: ' + m.license : '' }}</p>
+      <p class="hint">It downloads once (it can take a while) and is kept in your downloaded-models folder<template v-if="dl.path">: {{ dl.path }}</template>{{ dl.free_gb != null ? ' (' + dl.free_gb + ' GB free)' : '' }}. You can choose that folder (an external drive too) in Settings → Model folders.</p>
+      <label class="check"><input type="checkbox" v-model="dlAsk.mute"> Don't ask me again before downloading</label>
+      <div class="row end">
+        <button @click="answerDownload(false)">Cancel</button>
+        <button class="primary" @click="answerDownload(true)">⬇ Download ({{ dlAsk.gb.toFixed(1) }} GB) and go</button>
+      </div>
+    </div>
+  </div>
   <div v-if="slowWarn" class="modal top" @click.self="answerSlow(null)">
     <div class="confirm slow-warn">
       <h3>⏳ This will be slow on this Mac <span class="hint">({{ slowWarn.ram }} GB of memory)</span></h3>

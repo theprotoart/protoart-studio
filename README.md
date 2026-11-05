@@ -96,6 +96,38 @@ The app's **How to** tab is the full manual, including Troubleshooting and a Dis
    **Open** (older macOS). If macOS says the app is *damaged*, don't force it open: download it again and check the
    checksum.
 
+   **Terminal alternative** (only for a download whose checksum matched in step 2): this removes the "downloaded from
+   the internet" mark from the app, so macOS stops asking:
+   ```bash
+   xattr -dr com.apple.quarantine "/Applications/Protoart Studio.app"
+   ```
+   Don't do this for apps you got anywhere else: that mark is how macOS checks unknown downloads.
+5. **Keep the app in Applications** on your Mac's own disk. Run from an external drive, macOS checks the whole app
+   (about 2 GB of files) much more slowly the first time it opens, and again after each update. Your models, LoRAs and
+   pictures can still live on an external drive (see below).
+
+### Keeping models and pictures off your startup disk
+
+Everything big can go on an external drive or a NAS folder you always have connected:
+
+| What | Where to set it |
+|---|---|
+| Pictures you make | Settings → **Image folder** → *Change…* (tick *move the existing pictures* to bring them along) |
+| Models the app downloads (the biggest part) | Settings → **Model folders → Downloaded models folder** (it can move the ones you have) |
+| Your own checkpoints and LoRAs | Settings → *Watch a models folder* and *LoRA folders*: they're used where they are, nothing is copied |
+
+The app's own data folder (`~/.protoartstudio`: the picture library's database, the fast engine and picture reader,
+settings, a few GB in all) stays on your Mac. Don't replace folders inside it with Finder aliases; use the settings
+above instead. Before a model is downloaded the app asks first and says how big it is (Settings → Options → *Ask
+before downloading a model*).
+
+### “The backend is not running”
+
+The app is two parts: the window, and a Python “backend” that makes the pictures. This message means the backend
+stopped or couldn't start. Press **Restart** (or quit and reopen the app). If it keeps happening, open
+**Settings → Backend log**: the last lines say why (for example an external drive that isn't plugged in, or not
+enough memory for the model you picked).
+
 ## First steps
 
 1. **Pick a model** in Create. Models on your Mac are listed there; the **Models** tab has more to download

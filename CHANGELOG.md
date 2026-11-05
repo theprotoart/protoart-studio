@@ -1,5 +1,20 @@
 # Changelog
 
+## Next (not released yet)
+
+- Settings → Image folder didn't take effect: the `images_dir_set` command's `if` line was missing in `handle_quick`
+  (the call fell through), restored
+- `paths.ensure_dirs` no longer stops the backend when a folder in the data folder is a Finder alias, a file or a link
+  to an unplugged drive (images then go to `images (Protoart)`; logged)
+- ⬇ Ask before downloading a model (`downloadCheck` in `runJob`: generate / compare / preload / edit_words, ERNIE poses'
+  Klein; `dlAsk` box with size, licence, downloads folder and free space; Settings → Options switch,
+  `protoart.askDownloads`)
+- 🧑 Head swap recipe (BFS Best Face Swap Klein 4B / 9B LoRAs, MIT, `lora_hf_download` job with an allow-list,
+  `RECIPE_HF_LORAS`); `head_swap` and `replace_subject` results go through `_swap_safeguard`
+- ✨ Edit with words quick edits (`EDIT_QUICK`: repair & colourize, repair B/W, colourize, sharpen)
+- README: Terminal `xattr` alternative for the first launch (after a checksum match), keep the app on the startup disk,
+  keeping models and pictures on an external drive, "the backend is not running"
+
 ## 1.6.6
 
 - 🧍 Pose library pictures download with curl first (`poselib._fetch`; Python's own connection was cut on a Mac

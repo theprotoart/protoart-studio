@@ -53,6 +53,7 @@ when you first use them, and each comes with its own licence that you accept by 
 | ERNIE-Image | Apache-2.0 |
 | FLUX.1 [schnell] (Black Forest Labs; MLX conversions by mflux-community) | Apache-2.0 |
 | Shisei pose library (pose pictures and data, downloaded on first use; the pose list in `backend/data/shisei_poses.json` is a trimmed copy of its catalog), https://github.com/wquguru/shisei | CC0 1.0 (images and data); its pose list follows ai-pose-gallery by ギア (@giaaibusi), credited, not licensed |
+| BFS Best Face Swap (Alissonerdx) FLUX.2 Klein head-swap LoRAs, downloaded by the user on request from Hugging Face, not bundled | MIT (its author asks not to use it with public figures or people who haven't agreed) |
 | Civitai LoRAs for ✨ Edit with words recipes (“Mid Transformation [2 image input] [Klein 4b]”, “Replace Subject [Klein 4B & 9B]”, “Copy Pose [Qwen & Klein]”), downloaded by the user on request, not bundled | each author's Civitai terms (Mid Transformation: any use; Replace Subject and Copy Pose: non-commercial) |
 | FLUX.2 [klein] 9B (Black Forest Labs; 4-bit MLX conversion by mflux-community), optional, 16 GB+ | FLUX Non-Commercial |
 | Z-Image Turbo (Tongyi-MAI; 4-bit MLX conversion by mflux-community), optional, 16 GB+ | Apache-2.0 |

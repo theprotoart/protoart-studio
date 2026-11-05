@@ -4343,13 +4343,13 @@ class Engine:
                                    "match_light": combine.get("match_light") is not False}
         if args.get("loras"):
             settings["loras"] = [{"name": l["name"], "weight": float(l.get("weight", 1.0))} for l in args["loras"] if isinstance(l, dict) and l.get("name")]
-        recipe = args.get("recipe") if args.get("recipe") in ("mid_transform", "replace_subject") else None
+        recipe = args.get("recipe") if args.get("recipe") in ("mid_transform", "replace_subject", "copy_pose", "head_swap") else None
         if recipe:
             settings["recipe"] = recipe
-        if recipe == "replace_subject":
-            # 🔁 Replace subject puts a person from another photo into the picture: the same safeguard as face swap
-            # (never saved when the checker is clearly sure the result is explicit)
-            self._swap_safeguard(result, "Replace subject")
+        if recipe in ("replace_subject", "head_swap"):
+            # 🔁 Replace subject / 🧑 Head swap put a person from another photo into the picture: the same safeguard as
+            # face swap (never saved when the checker is clearly sure the result is explicit)
+            self._swap_safeguard(result, "Replace subject" if recipe == "replace_subject" else "Head swap")
         kind = "combined" if combine is not None else "camera_angle" if isinstance(args.get("camera"), dict) else "word_edit"
         path = self._save(result, settings, suffix={"combined": "combined", "camera_angle": "angle"}.get(kind, "wordedit"))
         record = self.library.add_image(path, settings, parent_id=src.get("id"), kind=kind)
