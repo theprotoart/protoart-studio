@@ -2418,10 +2418,29 @@ class Engine:
         angle = random.choice(pe.ANGLES) if style in ("natural", "tags") else None  # new ideas on every press
         text, by = None, "small"
         import vlm
-        if style in ("natural", "tags", "contrast", "contrast_tags") and vlm.ready() and not args.get("quick"):
+        shape = "portrait" if h > w * 1.1 else "landscape" if w > h * 1.1 else "square"
+        writer = str(args.get("writer") or "auto")  # Settings → ✨ Enhance writes with
+        if writer.startswith("zeng_") and style == "natural":
+            # Z-Engineer (V4 / V6): a 4B model trained only to write image prompts (paragraphs: not for SD tags)
+            import zengineer
+            if zengineer.ready(writer):
+                try:
+                    if self.pipe is not None and 0 < ram < 12:
+                        self.unload()
+                    label = zengineer.MODELS[writer]["label"]
+                    self.emit({"type": "status", "msg": f"Enhancing the prompt with {label}…"})
+                    cand = pe.clean(zengineer.write(writer, prompt, shape, angle, emit=self.emit,
+                                                    cancel_event=self.cancel_event), prompt, style)
+                    if cand != prompt and not pe.repetitive(cand, prompt):
+                        text, by = cand, label
+                except Exception as e:
+                    if self.cancel_event.is_set():
+                        raise Cancelled()
+                    print("[enhance] Z-Engineer unavailable:", e, flush=True)
+        if text is None and writer != "small" and style in ("natural", "tags", "contrast", "contrast_tags") \
+                and vlm.ready() and not args.get("quick"):
             # the bigger model (Qwen3.5 4B, already on this Mac as the picture reader) is far more inventive
             # than the 0.5B / 1.5B enhancer, which tends to repeat the prompt's own words
-            shape = "portrait" if h > w * 1.1 else "landscape" if w > h * 1.1 else "square"
             try:
                 if self.pipe is not None and 0 < ram < 12:
                     self.unload()

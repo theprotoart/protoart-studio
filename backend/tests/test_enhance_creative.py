@@ -18,3 +18,23 @@ def test_bigger_model_question():
     q = pe.vlm_question("a cat", "natural", "square", pe.ANGLES[2])
     assert q.rstrip().endswith("Answer:") and "a cat" in q and pe.ANGLES[2] in q
     assert len(pe.ANGLES) >= 8
+
+
+def test_zengineer_listed_and_not_ready(tmp_path):
+    import paths
+    import zengineer
+    old, paths.HOME = paths.HOME, tmp_path
+    try:
+        st = {z["id"]: z for z in zengineer.status()}
+    finally:
+        paths.HOME = old
+    assert set(st) == {"zeng_v4", "zeng_v6"} and not st["zeng_v6"]["ready"]
+    assert "uncensored" in st["zeng_v4"]["note"]
+    paths.HOME = tmp_path
+    try:
+        zengineer.write("zeng_v6", "a cat", "square")
+        raise AssertionError("should need set-up")
+    except zengineer.ZengError:
+        pass
+    finally:
+        paths.HOME = old

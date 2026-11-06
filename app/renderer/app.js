@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["lora_hf_download", "ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "faceswap_faces", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["zeng_setup", "lora_hf_download", "ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "faceswap_faces", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
@@ -628,7 +628,9 @@ const protoartApp = createApp({
       lorasAside: loadJSON("protoart.lorasAside", {}),  // model type -> LoRAs put aside when you switched type
       frame: { size: 512, busy: false, msg: "", copied: null },  // Train tab: square framing of the pictures
       cropEd: null,
-      dlAsk: null,         // ⬇ "this needs a download first" box: {list, gb, resolve, mute}
+      dlAsk: null,
+      enhanceWriter: loadJSON("protoart.enhanceWriter", "auto"),  // ✨ Enhance writes with: auto / zeng_v6 / zeng_v4 / small
+      zeng: null,          // Z-Engineer V4 / V6: [{id, label, ready, note, full_gb, keep_gb}]         // ⬇ "this needs a download first" box: {list, gb, resolve, mute}
       slowWarn: null,      // the "this will be slow on this Mac" box: {title, lines, fixes, id, resolve, mute}
       // Train tab → ✂ Crop by hand: {it, x, y, s, w, h} (x, y, s as in trainer.parse_box)
       forcing: false,
@@ -860,6 +862,7 @@ const protoartApp = createApp({
               "<b>The app no longer fails to start</b> (“the backend is not running”) when a folder inside Protoart's data folder was replaced by a Finder alias or points to a drive that isn't plugged in: it uses a folder next to it and says so in the backend log. Use Settings → Image folder to keep pictures elsewhere.",
               "<b>⬇ Asks before downloading a model</b>: the first time you use a model that isn't on this Mac yet (Create, Image to image, Edit with words, 🦴 poses with ERNIE), it says which model and how big, and where it will go, before downloading. Switch it off in Settings → Options.",
               "<b>🧑 Head swap</b> (✨ Edit with words → recipes): the head of the person in Image 2 on the person in Image 1, keeping Image 1's body, pose, light and background (BFS Best Face Swap LoRA, MIT, from Hugging Face). Only with people's consent; explicit results are never saved, like face swap.",
+              "<b>✨ Enhance with Z-Engineer V6 or V4</b> (Settings → Options → ✨ Enhance writes with): 4B models trained only to write image prompts, one rich paragraph with staging, light and lens, for FLUX.2 Klein, Z-Image, ERNIE and other sentence-reading models. A one-time <b>Set up</b> downloads the full-size model (~8 GB, deleted afterwards) and shrinks it to a 2.4 GB Mac version. V4 is built on an uncensored base.",
               "<b>Quick edits</b> (✨ Edit with words): one click writes the instruction for 🧽 <b>Repair &amp; colourize</b> an old photo, 🧹 repair but keep it black and white, 🎨 colourize, or 🔍 sharpen and restore detail." ] },
             { h: "1.6.6 (also): 🦴 poses with FLUX.2 Klein and ERNIE, 🦴 Copy pose, a more inventive ✨ Enhance", items: [
               "<b>🦴 Follow a pose with FLUX.2 Klein</b> (Create): with a Klein model picked, <b>🦴 Follow a pose</b> takes a picture with the pose (a photo, a drawing, a mannequin from the 🧍 Pose library) and draws your prompt in exactly that pose. No ControlNet needed: Klein reads the pose picture itself.",
@@ -1197,6 +1200,7 @@ const protoartApp = createApp({
               "<b>🎲 Random · { } Wildcards · 📋 List</b> are the three keys under the prompt: a random prompt, wildcards ({red|blue}, __name__) and a list of prompts (one job per line).",
               "<b>✨ Enhance prompt</b> turns a short idea into a full prompt in the model's style: tags for SD 1.5, a detailed description for SDXL and ERNIE (small built-in language model, ~1 GB the first time).",
               "<b>Every press is a new take</b>: ✨ Enhance picks a different direction each time (the light, the materials, a small story, the camera, the colours, the setting, the style), so pressing it again on its answer gives fresh ideas for <i>your</i> prompt rather than a longer version of the last one (↩ undo goes back to yours). If the <b>picture reader</b> (Qwen3.5 4B, used by 🖼 From image) is set up, Enhance uses it for much more inventive results; otherwise the small enhancer writes it.",
+              "<b>Which model writes</b> (Settings → Options → ✨ Enhance writes with): <b>Automatic</b> (the picture reader, Qwen3.5 4B, when it's set up, otherwise the small model), <b>Z-Engineer V6</b> or <b>V4</b> (made only for writing image prompts: one detailed paragraph with foreground, background, light and lens; best for FLUX.2 Klein, Z-Image and ERNIE; SD tag prompts keep using the others), or the <b>small fast model</b>. Z-Engineer needs a one-time <b>Set up</b>: it downloads the full-size model (~8 GB, deleted afterwards) and shrinks it to a 2.4 GB Mac version, so it needs about 11 GB free for a few minutes. V4 is built on an uncensored base and writes whatever it's asked for.",
               "<b>🔄 Contrast prompt</b> (next to ✨ Enhance now, and in Image to image) suggests the same scene turned into its striking opposite: another season, weather, time of day or material (a waterfall → frozen blue-white ice with icicles; a summer street → winter after light snowfall). ↩ undo brings your prompt back.",
               "<b>Your own defaults</b>: set the sampler, steps and guidance you like, then <b>💾 Save as this model's defaults</b> (next to Reset). Picking that model again loads them; ↺ my defaults puts them back after changes, <i>forget</i> clears them. For a LoRA, set its weight and press ☆ under the active LoRAs: it starts at that weight from then on.",
               "<b>Restore faces presets</b> (CodeFormer): Balanced (fidelity 0.5), Keep likeness (0.8, for real people or person LoRAs), Heavy repair (0.3, tiny or badly distorted faces), Subtle touch-up (0.7, blended 60% so skin texture stays), Old photo (0.4) and Gentle (0.85, already clear faces).",
@@ -1660,6 +1664,7 @@ const protoartApp = createApp({
             { h: "Since 1.6.6: if something doesn't work", items: [
               "<b>“The backend is not running”</b>: the part of the app that makes pictures stopped or couldn't start. Press Restart (or quit and reopen). If it keeps happening, Settings → Backend log says why in its last lines: often an external drive that isn't plugged in, a Finder alias put inside Protoart's data folder (use Settings → Image folder instead), or not enough memory.",
               "<b>The first launch takes very long</b> from an external drive: macOS checks the whole app the first time. Keep the app in Applications on your Mac's own disk; models, LoRAs and pictures can still be on the external drive (Settings → Image folder, Model folders).",
+              "<b>Z-Engineer set-up stopped</b>: it needs about 11 GB free while it runs and the internet; on an 8 GB Mac close other apps while it shrinks the model. Until it's set up, ✨ Enhance uses the picture reader or the small model.",
               "<b>Pictures still go to the old folder</b> after changing Settings → Image folder: update to this version (the setting didn't take effect before)." ] },
             { h: "New in 1.6.6 (poses, Enhance): if something doesn't work", items: [
               "<b>🦴 Follow a pose comes out with the mannequin still in it</b> (Klein): describe the subject fully in the prompt (who, what they wear, where), or try another seed. A photo of a real person as the pose picture can carry over their clothes and face too: a mannequin from the 🧍 Pose library avoids that.",
@@ -5555,6 +5560,24 @@ const protoartApp = createApp({
         this.dlAsk = { list, gb: list.reduce((t, m) => t + Number(m.download_gb || 0), 0), resolve, mute: false };
       });
     },
+    setEnhanceWriter(v) {
+      this.enhanceWriter = v;
+      saveJSON("protoart.enhanceWriter", v);
+      if (v.startsWith("zeng_") && !(this.zeng || []).find((z) => z.id === v)?.ready)
+        this.status = "Set it up first (the button next to it); until then ✨ Enhance uses the picture reader or the small model";
+    },
+    async loadZeng() {
+      try { this.zeng = await call("zeng_status", {}); } catch { this.zeng = []; }
+    },
+    async setupZeng(z) {
+      const ok = await this.runJob("zeng_setup", { id: z.id });
+      await this.loadZeng();
+      if (ok && ok.ready) { this.setEnhanceWriter(z.id); this.status = `${z.label} is ready: ✨ Enhance now writes with it`; }
+    },
+    async removeZeng(z) {
+      try { this.zeng = await call("zeng_remove", { id: z.id }); } catch (e) { this.error = e.message; }
+      if (this.enhanceWriter === z.id) this.setEnhanceWriter("auto");
+    },
     askDownloads() { return loadJSON("protoart.askDownloads", true) !== false; },
     setAskDownloads(on) { saveJSON("protoart.askDownloads", !!on); },
     answerDownload(go) {
@@ -7571,7 +7594,8 @@ const protoartApp = createApp({
       // pressed again on its own answer: another take on YOUR prompt (not an enhancement of the enhancement)
       const last = this._lastEnhance, again = !!last && last.to === f.prompt && last.style === (style || "");
       const res = await this.runJob("enhance_prompt", { prompt: again ? last.from : f.prompt, width: f.width, height: f.height,
-                                                        model: f.model, family: edit ? style : this.family, contrast });
+                                                        model: f.model, family: edit ? style : this.family, contrast,
+                                                        writer: this.enhanceWriter });
       if (res) {
         const here = (f.prompt_owner === "i2i" ? "i2i" : "create") === owner;
         if (here) {

@@ -4480,6 +4480,23 @@
     <div class="hint" v-if="(sys.ram_gb || 0) < 24">⏳ Before a picture starts, settings that are too heavy for this Mac's {{ sys.ram_gb }} GB get a short warning with a faster choice.
       <button class="link" @click="resetSlowWarnings" title="Show again the warnings you switched off with “Don't warn me about this again”">show the warnings I switched off again</button></div>
     <label class="check" title="Before a model is downloaded (the first time you use it), say what it is and how big, and wait for OK"><input type="checkbox" :checked="askDownloads()" @change="setAskDownloads($event.target.checked)"> Ask before downloading a model</label>
+    <details class="zeng-set" @toggle="$event.target.open && !zeng && loadZeng()">
+      <summary>✨ Enhance writes with: <b>{{ {auto: 'Automatic', small: 'the small fast model', zeng_v6: 'Z-Engineer V6', zeng_v4: 'Z-Engineer V4'}[enhanceWriter] || 'Automatic' }}</b></summary>
+      <div class="seg seg-wrap">
+        <button :class="{on: enhanceWriter === 'auto'}" @click="setEnhanceWriter('auto')" title="Qwen3.5 4B (the picture reader) when it's set up, otherwise the small model">Automatic</button>
+        <button v-for="z in (zeng || [])" :key="z.id" :class="{on: enhanceWriter === z.id}" @click="setEnhanceWriter(z.id)">{{ z.label }}{{ z.ready ? '' : ' (not set up)' }}</button>
+        <button :class="{on: enhanceWriter === 'small'}" @click="setEnhanceWriter('small')" title="Quickest, least inventive">Small fast model</button>
+      </div>
+      <p class="hint">Z-Engineer (V6 newest, V4 earlier) is a 4B model trained only to write image prompts: one rich paragraph with staging, light and lens, for FLUX.2 Klein, Z-Image, ERNIE and other models that read sentences (SD 1.5 / SDXL tag prompts keep using the others). Apache-2.0, by BennyDaBall.</p>
+      <div v-for="z in (zeng || [])" :key="z.id" class="row zeng-row">
+        <b>{{ z.label }}</b>
+        <span v-if="z.ready" class="hint ok">✓ set up</span>
+        <button v-else class="ghost small" @click="setupZeng(z)" :title="'Downloads the full-size model (~' + z.full_gb + ' GB, deleted afterwards), shrinks it to a 4-bit Mac version (~' + z.keep_gb + ' GB, kept). Needs about ' + Math.ceil(z.full_gb + z.keep_gb + 1) + ' GB free while it runs, and a few minutes.'">⤓ Set up (one time, ~{{ z.full_gb }} GB download, {{ z.keep_gb }} GB kept)</button>
+        <button v-if="z.ready" class="link" @click="removeZeng(z)">remove</button>
+        <span v-if="z.note" class="hint warn">{{ z.note }}</span>
+      </div>
+      <p class="hint">Set-up uses the picture reader's environment (installed with it if needed). On an 8 GB Mac close other apps while it shrinks the model.</p>
+    </details>
     <label class="check"><input type="checkbox" v-model="opts.force_load" @change="saveOpts">
       Load anyway when a model needs more memory than this Mac has</label>
     <div class="hint">Off (recommended): models that need more memory than this {{ sys.ram_gb || '?' }} GB Mac has are greyed out and can't be picked or downloaded. On: they can be tried, but may be very slow or stop part-way.</div>

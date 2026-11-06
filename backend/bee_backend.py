@@ -169,7 +169,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("lora_hf_download", "quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -231,6 +231,8 @@ def job_label(cmd, a):
         return "Check Library pictures (content filter)"
     if cmd == "people_scan":
         return "Find people in Library pictures (Hide People)"
+    if cmd == "zeng_setup":
+        return f"Set up {a.get('id') == 'zeng_v4' and 'Z-Engineer V4' or 'Z-Engineer V6'} (one time)"
     if cmd == "lora_hf_download":
         return f"Download LoRA · {a.get('file') or ''}"
     if cmd == "civitai_download":
@@ -996,6 +998,13 @@ def handle_quick(cmd, a):
             return model_hub.inspect(a.get("source"))
         finally:
             net.set_online(was)
+    if cmd == "zeng_status":  # ✨ Enhance → Z-Engineer V4 / V6: set up or not
+        import zengineer
+        return zengineer.status()
+    if cmd == "zeng_remove":
+        import zengineer
+        zengineer.remove(str(a.get("id")))
+        return zengineer.status()
     if cmd == "poselib_list":  # 🧍 Pose library (Shisei, CC0, and your own): the poses, angles and what each has
         import poselib
         return poselib.listing()
@@ -2086,6 +2095,19 @@ def run_job(kind, a):
         return eng.people_scan(a)
     if kind == "model_delete":
         return eng.delete_model(a)
+    if kind == "zeng_setup":
+        import zengineer
+        from engine import UserError
+        if net.strict:
+            raise UserError("Strict offline mode is on (Settings → Privacy): turn it off to set up Z-Engineer.")
+        was = net.is_online()
+        net.set_online(True)
+        try:
+            return zengineer.setup(str(a.get("id")), eng.emit, eng.cancel_event)
+        except zengineer.ZengError as e:
+            raise UserError(str(e))
+        finally:
+            net.set_online(was)
     if kind == "lora_hf_download":
         return lora_hf_job(a, eng)
     if kind == "civitai_download":

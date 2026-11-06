@@ -2581,3 +2581,6 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .pose-unhide { grid-column: 1 / -1; justify-self: start; }
 .pose-lib > * { flex-shrink: 0; }
 .pose-lib > .pose-grid { flex: 1 1 auto; flex-shrink: 1; }
+.zeng-set { margin-top: 8px; }
+.zeng-set > summary { cursor: pointer; }
+.zeng-row { flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0; }
