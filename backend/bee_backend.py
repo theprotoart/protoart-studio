@@ -197,7 +197,7 @@ def move_downloads(a, emit_progress):
     if src.resolve() == dst.resolve():
         return {"moved": 0}
     dst.mkdir(parents=True, exist_ok=True)
-    entries = [e for e in src.iterdir() if e.name.startswith(("models--", "datasets--", "spaces--", ".locks"))]
+    entries = [e for e in src.iterdir() if e.name.startswith(("models--", "datasets--", "spaces--", ".locks", "protoart-mlx"))]
     sizes = {e: _folder_bytes(e) for e in entries}
     total = max(1, sum(sizes.values()))
     done, moved, skipped = 0, 0, []

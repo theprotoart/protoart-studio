@@ -12,7 +12,7 @@
 - 🧑 Head swap recipe (BFS Best Face Swap Klein 4B / 9B LoRAs, MIT, `lora_hf_download` job with an allow-list,
   `RECIPE_HF_LORAS`); `head_swap` and `replace_subject` results go through `_swap_safeguard`
 - ✨ Enhance with Z-Engineer V4 / V6 (`zengineer.py`, BennyDaBall, Apache-2.0): one-time `zeng_setup` job downloads
-  the full-size model, converts it with mlx-lm to 4-bit MLX in `llm/` (in the picture reader's environment, mlx-lm
+  the full-size model, converts it with mlx-lm to 4-bit MLX in the downloads folder (`protoart-mlx/`, moved with it) (in the picture reader's environment, mlx-lm
   installed if missing) and deletes the full-size download; `zeng_status` / `zeng_remove`; `writer` in
   `enhance_prompt` (Settings → Options → ✨ Enhance writes with, `protoart.enhanceWriter`); natural-language styles only
 - ✨ Edit with words quick edits (`EDIT_QUICK`: repair & colourize, repair B/W, colourize, sharpen)

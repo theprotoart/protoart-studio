@@ -4495,7 +4495,7 @@
         <button v-if="z.ready" class="link" @click="removeZeng(z)">remove</button>
         <span v-if="z.note" class="hint warn">{{ z.note }}</span>
       </div>
-      <p class="hint">Set-up uses the picture reader's environment (installed with it if needed). On an 8 GB Mac close other apps while it shrinks the model.</p>
+      <p class="hint">The download and the finished copy go to your downloaded models folder (Settings → Model folders; an external drive works). Set-up uses the picture reader's environment (installed with it if needed). On an 8 GB Mac close other apps while it shrinks the model.</p>
     </details>
     <label class="check"><input type="checkbox" v-model="opts.force_load" @change="saveOpts">
       Load anyway when a model needs more memory than this Mac has</label>

@@ -1,7 +1,7 @@
 """✨ Enhance with Z-Engineer (BennyDaBall, Apache-2.0): 4B prompt-writing models fine-tuned from Z-Image-Turbo's own
 text encoder (Qwen3 4B), V4 and V6. They're published only as full-size files and GGUF, so a one-time set-up on this
-Mac downloads the full-size model (~8 GB, temporary), shrinks it to a 4-bit MLX version (~2.3 GB, kept in the data
-folder) and deletes the full-size copy. It runs in the picture reader's environment (mlx-vlm, which brings mlx-lm).
+Mac downloads the full-size model (~8 GB, temporary), shrinks it to a 4-bit MLX version (~2.3 GB, kept with the
+downloaded models) and deletes the full-size copy. It runs in the picture reader's environment (mlx-vlm, which brings mlx-lm).
 """
 import json
 import os
@@ -39,7 +39,12 @@ class ZengError(Exception):
 
 
 def folder(mid):
-    return paths.HOME / "llm" / f"{mid}-mlx-4bit"
+    """Kept with the downloaded models (Settings → Model folders → Downloaded models folder), so it goes to an
+    external drive when that folder is on one; a copy made before, in the data folder, is still found."""
+    old = paths.HOME / "llm" / f"{mid}-mlx-4bit"
+    if (old / "config.json").exists():
+        return old
+    return paths.hub_cache() / "protoart-mlx" / f"{mid}-mlx-4bit"
 
 
 def ready(mid):
@@ -136,8 +141,9 @@ def setup(mid, emit, cancel_event=None):
         raise ZengError("Z-Engineer needs a Mac with Apple Silicon (M1 or newer).")
     if ready(mid):
         return {"id": mid, "ready": True}
-    paths.HOME.mkdir(parents=True, exist_ok=True)
-    free = shutil.disk_usage(paths.HOME).free / 2**30
+    out = folder(mid)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    free = shutil.disk_usage(out.parent).free / 2**30  # both the download and the kept copy go there
     if free < FULL_GB + KEEP_GB + 1:
         raise ZengError(f"Setting up {MODELS[mid]['label']} needs about {FULL_GB + KEEP_GB + 1:.0f} GB free for a "
                         f"while (the full-size model is deleted afterwards); only {free:.1f} GB is free.")
@@ -146,8 +152,6 @@ def setup(mid, emit, cancel_event=None):
     if chk.returncode != 0:
         emit({"type": "status", "msg": "Z-Engineer: installing the text model runner (one time)…"})
         vlm._run([str(vlm.PY), "-m", "pip", "install", "mlx-lm"], emit, cancel_event, "Installing mlx-lm")
-    out = folder(mid)
-    out.parent.mkdir(parents=True, exist_ok=True)
     r = _run_py(_CONVERT, {"repo": MODELS[mid]["repo"], "out": str(out)}, emit, cancel_event, "zeng-setup")
     src = r.get("src") or ""
     # the full-size download was only needed for shrinking: delete it (only the app's own download, in the HF cache)
