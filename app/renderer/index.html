@@ -4271,6 +4271,9 @@
       <button v-if="store && store.root" class="ghost" @click="moveStore(true)" :disabled="!!storeJob">Move back to this Mac</button>
     </div>
     <p class="hint">They go into a “Protoart models” folder on the drive you pick. Keep that drive plugged in when you use the app.
+      Moving never deletes or replaces anything already on the drive (a file with the same name there is left alone and
+      reported), and nothing is left behind twice: each file is moved, not copied. Pick a place next to your own model or
+      LoRA folders, not inside them.
       Not the same as “Main folder” above, which only reads models you already keep somewhere, where they are.</p>
     </section>
     <section class="set-sec">

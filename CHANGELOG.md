@@ -14,7 +14,8 @@
 - 📦 Settings → Model files the app keeps: `store_move` job moves LoRAs, embeddings, checkpoints, VAEs, ControlNets,
   8-bit copies and converted models (`paths.STORE`, new `EMBEDDINGS_DIR` / `CONVERTED_DIR`) to `<drive>/Protoart
   models` or back, entry by entry with progress, re-pointing references with `relink_folder`; `model_store` setting
-  applied at start (`paths.apply_store`; a missing drive falls back with a warning); `store_info`
+  applied at start (`paths.apply_store`; a missing drive falls back with a warning); `store_info`; refuses a place inside a
+  folder the app already reads (LoRA / model / embedding folders, main folder) so nothing is listed twice
 - ✨ Enhance with Z-Engineer V4 / V6 (`zengineer.py`, BennyDaBall, Apache-2.0): one-time `zeng_setup` job downloads
   the full-size model, converts it with mlx-lm to 4-bit MLX in the downloads folder (`protoart-mlx/`, moved with it) (in the picture reader's environment, mlx-lm
   installed if missing) and deletes the full-size download; `zeng_status` / `zeng_remove`; `writer` in

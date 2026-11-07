@@ -1495,6 +1495,15 @@ def store_move(a, eng):
         if not os.path.isabs(dest) or not os.path.isdir(dest):
             raise UserError("Pick a folder on the drive to move them to (is the drive connected?).")
         new_root = Path(dest) if os.path.basename(dest) == "Protoart models" else Path(dest) / "Protoart models"
+        # Not inside a folder the app already reads from (your LoRA / model / embedding folders, the main folder):
+        # it would read the moved files twice and list them twice. Next to such a folder is fine.
+        mine = list(loras.EXTRA_DIRS) + list(model_hub.MODEL_DIRS) + list(embeddings.EXTRA_DIRS) + \
+            [library.get_setting("main_folder", "") or ""]
+        for d in mine:
+            d = os.path.normpath(str(d or "")).rstrip("/")
+            if d and (str(new_root) == d or str(new_root).startswith(d + "/")):
+                raise UserError(f"{dest} is inside {d}, a folder the app already reads your models or LoRAs from, so "
+                                "they'd be listed twice. Pick a place next to it instead (for example the drive itself).")
         try:
             new_root.mkdir(parents=True, exist_ok=True)
             probe = new_root / ".protoart-write-test"

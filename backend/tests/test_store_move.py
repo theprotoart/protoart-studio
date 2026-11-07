@@ -27,11 +27,18 @@ fam_keys = list(loras.FOLDER_FAMILY)
 saved = b.library.get_setting("model_store")
 there = (ext / "Protoart models" / "loras" / "flux2" / "a.safetensors").exists()
 back = b.store_move({"dest": ""}, E())
+loras.EXTRA_DIRS.append(str(ext / "MyLoras"))
+(ext / "MyLoras").mkdir()
+try:
+    b.store_move({"dest": str(ext / "MyLoras")}, E())
+    inside = "moved"
+except Exception as e:
+    inside = "refused" if "listed twice" in str(e) else str(e)
 sys.__stdout__.write("RESULT" + json.dumps({"r": r, "info_root": info["root"], "fam": fam_keys, "saved": saved,
                   "lora_there": there,
                   "back_lora": (home / "loras" / "flux2" / "a.safetensors").exists(),
                   "back_model": (home / "models" / "m.safetensors").exists(),
-                  "saved_after": b.library.get_setting("model_store"), "loras_dir": str(paths.LORAS_DIR)}) + "\n")
+                  "saved_after": b.library.get_setting("model_store"), "loras_dir": str(paths.LORAS_DIR), "inside": inside}) + "\n")
 '''
 
 
@@ -51,6 +58,7 @@ class StoreMove(unittest.TestCase):
         self.assertTrue(d["back_lora"] and d["back_model"])
         self.assertIsNone(d["saved_after"])
         self.assertEqual(d["loras_dir"], str(Path(home) / "loras"))
+        self.assertEqual(d["inside"], "refused")  # not inside a folder the app already reads LoRAs from
 
 
 if __name__ == "__main__":
