@@ -4253,6 +4253,27 @@
     <label class="check"><input type="checkbox" v-model="dl.move"> Move the models already downloaded to the new folder</label>
     </section>
     <section class="set-sec">
+    <h2>📦 Model files the app keeps</h2>
+    <p class="hint">LoRAs and embeddings you downloaded or added in the app, checkpoints, VAEs and ControlNets you added,
+      the 8-bit copies it makes of SDXL models, and converted models. Move them all to another drive in one go: everything
+      that uses them (LoRA types, your models, the Library) follows, and new ones go there too. (Downloaded models and your
+      pictures have their own folders above and in Image folder; the app's own software stays on this Mac.)</p>
+    <div v-if="store && store.missing" class="error-box">Your model files folder {{ store.missing }} wasn't found (is the drive connected?).
+      Connect it and press Restart engine; until then the app uses its data folder and those files are missing.</div>
+    <table v-if="store">
+      <tr><td>Kept in</td><td><button class="link" @click="openFolder(store.root || store.default)">{{ store.root || store.default + ' (this Mac)' }}</button>
+        <span class="hint" v-if="store.free_gb != null"> · {{ store.free_gb }} GB free</span></td></tr>
+      <tr><td>Uses</td><td>{{ store.total_gb }} GB <span class="hint">· {{ store.kinds.filter((k) => k.gb > 0.005).map((k) => storeKindLabel(k.name) + ' ' + k.gb + ' GB').join(' · ') || 'nothing yet' }}</span></td></tr>
+    </table>
+    <div class="row">
+      <button v-if="!store" class="ghost" @click="loadStore">Show where they are</button>
+      <button @click="moveStore(false)" :disabled="!!storeJob">{{ store && store.root ? 'Move to another drive…' : 'Move to another drive…' }}</button>
+      <button v-if="store && store.root" class="ghost" @click="moveStore(true)" :disabled="!!storeJob">Move back to this Mac</button>
+    </div>
+    <p class="hint">They go into a “Protoart models” folder on the drive you pick. Keep that drive plugged in when you use the app.
+      Not the same as “Main folder” above, which only reads models you already keep somewhere, where they are.</p>
+    </section>
+    <section class="set-sec">
     <h2>Moved a folder?</h2>
     <p class="hint">Moved your models / LoRAs folder (for example to a new drive)? Point the app at the new place and everything
       that used it carries on: LoRA and embedding folders, LoRA types, watched folders, models you added, your ⚑ and ● marks, and

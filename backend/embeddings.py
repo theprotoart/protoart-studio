@@ -180,8 +180,8 @@ def scan(folder, safetensors_only=False):
     return out
 
 
-def own_dir():
-    return str(paths.HOME / "embeddings")
+def own_dir():  # in the data folder, or with the other model files when they were moved (Settings → Model files)
+    return str(paths.EMBEDDINGS_DIR if paths.STORE_ROOT else paths.HOME / "embeddings")
 
 
 def all_embeddings():

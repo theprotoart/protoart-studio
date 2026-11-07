@@ -14,6 +14,7 @@ messages are structured JSON instead of 4-letter prefixes, and quick commands
 import json
 import re
 import os
+import shutil
 import sys
 import threading
 import traceback
@@ -141,6 +142,14 @@ loras.FOLDER_FAMILY.update({k: v for k, v in (library.get_setting("lora_dir_fami
                             if isinstance(k, str) and v in loras.FAMILIES})
 loras.NAME_FAMILY.update({k: v for k, v in (library.get_setting("lora_families", {}) or {}).items()
                           if isinstance(k, str) and v in loras.FAMILIES})
+_store = library.get_setting("model_store")  # 📦 model files moved to another drive (Settings → Model files)
+STORE_MISSING = None
+if _store:
+    if os.path.isdir(_store):
+        paths.apply_store(_store)
+    else:  # the drive isn't plugged in: carry on with the data folder (the moved files are just missing for now)
+        STORE_MISSING = _store
+        log("model files folder not found (drive not connected?), using the data folder for now:", _store)
 _custom_images_dir = library.get_setting("images_dir")
 if _custom_images_dir:
     paths.IMAGES_DIR = Path(_custom_images_dir)
@@ -169,7 +178,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -231,6 +240,8 @@ def job_label(cmd, a):
         return "Check Library pictures (content filter)"
     if cmd == "people_scan":
         return "Find people in Library pictures (Hide People)"
+    if cmd == "store_move":
+        return "Move model files" + (f" to {os.path.basename(str(a.get('dest')))}" if a.get("dest") else " back to this Mac")
     if cmd == "zeng_setup":
         return f"Set up {a.get('id') == 'zeng_v4' and 'Z-Engineer V4' or 'Z-Engineer V6'} (one time)"
     if cmd == "lora_hf_download":
@@ -865,13 +876,13 @@ def handle_quick(cmd, a):
                 if i["kind"] in ("lora", "checkpoint", "embedding", "controlnet") and not i.get("error"):
                     out.append({"file": i["file"], "name": i["name"], "kind": i["kind"], "family": i.get("family"),
                                 "size_mb": i.get("size_mb")})
-            return {"items": out, "picked": True, "default_out": str(paths.HOME / "converted"), "free_gb": round(
+            return {"items": out, "picked": True, "default_out": str(paths.CONVERTED_DIR), "free_gb": round(
                 __import__("shutil").disk_usage(paths.HOME).free / 2**30, 1)}
         for i in diffusionbee.items(force=True):
             if i["kind"] in ("lora", "checkpoint", "embedding", "controlnet") and not i.get("error"):
                 out.append({"file": i["file"], "name": i["name"], "kind": i["kind"], "family": i.get("family"),
                             "size_mb": i.get("size_mb")})
-        return {"items": out, "default_out": str(paths.HOME / "converted"), "free_gb": round(
+        return {"items": out, "default_out": str(paths.CONVERTED_DIR), "free_gb": round(
             __import__("shutil").disk_usage(paths.HOME).free / 2**30, 1)}
     if cmd == "papercut_preview":  # 📄 the paper cut-out's live preview (small, not saved) from the found subject
         return _engine.papercut_preview(a) if _engine is not None else None
@@ -998,6 +1009,8 @@ def handle_quick(cmd, a):
             return model_hub.inspect(a.get("source"))
         finally:
             net.set_online(was)
+    if cmd == "store_info":  # 📦 Settings → Model files
+        return store_info()
     if cmd == "zeng_status":  # ✨ Enhance → Z-Engineer V4 / V6: set up or not
         import zengineer
         return zengineer.status()
@@ -1438,6 +1451,111 @@ def libraries_use(root, use=True, info=None):
     library.set_setting("libraries_asked", True)
     _lib_refresh_caches()
     return libraries_state(rescan=False)
+
+
+def _dir_size(d):
+    total = 0
+    for root, _dirs, files in os.walk(d):
+        for f in files:
+            try:
+                total += os.lstat(os.path.join(root, f)).st_size
+            except OSError:
+                pass
+    return total
+
+
+def store_info():
+    """📦 Settings → Model files: where the app's own model files are, and how much each kind takes."""
+    kinds = []
+    for name, attr in paths.STORE.items():
+        d = getattr(paths, attr)
+        kinds.append({"name": name, "path": str(d), "gb": round(_dir_size(d) / 1e9, 2) if os.path.isdir(d) else 0})
+    root = paths.STORE_ROOT
+    free = None
+    try:
+        free = round(shutil.disk_usage(str(root or paths.HOME)).free / 2**30, 1)
+    except OSError:
+        pass
+    return {"root": str(root) if root else None, "default": str(paths.HOME), "kinds": kinds, "free_gb": free,
+            "missing": STORE_MISSING, "total_gb": round(sum(k["gb"] for k in kinds), 2)}
+
+
+def store_move(a, eng):
+    """Move the app's own model files (LoRAs, embeddings, checkpoints, VAEs, ControlNets, 8-bit copies, converted
+    models) to <dest>/Protoart models, or back to the data folder (dest empty). Everything that pointed at them is
+    pointed at the new place (like Settings → Moved a folder?). Nothing is deleted: files are moved one by one, and a
+    file whose move fails stays where it was."""
+    from engine import UserError
+    global STORE_MISSING
+    back = not a.get("dest")
+    if back:
+        new_root = None
+    else:
+        dest = os.path.normpath(str(a.get("dest")))
+        if not os.path.isabs(dest) or not os.path.isdir(dest):
+            raise UserError("Pick a folder on the drive to move them to (is the drive connected?).")
+        new_root = Path(dest) if os.path.basename(dest) == "Protoart models" else Path(dest) / "Protoart models"
+        try:
+            new_root.mkdir(parents=True, exist_ok=True)
+            probe = new_root / ".protoart-write-test"
+            probe.write_text("ok")
+            probe.unlink()
+        except OSError as e:
+            raise UserError(f"Can't write to {new_root} ({e.strerror or e}). Is the drive read-only, or does macOS need "
+                            "permission for removable volumes (System Settings → Privacy & Security → Files and Folders)?")
+    plan = []
+    for name, attr in paths.STORE.items():
+        src = Path(getattr(paths, attr))
+        dst = (new_root / name) if new_root else paths.store_default(name)
+        same = str(src) == str(dst) or (src.exists() and dst.exists() and src.resolve() == dst.resolve())
+        if same:
+            continue
+        plan.append((name, attr, src, dst))
+    need = sum(_dir_size(src) for _n, _a, src, _d in plan if src.is_dir())
+    try:
+        free = shutil.disk_usage(str(new_root or paths.HOME)).free
+    except OSError:
+        free = None
+    if free is not None and need > free - 1e9:
+        raise UserError(f"Moving them needs about {need / 1e9:.1f} GB there; only {free / 2**30:.1f} GB is free.")
+    eng.emit({"type": "status", "msg": f"Moving {need / 1e9:.1f} GB of model files…"})
+    done, failed, moved_files = 0, [], 0
+    for name, attr, src, dst in plan:
+        dst.mkdir(parents=True, exist_ok=True)
+        if src.is_dir():
+            for entry in sorted(src.iterdir()):
+                if eng.cancel_event.is_set():
+                    break
+                target = dst / entry.name
+                if target.exists():
+                    failed.append(f"{entry}: there's already a {entry.name} there (left where it was)")
+                    continue
+                size = _dir_size(entry) if entry.is_dir() else entry.stat().st_size
+                eng.emit({"type": "progress", "image": 1, "images": 1, "step": int(done / 1e6),
+                          "steps": max(1, int(need / 1e6)), "label": f"Moving {name}: {entry.name}"})
+                try:
+                    shutil.move(str(entry), str(target))
+                    moved_files += 1
+                except OSError as e:
+                    failed.append(f"{entry}: {e.strerror or e}")
+                done += size
+        # point everything that used the old folder at the new one (LoRA folders and types, models, marks, Library)
+        try:
+            relink_folder(str(src), str(dst))
+        except Exception as e:
+            log("store_move relink", src, "->", dst, ":", e)
+        setattr(paths, attr, dst)
+    paths.apply_store(new_root)
+    library.set_setting("model_store", str(new_root) if new_root else None)
+    STORE_MISSING = None
+    try:
+        model_hub.invalidate()
+    except Exception:
+        pass
+    if eng.cancel_event.is_set():
+        eng.emit({"type": "status", "msg": "Stopped: what was moved already is in the new place and works there"})
+    return {"root": str(new_root) if new_root else None, "moved": moved_files, "failed": failed[:20],
+            "gb": round(done / 1e9, 2)}
 
 
 def relink_folder(old, new):
@@ -1996,7 +2114,7 @@ def convert_tdict_job(a, job_id):
              and (any(os.path.realpath(f).startswith(r + os.sep) for r in roots)  # DiffusionBee's or your folders
                   or os.path.realpath(f) in _convert_picked                      # or files / folders you picked
                   or any(os.path.realpath(f).startswith(r + os.sep) for r in _convert_picked))]
-    out_dir = a.get("out_dir") or str(paths.HOME / "converted")
+    out_dir = a.get("out_dir") or str(paths.CONVERTED_DIR)
     lora_dir = str(paths.LORAS_DIR) if a.get("loras_to_lora_folder", True) else out_dir
     done, errors = [], []
     for i, f in enumerate(files):
@@ -2095,6 +2213,8 @@ def run_job(kind, a):
         return eng.people_scan(a)
     if kind == "model_delete":
         return eng.delete_model(a)
+    if kind == "store_move":
+        return store_move(a, eng)
     if kind == "zeng_setup":
         import zengineer
         from engine import UserError

@@ -114,10 +114,11 @@ Everything big can go on an external drive or a NAS folder you always have conne
 |---|---|
 | Pictures you make | Settings → **Image folder** → *Change…* (tick *move the existing pictures* to bring them along) |
 | Models the app downloads (the biggest part) | Settings → **Model folders → Downloaded models folder** (it can move the ones you have) |
-| Your own checkpoints and LoRAs | Settings → *Watch a models folder* and *LoRA folders*: they're used where they are, nothing is copied |
+| LoRAs, embeddings, checkpoints, VAEs and ControlNets the app downloaded or you added in it, its 8-bit copies of SDXL models, converted models | Settings → **📦 Model files the app keeps** → *Move to another drive…* (moves them all; *Move back to this Mac* undoes it) |
+| Your own checkpoints and LoRAs kept in your own folders | Settings → *Watch a models folder* and *LoRA folders*: they're used where they are, nothing is copied |
 
-The app's own data folder (`~/.protoartstudio`: the picture library's database, the fast engine and picture reader,
-settings, a few GB in all) stays on your Mac. Don't replace folders inside it with Finder aliases; use the settings
+What stays on your Mac is small: the app's data folder (`~/.protoartstudio`: the picture library's database, the
+fast engine and picture reader software, settings; a few GB). Don't replace folders inside it with Finder aliases; use the settings
 above instead. Before a model is downloaded the app asks first and says how big it is (Settings → Options → *Ask
 before downloading a model*).
 

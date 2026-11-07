@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["zeng_setup", "lora_hf_download", "ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "faceswap_faces", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["store_move", "zeng_setup", "lora_hf_download", "ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "faceswap_faces", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
@@ -630,7 +630,9 @@ const protoartApp = createApp({
       cropEd: null,
       dlAsk: null,
       enhanceWriter: loadJSON("protoart.enhanceWriter", "auto"),  // ✨ Enhance writes with: auto / zeng_v6 / zeng_v4 / small
-      zeng: null,          // Z-Engineer V4 / V6: [{id, label, ready, note, full_gb, keep_gb}]         // ⬇ "this needs a download first" box: {list, gb, resolve, mute}
+      zeng: null,
+      store: null,         // 📦 Settings → Model files the app keeps: {root, default, kinds, total_gb, free_gb, missing}
+      storeJob: false,          // Z-Engineer V4 / V6: [{id, label, ready, note, full_gb, keep_gb}]         // ⬇ "this needs a download first" box: {list, gb, resolve, mute}
       slowWarn: null,      // the "this will be slow on this Mac" box: {title, lines, fixes, id, resolve, mute}
       // Train tab → ✂ Crop by hand: {it, x, y, s, w, h} (x, y, s as in trainer.parse_box)
       forcing: false,
@@ -858,6 +860,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Since 1.6.6 (in the next version): your image folder setting works, ask before downloads, 🧑 Head swap, quick photo repair", items: [
+              "<b>📦 Move the app's model files to another drive</b> (Settings → Model files the app keeps): LoRAs and embeddings you downloaded or added, checkpoints, VAEs and ControlNets you added, the 8-bit copies of SDXL models and converted models move in one go, with progress, into a “Protoart models” folder on the drive you pick. LoRA types, your models and the Library follow; new ones go there too. <b>Move back to this Mac</b> undoes it. With Image folder and Downloaded models folder, everything big can now live on an external drive.",
               "<b>Settings → Image folder now works</b>: choosing another folder (an external drive, a NAS) didn't take effect and pictures kept going to the default folder. Fixed. Tick <i>move the existing pictures</i> to bring them along.",
               "<b>The app no longer fails to start</b> (“the backend is not running”) when a folder inside Protoart's data folder was replaced by a Finder alias or points to a drive that isn't plugged in: it uses a folder next to it and says so in the backend log. Use Settings → Image folder to keep pictures elsewhere.",
               "<b>⬇ Asks before downloading a model</b>: the first time you use a model that isn't on this Mac yet (Create, Image to image, Edit with words, 🦴 poses with ERNIE), it says which model and how big, and where it will go, before downloading. Switch it off in Settings → Options.",
@@ -1587,6 +1590,7 @@ const protoartApp = createApp({
               "<b>+ Add from Civitai…</b>: paste a civitai.com model link and press <b>Check</b>, then <b>⤓ Download</b>. LoRAs go into the folder set to their type, SD 1.5 / SDXL / Pony checkpoints into your checkpoints folder, with their trigger words. Only .safetensors files are downloaded (and .pt embeddings).",
               "<b>Sign in first (once):</b> Civitai now lets only signed-in accounts download most files. Make a free account on civitai.com, open <b>Account settings → API Keys → Add API key</b>, copy the key and paste it in the box in the Civitai card (<b>Save key only</b>, or <b>Save &amp; download</b>). The box shows until a key is saved; the key stays on this Mac and is only sent to civitai.com. Errors you may see and what they mean are in Troubleshooting → Civitai downloads.",
               "Filter by type (ERNIE, SDXL, SD 1.5) or search. <b>+ Add from your Mac</b> and <b>+ Add from Hugging Face</b> bring in models from elsewhere. In Create, the link under the model list opens this tab.",
+              "<b>Keep everything big on an external drive</b>: Settings → <b>Downloaded models folder</b> (models the app downloads), <b>Image folder</b> (your pictures) and <b>📦 Model files the app keeps</b> (LoRAs, embeddings, checkpoints, VAEs, ControlNets, 8-bit copies, converted models: <i>Move to another drive…</i>). Each can move what you already have. <b>Main folder</b> is different: it only reads models you already keep somewhere, where they are. Keep the drive plugged in while you use the app.",
               "<b>Bigger fast-engine models</b> (greyed out when this Mac has too little memory): <b>FLUX.2 Klein 9B</b> (16 GB+, 9.5 GB download, FLUX non-commercial licence), <b>Z-Image Turbo</b> (16 GB+, 5.9 GB, Apache-2.0, 9 steps), <b>Qwen-Image 2.1 Turbo</b> (24 GB+, 10 GB, 8 steps) and <b>Qwen-Image 2.1</b> (24 GB+, 40 steps; both Qwen research licence, non-commercial) and <b>Krea 2 Turbo</b> (32 GB+, 15.8 GB, Krea 2 Community licence). Write sentences; Z-Image, Qwen-Image and Krea 2 can also start from a picture (Image to image → Change it).",
               "<b>Add new base models (future ones too)</b>: Models → Add from Hugging Face takes a diffusers model id, a single SD 1.5 / SDXL file, or a <b>⚡ fast-engine (MLX) version</b> of a kind of model the fast engine knows (FLUX.2 Klein, Z-Image, Qwen-Image 2.1, Krea 2; e.g. <code>mflux-community/qwen-image-2-1-turbo-mflux-q4</code>). It's recognised by its name and pinned to the version you checked.",
               "<b>A brand-new kind of fast-engine model</b> (one this app doesn't know yet, once the fast engine supports it): make a file named <code>fast_models.json</code> in Protoart's data folder (<code>~/.protoartstudio</code>) with a list like <code>[{\"repo\": \"owner/model-mflux-q4\", \"mlx_base\": \"the fast engine's name for it\", \"mlx_class\": \"mflux.models.….:ClassName\", \"min_ram_gb\": 16, \"steps\": 8, \"cfg\": 1.0}]</code>, then ↻ Refresh. <code>mlx_class</code> is only needed for kinds this app doesn't know, and must be one of the fast engine's own classes. Bad entries are skipped (the backend log says why)." ] },
@@ -1664,6 +1668,8 @@ const protoartApp = createApp({
             { h: "Since 1.6.6: if something doesn't work", items: [
               "<b>“The backend is not running”</b>: the part of the app that makes pictures stopped or couldn't start. Press Restart (or quit and reopen). If it keeps happening, Settings → Backend log says why in its last lines: often an external drive that isn't plugged in, a Finder alias put inside Protoart's data folder (use Settings → Image folder instead), or not enough memory.",
               "<b>The first launch takes very long</b> from an external drive: macOS checks the whole app the first time. Keep the app in Applications on your Mac's own disk; models, LoRAs and pictures can still be on the external drive (Settings → Image folder, Model folders).",
+              "<b>Moving model files stopped part-way, or some were “left where they were”</b>: what was moved works in the new place; the rest still works where it was. Usually the drive filled up, was unplugged, or already had a file with the same name. Free some space or plug it back in and press Move again: only what's left is moved.",
+              "<b>Models or LoRAs are missing after a restart</b> with model files on another drive: the drive wasn't plugged in when the app started (Settings says so in red). Plug it in and press Restart engine.",
               "<b>Z-Engineer set-up stopped</b>: it needs about 11 GB free while it runs and the internet; on an 8 GB Mac close other apps while it shrinks the model. Until it's set up, ✨ Enhance uses the picture reader or the small model.",
               "<b>Pictures still go to the old folder</b> after changing Settings → Image folder: update to this version (the setting didn't take effect before)." ] },
             { h: "New in 1.6.6 (poses, Enhance): if something doesn't work", items: [
@@ -3192,7 +3198,7 @@ const protoartApp = createApp({
     tab: { flush: "sync", handler(v, old) {
       currentTab = v;
       this.swapPrompts(v === "i2i" ? "i2i" : "create");
-      if (v === "settings") { this.loadFolders(false); this.$nextTick(() => this.applySettingsFolds()); }
+      if (v === "settings") { this.loadFolders(false); this.loadStore(); this.$nextTick(() => this.applySettingsFolds()); }
       // leaving Tools drops Adjust's GPU preview; coming back reloads it with the same settings
       if (old === "tools" && this.adj.open && adjEngine) { adjEngine.destroy(); adjEngine = null; }
       if (v === "tools" && this.adj.open && !adjEngine && this.adj.rec && !this.adj.busy)
@@ -5565,6 +5571,34 @@ const protoartApp = createApp({
       saveJSON("protoart.enhanceWriter", v);
       if (v.startsWith("zeng_") && !(this.zeng || []).find((z) => z.id === v)?.ready)
         this.status = "Set it up first (the button next to it); until then ✨ Enhance uses the picture reader or the small model";
+    },
+    storeKindLabel(n) {
+      return { loras: "LoRAs", models: "checkpoints", quantized: "8-bit copies", vaes: "VAEs", controlnets: "ControlNets",
+               embeddings: "embeddings", converted: "converted" }[n] || n;
+    },
+    async loadStore() {
+      try { this.store = await call("store_info", {}); } catch (e) { this.error = e.message; }
+    },
+    async moveStore(back) {
+      if (!this.store) await this.loadStore();
+      let dest = "";
+      if (!back) {
+        dest = await window.bee.pickFolder({ title: "Choose a drive or folder for Protoart's model files", button: "Move them here" });
+        if (!dest) return;
+      }
+      const where = back ? "back to this Mac" : `to ${dest}/Protoart models`;
+      if (!(await this.confirmAsk(`Move ${this.store?.total_gb ?? "the"} GB of model files ${where}?`,
+        "LoRAs, embeddings, checkpoints, VAEs, ControlNets, 8-bit copies and converted models move; everything that uses them follows. Nothing is deleted. Large amounts take a while; you can keep the app open.", "Move them"))) return;
+      this.storeJob = true;
+      try {
+        const r = await this.runJob("store_move", { dest });
+        if (r) {
+          this.status = `Moved ${r.moved} item${r.moved === 1 ? "" : "s"} (${r.gb} GB) ${where}` + (r.failed.length ? ` · ${r.failed.length} left where they were` : "");
+          if (r.failed.length) this.error = "Not moved:\n" + r.failed.join("\n");
+        }
+        await this.loadStore();
+        await this.afterLibChange(this.status);
+      } finally { this.storeJob = false; }
     },
     async loadZeng() {
       try { this.zeng = await call("zeng_status", {}); } catch { this.zeng = []; }
