@@ -163,7 +163,7 @@
         <span class="eng slot-label">Models <span class="hint">on this Mac appear in Create; the others download the first time you use them</span></span>
         <div class="slot-line">
           <div class="seg">
-            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein'}, {id: 'zimage', label: 'Z-Image'}, {id: 'qwen21', label: 'Qwen-Image'}, {id: 'krea2', label: 'Krea 2'}, {id: 'ernie', label: 'ERNIE'}, {id: 'anima', label: 'Anima'}, {id: 'moss', label: 'MOSS'}, {id: 'sdxl', label: 'SDXL'}, {id: 'fl:pony', label: 'Pony'}, {id: 'fl:illustrious', label: 'Illustrious'}, {id: 'fl:noobai', label: 'NoobAI'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
+            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein'}, {id: 'zimage', label: 'Z-Image'}, {id: 'qwen21', label: 'Qwen-Image'}, {id: 'krea2', label: 'Krea 2'}, {id: 'fibo2', label: 'FIBO 2'}, {id: 'ernie', label: 'ERNIE'}, {id: 'anima', label: 'Anima'}, {id: 'moss', label: 'MOSS'}, {id: 'sdxl', label: 'SDXL'}, {id: 'fl:pony', label: 'Pony'}, {id: 'fl:illustrious', label: 'Illustrious'}, {id: 'fl:noobai', label: 'NoobAI'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
                     :class="{on: shop.family === f.id}" @click="shop.family = f.id" :title="f.id.startsWith('fl:') ? f.label + ' models (SDXL-based, with their own prompt style and quality tags)' : ''">{{ f.label }}</button>
           </div>
           <button class="chip" :class="{on: shop.fav}" @click="shop.fav = !shop.fav" title="Show only your ★ favourite models">★ Favorites <small>{{ favModels.length }}</small></button>

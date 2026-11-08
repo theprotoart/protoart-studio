@@ -372,10 +372,10 @@ const TILED_PRESETS = [
   { id: "quick", label: "Quick", tip: "1.5× with few steps: a fast check", set: { scale: 1.5, strength: 0.25, steps: 12 } },
 ];
 const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "Klein", anima: "Anima", sd2: "SD 2", moss: "MOSS-Image",
-                       zimage: "Z-Image", qwen21: "Qwen-Image 2.1", krea2: "Krea 2", fast: "Fast engine" };
+                       zimage: "Z-Image", qwen21: "Qwen-Image 2.1", krea2: "Krea 2", fibo2: "FIBO 2", fast: "Fast engine" };
 // model types made by the fast engine that read sentences and draw at sizes in steps of 16 (newer ones too)
 const SD_FAMILIES = ["sd15", "sdxl", "sd2"];
-const NEW_FAST = ["zimage", "qwen21", "krea2"];  // FLUX.2 [klein] 4B: named by the model, so its LoRAs and models match
+const NEW_FAST = ["zimage", "qwen21", "krea2", "fibo2"];  // FLUX.2 [klein] 4B: named by the model, so its LoRAs and models match
 const OPTS_KEY = "beestudio.opts";
 const PERF_KEY = "protoart.perf";
 // Tools → Patchbay: the back of the rack. Each module has an IN and an OUT jack; a cable from one module's OUT to the
@@ -860,6 +860,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Since 1.6.6 (in the next version): your image folder setting works, ask before downloads, 🧑 Head swap, quick photo repair", items: [
+              "<b>FIBO 2.0 by Bria</b> on the ⚡ fast engine, for Macs with <b>24 GB or more</b> (greyed out on smaller Macs): <b>Edit Turbo</b> (4 steps, fast) and <b>Dev</b> (30 steps, slow, most detail). Write a short sentence or a structured JSON caption. Non-commercial licence (CC BY-NC 4.0); the files are gated: accept the licence on Hugging Face and save a token in Settings → Models first. A 25.5 GB download, shrunk to 4-bit as it loads.",
               "<b>📦 Move the app's model files to another drive</b> (Settings → Model files the app keeps): LoRAs and embeddings you downloaded or added, checkpoints, VAEs and ControlNets you added, the 8-bit copies of SDXL models and converted models move in one go, with progress, into a “Protoart models” folder on the drive you pick. LoRA types, your models and the Library follow; new ones go there too. <b>Move back to this Mac</b> undoes it. With Image folder and Downloaded models folder, everything big can now live on an external drive.",
               "<b>Settings → Image folder now works</b>: choosing another folder (an external drive, a NAS) didn't take effect and pictures kept going to the default folder. Fixed. Tick <i>move the existing pictures</i> to bring them along.",
               "<b>The app no longer fails to start</b> (“the backend is not running”) when a folder inside Protoart's data folder was replaced by a Finder alias or points to a drive that isn't plugged in: it uses a folder next to it and says so in the backend log. Use Settings → Image folder to keep pictures elsewhere.",
@@ -1592,6 +1593,7 @@ const protoartApp = createApp({
               "Filter by type (ERNIE, SDXL, SD 1.5) or search. <b>+ Add from your Mac</b> and <b>+ Add from Hugging Face</b> bring in models from elsewhere. In Create, the link under the model list opens this tab.",
               "<b>Keep everything big on an external drive</b>: Settings → <b>Downloaded models folder</b> (models the app downloads), <b>Image folder</b> (your pictures) and <b>📦 Model files the app keeps</b> (LoRAs, embeddings, checkpoints, VAEs, ControlNets, 8-bit copies, converted models: <i>Move to another drive…</i>). Each can move what you already have. <b>Main folder</b> is different: it only reads models you already keep somewhere, where they are. Keep the drive plugged in while you use the app.",
               "<b>Bigger fast-engine models</b> (greyed out when this Mac has too little memory): <b>FLUX.2 Klein 9B</b> (16 GB+, 9.5 GB download, FLUX non-commercial licence), <b>Z-Image Turbo</b> (16 GB+, 5.9 GB, Apache-2.0, 9 steps), <b>Qwen-Image 2.1 Turbo</b> (24 GB+, 10 GB, 8 steps) and <b>Qwen-Image 2.1</b> (24 GB+, 40 steps; both Qwen research licence, non-commercial) and <b>Krea 2 Turbo</b> (32 GB+, 15.8 GB, Krea 2 Community licence). Write sentences; Z-Image, Qwen-Image and Krea 2 can also start from a picture (Image to image → Change it).",
+              "<b>FIBO 2.0</b> (Bria, 24 GB Macs and up): <b>Edit Turbo</b> makes a picture in 4 steps; <b>Dev</b> takes 30 steps (each a double pass) for the most detail. It was trained on long structured captions: a short sentence works, a JSON caption (short_description, objects, background_setting, lighting, aesthetics, photographic_characteristics…) gives the most control, and <code>{\"short_description\": \"…\", \"text_render\": [{\"text\": \"OPEN\"}]}</code> writes text in the picture. Non-commercial only (CC BY-NC 4.0). Before the first download: accept the licence on its Hugging Face page and save a Hugging Face token in Settings → Models. It can't start from a picture here (no image to image).",
               "<b>Add new base models (future ones too)</b>: Models → Add from Hugging Face takes a diffusers model id, a single SD 1.5 / SDXL file, or a <b>⚡ fast-engine (MLX) version</b> of a kind of model the fast engine knows (FLUX.2 Klein, Z-Image, Qwen-Image 2.1, Krea 2; e.g. <code>mflux-community/qwen-image-2-1-turbo-mflux-q4</code>). It's recognised by its name and pinned to the version you checked.",
               "<b>A brand-new kind of fast-engine model</b> (one this app doesn't know yet, once the fast engine supports it): make a file named <code>fast_models.json</code> in Protoart's data folder (<code>~/.protoartstudio</code>) with a list like <code>[{\"repo\": \"owner/model-mflux-q4\", \"mlx_base\": \"the fast engine's name for it\", \"mlx_class\": \"mflux.models.….:ClassName\", \"min_ram_gb\": 16, \"steps\": 8, \"cfg\": 1.0}]</code>, then ↻ Refresh. <code>mlx_class</code> is only needed for kinds this app doesn't know, and must be one of the fast engine's own classes. Bad entries are skipped (the backend log says why)." ] },
             { h: "Managing your models", items: [
@@ -2239,6 +2241,7 @@ const protoartApp = createApp({
         { name: "Z-Image", models: this.models.filter((m) => m.family === "zimage") },
         { name: "Qwen-Image 2.1", models: this.models.filter((m) => m.family === "qwen21") },
         { name: "Krea 2", models: this.models.filter((m) => m.family === "krea2") },
+        { name: "FIBO 2", models: this.models.filter((m) => m.family === "fibo2") },
         { name: "FLUX.1", models: this.models.filter((m) => m.family === "flux") },
         { name: "ERNIE-Image", models: this.models.filter((m) => m.family === "ernie") },
         { name: "Anima (anime)", models: this.models.filter((m) => m.family === "anima") },
@@ -5649,7 +5652,7 @@ const protoartApp = createApp({
       // a LoRA made for another model type (a FLUX.1 LoRA with FLUX.2, an SD 1.5 one with SDXL…) can't be used: it's
       // left out of this picture with a note, instead of the whole picture failing (presets and older settings
       // could bring one in). LoRAs whose type isn't known are left alone.
-      const fam = this.family, names = { flux: "FLUX.1", flux2: "FLUX.2", sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", zimage: "Z-Image", qwen21: "Qwen-Image 2.1", krea2: "Krea 2" };
+      const fam = this.family, names = { flux: "FLUX.1", flux2: "FLUX.2", sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", zimage: "Z-Image", qwen21: "Qwen-Image 2.1", krea2: "Krea 2", fibo2: "FIBO 2" };
       const bad = this.form.loras.filter((x) => {
         const l = this.loras.find((y) => y.name === x.name);
         return l && l.family && l.family !== "unknown" && l.family !== fam;

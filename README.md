@@ -179,7 +179,8 @@ allow commercial use, for example:
 - ERNIE-Image, MOSS-Image, FLUX.1 [schnell], IP-Adapter, Qwen2.5, WD tagger, Depth Anything V2 Small, Qwen3.5 4B, LaMa: Apache-2.0 · Florence-2, BiRefNet (Cut out): MIT · mlx-vlm: MIT
 - Xinsir ControlNet Union ProMax: Apache-2.0
 - Optional bigger fast-engine models (only on Macs with enough memory): Z-Image Turbo: Apache-2.0 · FLUX.2 Klein 9B:
-  FLUX Non-Commercial · Qwen-Image 2.1 / Turbo: Qwen research licence (non-commercial) · Krea 2 Turbo: Krea 2 Community
+  FLUX Non-Commercial · Qwen-Image 2.1 / Turbo: Qwen research licence (non-commercial) · Krea 2 Turbo: Krea 2 Community ·
+  FIBO 2.0 Dev / Edit Turbo (Bria, 24 GB+): CC BY-NC 4.0 (non-commercial; gated, accept on Hugging Face)
 - **Non-commercial:** the enhancer's 4x-UltraSharp upscaler (CC BY-NC-SA 4.0), Depth Anything V2 Base / Large
   (CC BY-NC 4.0), Anima / Anima Turbo (CircleStone Labs Non-Commercial; pictures may be used commercially), the face
   swap models inswapper_128 and ArcFace (InsightFace, non-commercial research only)

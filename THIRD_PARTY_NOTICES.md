@@ -61,6 +61,7 @@ when you first use them, and each comes with its own licence that you accept by 
 | Z-Image Turbo (Tongyi-MAI; 4-bit MLX conversion by mflux-community), optional, 16 GB+ | Apache-2.0 |
 | Qwen-Image 2.1 and 2.1 Turbo (Qwen; 4-bit MLX conversions by mflux-community), optional, 24 GB+ | Qwen research licence (non-commercial) |
 | Krea 2 Turbo (Krea; 4-bit MLX conversion by mflux-community), optional, 32 GB+ | Krea 2 Community |
+| FIBO 2.0 Dev and Edit Turbo (Bria; official files, shrunk to 4-bit by the fast engine while loading), optional, 24 GB+, gated | CC BY-NC 4.0 (non-commercial; commercial use needs Bria's agreement) |
 | Qwen3.5 4B (Alibaba Qwen; 4-bit MLX conversion [mlx-community/Qwen3.5-4B-MLX-4bit](https://huggingface.co/mlx-community/Qwen3.5-4B-MLX-4bit), downloaded on first use, not bundled) | Apache-2.0 |
 | sd-vae-ft-mse-original (Stability AI) and sdxl-vae-fp16-fix (madebyollin), recommended VAEs, downloaded on request | MIT |
 | FLUX.1 [dev] (Black Forest Labs, official gated files, offered for Macs with 32 GB+) | FLUX.1 [dev] Non-Commercial License |

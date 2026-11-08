@@ -46,8 +46,9 @@ GENERIC = {
     "zimage": "mflux.models.z_image.variants.z_image:ZImage",
     "qwen21": "mflux.models.qwen21.variants.txt2img.qwen_image_21:QwenImage21",
     "krea2": "mflux.models.krea2.variants.txt2img.krea2:Krea2",
+    "fibo2": "mflux.models.fibo2.variants.txt2img.fibo2:Fibo2",
 }
-GENERIC_BASES = (("z-image", "zimage"), ("qwen-image-2.1", "qwen21"), ("krea-2", "krea2"))
+GENERIC_BASES = (("z-image", "zimage"), ("qwen-image-2.1", "qwen21"), ("krea-2", "krea2"), ("fibo2", "fibo2"))
 
 
 def _family(base, cls=None):

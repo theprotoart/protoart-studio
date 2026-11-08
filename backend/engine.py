@@ -176,6 +176,24 @@ MODELS = {
         "defaults": {"width": 1024, "height": 1024, "steps": 40, "cfg": 1.0},
     },
     # Krea 2 Turbo (Krea, Qwen-Image VAE; Krea 2 Community licence): 8 steps, ~16 GB at 4-bit. 32 GB+.
+    # FIBO 2.0 by Bria (8.1B, structured JSON captions or a short sentence; Qwen3-VL 4B text encoder, FLUX.2 VAE).
+    # Gated (accept the licence on Hugging Face and save a token in Settings → Models); CC BY-NC 4.0: non-commercial
+    # use only, commercial use needs Bria's own agreement. The official full-size files (~25.5 GB) are shrunk to 4-bit
+    # by the fast engine as they load; it peaks at about 18 GB at 1024 px, so 24 GB Macs and up.
+    "fibo2_turbo_mlx_q4": {
+        "label": "FIBO 2.0 Edit Turbo · 4-bit · ⚡ fast engine (24 GB Macs, non-commercial)", "family": "fibo2",
+        "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "briaai/Fibo-2.0-edit-turbo", "mlx_base": "fibo2-edit-turbo",
+        "mlx_class": "mflux.models.fibo2.variants.txt2img.fibo2:Fibo2", "mlx_quantize": 4, "mflux_min": [0, 24],
+        "download_gb": 25.5, "engine_gb": 1.5, "min_ram_gb": 24, "license": "CC BY-NC 4.0 (Bria)", "gated": True,
+        "defaults": {"width": 1024, "height": 1024, "steps": 4, "cfg": 1.0},
+    },
+    "fibo2_dev_mlx_q4": {
+        "label": "FIBO 2.0 Dev · 4-bit · ⚡ fast engine (24 GB Macs, non-commercial, slow)", "family": "fibo2",
+        "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "briaai/Fibo-2.0-dev", "mlx_base": "fibo2",
+        "mlx_class": "mflux.models.fibo2.variants.txt2img.fibo2:Fibo2", "mlx_quantize": 4, "mflux_min": [0, 24],
+        "download_gb": 25.5, "engine_gb": 1.5, "min_ram_gb": 24, "license": "CC BY-NC 4.0 (Bria)", "gated": True,
+        "defaults": {"width": 1024, "height": 1024, "steps": 30, "cfg": 5.0},
+    },
     "krea2_turbo_mlx_q4": {
         "label": "Krea 2 Turbo · 4-bit · ⚡ fast engine (32 GB+)", "family": "krea2",
         "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "mflux-community/krea-2-turbo-mflux-q4",
@@ -633,7 +651,7 @@ def _from_tdict(cls, path, **kw):
 
 
 FAMILY_NAMES = {"ernie": "ERNIE", "flux": "FLUX", "flux2": "FLUX.2", "zimage": "Z-Image", "qwen21": "Qwen-Image 2.1",
-                "krea2": "Krea 2", "anima": "Anima", "sd15": "SD 1.5", "sdxl": "SDXL", "moss": "MOSS-Image",
+                "krea2": "Krea 2", "fibo2": "FIBO 2", "anima": "Anima", "sd15": "SD 1.5", "sdxl": "SDXL", "moss": "MOSS-Image",
                 "fast": "fast-engine model"}
 
 
@@ -2586,9 +2604,9 @@ class Engine:
         # image-to-image
         init_image, strength = None, None
         if args.get("init_image"):
-            if not is_sd and family != "anima" and not (spec.get("engine") == "mlx" and family != "flux2"):
+            if not is_sd and family != "anima" and not (spec.get("engine") == "mlx" and family not in ("flux2", "fibo2")):
                 raise UserError("Image-to-image works with SD 1.5, SDXL, Anima and the fast-engine models. "
-                                "For FLUX.2 Klein use ✨ Edit with words.")
+                                "For FLUX.2 Klein use ✨ Edit with words; FIBO 2 only makes new pictures here.")
             init_image = open_image(args["init_image"], "start image for image-to-image")
             strength = max(0.05, min(1.0, float(args.get("strength", 0.6))))
 

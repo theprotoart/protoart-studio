@@ -11,6 +11,9 @@
   `protoart.askDownloads`)
 - 🧑 Head swap recipe (BFS Best Face Swap Klein 4B / 9B LoRAs, MIT, `lora_hf_download` job with an allow-list,
   `RECIPE_HF_LORAS`); `head_swap` and `replace_subject` results go through `_swap_safeguard`
+- FIBO 2.0 (Bria) on the fast engine (mflux 0.24 `Fibo2`, generic loader): `fibo2_turbo_mlx_q4` (Edit Turbo, 4 steps)
+  and `fibo2_dev_mlx_q4` (Dev, 30 steps, cfg 5), official gated repos shrunk to 4-bit while loading, 24 GB minimum,
+  CC BY-NC 4.0; family `fibo2` in the model groups, filters and LoRA families; no image to image
 - 📦 Settings → Model files the app keeps: `store_move` job moves LoRAs, embeddings, checkpoints, VAEs, ControlNets,
   8-bit copies and converted models (`paths.STORE`, new `EMBEDDINGS_DIR` / `CONVERTED_DIR`) to `<drive>/Protoart
   models` or back, entry by entry with progress, re-pointing references with `relink_folder`; `model_store` setting
