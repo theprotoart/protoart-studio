@@ -1,6 +1,6 @@
 # Changelog
 
-## Next (not released yet)
+## 1.6.7
 
 - Settings → Image folder didn't take effect: the `images_dir_set` command's `if` line was missing in `handle_quick`
   (the call fell through), restored

@@ -566,7 +566,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.6";  // keep in step with app/package.json
+const APP_VERSION = "1.6.7";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -859,7 +859,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Since 1.6.6 (in the next version): your image folder setting works, ask before downloads, 🧑 Head swap, quick photo repair", items: [
+            { h: "1.6.7: model files on an external drive, image folder fixed, ask before downloads, Z-Engineer, FIBO 2, 🧑 Head swap, photo repair", items: [
               "<b>FIBO 2.0 by Bria</b> on the ⚡ fast engine, for Macs with <b>24 GB or more</b> (greyed out on smaller Macs): <b>Edit Turbo</b> (4 steps, fast) and <b>Dev</b> (30 steps, slow, most detail). Write a short sentence or a structured JSON caption. Non-commercial licence (CC BY-NC 4.0); the files are gated: accept the licence on Hugging Face and save a token in Settings → Models first. A 25.5 GB download, shrunk to 4-bit as it loads.",
               "<b>📦 Move the app's model files to another drive</b> (Settings → Model files the app keeps): LoRAs and embeddings you downloaded or added, checkpoints, VAEs and ControlNets you added, the 8-bit copies of SDXL models and converted models move in one go, with progress, into a “Protoart models” folder on the drive you pick. LoRA types, your models and the Library follow; new ones go there too. <b>Move back to this Mac</b> undoes it. With Image folder and Downloaded models folder, everything big can now live on an external drive.",
               "<b>Settings → Image folder now works</b>: choosing another folder (an external drive, a NAS) didn't take effect and pictures kept going to the default folder. Fixed. Tick <i>move the existing pictures</i> to bring them along.",
@@ -1667,7 +1667,7 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
-            { h: "Since 1.6.6: if something doesn't work", items: [
+            { h: "New in 1.6.7: if something doesn't work", items: [
               "<b>“The backend is not running”</b>: the part of the app that makes pictures stopped or couldn't start. Press Restart (or quit and reopen). If it keeps happening, Settings → Backend log says why in its last lines: often an external drive that isn't plugged in, a Finder alias put inside Protoart's data folder (use Settings → Image folder instead), or not enough memory.",
               "<b>The first launch takes very long</b> from an external drive: macOS checks the whole app the first time. Keep the app in Applications on your Mac's own disk; models, LoRAs and pictures can still be on the external drive (Settings → Image folder, Model folders).",
               "<b>Moving model files stopped part-way, or some were “left where they were”</b>: what was moved works in the new place; the rest still works where it was. Usually the drive filled up, was unplugged, or already had a file with the same name. Free some space or plug it back in and press Move again: only what's left is moved.",
