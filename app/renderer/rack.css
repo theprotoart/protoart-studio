@@ -2584,3 +2584,6 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .zeng-set { margin-top: 8px; }
 .zeng-set > summary { cursor: pointer; }
 .zeng-row { flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0; }
+.expr-pick button { text-transform: none; }
+.tset { margin: 6px 0; }
+.tset-card { margin-top: 6px; padding: 10px; }

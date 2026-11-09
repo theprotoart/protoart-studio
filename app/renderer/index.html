@@ -1192,6 +1192,7 @@
         <button v-if="!selectMode" class="to-i2i card-trash" @click.stop="askDelete([r.id])" title="Delete this picture (asks first)">🗑</button>
         <div v-if="!selectMode" class="tile-acts">
           <button class="to-i2i" @click.stop="useAsStart(r)" title="Send to Image to image">🖼 Img2img</button>
+          <button class="to-i2i" @click.stop="useForAngles(r)" title="See this picture from other angles, make a turnaround or an expression sheet (Image to image → 📷 Camera angle, FLUX.2 Klein)">📷 Angles</button>
           <button v-if="r.prompt" class="to-i2i" @click.stop="reusePrompt(r)" title="Reuse this picture's prompt in Create (keeps your current model and settings)">↺ Prompt</button>
           <button class="to-i2i" @click.stop="openInTools(r)" title="Send to Tools (enhance, restore faces, depth map, edit…)">🧰 Tools</button>
         </div>
@@ -2384,6 +2385,10 @@
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">✂</span>
             <h3>Cut out</h3><button class="mod-reset" @click.stop="resetToolPart('cutout')" title="This module's settings back to the start">↺</button><span class="mod-sub">remove the background</span></div>
           <p class="mod-desc" title="BiRefNet finds the people, animals (dogs, cats, horses…) and things in front, and the rest becomes see-through. Drop a picture on the left, or pick one from the Library. ~224 MB download the first time, then offline">People, animals or objects on a see-through background: PNGs, stickers, Puppet warp.</p>
+          <label title="Which model finds the subject. Each downloads once (BiRefNet ~224 MB, the others ~170 MB). The others come from rembg">Finder</label>
+          <div class="seg seg-wrap cut-finders">
+            <button v-for="f in CUT_FINDERS()" :key="f.id" :class="{on: (post.cut.finder || 'birefnet') === f.id}" :title="f.tip" :disabled="cut.busy" @click="pickCutFinder(f.id)">{{ f.label }}</button>
+          </div>
           <template v-if="cut.open && !cut.busy">
             <label title="Where the subject starts: lower keeps more (hair, whiskers, a tail); higher drops faint bits of background">Threshold <span class="mod-val">{{ Number(post.cut.threshold).toFixed(2) }}</span></label>
             <input type="range" min="0.05" max="0.95" step="0.01" v-model.number="post.cut.threshold" title="Lower keeps more (hair, fur, a tail); higher drops faint bits of background">
@@ -2850,7 +2855,7 @@
           <button :class="{on: form.i2i_mode === 'outpaint'}" @click="setI2iMode('outpaint')" title="Make the picture bigger and fill in the new area">↔ Expand</button>
           <button :class="{on: form.i2i_mode === 'remove'}" @click="setI2iMode('remove')" title="Paint over something and it disappears, filled in from what's around it (no prompt or model needed)">🩹 Remove</button>
           <button :class="{on: form.i2i_mode === 'combine'}" @click="setI2iMode('combine')" title="Put a character (or anything) from another picture into this scene, just by asking: “add this character sitting on the bench”. Its light is matched to the scene">🧩 Combine</button>
-          <button :class="{on: form.i2i_mode === 'camera'}" @click="setI2iMode('camera')" title="See the same picture from another angle: turn the camera around the subject, up or down, nearer or further (FLUX.2 Klein)">📷 Camera angle</button>
+          <button :class="{on: form.i2i_mode === 'camera'}" @click="setI2iMode('camera')" title="See the same picture from another angle: turn the camera around the subject, up or down, nearer or further also turnarounds, character and expression sheets (FLUX.2 Klein)">📷 Camera angle</button>
           <button :class="{on: form.i2i_mode === 'peel'}" @click="setI2iMode('peel')" title="Lift parts of the picture onto their own layers, one at a time (what was behind each is filled in), then save them all as a layered Photoshop file">🧅 Peel layers</button>
           <button :class="{on: form.i2i_mode === 'faceswap'}" @click="setI2iMode('faceswap')" title="Put the face from another photo onto the person in this picture (only faces you have permission to use)">🔁 Face swap</button>
         </div>
@@ -3047,7 +3052,17 @@
             <button :disabled="form.cam.turnaround" :class="{on: form.cam.turnaround || (form.cam.layout || 'single') === 'single'}" @click="form.cam.layout = 'single'" title="One picture, one camera view of the subject (no panels or extra copies)">🖼 One view</button>
             <button :disabled="form.cam.turnaround" :class="{on: !form.cam.turnaround && form.cam.layout === 'comic'}" @click="form.cam.layout = 'comic'" title="A comic-book page: a few panels showing the subject from different angles">🗯 Comic panels</button>
             <button :disabled="form.cam.turnaround" :class="{on: !form.cam.turnaround && form.cam.layout === 'sheet'}" @click="form.cam.layout = 'sheet'" title="A character sheet: the subject shown from the front, side and back, side by side on a plain background">🧍 Character sheet</button>
+            <button :disabled="form.cam.turnaround" :class="{on: !form.cam.turnaround && form.cam.layout === 'expressions'}" @click="form.cam.layout = 'expressions'" title="An expression sheet: the character's face in a grid, each with a different expression (pick them below)">😀 Expression sheet</button>
+            <button :disabled="form.cam.turnaround" :class="{on: !form.cam.turnaround && form.cam.layout === 'turn_expr'}" @click="form.cam.layout = 'turn_expr'" title="Both on one sheet: front, side and back full body on top, faces with different expressions below">🧍😀 Turnaround + expressions</button>
           </div>
+          <template v-if="!form.cam.turnaround && ['expressions', 'turn_expr'].includes(form.cam.layout)">
+            <label>Expressions <span class="hint">{{ (form.cam.expressions || []).length }} picked{{ form.cam.layout === 'turn_expr' ? ' (the first 6 are used)' : ' (up to 12)' }} · in the order you pick them</span></label>
+            <div class="seg seg-wrap expr-pick">
+              <button v-for="x in EXPRESSIONS()" :key="x" :class="{on: (form.cam.expressions || []).includes(x)}" @click="toggleExpression(x)">{{ x }}</button>
+            </div>
+            <div class="hint">Works best on a clear picture of one character. A square or wide picture gives the grid more room; a tall one squeezes it.
+              More than 9 expressions get small: make two sheets instead.</div>
+          </template>
           <div class="hint">Anything to add goes in <b>3 · Prompt</b> (optional, e.g. “she is holding the sword”). The words sent: <i>{{ camPromptText() }}</i></div>
         </template>
         <template v-else-if="form.i2i_mode === 'faceswap'">
@@ -3718,6 +3733,28 @@
           <button v-if="train.folder" class="ghost small" :disabled="queue.some(j => j.cmd === 'train_lora' || j.cmd === 'train_embedding')" @click="trainClearFolder" title="Start again with no pictures chosen (nothing in the folder is changed or deleted)">✕ Clear</button>
         </div>
         <div v-if="train.folder" class="hint">{{ train.folder }}</div>
+        <div v-if="train.mode === 'lora'" class="tset">
+          <button class="ghost small" @click="tset.open = !tset.open" title="No pictures yet? Make a whole training set from one picture of your character: other angles, expressions and scenes, each with a caption (FLUX.2 Klein · Edit with words)">🧩 {{ tset.open ? 'Hide' : 'Build a training set from one picture…' }}</button>
+          <div v-if="tset.open || tset.busy" class="card tset-card">
+            <div class="hint">Makes about {{ tsetPlan().length }} pictures of your character from one picture (other camera angles, expressions and scenes) with FLUX.2 Klein, and puts copies with a caption each into a new training folder. Takes a while: about a minute a picture.</div>
+            <div class="row">
+              <button class="small" @click="$refs.tsetPick.click()">{{ tset.src ? 'Change picture…' : 'Choose the character picture…' }}</button>
+              <input ref="tsetPick" type="file" accept="image/*" hidden @change="tsetPick">
+              <button v-if="form.init_image && form.init_image !== tset.src" class="link" @click="tset.src = form.init_image" title="Use the picture that's in Image to image">use the Image to image picture</button>
+            </div>
+            <div v-if="tset.src" class="hint">{{ tset.src.split('/').pop() }}</div>
+            <label>Trigger word <span class="hint">starts every caption</span></label>
+            <input v-model="tset.trigger" placeholder="e.g. mira_char">
+            <label class="check"><input type="checkbox" v-model="tset.angles"> 📷 Angles (10)</label>
+            <label class="check"><input type="checkbox" v-model="tset.expressions"> 😀 Expressions (6)</label>
+            <label class="check"><input type="checkbox" v-model="tset.scenes"> 🏞 Poses and scenes (5)</label>
+            <div class="row">
+              <button class="primary" :disabled="tset.busy || !tset.src" @click="tsetBuild">{{ tset.busy ? `Making ${tset.done + 1} of ${tset.total}…` : 'Build the set' }}</button>
+              <button v-if="tset.busy" class="ghost small" @click="tsetStop">Stop</button>
+            </div>
+          </div>
+          <div v-if="tset.msg" class="hint">{{ tset.msg }}</div>
+        </div>
         <template v-if="train.items.length">
           <div class="hint">{{ train.items.length }} images<template v-if="trainSkipped"> · {{ trainSkipped }} left out (training uses {{ train.items.length - trainSkipped }})</template> · {{ trainCaptioned }} with captions
             <span v-if="train.items.length < 10"> · 10–30 images usually work best</span></div>
@@ -4911,6 +4948,7 @@
           <button v-if="detailOriginalPrompt" @click="reusePrompt(detail, true)" title="The prompt as you typed it, before Enhance prompt or wildcards changed it">↺ Original prompt</button>
           <button @click="reuse(detail)" title="Load everything that made this picture: prompt, model, LoRAs, size, steps, sampler and seed">Use these settings</button>
           <button @click="useAsStart(detail)">🖼 Send to Image to image</button>
+          <button @click="useForAngles(detail)" title="See this picture from other angles, make a turnaround or an expression sheet (FLUX.2 Klein)">📷 Other angles / sheets</button>
           <button @click="openInTools(detail)">🧰 Send to Tools</button>
           <button @click="openAdjust(detail)" title="Opens it in Tools with Lightroom-style light and colour sliders and Color Efex-style filters; saves an adjusted copy">🎚 Adjust</button>
           <button @click="editIn(detail)" :title="'Open in ' + editorName() + '; saved edits come back to the Library'">✏️ Edit in {{ editorName() }}</button>

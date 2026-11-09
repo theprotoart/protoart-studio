@@ -208,7 +208,7 @@ function defaultPost() {  // Tools settings on a fresh install
     vec: { colors: 8, detail: "medium", smooth: true },   // ✒️ Vectorize
     det: { model: "", lora: "", weight: 0.8, strength: 0.35, steps: 20 },  // model "": Create's (if SD) or the first SD 1.5  // 🔎 Detail with a LoRA (patchbay module)
     // ✂ Cut out: threshold / softness on the model's matte, grow (+) or shrink (−) in px, then the clean-ups
-    cut: { threshold: 0.5, softness: 0.1, grow: 0, bg: "transparent", color: "#ffffff", clean: true, fix_edges: true, crop: false },
+    cut: { threshold: 0.5, softness: 0.1, grow: 0, bg: "transparent", color: "#ffffff", clean: true, fix_edges: true, crop: false, finder: "birefnet" },
     // 📄 Paper cut-out: border width (% of the shorter side), its paper, torn-ness, shadow, print look, background
     paper: { edge: 2, edge_colour: "white", rough: 0.5, shadow: 0.6, print_as: "photo", background: "transparent" },
   };
@@ -219,6 +219,10 @@ const TOOL_PARTS = {
   depth: { post: ["depth"] }, vector: { post: ["vec"] }, detail: { post: ["det"] }, cutout: { post: ["cut"] }, paper: { post: ["paper"] },
   heal: {}, tiled: {}, quant: {}, merge: {}, convert: {},
 };
+// 😀 Expression sheets (📷 Camera angle → Picture layout): the expressions to show, picked in the window
+const EXPRESSIONS = ["neutral", "happy smile", "laughing", "sad", "angry", "surprised", "scared", "shy blushing",
+                     "smug smirk", "crying", "disgusted", "sleepy", "determined", "confused", "winking", "shouting"];
+const EXPR_DEFAULT = ["neutral", "happy smile", "laughing", "sad", "angry", "surprised"];
 const TOOL_STATE_DEFAULTS = {
   tup: () => ({ scale: 2, strength: 0.25, steps: 24, prompt: "" }),
   qnt: () => ({ model: "", bits: 8, msg: "" }),
@@ -246,7 +250,7 @@ function defaultForm() {
     edit_recipe: "",    // ✨ Edit with words: a two-picture recipe (EDIT_RECIPES), or "" for none
     edit_refs: [],      // ✨ Edit with words: extra pictures to take a style, object or outfit from (🧩 Combine: what to add)
     keep_faces: true,  // ✨ Edit with words: each face redone close-up so it stays like the original
-    cam: { az: 0, el: 0, zoom: 5, turnaround: false, layout: "single" },  // 📷 Camera angle: around (0–360°), up / down (−30–60°), how close (0–10)
+    cam: { az: 0, el: 0, zoom: 5, turnaround: false, layout: "single", expressions: EXPR_DEFAULT.slice() },  // 📷 Camera angle: around (0–360°), up / down (−30–60°), how close (0–10)
     combine: { cutout: true, match_light: true, light_strength: 0.7, where: "auto", keep_scene: true, boxes: [] },  // 🧩 Combine
     i2i_mode: "change", inpaint: { strength: 0.85, blur: 4, only_masked: false },
     outpaint: { left: 0, right: 0, top: 0, bottom: 0 },
@@ -304,7 +308,12 @@ const CAM_SEE = [
   "the character is turned away, so we see the back and the left side, the face hidden or only just visible",
   "the character is seen in profile from the left, so we see the left side of the body and the face in side profile",
   "the character is turned about 45 degrees, so we see the front and the left side, the face in three-quarter view"];
-function camPrompt(az, el, zoom, extra, layout) {
+function exprList(list) {
+  const l = (list && list.length ? list : EXPR_DEFAULT).slice(0, 12);
+  return l.length > 1 ? l.slice(0, -1).join(", ") + " and " + l[l.length - 1] : l[0];
+}
+function exprGrid(n) { return n <= 3 ? `1 row of ${n}` : n === 4 ? "2 rows of 2" : n <= 6 ? "2 rows of 3" : n <= 9 ? "3 rows of 3" : "3 rows of 4"; }
+function camPrompt(az, el, zoom, extra, layout, expressions) {
   const w = camWords(az, el, zoom);
   const see = CAM_SEE[CAM_VIEWS.indexOf(w.view)] || "";
   const more = (extra || "").trim().replace(/\.$/, "");
@@ -317,12 +326,22 @@ function camPrompt(az, el, zoom, extra, layout) {
   if (layout === "sheet")
     return "Turn this into a character turnaround sheet: the same character shown full body from the front, the side and the back, " +
       "standing side by side on a plain light background, evenly spaced. " + add + same;
+  const ex = (expressions && expressions.length ? expressions : EXPR_DEFAULT).slice(0, 12);
+  const sameFace = "Same character: the same face, hair, eyes, outfit, colours and art style in every panel; only the facial expression changes.";
+  if (layout === "expressions")
+    return `Turn this into a character expression sheet: ${ex.length} head-and-shoulders portraits of the same character arranged in a grid of ${exprGrid(ex.length)}, ` +
+      `each the same size and framing, facing the viewer, on a plain light background, evenly spaced. The expressions, in order: ${exprList(ex)}. ` +
+      "Each expression is clear and readable, with matching eyes, eyebrows and mouth. " + add + sameFace;
+  if (layout === "turn_expr")
+    return "Turn this into a character model sheet on a plain light background. Top row: the same character shown full body from the front, the side and the back, standing side by side. " +
+      `Bottom row: ${Math.min(ex.length, 6)} head-and-shoulders close-ups of the same character's face, each with a different expression: ${exprList(ex.slice(0, 6))}. ` +
+      "Everything evenly spaced and clearly separated. " + add + sameFace;
   return `Rotate the camera around the subject to the ${w.view}: ${see}. ${w.elev.say[0].toUpperCase() + w.elev.say.slice(1)}, ${w.dist.say}. ` +
     (w.view === "front view" ? "" : "The camera has really moved, so the character and the place around it are seen from this new direction. ") +
     add + same + " " +
     "One single picture: no panels, no split screen, no extra copies of the character.";
 }
-if (typeof module !== "undefined") module.exports = { camWords, camPrompt };
+if (typeof module !== "undefined") module.exports = { camWords, camPrompt, EXPRESSIONS };
 // Image to image's picture and settings: Create's ↺ reset all, presets and ↺ reuse leave them alone
 const I2I_PICTURE_KEYS = ["init_image", "control_image", "edit_refs"];
 // ✨ Edit with words → two-picture recipes: community FLUX.2 Klein LoRAs from Civitai (downloaded when first used,
@@ -859,6 +878,12 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Coming in the next version: expression sheets, a training-set builder, more cut-out finders, 📷 Angles button", items: [
+              "<b>😀 Expression sheets</b> (Image to image → 📷 Camera angle → Picture layout): one picture becomes a grid of the same character with different expressions (pick up to 12: happy, laughing, angry, surprised…). <b>🧍😀 Turnaround + expressions</b> puts a front / side / back turnaround on top and up to 6 expression close-ups below, like a character model sheet.",
+              "<b>🧩 Build a training set from one picture</b> (Train → LoRA, under the folder button): pick one picture of your character and a trigger word; FLUX.2 Klein makes up to 21 more pictures (10 camera angles, 6 expressions, 5 poses and scenes), and they go into a new training folder with a caption each, ready to train a LoRA. About a minute a picture.",
+              "<b>📷 Angles</b> on every Library picture (and <b>📷 Other angles / sheets</b> in the picture viewer) opens it straight in Image to image → 📷 Camera angle: other angles, the 8-view turnaround, character and expression sheets.",
+              "<b>✂ Cut out: choose the finder</b>. BiRefNet stays the default; four more from <a href=\"https://github.com/danielgatis/rembg\">rembg</a> can be picked: <b>Anime</b> (made for drawn characters), <b>People</b>, <b>General</b> and <b>Classic</b> (U²-Net). Each downloads once (~170 MB) the first time it's used.",
+              "<b>Fixed: a download that finished but still said “Downloading…”</b> (Copy pose and other recipes) when the app's engine restarted during it. Waiting buttons now let go when the engine restarts, and the recipe checks again whether its file is there." ] },
             { h: "1.6.7: model files on an external drive, image folder fixed, ask before downloads, Z-Engineer, FIBO 2, 🧑 Head swap, photo repair", items: [
               "<b>FIBO 2.0 by Bria</b> on the ⚡ fast engine, for Macs with <b>24 GB or more</b> (greyed out on smaller Macs): <b>Edit Turbo</b> (4 steps, fast) and <b>Dev</b> (30 steps, slow, most detail). Write a short sentence or a structured JSON caption. Non-commercial licence (CC BY-NC 4.0); the files are gated: accept the licence on Hugging Face and save a token in Settings → Models first. A 25.5 GB download, shrunk to 4-bit as it loads.",
               "<b>📦 Move the app's model files to another drive</b> (Settings → Model files the app keeps): LoRAs and embeddings you downloaded or added, checkpoints, VAEs and ControlNets you added, the 8-bit copies of SDXL models and converted models move in one go, with progress, into a “Protoart models” folder on the drive you pick. LoRA types, your models and the Library follow; new ones go there too. <b>Move back to this Mac</b> undoes it. With Image folder and Downloaded models folder, everything big can now live on an external drive.",
@@ -1373,6 +1398,10 @@ const protoartApp = createApp({
               "<b>✂ Cut it out of its picture first</b> (on): only the character is used, not its old background. It uses ✂ Cut out's model (~224 MB once) and takes about 15–30 s per picture on an 8 GB Mac. Turn it off for a picture that already has a plain or see-through background.",
               "<b>💡 Match the scene's light</b> (on): the character's brightness, contrast and colour are moved towards the scene's before it goes in, so a sunny photo of a person doesn't glow in a night forest. <b>How much</b>: higher takes on more of the scene's light and colour. The character keeps its own shading; Klein adds the shadows.",
               "Tips: a clear, full-body picture of the character works best; describe the size (“small, in the distance”) when it should be far away; try another seed if the pose or place isn't right. The result goes to the Library as <b>Combined</b>, linked to the scene." ] },
+            { h: "😀 Expression sheets and turnaround + expressions", items: [
+              "The quickest way in: <b>📷 Angles</b> on any picture in the Library. Or Image to image → <b>📷 Camera angle</b>.",
+              "Under <b>Picture layout</b>, <b>😀 Expression sheet</b> makes one picture with a grid of head-and-shoulders portraits of the same character, each with a different expression. Tick the expressions you want (1 to 12; 6 is a good number).",
+              "<b>🧍😀 Turnaround + expressions</b> makes a model sheet: front, side and back full-body views on the top row, and up to 6 expression close-ups below. Klein sometimes repeats or drops a face; try another seed." ] },
             { h: "📷 Camera angle: the same picture from another side", items: [
               "In <b>Image to image</b>, pick <b>📷 Camera angle</b>. The card shows your picture as the camera sees it: <b>drag left / right</b> to go around the subject, <b>up / down</b> to go under or over it, <b>scroll</b> to come nearer or go further. The pink ring shows where the camera is from above (front at the bottom), the blue arc how high it is.",
               "Or use the sliders and lists: <b>Around</b> (front, front-right quarter, right side, back-right quarter, back, back-left quarter, left side, front-left quarter), <b>Up / down</b> (low-angle, eye-level, elevated, high-angle) and <b>How close</b> (wide shot, medium shot, close-up). The line under them shows which one you have; <b>↺ Front</b> goes back to the start.",
@@ -1432,6 +1461,7 @@ const protoartApp = createApp({
               "<b>🗂 Bring in its layers</b> (under the picture in Tools): every layer with something on it is saved to the Library as a see-through PNG the size of the canvas, top layer first, plus the finished picture. Each one notes its layer name, opacity, blend mode and whether it was clipped; hidden layers are left out. A big canvas with many layers takes a minute or so." ] },
             { h: "✂ Cut out and 📄 Paper cut-out", items: [
               "<b>🗂 Split into layers</b> (in Cut out, after ✂ Cut out): saves the subject on see-through and the background with the subject filled in (Smart fill), as two pictures in the Library, to rearrange in Procreate, Photoshop or Puppet warp.",
+              "<b>✂ Cut out: which finder?</b> <b>BiRefNet</b> (default) is best for most photos. <b>Anime</b> is made for drawn and anime characters, <b>People</b> for people only, <b>General</b> and <b>Classic</b> (U²-Net) are alternatives when the edge looks wrong. The four extra finders come from rembg and download once (~170 MB each).",
               "<b>✂ Cut out</b> removes the background: people, animals (dogs, cats, horses, birds…) and objects. Drop a picture on the left of Tools (or pick one from the Library) and press <b>✂ Cut out</b>. The first time it downloads its model (BiRefNet, MIT licence, ~224 MB); after that it works offline, in a few seconds.",
               "Refine it live on the left: <b>Threshold</b> (lower keeps more: hair, whiskers, a tail; higher drops faint bits of background), <b>Edge softness</b> (0 = a hard sticker edge), <b>Grow / shrink</b> (−1 to −3 px takes away a thin halo). <b>Mask</b> shows white = kept, black = gone, which makes the edge easy to judge.",
               "<b>Background</b>: None makes a see-through PNG (saved as PNG even when your pictures are JPEG); or White, Black or a colour. <b>Clean up small bits</b> drops specks of background, <b>Fix edge colours</b> takes the edge's colours from inside the subject so no fringe is left, <b>Crop to the subject</b> trims the empty space. <b>💾 Save</b> adds it to the Library.",
@@ -1486,6 +1516,10 @@ const protoartApp = createApp({
           ] },
         { id: "train", go: "train", icon: "🎓", title: "Train", summary: "Teach the app your own character, object or style; merge LoRAs",
           sections: [
+            { h: "🧩 No pictures yet? Build a training set from one picture", items: [
+              "Train → <b>🎓 LoRA</b> → <b>🧩 Build a training set from one picture…</b>. Choose a clear picture of your character (or <i>use the Image to image picture</i>), type a <b>trigger word</b> (a made-up word like <i>mira_char</i>; it starts every caption) and tick what to make: <b>📷 Angles</b> (10), <b>😀 Expressions</b> (6), <b>🏞 Poses and scenes</b> (5).",
+              "<b>Build the set</b> makes each picture with FLUX.2 Klein · Edit with words (about a minute each), then copies them, plus your original, into a new folder in Protoart's data folder (<i>training sets</i>) with a caption file each, and picks that folder for training. <b>Stop</b> keeps what was made so far.",
+              "Look through the pictures before training: leave out any where the face or outfit changed. Pictures made from one picture all share its look, so a few real pictures added to the folder make a better LoRA." ] },
             { h: "Three things you can make", items: [
               "At the top of the Train tab, <b>What do you want to make?</b>: <b>🎓 LoRA</b> (learns a lot: a face, an outfit, a style; added in Create under LoRAs), <b>🔤 Embedding</b> (learns one new word; a tiny file you use by typing its name) or <b>🧬 Merge LoRAs</b> (several LoRAs become one)." ] },
             { h: "🔤 Embeddings (textual inversion)", items: [
@@ -1667,6 +1701,10 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
+            { h: "New in the next version: if something doesn't work", items: [
+              "<b>A recipe (Copy pose…) still says “Downloading…”</b> after its file finished, or after restarting the app: fixed. It happened when the engine restarted during the download. Pick the recipe again; it now notices the file is there.",
+              "<b>✂ Cut out with Anime, People, General or Classic says it couldn't download</b>: those finders come from GitHub (~170 MB, once). A VPN or firewall can block it; try again without, or use BiRefNet (the default).",
+              "<b>Build a training set stopped part-way</b>: what was made is still in the Library; press Build the set again, or add those pictures to a folder yourself and choose it with Choose a folder of images." ] },
             { h: "New in 1.6.7: if something doesn't work", items: [
               "<b>“The backend is not running”</b>: the part of the app that makes pictures stopped or couldn't start. Press Restart (or quit and reopen). If it keeps happening, Settings → Backend log says why in its last lines: often an external drive that isn't plugged in, a Finder alias put inside Protoart's data folder (use Settings → Image folder instead), or not enough memory.",
               "<b>The first launch takes very long</b> from an external drive: macOS checks the whole app the first time. Keep the app in Applications on your Mac's own disk; models, LoRAs and pictures can still be on the external drive (Settings → Image folder, Model folders).",
@@ -1940,6 +1978,7 @@ const protoartApp = createApp({
       libMsg: "",
       localErr: "",
       localOk: "",  // "Model imported" note after Add from your Mac
+      tset: { open: false, src: "", trigger: "", angles: true, expressions: true, scenes: true, busy: false, msg: "", done: 0, total: 0, stop: false },
       train: mergeDefaults({ model: "", folder: "", items: [], capMode: "tags", name: "", trigger: "", format: "kohya", kind: "character",
                              precision: "fp16", save_every: 0, preset: "recommended", steps: 1000, lr: 0.0001, rank: 16,
                              resolution: 512, targets: "attention", flip: true, train_text_encoder: false, resume: "",
@@ -3321,7 +3360,17 @@ const protoartApp = createApp({
     },
     // -------------------------------------------------------------- startup
     onEvent(m) {
-      if (m.type === "ready") { this.setPaused(false); return this.init(); }
+      if (m.type === "ready") {
+        // a fresh engine: anything still waiting for the old one (it restarted or stopped) will never get an answer;
+        // end those waits so no button stays on "Downloading…" / "Checking…" forever
+        for (const [id, p] of pending) {
+          pending.delete(id);
+          jobArgs.delete(id);
+          p.reject(Object.assign(new Error("The engine restarted before this finished. Try it again."), { restarted: true }));
+        }
+        this.setPaused(false);
+        return this.init();
+      }
       if (m.type === "status") { this.status = m.msg; this.engineStatus = m.msg; }
       if (m.type === "progress") this.onProgress(m);
       if (m.type === "enhanced_prompt") this.lastEnhanced = { prompt: m.prompt, original: m.original };
@@ -4801,7 +4850,7 @@ const protoartApp = createApp({
       if (!s) return;
       this.tool.working = { label: "Splitting into layers", started: Date.now() };
       try {
-        const r = await this.runJob("cutout", { ...this.toolArgs(), mode: "layers", threshold: o.threshold, softness: o.softness, grow: o.grow });
+        const r = await this.runJob("cutout", { ...this.toolArgs(), mode: "layers", finder: o.finder || "birefnet", threshold: o.threshold, softness: o.softness, grow: o.grow });
         if (r && r.records) {
           this.tool.latest = r.records[0];
           for (const rec of r.records) this.afterPost(rec);
@@ -6567,6 +6616,18 @@ const protoartApp = createApp({
     },
     // ✂ Cut out: the model's matte comes back once; the threshold / softness / grow sliders then work on it live,
     // in the window (cutRefine mirrors backend/postprocess/cutout.py refine), and Save makes the file in the engine
+    CUT_FINDERS() {  // ✂ Cut out: which model finds the subject (BiRefNet, or rembg's models)
+      return [{ id: "birefnet", label: "Best all-round", tip: "BiRefNet: people, animals and things; the default" },
+              { id: "isnet-anime", label: "Anime & drawings", tip: "IS-Net anime (from rembg): made for illustrations, cartoons and anime characters · ~168 MB once" },
+              { id: "u2net_human_seg", label: "People", tip: "U²-Net human (from rembg): people only, whole body · ~168 MB once" },
+              { id: "isnet-general-use", label: "General", tip: "IS-Net (from rembg): another all-round finder, try it when BiRefNet misses · ~170 MB once" },
+              { id: "u2net", label: "Classic", tip: "U²-Net (from rembg): the original background remover · ~168 MB once" }];
+    },
+    pickCutFinder(id) {  // another finder: run it on the picture again (refining settings stay)
+      if (this.post.cut.finder === id) return;
+      this.post.cut.finder = id;
+      if (this.cut.open && !this.cut.busy) this.toolCutout();
+    },
     async toolCutout() {
       const s = this.tool.source;
       if (!s) return;
@@ -6574,9 +6635,9 @@ const protoartApp = createApp({
       if (this.pw.open) this.closePuppet();
       if (this.cut.open) this.closeCutout();
       this.tool.healing = false;
-      Object.assign(this.cut, { paperView: false, open: true, busy: true, msg: this.opts.cut_model_ready ? "Finding the subject…" : "Finding the subject (first time only: downloading the model, ~224 MB; after that it's on this Mac)…", path: s.path, view: "result" });
+      Object.assign(this.cut, { paperView: false, open: true, busy: true, msg: (this.post.cut.finder || "birefnet") !== "birefnet" ? "Finding the subject (the first time with this finder it downloads, ~170 MB)…" : this.opts.cut_model_ready ? "Finding the subject…" : "Finding the subject (first time only: downloading the model, ~224 MB; after that it's on this Mac)…", path: s.path, view: "result" });
       try {
-        const r = await this.runJob("cutout", { ...this.toolArgs(), mode: "matte" });
+        const r = await this.runJob("cutout", { ...this.toolArgs(), mode: "matte", finder: this.post.cut.finder || "birefnet" });
         if (!r || !r.matte) throw new Error(this.error || "it didn't finish");
         if (!this.opts.cut_model_ready) { this.opts.cut_model_ready = true; this.saveOpts(); }
         const [mb, ib] = await Promise.all([this.readImageBytes(r.matte), this.readImageBytes(s.path)]);
@@ -6696,7 +6757,7 @@ const protoartApp = createApp({
       if (!s) return;
       this.tool.working = { label: "Saving the cut-out", started: Date.now() };
       try {
-        const rec = await this.runJob("cutout", { ...this.toolArgs(), mode: "save", threshold: o.threshold, softness: o.softness, grow: o.grow,
+        const rec = await this.runJob("cutout", { ...this.toolArgs(), mode: "save", finder: o.finder || "birefnet", threshold: o.threshold, softness: o.softness, grow: o.grow,
           clean: o.clean, fix_edges: o.fix_edges, crop: o.crop,
           background: o.bg === "transparent" ? "transparent" : o.bg === "white" ? "#ffffff" : o.bg === "black" ? "#000000" : o.color });
         if (rec) { this.tool.latest = rec; this.afterPost(rec); this.closeCutout(); this.status = "Cut-out saved to the Library" + (o.bg === "transparent" ? " (a see-through PNG)" : ""); }
@@ -6880,6 +6941,55 @@ const protoartApp = createApp({
       if (!this.train.name) this.train.name = d.split("/").filter(Boolean).pop().replace(/[^\w\- ]+/g, "_");
       await this.trainScan(true);
     },
+    tsetPlan() {  // 🧩 the pictures to make from one character picture (each with its caption)
+      const t = this.tset, trig = (t.trigger || "").trim(), cap = (x) => (trig ? trig + ", " : "") + x;
+      const keep = "Keep the same character: the same face, hair, body and outfit.";
+      const out = [];
+      if (t.angles)
+        for (const [az, el, zoom] of [[0, 0, 5], [45, 0, 5], [90, 0, 5], [180, 0, 5], [270, 0, 5], [315, 0, 5], [0, 30, 5], [0, -30, 5], [0, 0, 8.5], [45, 0, 1.5]])
+          out.push({ prompt: camPrompt(az, el, zoom, "", "single"), caption: cap(camWords(az, el, zoom).label.replace(/ · /g, ", ")) });
+      if (t.expressions)
+        for (const x of EXPR_DEFAULT)
+          out.push({ prompt: `Change only the facial expression: the character now looks ${x}. Head-and-shoulders portrait. ${keep}`, caption: cap(`${x}, head and shoulders portrait`) });
+      if (t.scenes)
+        for (const x of ["standing, full body, against a plain white background", "sitting on a chair", "walking, full body", "outdoors in a park in daylight", "indoors at night in warm lamp light"])
+          out.push({ prompt: `Show the same character ${x}. ${keep}`, caption: cap(x) });
+      return out;
+    },
+    tsetPick(e) {
+      const f = (e.target.files || [])[0];
+      e.target.value = "";
+      if (f) this.tset.src = window.bee.pathForFile(f);
+    },
+    async tsetBuild() {  // makes each picture with FLUX.2 Klein · Edit with words, then puts copies + captions in a new folder
+      const t = this.tset, plan = this.tsetPlan();
+      if (!t.src) return (t.msg = "Choose the character picture first.");
+      if (!plan.length) return (t.msg = "Tick at least one kind of picture.");
+      Object.assign(t, { busy: true, stop: false, done: 0, total: plan.length, msg: "" });
+      const seed = Math.floor(Math.random() * 2 ** 31), made = [{ path: t.src, caption: (t.trigger || "").trim() || "the character" }];
+      try {
+        for (const p of plan) {
+          if (t.stop) break;
+          t.msg = `Making picture ${t.done + 1} of ${t.total}…`;
+          let rec = await this.runJob("edit_words", { edit_model: this.editModelId(), init_image: t.src, prompt: p.prompt, seed });
+          if (Array.isArray(rec)) rec = rec[rec.length - 1] || null;
+          if (!rec || !rec.path) { if (!t.stop && this.error) break; continue; }
+          made.push({ path: rec.path, caption: p.caption });
+          t.done++;
+        }
+        if (made.length < 2) { t.msg = this.error || "No pictures were made."; return; }
+        const name = (t.trigger || "").trim() || "character";
+        const r = await call("train_set_make", { name, items: made });
+        this.train.folder = r.folder;
+        if (!this.train.name) this.train.name = name.replace(/[^\w\- ]+/g, "_");
+        if (!this.train.trigger && t.trigger) this.train.trigger = t.trigger.trim();
+        await this.trainScan(true);
+        t.msg = `✓ ${r.count} pictures with captions are in a new training folder, chosen below. Look through them and leave out any that went wrong before training.`;
+        t.open = false;
+      } catch (e) { t.msg = e.message; }
+      finally { t.busy = false; }
+    },
+    tsetStop() { this.tset.stop = true; this.tset.msg = "Stopping after this picture…"; },
     async trainClearFolder() {  // forget the chosen pictures (the folder and its files aren't touched)
       if (this.train.dirty && !(await this.confirmAsk("Clear the training pictures?", "Your caption edits haven't been saved yet and will be lost. The pictures and the folder stay as they are.", "Clear"))) return;
       Object.assign(this.train, { folder: "", items: [], dirty: false, name: "" });
@@ -7234,9 +7344,9 @@ const protoartApp = createApp({
       if (!r) return null;
       return (this.editModelId() === "flux2_klein9b_mlx_q4" && r.files["9b"]) || r.files["4b"];
     },
-    editRecipeLora(r = this.editRecipe()) {  // that LoRA in your LoRA list, if it's downloaded
-      const f = this.editRecipeFile(r);
-      return f ? (this.loras || []).find((l) => l.name === f.name) || null : null;
+    editRecipeLora(r = this.editRecipe()) {  // that LoRA in your LoRA list, if it's downloaded (any letter case)
+      const f = this.editRecipeFile(r), want = f && f.name.toLowerCase();
+      return want ? (this.loras || []).find((l) => String(l.name || "").toLowerCase() === want) || null : null;
     },
     pickEditRecipe(id) {
       const old = this.editRecipe(), f = this.form;
@@ -7266,6 +7376,8 @@ const protoartApp = createApp({
         this.recipeMsg = this.editRecipeLora(r) ? "✓ Ready" : "Downloaded, but it isn't in the LoRA list yet: press ↻ Refresh in Models.";
       } catch (e) {
         if (e.cancelled) { this.recipeMsg = ""; return; }
+        try { await this.refreshLoras(); } catch { /* the list stays as it was */ }
+        if (this.editRecipeLora(r)) { this.recipeMsg = "✓ Ready"; return; }  // it had finished after all
         const m = String(e.message || e);
         this.recipeMsg = /signed-in accounts|log in|API key/.test(m)
           ? "Civitai wants a signed-in account for this download: save your Civitai API key in Models → Add from Civitai (it shows how), then press Download again."
@@ -8436,9 +8548,10 @@ const protoartApp = createApp({
         // the 8 views share one seed (a new random one each time if the seed is −1), so they stay alike
         const seed = c.turnaround && (f.seed == null || +f.seed < 0) ? Math.floor(Math.random() * 2 ** 31) : f.seed;
         for (const v of list) {
-          this.runJob("edit_words", { edit_model: this.editModelId(), init_image: f.init_image, prompt: camPrompt(v.az, v.el, v.zoom, f.prompt, c.turnaround ? "single" : c.layout), seed,
+          this.runJob("edit_words", { edit_model: this.editModelId(), init_image: f.init_image, prompt: camPrompt(v.az, v.el, v.zoom, f.prompt, c.turnaround ? "single" : c.layout, c.expressions), seed,
                                       camera: { az: Math.round(v.az), el: Math.round(v.el), zoom: v.zoom, layout: c.turnaround ? "single" : (c.layout || "single"),
-                                                view: c.turnaround || (c.layout || "single") === "single" ? camWords(v.az, v.el, v.zoom).label : c.layout === "comic" ? "comic panels" : "character sheet" } });
+                                                view: c.turnaround || (c.layout || "single") === "single" ? camWords(v.az, v.el, v.zoom).label : c.layout === "comic" ? "comic panels"
+                                                  : c.layout === "expressions" ? "expression sheet" : c.layout === "turn_expr" ? "turnaround + expressions" : "character sheet" } });
           await new Promise((r) => setTimeout(r, 60));  // keeps them in order in the queue
         }
         return;
@@ -8585,7 +8698,14 @@ const protoartApp = createApp({
     },
     // ---------------------------------------------------------------- 📷 Camera angle
     camLabel() { const c = this.form.cam; return camWords(c.az, c.el, c.zoom).label; },
-    camPromptText() { const c = this.form.cam; return camPrompt(c.az, c.el, c.zoom, this.form.prompt, c.turnaround ? "single" : c.layout); },
+    camPromptText() { const c = this.form.cam; return camPrompt(c.az, c.el, c.zoom, this.form.prompt, c.turnaround ? "single" : c.layout, c.expressions); },
+    EXPRESSIONS() { return EXPRESSIONS; },
+    toggleExpression(x) {  // 😀 pick which expressions the sheet shows (in the order picked)
+      const c = this.form.cam, l = Array.isArray(c.expressions) ? c.expressions.slice() : EXPR_DEFAULT.slice();
+      const i = l.indexOf(x);
+      if (i >= 0) { if (l.length > 1) l.splice(i, 1); } else if (l.length < 12) l.push(x);
+      c.expressions = l;
+    },
     camSet(k, v) {
       const c = this.form.cam;
       if (k === "az") c.az = ((Math.round(v) % 360) + 360) % 360;
@@ -8934,6 +9054,10 @@ const protoartApp = createApp({
       this.openI2I();
     },
 
+    async useForAngles(r) {  // 📷 straight to Image to image → Camera angle (other angles, turnarounds, expression sheets)
+      await this.useAsStart(r);
+      this.setI2iMode("camera");
+    },
     // -------------------------------------------------------------- image -> prompt
     onSettingsPicked(e) {
       const file = e.target.files?.[0];

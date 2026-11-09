@@ -33,7 +33,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   clips, and 📥 settings from A1111 / ComfyUI / InvokeAI pictures or .json
 - **Image to image:** ✨ Edit with words (FLUX.2 Klein: describe a change; paint to limit it; add reference pictures),
   🧩 Combine (put a character from another picture into a scene by asking; let it decide where or place it yourself; 💡 match the scene's light),
-  📷 camera angle (turn the camera around the subject: drag a 3-D card, or pick from 8 directions × 4 heights × 3 distances; all 8 views as a turnaround),
+  📷 camera angle (turn the camera around the subject: drag a 3-D card, or pick from 8 directions × 4 heights × 3 distances; all 8 views as a turnaround; character, expression and turnaround + expression sheets),
   🧅 Peel layers (lift parts onto their own layers, the gap filled in; save a layered .psd),
   change / inpaint (your inpainting models offered first) / expand (any picture, with FLUX.2 Klein + an outpaint LoRA) / 🩹 remove, selection tools (brush, lasso, polygon lasso, magic wand, object selection, 👤 select subject),
   ControlNet (canny, depth, lineart, scribble, soft edge, pose, tile, and your own SD 1.5 and SDXL ControlNets), image prompt
@@ -41,7 +41,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
   consent required; several likeness photos, pick which faces, or mark a face by hand), and a 🔗 model chain (SD 1.5 → SDXL → FLUX / ERNIE)
 - **Tools** (rack modules): Finegrain enhance & upscale (or just a painted area; 🛡 protect faces from it), 🔤 replace text (find it, clear it, type new text with a font, size and colour), face restoration (CodeFormer or RestoreFormer), 🩹 remove objects
   (paint right in Tools; smart or quick fill), ✒️ vectorize to SVG, image → prompt (Qwen3.5 vision model, Florence-2 or
-  WD tagger), depth maps, ✂ cut out (background removal for people, animals and objects, with live threshold / softness / grow and see-through PNGs, or split into subject and background layers), 🎨 Procreate files (open the finished picture or bring in every layer), 📄 paper cut-out (torn-paper stickers), 🧴 a skin texture brush for waxy skin, 🎚 Adjust (Lightroom / Camera Raw / Color Efex-style: texture, clarity, dehaze, HSL color mixer, color grading, with ◎ control points and 🖌 painted areas, each with its own settings if you like, a Procreate-style Bloom and Blur), 🪡 Puppet warp (Photoshop-style: three steps, a mesh, Rigid / Normal / Distort, density, expansion, joints you can turn, undo; ✂ a separate subject with the background filled in behind it and a feathered edge), a ↺ reset on every module, DiffusionBee file conversion, Original / Result /
+  WD tagger), depth maps, ✂ cut out (background removal for people, animals and objects; BiRefNet or rembg's anime / people / general finders, with live threshold / softness / grow and see-through PNGs, or split into subject and background layers), 🎨 Procreate files (open the finished picture or bring in every layer), 📄 paper cut-out (torn-paper stickers), 🧴 a skin texture brush for waxy skin, 🎚 Adjust (Lightroom / Camera Raw / Color Efex-style: texture, clarity, dehaze, HSL color mixer, color grading, with ◎ control points and 🖌 painted areas, each with its own settings if you like, a Procreate-style Bloom and Blur), 🪡 Puppet warp (Photoshop-style: three steps, a mesh, Rigid / Normal / Distort, density, expansion, joints you can turn, undo; ✂ a separate subject with the background filled in behind it and a feathered edge), a ↺ reset on every module, DiffusionBee file conversion, Original / Result /
   Split / Side-by-side views, and a 🔌 patchbay to run Remove, Faces, Enhance, Depth, Vectorize and 🔎 Detail (with a LoRA)
   in any order with cables (modules can be moved, added twice or taken off; each copy has its own settings; 🛡 paint areas
   it must not change; live preview), 🧩 tiled upscale (MultiDiffusion), 🗜 smaller 8 / 6 / 4-bit model copies, 🧪 model
@@ -49,7 +49,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 - **Right-click menus everywhere:** models (incl. ⟲ Reconnect… for a moved or missing file, and 💾 Keep a copy on this Mac for a model on an external drive, so it loads in seconds), LoRAs, the queue, your folders, pictures and text boxes
 - **Library:** right-click menu; search by prompt, seed, model or LoRA; drag to select many; ⇆ compare side by side with linked zoom; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
   first); batch edit & export; 🗜 compress to the smallest file that still looks the same
-- **Train:** LoRA training (SD 1.5, SDXL incl. Pony / Illustrious, ERNIE Turbo on the ⚡ fast engine; full ERNIE on 32 GB+ Macs) with ★ recommended settings for people, objects, styles and concepts, ↻ continue training a LoRA you made, embedding training (SD 1.5), square crop / keep-whole
+- **Train:** 🧩 build a captioned training set from one character picture (FLUX.2 Klein: angles, expressions, scenes); LoRA training (SD 1.5, SDXL incl. Pony / Illustrious, ERNIE Turbo on the ⚡ fast engine; full ERNIE on 32 GB+ Macs) with ★ recommended settings for people, objects, styles and concepts, ↻ continue training a LoRA you made, embedding training (SD 1.5), square crop / keep-whole
   framing, and merging LoRAs of the same type into one
 - **Models tab:** download models, add your own files or folders (removals locked and confirmed), Civitai downloads of
   LoRAs, checkpoints, embeddings, VAEs and SD 1.5 / SDXL ControlNets, Hugging Face downloads (sign-in keys kept only on your
@@ -176,7 +176,7 @@ first time you use them, or you supply your own files. **Every model has its own
 allow commercial use, for example:
 
 - SD 1.5, Juggernaut Reborn, ControlNet 1.1: CreativeML OpenRAIL-M · SDXL: CreativeML OpenRAIL++-M
-- ERNIE-Image, MOSS-Image, FLUX.1 [schnell], IP-Adapter, Qwen2.5, WD tagger, Depth Anything V2 Small, Qwen3.5 4B, LaMa: Apache-2.0 · Florence-2, BiRefNet (Cut out): MIT · mlx-vlm: MIT
+- ERNIE-Image, MOSS-Image, FLUX.1 [schnell], IP-Adapter, Qwen2.5, WD tagger, Depth Anything V2 Small, Qwen3.5 4B, LaMa: Apache-2.0 · Florence-2, BiRefNet (Cut out): MIT · rembg: MIT (its U²-Net / IS-Net models: Apache-2.0) · mlx-vlm: MIT
 - Xinsir ControlNet Union ProMax: Apache-2.0
 - Optional bigger fast-engine models (only on Macs with enough memory): Z-Image Turbo: Apache-2.0 · FLUX.2 Klein 9B:
   FLUX Non-Commercial · Qwen-Image 2.1 / Turbo: Qwen research licence (non-commercial) · Krea 2 Turbo: Krea 2 Community ·

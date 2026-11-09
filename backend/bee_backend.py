@@ -919,6 +919,31 @@ def handle_quick(cmd, a):
         _train_folders.add(os.path.realpath(str(a.get("folder"))))
         used = sum(1 for it in items if it["fit"] != trainer.SKIP)
         return {"items": items, "suggested_steps": trainer.suggest_steps(used)}
+    if cmd == "train_set_make":  # 🧩 Train → Build a training set: copies of the made pictures + a caption file each
+        import re
+        import shutil
+        name = re.sub(r"[^\w\- ]+", "_", str(a.get("name") or "")).strip()[:60] or "training set"
+        root = paths.HOME / "training sets"
+        dest, k = root / name, 2
+        while dest.exists():
+            dest, k = root / f"{name} {k}", k + 1
+        dest.mkdir(parents=True)
+        n = 0
+        for it in (a.get("items") or [])[:200]:
+            if not isinstance(it, dict):
+                continue
+            src = Path(str(it.get("path") or ""))
+            if not src.is_file() or src.suffix.lower() not in (".png", ".jpg", ".jpeg", ".webp"):
+                continue
+            n += 1
+            out = dest / f"{n:03d}{src.suffix.lower()}"
+            shutil.copy2(src, out)  # a copy: the picture in the Library stays where it is
+            out.with_suffix(".txt").write_text(" ".join(str(it.get("caption") or "").split()), encoding="utf-8")
+        if not n:
+            shutil.rmtree(dest, ignore_errors=True)
+            raise ValueError("None of the pictures could be copied into the training set.")
+        _train_folders.add(os.path.realpath(str(dest)))
+        return {"folder": str(dest), "count": n}
     if cmd == "train_captions_save":
         import trainer
         # only caption files next to images in a training folder that was opened in the Train tab

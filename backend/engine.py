@@ -3676,26 +3676,31 @@ class Engine:
 
     _cut_cache = {}  # picture path + its time -> the matte (the last two pictures), so refining doesn't rerun the model
 
-    def _cut_matte(self, src, image, emit):
+    def _cut_matte(self, src, image, emit, finder="birefnet"):
         import net
         import postprocess.cutout as cut
-        key = (src["path"], os.path.getmtime(src["path"]) if os.path.exists(src["path"]) else 0, image.size)
+        finder = finder if finder in cut.FINDERS else "birefnet"
+        key = (src["path"], os.path.getmtime(src["path"]) if os.path.exists(src["path"]) else 0, image.size, finder)
         if key in self._cut_cache:
             return self._cut_cache[key]
-        if not cut.downloaded():
+        f = cut.FINDERS[finder]
+        if not cut.downloaded(finder):
             if net.strict:
-                raise UserError(f"Cut out needs a one-time download of its model (BiRefNet, ~{cut.MB} MB), and Strict "
-                                "offline mode is on. Turn it off in Settings → Privacy.")
-            emit({"type": "status", "msg": f"Downloading the Cut out model (BiRefNet, ~{cut.MB} MB, first time only)…"})
+                raise UserError(f"Cut out needs a one-time download of its model ({f['label']}, ~{f['mb']} MB), and "
+                                "Strict offline mode is on. Turn it off in Settings → Privacy.")
+            emit({"type": "status", "msg": f"Downloading the Cut out model ({f['label']}, ~{f['mb']} MB, first time only)…"})
             net.set_online(True)
             try:
-                sess = cut.session(download=True)
+                sess = cut.session(download=True, finder=finder)
+            except Exception as e:
+                raise UserError(f"Couldn't download the {f['label']} model ({e}). Check the internet connection, "
+                                "or use BiRefNet.")
             finally:
                 net.set_online(False)
         else:
-            sess = cut.session(download=False)
+            sess = cut.session(download=False, finder=finder)
         emit({"type": "status", "msg": "Finding the subject…"})
-        m = cut.matte(image, sess)
+        m = cut.matte(image, sess, finder)
         if len(self._cut_cache) >= 2:
             self._cut_cache.pop(next(iter(self._cut_cache)))
         self._cut_cache[key] = m
@@ -3716,7 +3721,7 @@ class Engine:
         mode = args.get("mode") or "save"
         started = time.time()
         emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
-        m = self._cut_matte(src, image, emit)
+        m = self._cut_matte(src, image, emit, str(args.get("finder") or "birefnet"))
         emit({"type": "progress", "image": 1, "images": 1, "step": 1, "steps": 1})
         if mode == "mask":
             png = cut.selection_png(m, args.get("width") or image.width, args.get("height") or image.height)

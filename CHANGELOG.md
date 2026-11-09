@@ -1,5 +1,18 @@
 # Changelog
 
+## Next
+
+- Pending calls are rejected when the engine sends `ready` again (they were orphaned on a restart, leaving recipe
+  downloads on "Downloading…"); `downloadEditRecipe` re-checks the LoRA list after an error, names compared
+  case-insensitively
+- ✂ Cut out finders: `postprocess/cutout.FINDERS` adds rembg's ONNX models (isnet-anime, isnet-general-use,
+  u2net_human_seg, u2net; MIT tool, Apache-2.0 models) downloaded from rembg's GitHub release on first use (curl first),
+  `finder` argument on `cutout`; cache key includes the finder
+- 😀 📷 Camera angle layouts `expressions` and `turn_expr` (`camPrompt` gains an expressions list; `EXPRESSIONS`, up to 12)
+- 🧩 Train → Build a training set from one picture: Klein `edit_words` jobs for 10 angles, 6 expressions and 5 scenes,
+  then `train_set_make` copies them with caption files into `<data>/training sets/<name>` and selects it
+- 📷 Angles button on Library tiles and in the viewer (`useForAngles`)
+
 ## 1.6.7
 
 - Settings → Image folder didn't take effect: the `images_dir_set` command's `if` line was missing in `handle_quick`
