@@ -585,7 +585,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.7";  // keep in step with app/package.json
+const APP_VERSION = "1.6.8";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -878,7 +878,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Coming in the next version: expression sheets, a training-set builder, more cut-out finders, 📷 Angles button", items: [
+            { h: "1.6.8: expression sheets, a training-set builder, more cut-out finders, 📷 Angles button", items: [
               "<b>😀 Expression sheets</b> (Image to image → 📷 Camera angle → Picture layout): one picture becomes a grid of the same character with different expressions (pick up to 12: happy, laughing, angry, surprised…). <b>🧍😀 Turnaround + expressions</b> puts a front / side / back turnaround on top and up to 6 expression close-ups below, like a character model sheet.",
               "<b>🧩 Build a training set from one picture</b> (Train → LoRA, under the folder button): pick one picture of your character and a trigger word; FLUX.2 Klein makes up to 21 more pictures (10 camera angles, 6 expressions, 5 poses and scenes), and they go into a new training folder with a caption each, ready to train a LoRA. About a minute a picture.",
               "<b>📷 Angles</b> on every Library picture (and <b>📷 Other angles / sheets</b> in the picture viewer) opens it straight in Image to image → 📷 Camera angle: other angles, the 8-view turnaround, character and expression sheets.",
@@ -1701,7 +1701,7 @@ const protoartApp = createApp({
         { id: "trouble", go: "settings", icon: "🛟", title: "Troubleshooting", summary: "Common problems and how to fix them",
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
-            { h: "New in the next version: if something doesn't work", items: [
+            { h: "New in 1.6.8: if something doesn't work", items: [
               "<b>A recipe (Copy pose…) still says “Downloading…”</b> after its file finished, or after restarting the app: fixed. It happened when the engine restarted during the download. Pick the recipe again; it now notices the file is there.",
               "<b>✂ Cut out with Anime, People, General or Classic says it couldn't download</b>: those finders come from GitHub (~170 MB, once). A VPN or firewall can block it; try again without, or use BiRefNet (the default).",
               "<b>Build a training set stopped part-way</b>: what was made is still in the Library; press Build the set again, or add those pictures to a folder yourself and choose it with Choose a folder of images." ] },

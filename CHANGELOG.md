@@ -1,6 +1,6 @@
 # Changelog
 
-## Next
+## 1.6.8
 
 - Pending calls are rejected when the engine sends `ready` again (they were orphaned on a restart, leaving recipe
   downloads on "Downloading…"); `downloadEditRecipe` re-checks the LoRA list after an error, names compared
