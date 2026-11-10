@@ -878,6 +878,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Coming in the next version", items: [
+              "<b>Rows of buttons no longer get cut off</b> in a narrow window (Train → What do you want to make?, Merge LoRAs → Model type and others): they go onto a second row instead." ] },
             { h: "1.6.8: expression sheets, a training-set builder, more cut-out finders, 📷 Angles button", items: [
               "<b>😀 Expression sheets</b> (Image to image → 📷 Camera angle → Picture layout): one picture becomes a grid of the same character with different expressions (pick up to 12: happy, laughing, angry, surprised…). <b>🧍😀 Turnaround + expressions</b> puts a front / side / back turnaround on top and up to 6 expression close-ups below, like a character model sheet.",
               "<b>🧩 Build a training set from one picture</b> (Train → LoRA, under the folder button): pick one picture of your character and a trigger word; FLUX.2 Klein makes up to 21 more pictures (10 camera angles, 6 expressions, 5 poses and scenes), and they go into a new training folder with a caption each, ready to train a LoRA. About a minute a picture.",

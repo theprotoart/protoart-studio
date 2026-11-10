@@ -1,5 +1,10 @@
 # Changelog
 
+## Next
+
+- Segmented buttons (`.seg`) wrap onto a second row instead of being cut off at a card's edge in narrow windows
+  (Train → What do you want to make?, Merge LoRAs → Model type)
+
 ## 1.6.8
 
 - Pending calls are rejected when the engine sends `ready` again (they were orphaned on a restart, leaving recipe
