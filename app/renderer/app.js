@@ -657,7 +657,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.9";  // keep in step with app/package.json
+const APP_VERSION = "1.6.10";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -950,7 +950,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Coming in the next version: 🎬 character development board, 🎞 film looks, example prompts", items: [
+            { h: "1.6.10: 🎬 character development board, 🎞 film looks, example prompts", items: [
               "<b>🎞 Film looks</b> (Create → <b>🎞 Film</b>, next to Ideas): 38 looks of real films and cameras: Portra, Ektar, Kodachrome, CineStill 800T, Super 8, Tri-X, Polaroid, disposable camera, Holga, fisheye, tintype, light leaks, double exposure and more. One click wraps your prompt in the look and puts its opposite in the negative prompt; the same click takes it off again.",
               "<b>✨ 16 example prompts</b> (Create → 📒 Saved → <i>start from an example prompt…</i>), in groups: portraits, characters (Emerald Empress, Cybernetic Guardian…), creatures (frost dragon, celestial panther, phoenix), vehicles (hypercar, Art Deco steam train, spaceship), scenes (a rainy Paris café, a reunion at the station, or a reunion of you two from two photos) and art styles. ↩ undo puts your own prompt back. Several of them also teach ✨ Enhance (with the picture reader) to write richer, more varied descriptions: it sees three different examples each time.",
               "<b>🎬 Development board</b>, a new Picture layout in Image to image → 📷 Camera angle: your character on one film-studio presentation board, with a cinematic hero portrait, a 5-view turnaround, 6 head studies, colour swatches, material close-ups and a silhouette study. Describe the character in the prompt; see How to → 🎬 Character development board." ] },

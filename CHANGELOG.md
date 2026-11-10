@@ -1,6 +1,6 @@
 # Changelog
 
-## Next
+## 1.6.10
 
 - 🎞 Create → Film: 38 film / camera / damaged-film looks (`FILM_LOOKS`, our own wording) applied as prefix + suffix with an
   opposite-look negative, reversible
