@@ -1,6 +1,6 @@
 # Changelog
 
-## Next
+## 1.6.9
 
 - Segmented buttons (`.seg`) wrap onto a second row instead of being cut off at a card's edge in narrow windows
   (Train → What do you want to make?, Merge LoRAs → Model type)
