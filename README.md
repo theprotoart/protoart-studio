@@ -49,6 +49,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 - **Right-click menus everywhere:** models (incl. ⟲ Reconnect… for a moved or missing file, and 💾 Keep a copy on this Mac for a model on an external drive, so it loads in seconds), LoRAs, the queue, your folders, pictures and text boxes
 - **Library:** right-click menu; search by prompt, seed, model or LoRA; drag to select many; ⇆ compare side by side with linked zoom; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
   first); batch edit & export; 🗜 compress to the smallest file that still looks the same
+- **Prompt tools:** ✨ enhance, 🎞 film looks (38 films and cameras), example prompts, ideas, wildcards, tag ⇄ sentence conversion
 - **Train:** 🧩 build a captioned training set from one character picture (FLUX.2 Klein: angles, expressions, scenes); LoRA training (SD 1.5, SDXL incl. Pony / Illustrious, ERNIE Turbo on the ⚡ fast engine; full ERNIE on 32 GB+ Macs) with ★ recommended settings for people, objects, styles and concepts, ↻ continue training a LoRA you made, embedding training (SD 1.5), square crop / keep-whole
   framing, and merging LoRAs of the same type into one
 - **Models tab:** download models, add your own files or folders (removals locked and confirmed), Civitai downloads of

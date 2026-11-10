@@ -2589,3 +2589,5 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .tset-card { margin-top: 6px; padding: 10px; }
 /* segmented buttons never run past their card: they go onto a second row when the window is narrow */
 .seg { flex-wrap: wrap; max-width: 100%; }
+.film-group { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 4px; }
+.film-group > .hint { min-width: 92px; }

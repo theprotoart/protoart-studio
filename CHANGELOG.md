@@ -2,6 +2,9 @@
 
 ## Next
 
+- 🎞 Create → Film: 38 film / camera / damaged-film looks (`FILM_LOOKS`, our own wording) applied as prefix + suffix with an
+  opposite-look negative, reversible; the pattern from robertcreative.com's MOSS-Image film-look tests
+- The two-photo reunion example switches to Image to image → Edit with words (Create and Image to image keep separate prompts)
 - 📒 Saved → example prompts (`EXAMPLE_PROMPTS`, 16 sentence prompts in `EXAMPLE_GROUPS`, incl. a two-photo reunion for Edit
   with words); eight join ✨ Enhance's extra examples for the bigger writer, which now gets 3 of them at random per press
 - 🎬 📷 Camera angle layout `devboard`: a character development board (hero portrait, 5-view turnaround, 6 head studies,

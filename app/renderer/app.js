@@ -399,7 +399,7 @@ const EXAMPLE_PROMPTS = [
   { group: "Portraits & people", name: "🤖 Anime cyberpunk portrait (Anima's example)", text: "Anime monochrome cyberpunk front portrait, male figure, sleek skin with delicate mechanical lines, piercing glowing eyes, partial exposed metallic mecha components and light cables, sharp domineering cool style, textured anime brushwork, faint circuit background, high contrast chiaroscuro lighting, immersive cinematic shadows, ultra fine details, 8K high-def render, futuristic dystopian mood" },
   { group: "Art styles", name: "🍸 Photo + ink doodles", text: "A high-resolution, surreal digital illustration showing a human hand holding a martini glass. The image is overlaid with whimsical, expressive ink-style doodles, including a cartoon figure inside the glass, a drawn citrus wedge on the rim, and various abstract sketches and faces surrounding the glass against a clean, white background. The style seamlessly blends a realistic, lit photograph with loose, hand-drawn marker artistry, creating a playful and artistic juxtaposition." },
   { group: "Scenes", name: "💞 Reunion at the station", text: "Two people who have missed each other deeply reunite on a train station platform at golden hour, in the instant they finally reach each other. One runs the last steps and the other catches and lifts them slightly off the ground in a tight, instinctive embrace; a rolling suitcase has tipped over, forgotten behind them, and a backpack slips from a shoulder. Eyes closed with relief, faces pressed together, both smiling through tears. A train has just pulled in and blurred travellers stream past, while the couple stays sharp and still at the centre of the frame. Warm low sunlight pours through the station's glass roof, rim-lighting their hair and the drifting steam. Medium-wide shot at eye level, shallow depth of field, realistic anatomy and natural expressions, rich film-like colour grading, like a still from an emotional feature film." },
-  { group: "Scenes", name: "💞 Reunion of you two (✨ Edit with words, two photos)", text: "The person in image 1 and the person in image 2 reunite on a train station platform at golden hour after a long time apart, keeping both faces exactly as they are. They hold each other in a tight, joyful embrace, one lifted slightly off the ground, a rolling suitcase tipped over behind them, both smiling through tears. Blurred travellers stream past while the two of them stay sharp at the centre. Warm sunlight through the glass roof rim-lights their hair. Medium-wide shot, shallow depth of field, natural expressions, like a still from a feature film." },
+  { group: "Scenes", i2i: true, name: "💞 Reunion of you two (✨ Edit with words, two photos)", text: "The person in image 1 and the person in image 2 reunite on a train station platform at golden hour after a long time apart, keeping both faces exactly as they are. They hold each other in a tight, joyful embrace, one lifted slightly off the ground, a rolling suitcase tipped over behind them, both smiling through tears. Blurred travellers stream past while the two of them stay sharp at the centre. Warm sunlight through the glass roof rim-lights their hair. Medium-wide shot, shallow depth of field, natural expressions, like a still from a feature film." },
   { group: "Characters", name: "👑 Emerald Empress", text: "A regal African woman with deep mahogany skin, striking amber-brown eyes, and long, intricately braided black hair adorned with delicate gold ornaments. She wears an extravagant emerald-green velvet gown with a sculpted bodice, elaborate antique gold embroidery, and a flowing train. A magnificent gold crown rests naturally upon her head, featuring emerald gemstones and delicate filigree. Her expression is commanding yet serene, conveying wisdom, authority, and quiet power. An ancient palace chamber with towering marble columns, dark green walls, intricate gold detailing, and distant candlelit archways. Dramatic golden illumination from the upper left, subtle rim lighting around her silhouette, and deep cinematic shadows. Hyperrealistic luxury fashion editorial, classical royal portraiture, extraordinary textile detail, realistic skin texture, 85mm portrait lens, sophisticated color grading." },
   { group: "Characters", name: "🦾 Last Cybernetic Guardian", text: "A striking futuristic female warrior in her early thirties, with porcelain skin, short silver-white hair, piercing ice-blue eyes, and a faint mechanical scar extending from her left temple toward her cheekbone. Her body is protected by an intricately engineered black titanium exosuit with brushed silver components, subtle crimson illumination, articulated shoulder armor, and finely detailed mechanical joints. One eye contains a sophisticated cybernetic enhancement. A rain-soaked futuristic metropolis filled with towering architecture, distant holographic advertisements, and atmospheric neon reflections. Contrasting electric blue and crimson lighting, wet reflective surfaces, cinematic atmospheric haze. Ultra-photorealistic science-fiction character portrait, Hollywood production design, intricate mechanical detailing, realistic human anatomy, dramatic cinematic composition." },
   { group: "Characters", name: "📜 Keeper of Forgotten Knowledge", text: "An elderly male scholar with an exceptionally detailed weathered face, long flowing silver hair, a magnificent white beard, and thoughtful grey eyes. He wears layered midnight-blue robes embroidered with delicate celestial symbols, antique gold threadwork, and subtle astronomical patterns. His hands hold an ancient leather-bound book with glowing handwritten inscriptions. His expression is contemplative, as though guarding knowledge older than civilization itself. An enormous forgotten library filled with towering wooden bookshelves, floating dust particles, ancient manuscripts, and mysterious architectural details. Warm candlelight illuminating his face, subtle amber reflections from the manuscript, and deep shadows throughout the library. Hyperrealistic cinematic fantasy portraiture, classical oil-painting influences, extraordinary facial detail, realistic fabric textures, atmospheric depth." },
@@ -411,6 +411,50 @@ const EXAMPLE_PROMPTS = [
   { group: "Vehicles", name: "🚂 Imperial Steam Express", text: "A magnificent early twentieth-century luxury steam locomotive redesigned with extravagant Art Deco styling. Its enormous black polished-steel boiler is decorated with elaborate brass trim, polished copper components, and intricate geometric detailing. Large driving wheels, exposed mechanical linkages, carefully engineered pipes, and an imposing brass smokestack create an authentic industrial aesthetic. Elegant gold lettering runs along the side of the locomotive. A historic European railway station with vaulted glass ceilings, ornate ironwork, polished stone platforms, and distant passenger carriages. Warm late-afternoon sunlight filtering through the glass roof, catching the brass surfaces and illuminating clouds of escaping steam. Hyperrealistic historical automotive and industrial photography, authentic mechanical engineering, cinematic atmosphere, exceptional material detail, dramatic low-angle composition." },
   { group: "Vehicles", name: "🚀 Interstellar Explorer", text: "An immense luxury interstellar exploration spacecraft with a sophisticated aerodynamic-inspired silhouette, elongated central fuselage, layered metallic hull panels, and enormous panoramic observation windows. The exterior features satin titanium silver, warm copper accents, and subtle illuminated blue navigation strips. Multiple articulated engine assemblies extend from the rear, featuring intricate mechanical detailing, thermal shielding, and realistic propulsion components. The vessel looks technologically advanced yet entirely functional, with no unnecessary decorative elements. The spacecraft hovers above an extraordinary alien desert landscape featuring enormous rock formations, distant mountain ranges, and two massive moons suspended in the sky. Dramatic sunset illumination reflecting across the metallic hull, subtle engine glow, and atmospheric dust suspended above the surface. Ultra-photorealistic cinematic science-fiction concept photography, physically believable spacecraft engineering, intricate surface detailing, monumental scale, professional blockbuster production design." },
 ];
+// 🎞 Film looks (Create → 🎞 Film): our own short descriptions of what each film or camera looks like. The look is named at
+// the start and again at the end, the visible results are spelled out, and the opposite look goes in the negative prompt
+// (the pattern that worked best in robertcreative.com's tests of film-look prompts)
+const FILM_LOOKS = [
+  { group: "Colour film", id: "portra", name: "Portra 400", look: "Kodak Portra 400", traits: "warm natural colour, soft flattering skin tones, gentle contrast, muted greens and fine film grain", neg: "cold digital look, harsh contrast, oversaturated colours" },
+  { group: "Colour film", id: "ektar", name: "Ektar 100", look: "Kodak Ektar 100", traits: "vivid saturated colour, punchy reds and blues, crisp detail and very fine grain", neg: "muted, faded, washed-out colours" },
+  { group: "Colour film", id: "gold", name: "Gold 200", look: "Kodak Gold 200", traits: "a warm golden cast, rich reds and yellows, nostalgic everyday-snapshot feel and visible grain", neg: "cool blue tint, sterile digital look" },
+  { group: "Colour film", id: "superia", name: "Superia 400", look: "Fujifilm Superia 400", traits: "cooler colours with slightly green shadows, natural skin tones and snapshot grain", neg: "warm orange cast" },
+  { group: "Colour film", id: "pro400h", name: "Pro 400H", look: "Fujifilm Pro 400H", traits: "airy pastel colours with mint and soft cyan tints, low contrast, bright and light", neg: "dark, contrasty, heavily saturated colours" },
+  { group: "Colour film", id: "kodachrome", name: "Kodachrome", look: "Kodachrome 64 slide film", traits: "deep saturated reds, dense blues, rich contrast, classic mid-century magazine colour", neg: "pastel, faded, low contrast" },
+  { group: "Colour film", id: "velvia", name: "Velvia 50", look: "Fujifilm Velvia 50 slide film", traits: "intensely saturated colours, deep dark shadows, high contrast and almost no grain", neg: "flat, muted, grainy" },
+  { group: "Colour film", id: "xpro", name: "Cross-processed", look: "cross-processed slide film", traits: "yellow-green highlights, cyan shadows, boosted contrast and strange colour shifts", neg: "natural, accurate colour" },
+  { group: "Cinema", id: "cinestill800t", name: "CineStill 800T", look: "CineStill 800T night film", traits: "tungsten night colours, teal shadows, a red glowing halation around every light, visible grain", neg: "daylight colours, no glow around lights" },
+  { group: "Cinema", id: "cinestill50d", name: "CineStill 50D", look: "CineStill 50D daylight film", traits: "clean cool daylight colour, fine grain, crisp and clear, no halation", neg: "warm cast, heavy grain" },
+  { group: "Cinema", id: "vision3", name: "Vision3 500T", look: "Kodak Vision3 500T motion picture film", traits: "a cinematic teal-and-orange grade, soft highlight roll-off and gentle grain, like a frame from a movie", neg: "flat snapshot, oversaturated colours" },
+  { group: "Cinema", id: "super8", name: "Super 8", look: "Super 8 home movie frame", traits: "heavy grain, soft detail, warm faded colours and dark rounded corners", neg: "sharp, clean, modern digital" },
+  { group: "Black & white", id: "trix", name: "Tri-X 400", look: "Kodak Tri-X 400 black-and-white film", traits: "monochrome, gritty grain, deep blacks and bright highlights", neg: "colour, colourful, smooth digital", mono: true },
+  { group: "Black & white", id: "hp5", name: "HP5 @3200", look: "Ilford HP5 pushed to 3200", traits: "monochrome, very heavy grain, crushed black shadows and hard contrast", neg: "colour, clean, fine grain", mono: true },
+  { group: "Black & white", id: "tmax", name: "T-Max 100", look: "Kodak T-Max 100 black-and-white film", traits: "monochrome, smooth fine grain, a full range of soft greys and crisp detail", neg: "colour, heavy grain", mono: true },
+  { group: "Black & white", id: "sepia", name: "Sepia", look: "sepia-toned photograph", traits: "warm brown monochrome tones on aged paper", neg: "colour, vivid, modern", mono: true },
+  { group: "Instant", id: "sx70", name: "Polaroid SX-70", look: "Polaroid SX-70 instant photo", traits: "a thick white border, soft faded colours, dreamy low contrast and a slight blur", neg: "sharp, borderless, vivid digital" },
+  { group: "Instant", id: "expiredpolaroid", name: "Expired Polaroid", look: "expired Polaroid", traits: "a white border, blotchy chemical stains at the edges and bleeding, shifted colours", neg: "clean, perfect, borderless" },
+  { group: "Instant", id: "instax", name: "Instax Mini", look: "Fujifilm Instax Mini photo", traits: "a white border, bright washed-out colours and a flash-lit snapshot feel", neg: "dark, borderless" },
+  { group: "Cameras", id: "disposable", name: "Disposable", look: "disposable camera snapshot", traits: "direct on-camera flash blowing out the foreground, a yellow-green cast, dark corners and grain", neg: "studio lighting, professional photo" },
+  { group: "Cameras", id: "pointshoot", name: "Point & shoot flash", look: "Contax T2 point-and-shoot with direct flash", traits: "direct flash, punchy colour, a dark background falloff, a candid party snapshot", neg: "soft studio light" },
+  { group: "Cameras", id: "holga", name: "Holga", look: "Holga toy camera", traits: "a heavy vignette, black frame bars at the sides, soft focus and a cyan-yellow colour shift", neg: "sharp, evenly exposed" },
+  { group: "Cameras", id: "lomo", name: "Lomo LC-A", look: "Lomo LC-A photo", traits: "saturated colours, strong dark corners and punchy contrast", neg: "flat, even, muted" },
+  { group: "Cameras", id: "pinhole", name: "Pinhole", look: "pinhole camera photo", traits: "soft everywhere, murky dim tones, a dark vignette and a long-exposure feel", neg: "sharp, bright" },
+  { group: "Cameras", id: "fisheye", name: "Fisheye", look: "fisheye lens photo", traits: "a round circular frame on black and strong barrel distortion", neg: "straight lines, normal lens" },
+  { group: "Cameras", id: "sprocket", name: "Sprocket holes", look: "35 mm film across the sprocket holes", traits: "the picture runs over the sprocket holes, with film edge markings and frame numbers visible", neg: "clean borderless photo" },
+  { group: "Cameras", id: "instamatic", name: "Instamatic 110", look: "1970s Instamatic 110 print", traits: "a small contrasty print with saturated 1970s colours and slight blur", neg: "modern, sharp" },
+  { group: "Cameras", id: "digicam", name: "2000s digicam", look: "2000s digital point-and-shoot", traits: "harsh flash, a cool white balance, slight noise and an orange date stamp in the corner", neg: "film grain, cinematic" },
+  { group: "Antique", id: "tintype", name: "Tintype", look: "tintype wet-plate photograph", traits: "monochrome silver-grey tones, uneven plate edges, swirls and fogging, an 1860s look", neg: "colour, modern, clean", mono: true },
+  { group: "Antique", id: "daguerreotype", name: "Daguerreotype", look: "daguerreotype", traits: "a mirror-like silver plate, tarnish around the edges and soft monochrome detail", neg: "colour, modern, clean", mono: true },
+  { group: "Looks", id: "faded70s", name: "Faded 70s", look: "faded 1970s print", traits: "warm faded colours, lifted blacks, yellowed whites and soft contrast", neg: "crisp, modern, saturated" },
+  { group: "Looks", id: "bleach", name: "Bleach bypass", look: "bleach bypass film", traits: "desaturated colours, harsh high contrast and a silvery metallic look", neg: "saturated, soft contrast" },
+  { group: "Looks", id: "pastel", name: "Pastel dream", look: "pastel dream film", traits: "soft pastel colours, hazy glowing highlights and low contrast", neg: "dark, harsh, saturated" },
+  { group: "Looks", id: "moody", name: "Moody dark", look: "moody dark film", traits: "low-key light, deep shadows, muted colours and a heavy atmosphere", neg: "bright, cheerful, high-key" },
+  { group: "Damaged film", id: "leaks", name: "Light leaks", look: "film with light leaks", traits: "orange and red light leaks bleeding in from the edge of the frame", neg: "clean, perfect exposure" },
+  { group: "Damaged film", id: "double", name: "Double exposure", look: "accidental double exposure", traits: "two exposures layered on top of each other, ghostly overlapping images", neg: "single clean exposure" },
+  { group: "Damaged film", id: "scratched", name: "Scratched", look: "scratched film negative", traits: "dust, hairs and fine scratches across the picture", neg: "clean, spotless" },
+  { group: "Damaged film", id: "expired", name: "Expired film", look: "expired film", traits: "shifted colours, fogged shadows, uneven density and heavy grain", neg: "clean, accurate colour" },
+];
+const FILM_GROUPS = [...new Set(FILM_LOOKS.map((x) => x.group))];
 const EXAMPLE_GROUPS = ["Portraits & people", "Characters", "Creatures", "Vehicles", "Scenes", "Art styles"];
 const TILED_PRESETS = [
   { id: "gentle", label: "Gentle", tip: "Sharper and bigger, almost no change: photos and faces", set: { scale: 2, strength: 0.2, steps: 24 } },
@@ -729,7 +773,7 @@ const protoartApp = createApp({
       objFinding: false,   // object selection is working out the outline
       soundsOn: window.ProtoSound ? window.ProtoSound.enabled : true,
       TAG_DICT: window.TAG_DICT || {}, ideas: { cat: Object.keys(window.TAG_DICT || {})[0] || "", q: "" },
-      LICENCES, TILED_PRESETS, EXAMPLE_PROMPTS, EXAMPLE_GROUPS, APP_VERSION, CAM_VIEWS, CAM_ELEV, CAM_DIST,
+      LICENCES, TILED_PRESETS, EXAMPLE_PROMPTS, EXAMPLE_GROUPS, FILM_LOOKS, FILM_GROUPS, APP_VERSION, CAM_VIEWS, CAM_ELEV, CAM_DIST,
       loraSort: loadJSON("protoart.loraSort", "az"),   // LoRA list order
       modelKind: loadJSON("protoart.modelKind", ""),  // Create's model list filter ('' = all kinds)
       loraKind: "",                                      // LoRA list filter ('' = all)   // the brush-size ring that follows the pointer while painting
@@ -907,7 +951,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Coming in the next version: 🎬 character development board, example prompts", items: [
+            { h: "Coming in the next version: 🎬 character development board, 🎞 film looks, example prompts", items: [
+              "<b>🎞 Film looks</b> (Create → <b>🎞 Film</b>, next to Ideas): 38 looks of real films and cameras: Portra, Ektar, Kodachrome, CineStill 800T, Super 8, Tri-X, Polaroid, disposable camera, Holga, fisheye, tintype, light leaks, double exposure and more. One click wraps your prompt in the look and puts its opposite in the negative prompt; the same click takes it off again. Built on the prompt pattern that worked best in <a href=\"https://www.robertcreative.com/blog/moss-image-film-camera-prompts\">Robert Creative's film-look tests</a>, with our own descriptions.",
               "<b>✨ 16 example prompts</b> (Create → 📒 Saved → <i>start from an example prompt…</i>), in groups: portraits, characters (Emerald Empress, Cybernetic Guardian…), creatures (frost dragon, celestial panther, phoenix), vehicles (hypercar, Art Deco steam train, spaceship), scenes (a rainy Paris café, a reunion at the station, or a reunion of you two from two photos) and art styles. ↩ undo puts your own prompt back. Several of them also teach ✨ Enhance (with the picture reader) to write richer, more varied descriptions: it sees three different examples each time.",
               "<b>🎬 Development board</b>, a new Picture layout in Image to image → 📷 Camera angle: your character on one film-studio presentation board, with a cinematic hero portrait, a 5-view turnaround, 6 head studies, colour swatches, material close-ups and a silhouette study. Describe the character in the prompt; see How to → 🎬 Character development board." ] },
             { h: "1.6.9: no more cut-off buttons", items: [
@@ -1432,10 +1477,14 @@ const protoartApp = createApp({
               "<b>✂ Cut it out of its picture first</b> (on): only the character is used, not its old background. It uses ✂ Cut out's model (~224 MB once) and takes about 15–30 s per picture on an 8 GB Mac. Turn it off for a picture that already has a plain or see-through background.",
               "<b>💡 Match the scene's light</b> (on): the character's brightness, contrast and colour are moved towards the scene's before it goes in, so a sunny photo of a person doesn't glow in a night forest. <b>How much</b>: higher takes on more of the scene's light and colour. The character keeps its own shading; Klein adds the shadows.",
               "Tips: a clear, full-body picture of the character works best; describe the size (“small, in the distance”) when it should be far away; try another seed if the pose or place isn't right. The result goes to the Library as <b>Combined</b>, linked to the scene." ] },
+            { h: "🎞 Film looks: make it look shot on real film", items: [
+              "Create → <b>🎞 Film</b> (in the row of prompt tools). Write what the picture shows first, then click a look: colour films (Portra 400, Ektar 100, Gold 200, Kodachrome, Velvia…), cinema (CineStill 800T for neon nights with glowing lights, Vision3 500T, Super 8), black and white (Tri-X, HP5 pushed, T-Max, sepia), instant (Polaroid SX-70, expired Polaroid, Instax), cameras (disposable, point-and-shoot flash, Holga, Lomo, pinhole, fisheye, sprocket holes, 2000s digicam), antique plates, looks and damaged film (light leaks, double exposure, scratches, expired film).",
+              "The look is named at the start and end of the prompt with what it looks like spelled out (colours, grain, borders, glow), and its opposite goes in the negative prompt. Another click swaps the look; the same one again, or ✕ no film look, takes it off. Hover a look to see what it does.",
+              "For black-and-white looks, take colour words out of your prompt (a “red dress” fights the look). The negative prompt only counts when Guidance is above 1, so with Guidance 1 models (Klein distilled, Z-Image Turbo) the look comes from the words alone. Describing the pose in detail keeps the picture steady when you try different looks with the same seed." ] },
             { h: "✨ Example prompts to start from", items: [
               "Create → <b>📒 Saved</b> → <b>✨ start from an example prompt…</b>: ready-made prompts written in sentences. Pick one, then change the subject, place or colours to make it yours; <b>↩ undo</b> puts back what you had.",
               "Sixteen to choose from, in groups: portraits and people, characters (an empress, a cyborg guardian, a scholar, an airship adventurer), creatures (dragon, panther, phoenix), vehicles (hypercar, Art Deco locomotive, spaceship), scenes and art styles. Each says who or what, where, the light and the style: a good pattern to copy for your own prompts.",
-              "<b>💞 Reunion of you two</b> is for two photos: pick it here, then go to Image to image → ✨ Edit with words, put one person's photo as the picture and the other as the extra picture (Image 2). The prompt is shared, so it's already there.",
+              "<b>💞 Reunion of you two</b> is for two photos: picking it takes you to Image to image → ✨ Edit with words with the prompt filled in. Put one person's photo as the picture and the other as the extra picture (Image 2).",
               "They read best with models that understand sentences: FLUX, FLUX.2 Klein, Z-Image, Qwen-Image, ERNIE and Anima. For SD 1.5 and SDXL, use <b>⇄ Convert</b> to turn one into tags." ] },
             { h: "🎬 Character development board", items: [
               "Image to image → <b>📷 Camera angle</b> (or <b>📷 Angles</b> on a Library picture) → Picture layout → <b>🎬 Development board</b>: one big picture laid out like a film studio's character presentation: a cinematic hero portrait, a 5-view turnaround (front, ¾ front, side, back, ¾ back), 6 head studies, colour swatches, close-ups of the clothes and accessories and a silhouette.",
@@ -2021,6 +2070,7 @@ const protoartApp = createApp({
       libMsg: "",
       localErr: "",
       localOk: "",  // "Model imported" note after Add from your Mac
+      film: { applied: null },
       tset: { open: false, src: "", trigger: "", angles: true, expressions: true, scenes: true, busy: false, msg: "", done: 0, total: 0, stop: false },
       train: mergeDefaults({ model: "", folder: "", items: [], capMode: "tags", name: "", trigger: "", format: "kohya", kind: "character",
                              precision: "fp16", save_every: 0, preset: "recommended", steps: 1000, lr: 0.0001, rank: 16,
@@ -9386,11 +9436,38 @@ const protoartApp = createApp({
       while (this.promptPresets.some((p) => p.name === name)) name = `${words} (${i++})`;
       return name;
     },
-    useExamplePrompt(i) {  // 📒 an example prompt into the box (↩ undo puts yours back)
+    async useExamplePrompt(i) {  // 📒 an example prompt into the box (↩ undo puts yours back)
       const ex = EXAMPLE_PROMPTS[+i];
       if (!ex) return;
+      if (ex.i2i) {  // made for ✨ Edit with words: Image to image keeps its own prompt, so it goes there
+        this.tab = "i2i";
+        await this.$nextTick();
+        this.setI2iMode("edit");
+      }
       if (this.form.prompt.trim()) this.undoPrompt = this.form.prompt;
       this.form.prompt = ex.text;
+      this.film.applied = null;
+    },
+    applyFilmLook(id) {  // 🎞 wraps the prompt in a film look (another click swaps it, the same one takes it off)
+      const f = this.form, a = this.film.applied;
+      if (a) {
+        let p = f.prompt;
+        if (p.startsWith(a.pre)) p = p.slice(a.pre.length);
+        if (p.endsWith(a.post)) p = p.slice(0, -a.post.length);
+        f.prompt = p;
+        f.negative_prompt = (f.negative_prompt || "").replace(a.neg, "");
+        this.film.applied = null;
+      }
+      if (!id || (a && a.id === id)) return;
+      const L = FILM_LOOKS.find((x) => x.id === id);
+      if (!L) return;
+      if (!f.prompt.trim()) { this.error = "Type what the picture shows first, then pick a film look."; return; }
+      const cap = L.look[0].toUpperCase() + L.look.slice(1);
+      const pre = cap + ". ", post = (/[.!?]$/.test(f.prompt.trim()) ? "" : ".") + ` The look of ${L.look}: ${L.traits}.`;
+      const neg = ((f.negative_prompt || "").trim() ? ", " : "") + L.neg;
+      f.prompt = pre + f.prompt.trim() + post;
+      f.negative_prompt = (f.negative_prompt || "").replace(/\s+$/, "") + neg;
+      this.film.applied = { id, pre, post, neg };
     },
     applyPromptPreset(name) {
       const p = this.promptPresets.find((x) => x.name === name);

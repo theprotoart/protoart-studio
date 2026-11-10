@@ -339,6 +339,7 @@
                   :title="naturalPrompts() ? 'A random scene written in sentences (what ' + familyLabel + ' reads best); its options open below' : 'A random Danbooru-style tag prompt; its options open below'">
             <i class="ptool-lamp" :class="{on: rnd.every}"></i>🎲<b>Random</b></button>
           <button class="ptool" :class="{open: ptool === 'ideas'}" @click="togglePtool('ideas')" title="Ideas: hundreds of tested tags by category (pose, eyes, hair, hats, expressions, outfits, shoes, framing, styles): click one to add it, or 🎲 for a random one">📚<b>Ideas</b></button>
+          <button class="ptool" :class="{open: ptool === 'film'}" @click="togglePtool('film')" title="Film look: make the picture look shot on a real film or camera (Portra, CineStill, Tri-X, Polaroid, disposable camera, light leaks…)"><i class="ptool-lamp" :class="{on: film.applied}"></i>🎞<b>Film</b></button>
           <button class="ptool" :class="{open: ptool === 'convert'}" @click="togglePtool('convert')" title="Convert the prompt: plain sentences ⇄ Stable Diffusion tags, so a prompt you like works with any kind of model">⇄<b>Convert</b></button>
           <button class="ptool" @click="swapGender" title="Swap gender: the women in the prompt become men and the men women (“a woman in a brown outfit” → “a man in a brown outfit”, 1girl → 1boy, her → his). Works on sentences and tags; ↩ undo puts it back">⚥<b>Swap gender</b></button>
           <button class="ptool" :class="{open: wild.open}" @click="togglePtool('wild')" title="Wildcards: {red|blue} picks one per image; __name__ picks a line from a wildcard file">{ }<b>Wildcards</b></button>
@@ -378,6 +379,16 @@
             <button class="ghost small" @click="enhanceNow('contrast')" :disabled="!form.prompt.trim()" title="Suggests the same scene turned into its striking opposite: a waterfall frozen into blue-white ice, a summer street after light snowfall, a sunny day into a stormy night. ↩ undo puts your prompt back">🔄 Contrast prompt</button>
           </div>
           <div class="hint">{{ naturalPrompts() ? 'Writes a detailed description' : 'Writes tags (best for ' + familyLabel + ')' }} from what you typed; <i>enhance now</i> lets you read and edit it first.</div>
+        </div>
+        <div v-if="ptool === 'film'" class="wild-panel ptool-panel film-panel">
+          <div v-for="g in FILM_GROUPS" :key="g" class="film-group">
+            <span class="hint">{{ g }}</span>
+            <button v-for="L in FILM_LOOKS.filter((x) => x.group === g)" :key="L.id" class="chip trig" :class="{on: film.applied && film.applied.id === L.id}"
+                    @click="applyFilmLook(L.id)" :title="L.look + ': ' + L.traits + (L.mono ? ' (take colour words out of your prompt for this one)' : '')">{{ L.name }}</button>
+          </div>
+          <div class="hint">Wraps your prompt in the look and adds its opposite to the negative prompt; click another to swap, the same one again to take it off.
+            Best with models that read sentences (FLUX, FLUX.2 Klein, Z-Image, Qwen-Image, ERNIE). The negative prompt only counts when Guidance is above 1.
+            <button v-if="film.applied" class="link" @click="applyFilmLook('')">✕ no film look</button></div>
         </div>
         <div v-if="ptool === 'saved'" class="wild-panel ptool-panel">
           <div class="row small prompt-presets">
