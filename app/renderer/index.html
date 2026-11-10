@@ -3054,6 +3054,7 @@
             <button :disabled="form.cam.turnaround" :class="{on: !form.cam.turnaround && form.cam.layout === 'sheet'}" @click="form.cam.layout = 'sheet'" title="A character sheet: the subject shown from the front, side and back, side by side on a plain background">🧍 Character sheet</button>
             <button :disabled="form.cam.turnaround" :class="{on: !form.cam.turnaround && form.cam.layout === 'expressions'}" @click="form.cam.layout = 'expressions'" title="An expression sheet: the character's face in a grid, each with a different expression (pick them below)">😀 Expression sheet</button>
             <button :disabled="form.cam.turnaround" :class="{on: !form.cam.turnaround && form.cam.layout === 'turn_expr'}" @click="form.cam.layout = 'turn_expr'" title="Both on one sheet: front, side and back full body on top, faces with different expressions below">🧍😀 Turnaround + expressions</button>
+            <button :disabled="form.cam.turnaround" :class="{on: !form.cam.turnaround && form.cam.layout === 'devboard'}" @click="form.cam.layout = 'devboard'" title="A film-studio character development board: a big cinematic portrait, a 5-view turnaround, 6 head studies, colour swatches, material close-ups and a silhouette, laid out like an art director's presentation">🎬 Development board</button>
           </div>
           <template v-if="!form.cam.turnaround && ['expressions', 'turn_expr'].includes(form.cam.layout)">
             <label>Expressions <span class="hint">{{ (form.cam.expressions || []).length }} picked{{ form.cam.layout === 'turn_expr' ? ' (the first 6 are used)' : ' (up to 12)' }} · in the order you pick them</span></label>
@@ -3063,6 +3064,8 @@
             <div class="hint">Works best on a clear picture of one character. A square or wide picture gives the grid more room; a tall one squeezes it.
               More than 9 expressions get small: make two sheets instead.</div>
           </template>
+          <div v-if="!form.cam.turnaround && form.cam.layout === 'devboard'" class="hint">A lot goes on one picture: use a <b>wide</b> picture size and the biggest your Mac allows, and
+            FLUX.2 Klein 9B if you have it. Describe the character in <b>3 · Prompt</b> (name, age, what they wear, where the portrait takes place, the art style). Small labels come out as made-up letters: add real text afterwards with 🔤 Replace text or in another app.</div>
           <div class="hint">Anything to add goes in <b>3 · Prompt</b> (optional, e.g. “she is holding the sword”). The words sent: <i>{{ camPromptText() }}</i></div>
         </template>
         <template v-else-if="form.i2i_mode === 'faceswap'">

@@ -131,7 +131,7 @@ def test_camera_prompt_never_mentions_black_and_white():
     if "const EXPRESSIONS" in src:  # the expression sheets' lists (defined further up)
         e0 = src.index("const EXPRESSIONS")
         pre = src[e0:src.index("\n", src.index("const EXPR_DEFAULT")) + 1] + pre
-    code = pre + src[start:end] + "\nconsole.log(JSON.stringify([camPrompt(90,0,5,'',''), camPrompt(0,30,5,'x','comic'), camPrompt(0,0,5,'','sheet'), camPrompt(0,0,5,'','expressions'), camPrompt(0,0,5,'','turn_expr',['happy'])]));"
+    code = pre + src[start:end] + "\nconsole.log(JSON.stringify([camPrompt(90,0,5,'',''), camPrompt(0,30,5,'x','comic'), camPrompt(0,0,5,'','sheet'), camPrompt(0,0,5,'','expressions'), camPrompt(0,0,5,'','turn_expr',['happy']), camPrompt(0,0,5,'','devboard')]));"
     try:
         out = subprocess.run(["node", "-e", code], capture_output=True, text=True, timeout=30)
     except FileNotFoundError:

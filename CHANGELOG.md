@@ -1,5 +1,10 @@
 # Changelog
 
+## Next
+
+- 🎬 📷 Camera angle layout `devboard`: a character development board (hero portrait, 5-view turnaround, 6 head studies,
+  swatches, material close-ups, silhouette) in one Klein edit, condensed from a full art-direction brief to fit Klein's prompt
+
 ## 1.6.9
 
 - Segmented buttons (`.seg`) wrap onto a second row instead of being cut off at a card's edge in narrow windows

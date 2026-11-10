@@ -336,6 +336,15 @@ function camPrompt(az, el, zoom, extra, layout, expressions) {
     return "Turn this into a character model sheet on a plain light background. Top row: the same character shown full body from the front, the side and the back, standing side by side. " +
       `Bottom row: ${Math.min(ex.length, 6)} head-and-shoulders close-ups of the same character's face, each with a different expression: ${exprList(ex.slice(0, 6))}. ` +
       "Everything evenly spaced and clearly separated. " + add + sameFace;
+  if (layout === "devboard")  // 🎬 a feature-film character development board (our short wording of a full art-direction brief)
+    return "Turn this into a premium character development board from a feature animation studio, on a muted warm grey studio-paper background, " +
+      "with an asymmetrical editorial layout. The largest element is a cinematic hero portrait of the character in a quiet moment from their story, " +
+      "with motivated soft lighting and shallow depth of field. Beside it, a model-sheet turnaround of five full-body views at the same height: " +
+      "front, three-quarter front, side profile, back and three-quarter back. A row of six head studies of the same face: neutral front, three-quarter, " +
+      "profile, looking down, looking up and a dramatic angle, each with a subtle, believable expression. Smaller details: colour palette swatches, " +
+      "close-ups of fabric, stitching and accessories, a dark silhouette study and a few fine technical lines with short small labels. " +
+      "Varied sizes and plenty of empty space; no rigid grid, no clutter. " + add +
+      "Same character everywhere: the same face, hair, body proportions, outfit, colours and art style in every view.";
   return `Rotate the camera around the subject to the ${w.view}: ${see}. ${w.elev.say[0].toUpperCase() + w.elev.say.slice(1)}, ${w.dist.say}. ` +
     (w.view === "front view" ? "" : "The camera has really moved, so the character and the place around it are seen from this new direction. ") +
     add + same + " " +
@@ -878,6 +887,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Coming in the next version: 🎬 character development board", items: [
+              "<b>🎬 Development board</b>, a new Picture layout in Image to image → 📷 Camera angle: your character on one film-studio presentation board, with a cinematic hero portrait, a 5-view turnaround, 6 head studies, colour swatches, material close-ups and a silhouette study. Describe the character in the prompt; see How to → 🎬 Character development board." ] },
             { h: "1.6.9: no more cut-off buttons", items: [
               "<b>Rows of buttons no longer get cut off</b> in a narrow window (Train → What do you want to make?, Merge LoRAs → Model type and others): they go onto a second row instead." ] },
             { h: "1.6.8: expression sheets, a training-set builder, more cut-out finders, 📷 Angles button", items: [
@@ -1400,6 +1411,10 @@ const protoartApp = createApp({
               "<b>✂ Cut it out of its picture first</b> (on): only the character is used, not its old background. It uses ✂ Cut out's model (~224 MB once) and takes about 15–30 s per picture on an 8 GB Mac. Turn it off for a picture that already has a plain or see-through background.",
               "<b>💡 Match the scene's light</b> (on): the character's brightness, contrast and colour are moved towards the scene's before it goes in, so a sunny photo of a person doesn't glow in a night forest. <b>How much</b>: higher takes on more of the scene's light and colour. The character keeps its own shading; Klein adds the shadows.",
               "Tips: a clear, full-body picture of the character works best; describe the size (“small, in the distance”) when it should be far away; try another seed if the pose or place isn't right. The result goes to the Library as <b>Combined</b>, linked to the scene." ] },
+            { h: "🎬 Character development board", items: [
+              "Image to image → <b>📷 Camera angle</b> (or <b>📷 Angles</b> on a Library picture) → Picture layout → <b>🎬 Development board</b>: one big picture laid out like a film studio's character presentation: a cinematic hero portrait, a 5-view turnaround (front, ¾ front, side, back, ¾ back), 6 head studies, colour swatches, close-ups of the clothes and accessories and a silhouette.",
+              "Pick a <b>wide</b> picture size, as big as your Mac allows (FLUX.2 Klein 9B does better than 4B). In <b>3 · Prompt</b> describe the character: name, age, build, what they wear and what it's made of, where the hero portrait happens, the style (e.g. stylized feature-animation).",
+              "Klein can't spell, so the little labels come out as made-up letters: put the real name and notes on afterwards (🔤 Replace text, or any picture app). Some boards come out busier than others: try a few seeds." ] },
             { h: "😀 Expression sheets and turnaround + expressions", items: [
               "The quickest way in: <b>📷 Angles</b> on any picture in the Library. Or Image to image → <b>📷 Camera angle</b>.",
               "Under <b>Picture layout</b>, <b>😀 Expression sheet</b> makes one picture with a grid of head-and-shoulders portraits of the same character, each with a different expression. Tick the expressions you want (1 to 12; 6 is a good number).",
@@ -8553,7 +8568,8 @@ const protoartApp = createApp({
           this.runJob("edit_words", { edit_model: this.editModelId(), init_image: f.init_image, prompt: camPrompt(v.az, v.el, v.zoom, f.prompt, c.turnaround ? "single" : c.layout, c.expressions), seed,
                                       camera: { az: Math.round(v.az), el: Math.round(v.el), zoom: v.zoom, layout: c.turnaround ? "single" : (c.layout || "single"),
                                                 view: c.turnaround || (c.layout || "single") === "single" ? camWords(v.az, v.el, v.zoom).label : c.layout === "comic" ? "comic panels"
-                                                  : c.layout === "expressions" ? "expression sheet" : c.layout === "turn_expr" ? "turnaround + expressions" : "character sheet" } });
+                                                  : c.layout === "expressions" ? "expression sheet" : c.layout === "turn_expr" ? "turnaround + expressions"
+                                                  : c.layout === "devboard" ? "development board" : "character sheet" } });
           await new Promise((r) => setTimeout(r, 60));  // keeps them in order in the queue
         }
         return;
