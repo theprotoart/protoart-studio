@@ -153,7 +153,32 @@ MORE_EXAMPLES = {
                  "A surreal, high-resolution illustration of a real, softly lit photograph of a hand holding a martini "
                  "glass, overlaid with whimsical ink doodles: a little cartoon figure swimming inside the glass, a "
                  "hand-drawn citrus wedge on the rim, and loose sketches and faces scribbled around it on a clean white "
-                 "background. Loose marker lines meet the realistic photo in a playful, artistic juxtaposition.")],
+                 "background. Loose marker lines meet the realistic photo in a playful, artistic juxtaposition."),
+                ("an ice dragon",
+                 "An enormous ancient dragon with overlapping pearl-white scales shot through with silver iridescence, "
+                 "pale-blue eyes and translucent crystalline horns sweeping back from its skull. Its wings are like "
+                 "frozen glass, with branching veins in thin leathery membranes, and icy vapour drifts from its "
+                 "nostrils. It rests on a glacier above a vast snow-covered valley in cold arctic daylight, light "
+                 "glinting across the scales, a blue haze in the distance and deep shadows under the wings. "
+                 "Photorealistic fantasy wildlife photography with monumental scale and believable anatomy."),
+                ("a fancy sports car",
+                 "A next-generation luxury hypercar with an aggressive aerodynamic silhouette, sculpted carbon-fibre "
+                 "bodywork and deep air channels, finished in metallic obsidian black with champagne-gold accents "
+                 "along the splitter, side skirts and diffuser. Narrow LED headlights, forged geometric wheels and "
+                 "ceramic brakes. It sits on polished black concrete in a minimalist studio, long overhead strip lights "
+                 "sliding across its curves. A low three-quarter front angle, shot like a premium car advertisement."),
+                ("an old wizard reading",
+                 "An elderly scholar with a deeply weathered face, long silver hair, a flowing white beard and "
+                 "thoughtful grey eyes, in layered midnight-blue robes embroidered with gold celestial symbols. He "
+                 "holds an ancient leather-bound book whose handwritten lines glow softly, lighting his face from "
+                 "below. Around him, towering shelves of a forgotten library vanish into darkness, dust drifting in "
+                 "the candlelight. Hyperrealistic fantasy portrait with the warmth and depth of a classical oil painting."),
+                ("a steam train",
+                 "A grand early-1900s steam locomotive restyled in Art Deco: a polished black steel boiler wrapped in "
+                 "brass trim and copper fittings, huge driving wheels, exposed linkages and an imposing brass "
+                 "smokestack, with elegant gold lettering along its side. It waits in a historic European station "
+                 "under a vaulted glass roof and ornate ironwork, late-afternoon sun slanting through clouds of steam "
+                 "and catching every brass edge. A dramatic low angle, photographed with rich material detail.")],
     "tags": [("a wizard",
               "1boy, old man, wizard, long white beard, pointed hat, star embroidery, deep blue robe, holding staff, "
               "glowing crystal, spell book, floating candles, cluttered study, bookshelves, potion bottles, "

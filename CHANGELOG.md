@@ -2,8 +2,8 @@
 
 ## Next
 
-- 📒 Saved → example prompts (`EXAMPLE_PROMPTS`, 4 sentence prompts); the same four join ✨ Enhance's extra examples for the
-  bigger writer, which now gets 3 of them at random per press (varied answers, shorter question)
+- 📒 Saved → example prompts (`EXAMPLE_PROMPTS`, 16 sentence prompts in `EXAMPLE_GROUPS`, incl. a two-photo reunion for Edit
+  with words); eight join ✨ Enhance's extra examples for the bigger writer, which now gets 3 of them at random per press
 - 🎬 📷 Camera angle layout `devboard`: a character development board (hero portrait, 5-view turnaround, 6 head studies,
   swatches, material close-ups, silhouette) in one Klein edit, condensed from a full art-direction brief to fit Klein's prompt
 
