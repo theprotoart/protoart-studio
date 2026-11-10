@@ -388,6 +388,12 @@
             <button class="link" @click="savePromptPreset" :disabled="!form.prompt.trim()" title="Keep this prompt and negative prompt under a name, to use again later">＋ save</button>
             <button v-if="visiblePromptPresets.length" class="link" @click="deletePromptPreset" title="See, use or delete your saved prompts">manage…</button>
           </div>
+          <div class="row small prompt-presets">
+            <select :value="''" @change="useExamplePrompt($event.target.value); $event.target.value = ''" title="Ready-made prompts to start from: written in sentences, best for FLUX, FLUX.2 Klein, Z-Image, Qwen-Image, ERNIE and Anima">
+              <option value="">✨ start from an example prompt…</option>
+              <option v-for="(p, i) in EXAMPLE_PROMPTS" :key="p.name" :value="i">{{ p.name }}</option>
+            </select>
+          </div>
         </div>
         <div v-if="ptool === 'image'" class="wild-panel ptool-panel">
           <div class="row small i2p">

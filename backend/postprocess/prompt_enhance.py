@@ -129,7 +129,31 @@ MORE_EXAMPLES = {
                  "Rain-slick streets of a narrow Hong Kong market alley at 2 a.m., neon signs in pink and cyan "
                  "reflected in puddles between shuttered stalls. A lone delivery cyclist in a yellow poncho cuts "
                  "through steam rising from a noodle stand, motion-blurred against the static crowd of hanging "
-                 "lanterns. Low-angle wide shot on 35 mm film with heavy grain, moody and electric.")],
+                 "lanterns. Low-angle wide shot on 35 mm film with heavy grain, moody and electric."),
+                ("a woman in a classical painted portrait",
+                 "A woman with long, wavy hair cascading over her shoulders, sharp features and almond-shaped blue eyes "
+                 "with winged eyeliner, her expression alluring and slightly melancholic. She is draped in flowing sheer "
+                 "fabrics, one deep teal and one rich crimson, a single pearl earring at her left ear, against a dark, "
+                 "painterly backdrop of grey and muted brown like an antique studio canvas. A hyperrealistic digital "
+                 "painting with strong chiaroscuro: a key light from the upper left sculpts her face and shoulders and "
+                 "makes the fabric glow in luminous folds. Medium close-up, slightly over the shoulder, as she looks "
+                 "back at the viewer; asymmetrical composition, background out of focus."),
+                ("a woman eating dinner in Paris",
+                 "A lone woman sits at a small Parisian cafe table while rain slicks the cobblestones outside and misty "
+                 "street lights cast a soft cinematic glow. She lifts a brass fork toward a fragrant Indian thali, "
+                 "curries and rice shimmering in the warm light, her flowing ball gown in vivid yellow and blue finch "
+                 "hues rippling like sunrise feathers. A gentle, contented smile; the distant Eiffel Tower and a "
+                 "chalkboard menu frame the rain-drizzled scene."),
+                ("cyberpunk anime man",
+                 "Anime monochrome cyberpunk front portrait of a man, sleek skin traced with delicate mechanical lines, "
+                 "piercing glowing eyes, metallic mecha parts and light cables partly exposed. Sharp, domineering, cool "
+                 "style in textured anime brushwork over a faint circuit background, high-contrast chiaroscuro lighting "
+                 "and immersive cinematic shadows, ultra-fine detail, a futuristic dystopian mood."),
+                ("a hand holding a cocktail",
+                 "A surreal, high-resolution illustration of a real, softly lit photograph of a hand holding a martini "
+                 "glass, overlaid with whimsical ink doodles: a little cartoon figure swimming inside the glass, a "
+                 "hand-drawn citrus wedge on the rim, and loose sketches and faces scribbled around it on a clean white "
+                 "background. Loose marker lines meet the realistic photo in a playful, artistic juxtaposition.")],
     "tags": [("a wizard",
               "1boy, old man, wizard, long white beard, pointed hat, star embroidery, deep blue robe, holding staff, "
               "glowing crystal, spell book, floating candles, cluttered study, bookshelves, potion bottles, "
@@ -421,7 +445,10 @@ def dedupe_tags(t):
 
 def vlm_question(prompt, style, shape, angle=None):
     """The same request for the bigger model (Qwen3.5 4B, the picture reader), with a few varied examples."""
-    exs = [EXAMPLES[style]] + MORE_EXAMPLES.get(style, [])
+    import random
+    more = MORE_EXAMPLES.get(style, [])
+    # three of the extra examples, a different few each time: varied answers, and a shorter question for 8 GB Macs
+    exs = [EXAMPLES[style]] + random.sample(more, min(3, len(more)))
     shots = "\n\n".join(f"Idea: {a}\nAnswer: {b}" for a, b in exs)
     extra = f" This time, {angle}." if angle else ""
     return (SYSTEM[style] + "\n\nExamples:\n\n" + shots +

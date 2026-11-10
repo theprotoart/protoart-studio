@@ -392,6 +392,13 @@ const I2I_FORM_KEYS = [...I2I_PICTURE_KEYS, "strength", "use_init_size", "size_l
   "heal_method", "keep_faces", "cam", "combine", "i2i_mode", "inpaint", "outpaint", "outpaint_engine", "swap", "i2i_loras"];
 const I2I_KINDS = ["img2img", "healed", "word_edit", "combined", "camera_angle", "inpaint", "outpaint", "controlnet", "faceswap"];  // pictures made in Image to image
 // Tools → Tiled upscale presets (size, how much new detail, steps)
+// 📒 Saved → Example prompts: ready-made prompts to start from (also used as ✨ Enhance's examples, in prompt_enhance.py)
+const EXAMPLE_PROMPTS = [
+  { name: "🖼 Classical chiaroscuro portrait", text: "A woman with long, wavy hair cascading over her shoulders. She has sharp, defined features, almond-shaped blue eyes with dramatic winged eyeliner, and full, subtly glossed lips. Her expression is alluring and slightly melancholic. She is draped in flowing sheer fabrics, one in a deep teal and the other in a rich crimson, revealing her bare shoulders and upper back. A single pearl earring dangles from her left ear.\nA dark, textured, painterly backdrop with variations in dark grey and muted brown tones, resembling an antique studio canvas. No other environmental elements are present.\nA hyperrealistic digital painting with strong chiaroscuro influences, evoking a classical portraiture style. The color palette is rich and deep, with a focus on contrasting dark tones and the vibrant jewel tones of the fabrics.\nDramatic studio lighting that emphasizes the contours of the subject's face and back. A key light source appears to be coming from the upper left, casting soft shadows and highlighting the textures of her skin and hair. The fabric also catches the light, creating luminous folds.\nA medium close-up shot, slightly over-the-shoulder, with the subject turned to her right and looking back towards the viewer. The composition is asymmetrical, with the fabrics creating a dynamic flow that frames the subject's form. The background is out of focus, keeping the viewer's attention solely on the subject." },
+  { name: "☔ Rainy Paris café", text: "A lone woman sits at a small Parisian cafe table, rain slicking the cobblestone street outside, misty street lights casting a soft cinematic glow. She lifts a brass fork gracefully toward the fragrant Indian thali before her, curries and rice shimmering under the cafe's ambient light. Her flowing ball gown in vivid yellow and blue finch hues ripples like sunrise feathers as she gazes contentedly, a gentle smile on her lips, while distant Eiffel Tower silhouettes and a chalkboard menu frame the scene in a harmonious, rain-drizzled tableau." },
+  { name: "🤖 Anime cyberpunk portrait (Anima's example)", text: "Anime monochrome cyberpunk front portrait, male figure, sleek skin with delicate mechanical lines, piercing glowing eyes, partial exposed metallic mecha components and light cables, sharp domineering cool style, textured anime brushwork, faint circuit background, high contrast chiaroscuro lighting, immersive cinematic shadows, ultra fine details, 8K high-def render, futuristic dystopian mood" },
+  { name: "🍸 Photo + ink doodles", text: "A high-resolution, surreal digital illustration showing a human hand holding a martini glass. The image is overlaid with whimsical, expressive ink-style doodles, including a cartoon figure inside the glass, a drawn citrus wedge on the rim, and various abstract sketches and faces surrounding the glass against a clean, white background. The style seamlessly blends a realistic, lit photograph with loose, hand-drawn marker artistry, creating a playful and artistic juxtaposition." },
+];
 const TILED_PRESETS = [
   { id: "gentle", label: "Gentle", tip: "Sharper and bigger, almost no change: photos and faces", set: { scale: 2, strength: 0.2, steps: 24 } },
   { id: "detail", label: "Detail", tip: "Adds texture (skin, fabric, foliage) and keeps the picture", set: { scale: 2, strength: 0.25, steps: 24 } },
@@ -709,7 +716,7 @@ const protoartApp = createApp({
       objFinding: false,   // object selection is working out the outline
       soundsOn: window.ProtoSound ? window.ProtoSound.enabled : true,
       TAG_DICT: window.TAG_DICT || {}, ideas: { cat: Object.keys(window.TAG_DICT || {})[0] || "", q: "" },
-      LICENCES, TILED_PRESETS, APP_VERSION, CAM_VIEWS, CAM_ELEV, CAM_DIST,
+      LICENCES, TILED_PRESETS, EXAMPLE_PROMPTS, APP_VERSION, CAM_VIEWS, CAM_ELEV, CAM_DIST,
       loraSort: loadJSON("protoart.loraSort", "az"),   // LoRA list order
       modelKind: loadJSON("protoart.modelKind", ""),  // Create's model list filter ('' = all kinds)
       loraKind: "",                                      // LoRA list filter ('' = all)   // the brush-size ring that follows the pointer while painting
@@ -887,7 +894,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Coming in the next version: 🎬 character development board", items: [
+            { h: "Coming in the next version: 🎬 character development board, example prompts", items: [
+              "<b>✨ Example prompts</b> (Create → 📒 Saved → <i>start from an example prompt…</i>): a classical chiaroscuro portrait, a rainy Paris café, Anima's anime cyberpunk portrait and a photo with ink doodles. ↩ undo puts your own prompt back. The same prompts now also teach ✨ Enhance (with the picture reader) to write richer, more varied descriptions: it sees three different examples each time.",
               "<b>🎬 Development board</b>, a new Picture layout in Image to image → 📷 Camera angle: your character on one film-studio presentation board, with a cinematic hero portrait, a 5-view turnaround, 6 head studies, colour swatches, material close-ups and a silhouette study. Describe the character in the prompt; see How to → 🎬 Character development board." ] },
             { h: "1.6.9: no more cut-off buttons", items: [
               "<b>Rows of buttons no longer get cut off</b> in a narrow window (Train → What do you want to make?, Merge LoRAs → Model type and others): they go onto a second row instead." ] },
@@ -1411,6 +1419,9 @@ const protoartApp = createApp({
               "<b>✂ Cut it out of its picture first</b> (on): only the character is used, not its old background. It uses ✂ Cut out's model (~224 MB once) and takes about 15–30 s per picture on an 8 GB Mac. Turn it off for a picture that already has a plain or see-through background.",
               "<b>💡 Match the scene's light</b> (on): the character's brightness, contrast and colour are moved towards the scene's before it goes in, so a sunny photo of a person doesn't glow in a night forest. <b>How much</b>: higher takes on more of the scene's light and colour. The character keeps its own shading; Klein adds the shadows.",
               "Tips: a clear, full-body picture of the character works best; describe the size (“small, in the distance”) when it should be far away; try another seed if the pose or place isn't right. The result goes to the Library as <b>Combined</b>, linked to the scene." ] },
+            { h: "✨ Example prompts to start from", items: [
+              "Create → <b>📒 Saved</b> → <b>✨ start from an example prompt…</b>: four ready-made prompts written in sentences (a classical chiaroscuro portrait, a rainy Paris café, Anima's anime cyberpunk portrait, a photo with ink doodles). Pick one, then change the subject, place or colours to make it yours; <b>↩ undo</b> puts back what you had.",
+              "They read best with models that understand sentences: FLUX, FLUX.2 Klein, Z-Image, Qwen-Image, ERNIE and Anima. For SD 1.5 and SDXL, use <b>⇄ Convert</b> to turn one into tags." ] },
             { h: "🎬 Character development board", items: [
               "Image to image → <b>📷 Camera angle</b> (or <b>📷 Angles</b> on a Library picture) → Picture layout → <b>🎬 Development board</b>: one big picture laid out like a film studio's character presentation: a cinematic hero portrait, a 5-view turnaround (front, ¾ front, side, back, ¾ back), 6 head studies, colour swatches, close-ups of the clothes and accessories and a silhouette.",
               "Pick a <b>wide</b> picture size, as big as your Mac allows (FLUX.2 Klein 9B does better than 4B). In <b>3 · Prompt</b> describe the character: name, age, build, what they wear and what it's made of, where the hero portrait happens, the style (e.g. stylized feature-animation).",
@@ -9359,6 +9370,12 @@ const protoartApp = createApp({
       let i = 2;
       while (this.promptPresets.some((p) => p.name === name)) name = `${words} (${i++})`;
       return name;
+    },
+    useExamplePrompt(i) {  // 📒 an example prompt into the box (↩ undo puts yours back)
+      const ex = EXAMPLE_PROMPTS[+i];
+      if (!ex) return;
+      if (this.form.prompt.trim()) this.undoPrompt = this.form.prompt;
+      this.form.prompt = ex.text;
     },
     applyPromptPreset(name) {
       const p = this.promptPresets.find((x) => x.name === name);
