@@ -3971,6 +3971,127 @@ class Engine:
         emit({"type": "image", "record": record})
         return record
 
+    def relight(self, args, emit=None):
+        """💡 Relight with IC-Light: the subject drawn again under the light you describe (on one of your SD 1.5 models)."""
+        import net
+        import numpy as np
+        import postprocess.relight as rl
+        emit = emit or self.emit
+        src, image = self._source_picture(args)
+        image = image.convert("RGB")
+        light = " ".join(str(args.get("prompt") or "").split())
+        if not light:
+            raise UserError("Describe the light first (e.g. “sunset over the sea”, “neon light, city”).")
+        subject = " ".join(str(args.get("subject") or "").split())
+        direction = args.get("direction") if args.get("direction") in rl.DIRECTIONS else "none"
+        model_id = args.get("model")
+        spec = all_models().get(model_id or "")
+        if not spec or spec.get("family") != "sd15" or spec.get("inpaint"):
+            raise UserError("Relight runs on a Stable Diffusion 1.5 model: pick one of yours (a realistic one works best), "
+                            "or download Stable Diffusion 1.5 in Models.")
+        base = int(args.get("size") or 640)
+        base = base if base in (512, 640, 768) else 640
+        hires = args.get("hires", True) is not False
+        steps = max(10, min(50, int(args.get("steps") or 25)))
+        cfg = float(args.get("cfg") or 2.0)
+        seed = int(args["seed"]) if str(args.get("seed") or "").lstrip("-").isdigit() and int(args["seed"]) >= 0 \
+            else int.from_bytes(os.urandom(4), "little") & 0x7FFFFFFF
+        started = time.time()
+        if rl.downloaded():
+            weights = rl.weights_path(download=False)
+        else:
+            if net.strict:
+                raise UserError(f"Relight needs a one-time download of IC-Light (~{rl.MB / 1000:.1f} GB), and Strict "
+                                "offline mode is on. Turn it off in Settings → Privacy.")
+            if free_disk_gb(_hub_dir()) < rl.MB / 1000 + 3:
+                raise UserError(f"Relight needs a one-time ~{rl.MB / 1000:.1f} GB download and the disk is nearly full.")
+            emit({"type": "status", "msg": f"Downloading IC-Light (~{rl.MB / 1000:.1f} GB, first time only)…"})
+            net.set_online(True)
+            try:
+                weights = rl.weights_path(download=True)
+            except Exception as e:
+                raise UserError(f"Couldn't download IC-Light ({e}). Check the internet connection and try again.")
+            finally:
+                net.set_online(False)
+        alpha = self._cut_matte(src, image, emit, finder=args.get("finder") or "birefnet")
+        fg = rl.foreground(image, alpha)
+        key = ("relight", model_id)
+        if self.loaded_key != key or self.pipe is None:
+            self.load(model_id)  # a fresh copy of the model (no LoRAs in it); normal pictures load it again afterwards
+            emit({"type": "status", "msg": "Adding IC-Light to the model…"})
+            try:
+                rl.patch_unet(self.pipe.unet, weights)
+            except Exception as e:
+                self.unload()
+                raise UserError(f"IC-Light couldn't be added to {spec['label']} ({e}). Try Stable Diffusion 1.5 or "
+                                "another SD 1.5 model.")
+            self.loaded_key = key
+        t = self.torch()
+        from diffusers import DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline
+        pipe = self.pipe
+        pipe.scheduler = DPMSolverMultistepScheduler.from_config(
+            self.base_scheduler_config, algorithm_type="sde-dpmsolver++", use_karras_sigmas=True)
+        i2i = StableDiffusionImg2ImgPipeline(**pipe.components)
+        i2i.set_progress_bar_config(disable=True)
+        vae = pipe.vae
+        sf = vae.config.scaling_factor
+
+        def enc(arr):
+            return vae.encode(rl.to_tensor(arr).to(vae.device, vae.dtype)).latent_dist.mode() * sf
+
+        def dec(lat):
+            px = vae.decode(lat.to(vae.dtype) / sf).sample[0].movedim(0, -1)
+            return (px.float() * 127.5 + 127.5).clamp(0, 255).byte().cpu().numpy()
+
+        w, h = rl.sizes(image.width, image.height, base)
+        lo_steps = steps if direction == "none" else int(round(steps / 0.9))
+        hi_steps = int(round(steps / 0.5))
+        done = [0]
+        total = (steps if direction == "none" else int(round(lo_steps * 0.9))) + (int(round(hi_steps * 0.5)) if hires else 0)
+
+        def on_step(p, i, ts, kw):
+            if self.cancel_event.is_set():
+                raise Cancelled()
+            done[0] += 1
+            emit({"type": "progress", "image": 1, "images": 1, "step": min(done[0], total), "steps": total})
+            return kw
+
+        prompt = ", ".join(x for x in (subject, light, rl.ADDED) if x)
+        gen = t.Generator("cpu").manual_seed(seed)
+        common = dict(prompt=prompt, negative_prompt=rl.NEGATIVE, guidance_scale=cfg, generator=gen, output_type="latent",
+                      callback_on_step_end=on_step)
+        emit({"type": "status", "msg": "Relighting…"})
+        with t.inference_mode():
+            concat = enc(rl.fit(fg, w, h))
+            if direction == "none":
+                lat = pipe(width=w, height=h, num_inference_steps=steps, cross_attention_kwargs={"concat_conds": concat},
+                           **common).images
+            else:
+                lat = i2i(image=enc(rl.gradient(direction, w, h)), strength=0.9, num_inference_steps=lo_steps,
+                          cross_attention_kwargs={"concat_conds": concat}, **common).images
+            px = dec(lat)
+            if hires:  # IC-Light's second pass: 1.5× larger, half the noise, for detail
+                emit({"type": "status", "msg": "Relighting: adding detail…"})
+                w2, h2 = int(round(w * 1.5 / 64)) * 64, int(round(h * 1.5 / 64)) * 64
+                from PIL import Image
+                big = np.asarray(Image.fromarray(px).resize((w2, h2), Image.LANCZOS))
+                lat = i2i(image=enc(big), strength=0.5, num_inference_steps=hi_steps,
+                          cross_attention_kwargs={"concat_conds": enc(rl.fit(fg, w2, h2))}, **common).images
+                px = dec(lat)
+        from PIL import Image
+        out = Image.fromarray(px)
+        settings = dict(src.get("settings") or {})
+        settings.update(prompt=prompt, negative_prompt=rl.NEGATIVE, model=model_id, sampler="dpmpp_2m_sde_karras",
+                        steps=steps, cfg=cfg, seed=seed, width=out.width, height=out.height,
+                        seconds=round(time.time() - started, 1),
+                        relight={"light": light, "subject": subject, "direction": direction, "hires": hires})
+        settings["loras"] = []
+        path = self._save(out, settings, suffix="relit")
+        record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="relit")
+        record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
+        emit({"type": "image", "record": record})
+        return record
+
     EDIT_MODEL = "flux2_klein_mlx_q4"
     # ↔ Expand with FLUX.2 Klein: fal's outpaint LoRA (Apache-2.0, 76 MB). The picture goes in with a pure green
     # border where the new area should be, and this prompt asks the model to fill it.

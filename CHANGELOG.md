@@ -1,5 +1,12 @@
 # Changelog
 
+## Next
+
+- 💡 Tools → Relight: IC-Light (fc) on the user's SD 1.5 model: `postprocess/relight.py` (8-channel `conv_in`, offsets
+  merged tensor by tensor from `lllyasviel/ic-light` `iclight_sd15_fc.safetensors`, hooked UNet forward with
+  `concat_conds`), `engine.relight` (BiRefNet matte on grey, direction gradient start at 0.9 strength, DPM++ 2M SDE Karras,
+  cfg 2, 25 steps, optional 1.5× second pass at 0.5); the patched model is cached as `("relight", id)`
+
 ## 1.6.11
 
 - Fix: the engine's first `ready` no longer rejects pending calls (the start-up `init()` requests, queued in the engine's

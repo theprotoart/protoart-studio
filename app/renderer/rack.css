@@ -2591,3 +2591,5 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .seg { flex-wrap: wrap; max-width: 100%; }
 .film-group { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 4px; }
 .film-group > .hint { min-width: 92px; }
+.relight-ideas { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 6px; }
+.relight-ideas .chip { text-transform: none; }

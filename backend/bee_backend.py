@@ -178,7 +178,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("relight", "store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -307,6 +307,8 @@ def job_label(cmd, a):
         return "Procreate layers · " + os.path.basename(str(a.get("path") or ""))
     if cmd == "cutout":
         return {"mask": "Find the subject", "matte": "Cut out · find the subject", "layers": "Split into layers"}.get(a.get("mode"), "Cut out · save")
+    if cmd == "relight":
+        return "💡 Relight · " + str(a.get("prompt") or "")[:40]
     if cmd == "heal":
         return "Remove (spot heal)" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
     if cmd == "vae_get":
@@ -2292,6 +2294,8 @@ def run_job(kind, a):
         return eng.train_autocaption(a)
     if kind == "control_preview":
         return eng.control_preview(a)
+    if kind == "relight":
+        return eng.relight(a)
     if kind == "heal":
         return eng.heal(a)
     if kind == "cutout":

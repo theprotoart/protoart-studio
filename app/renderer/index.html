@@ -2439,6 +2439,36 @@
           </div>
         </div>
 
+        <div id="rack-relight" class="card rack-module relight-card" :class="{active: relightJob}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">💡</span>
+            <h3>Relight</h3><button class="mod-reset" @click.stop="resetToolPart('relight')" title="This module's settings back to the start">↺</button><span class="mod-sub">new light, IC-Light</span></div>
+          <p class="mod-desc" title="IC-Light finds the subject (✂ Cut out's model) and draws it again lit the way you describe, on a new background that matches the light. Runs on one of your Stable Diffusion 1.5 models; IC-Light itself is a one-time ~1.7 GB download">The subject under new light you describe, on a matching new background.</p>
+          <label title="The light and the place, in a few words">Light</label>
+          <input v-model="post.relight.prompt" placeholder="e.g. sunset over the sea">
+          <div class="chips relight-ideas">
+            <button v-for="x in RELIGHT_IDEAS" :key="x" class="chip" :class="{on: post.relight.prompt === x}" @click="relightIdea(x)">{{ x }}</button>
+          </div>
+          <label title="Optional: who or what the subject is helps keep it right (e.g. “woman, detailed face”, “red sports car”)">Subject <span class="hint">optional</span></label>
+          <input v-model="post.relight.subject" placeholder="e.g. man, detailed face">
+          <label title="Where the light comes from (a bright side to start from); Any lets the words decide">Light from</label>
+          <div class="seg">
+            <button v-for="d in [['none', 'Any'], ['left', '← Left'], ['right', 'Right →'], ['top', '↑ Top'], ['bottom', '↓ Bottom']]" :key="d[0]"
+                    :class="{on: post.relight.direction === d[0]}" @click="post.relight.direction = d[0]">{{ d[1] }}</button>
+          </div>
+          <label title="IC-Light runs on Stable Diffusion 1.5: a realistic model gives the most natural light">Model</label>
+          <select v-if="relightModels().length" :value="relightModel() && relightModel().id" @change="post.relight.model = $event.target.value">
+            <option v-for="m in relightModels()" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+          <div v-else class="hint">Needs a Stable Diffusion 1.5 model: download one in <a href="#" @click.prevent="tab = 'models'">Models</a> (a realistic one is best).</div>
+          <label title="Bigger is sharper but slower; the second pass makes it 1.5× larger">Size</label>
+          <div class="seg">
+            <button v-for="z in [512, 640, 768]" :key="z" :class="{on: +post.relight.size === z}" @click="post.relight.size = z">{{ z }}</button>
+          </div>
+          <label class="check" title="IC-Light's second pass: 1.5× larger with more detail (about twice as long)"><input type="checkbox" v-model="post.relight.hires"> Add detail (1.5× larger)</label>
+          <button class="primary mod-go" :disabled="!tool.source || relightJob || !relightModels().length" @click="toolRelight">💡 Relight</button>
+          <div class="hint">The first time downloads IC-Light (~1.7 GB). The background is new: to keep your own, ✂ Cut out the result and place it back.</div>
+        </div>
+
         <div id="rack-paper" class="card rack-module paper-card" :class="{active: paperJob}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">📄</span>
             <h3>Paper cut-out</h3><button class="mod-reset" @click.stop="resetToolPart('paper')" title="This module's settings back to the start">↺</button><span class="mod-sub">torn-paper sticker</span></div>

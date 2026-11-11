@@ -6,7 +6,7 @@ let nextId = 1;
 const pending = new Map();
 const listeners = [];
 const HEAVY = new Set(["store_move", "zeng_setup", "lora_hf_download", "ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "faceswap_faces", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
-                        "control_preview", "convert_tdict", "compare"]);
+                        "control_preview", "convert_tdict", "compare", "relight"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
 const jobTab = new Map();  // queue job id -> the tab it was started from (its pictures show there, not in the other tab)
@@ -211,12 +211,13 @@ function defaultPost() {  // Tools settings on a fresh install
     cut: { threshold: 0.5, softness: 0.1, grow: 0, bg: "transparent", color: "#ffffff", clean: true, fix_edges: true, crop: false, finder: "birefnet" },
     // 📄 Paper cut-out: border width (% of the shorter side), its paper, torn-ness, shadow, print look, background
     paper: { edge: 2, edge_colour: "white", rough: 0.5, shadow: 0.6, print_as: "photo", background: "transparent" },
+    relight: { prompt: "", subject: "", direction: "none", model: "", size: 640, hires: true },
   };
 }
 // each Tools module's own starting settings (its ↺ reset button); the big ↺ Reset Tools settings does them all
 const TOOL_PARTS = {
   enhance: { post: ["enh", "do_enhance"] }, faces: { post: ["face_strength", "face_model", "face_fidelity", "do_faces"] },
-  depth: { post: ["depth"] }, vector: { post: ["vec"] }, detail: { post: ["det"] }, cutout: { post: ["cut"] }, paper: { post: ["paper"] },
+  depth: { post: ["depth"] }, vector: { post: ["vec"] }, detail: { post: ["det"] }, cutout: { post: ["cut"] }, paper: { post: ["paper"] }, relight: { post: ["relight"] },
   heal: {}, tiled: {}, quant: {}, merge: {}, convert: {},
 };
 // 😀 Expression sheets (📷 Camera angle → Picture layout): the expressions to show, picked in the window
@@ -950,6 +951,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Coming in the next version: 💡 Relight", items: [
+              "<b>💡 Relight</b> (Tools): IC-Light draws your subject again under new light you describe (“sunset over the sea”, “neon light, city”, “soft studio lighting”…), on a new background that matches it. Pick where the light comes from (left, right, top, bottom) or let the words decide. Runs on one of your Stable Diffusion 1.5 models (realistic ones look best); IC-Light is a one-time ~1.7 GB download." ] },
             { h: "1.6.11: fix for an empty model list at start-up", items: [
               "<b>Fixed: “The engine restarted before this finished”</b> on start-up with an empty model list (All 0, no models). The fix for stuck downloads in 1.6.8 also ended the app's first requests to the engine while it was still starting. Now only requests the engine can no longer answer (it stopped or was restarted) are ended." ] },
             { h: "1.6.10: 🎬 character development board, 🎞 film looks, example prompts", items: [
@@ -1478,6 +1481,10 @@ const protoartApp = createApp({
               "<b>✂ Cut it out of its picture first</b> (on): only the character is used, not its old background. It uses ✂ Cut out's model (~224 MB once) and takes about 15–30 s per picture on an 8 GB Mac. Turn it off for a picture that already has a plain or see-through background.",
               "<b>💡 Match the scene's light</b> (on): the character's brightness, contrast and colour are moved towards the scene's before it goes in, so a sunny photo of a person doesn't glow in a night forest. <b>How much</b>: higher takes on more of the scene's light and colour. The character keeps its own shading; Klein adds the shadows.",
               "Tips: a clear, full-body picture of the character works best; describe the size (“small, in the distance”) when it should be far away; try another seed if the pose or place isn't right. The result goes to the Library as <b>Combined</b>, linked to the scene." ] },
+            { h: "💡 Relight: new light on a picture", items: [
+              "Tools → pick the picture → <b>💡 Relight</b>. Type the light (or click an idea: sunshine from a window, neon city, sunset over the sea, golden hour, soft studio lighting…), optionally what the subject is (“woman, detailed face”), and where the light comes from: <b>Any</b> lets the words decide, ← Left / Right → / ↑ Top / ↓ Bottom puts a bright side there.",
+              "It needs a <b>Stable Diffusion 1.5</b> model on this Mac (a realistic one, like Realistic Vision, gives the most natural light; download one in Models if you have none). The first time also downloads IC-Light (~1.7 GB). On an 8 GB Mac a picture takes a few minutes at 640 with Add detail on; 512 without it is quickest.",
+              "IC-Light keeps the subject and makes a new background that fits the light. To keep your original background, ✂ Cut out the relit subject and put it back on your picture. Faces can change a little: add “detailed face” to Subject, or try another seed." ] },
             { h: "🎞 Film looks: make it look shot on real film", items: [
               "Create → <b>🎞 Film</b> (in the row of prompt tools). Write what the picture shows first, then click a look: colour films (Portra 400, Ektar 100, Gold 200, Kodachrome, Velvia…), cinema (CineStill 800T for neon nights with glowing lights, Vision3 500T, Super 8), black and white (Tri-X, HP5 pushed, T-Max, sepia), instant (Polaroid SX-70, expired Polaroid, Instax), cameras (disposable, point-and-shoot flash, Holga, Lomo, pinhole, fisheye, sprocket holes, 2000s digicam), antique plates, looks and damaged film (light leaks, double exposure, scratches, expired film).",
               "The look is named at the start and end of the prompt with what it looks like spelled out (colours, grain, borders, glow), and its opposite goes in the negative prompt. Another click swaps the look; the same one again, or ✕ no film look, takes it off. Hover a look to see what it does.",
@@ -1795,6 +1802,7 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "New in 1.6.8: if something doesn't work", items: [
+              "<b>💡 Relight says it needs a Stable Diffusion 1.5 model</b>: IC-Light only works with SD 1.5. Download Stable Diffusion 1.5, or a realistic SD 1.5 model from Civitai, in Models. <b>It couldn't add IC-Light to the model</b>: that model's layout is unusual; pick another SD 1.5 model.",
               "<b>“The engine restarted before this finished” right after opening the app, and the model list is empty (All 0)</b>: fixed in 1.6.11. Update the app; with 1.6.8 to 1.6.10, press ↻ refresh next to the model list (or quit and reopen) to load your models.",
               "<b>A recipe (Copy pose…) still says “Downloading…”</b> after its file finished, or after restarting the app: fixed. It happened when the engine restarted during the download. Pick the recipe again; it now notices the file is there.",
               "<b>✂ Cut out with Anime, People, General or Classic says it couldn't download</b>: those finders come from GitHub (~170 MB, once). A VPN or firewall can block it; try again without, or use BiRefNet (the default).",
@@ -2073,6 +2081,10 @@ const protoartApp = createApp({
       localErr: "",
       localOk: "",  // "Model imported" note after Add from your Mac
       film: { applied: null },
+      relightJob: false,
+      RELIGHT_IDEAS: ["sunshine from a window", "neon light, city", "sunset over the sea", "golden hour", "sci-fi RGB glow, cyberpunk",
+                      "natural lighting", "warm atmosphere, cosy bedroom", "magical glow", "gothic, dark and moody", "light and shadow",
+                      "shadow from a window", "soft studio lighting", "neon, warm, Wong Kar-wai", "campfire at night", "underwater light"],
       tset: { open: false, src: "", trigger: "", angles: true, expressions: true, scenes: true, busy: false, msg: "", done: 0, total: 0, stop: false },
       train: mergeDefaults({ model: "", folder: "", items: [], capMode: "tags", name: "", trigger: "", format: "kohya", kind: "character",
                              precision: "fp16", save_every: 0, preset: "recommended", steps: 1000, lr: 0.0001, rank: 16,
@@ -6880,6 +6892,31 @@ const protoartApp = createApp({
         if (rec) { this.tool.latest = rec; this.afterPost(rec); }
       } finally { this.tool.working = null; this.paperJob = false; }
     },
+    relightModels() {  // 💡 IC-Light runs on Stable Diffusion 1.5 models (realistic ones first)
+      const sd = this.models.filter((m) => m.family === "sd15" && !m.inpaint && this.isInstalled(m));
+      const real = (m) => /realis|photo|epic|cyber|dream|juggern|absolute|majic/i.test(m.label || m.id) ? 0 : 1;
+      return sd.sort((a, b) => real(a) - real(b));
+    },
+    relightModel() {
+      const list = this.relightModels(), o = this.post.relight;
+      return list.find((m) => m.id === o.model) || list[0] || null;
+    },
+    async toolRelight() {
+      const s = this.tool.source, o = this.post.relight;
+      if (!s || this.relightJob) return;
+      if (!o.prompt.trim()) return (this.error = "Describe the light first, or pick one of the light ideas.");
+      const m = this.relightModel();
+      if (!m) return (this.error = "Relight runs on a Stable Diffusion 1.5 model and none is on this Mac yet: download Stable Diffusion 1.5 (or a realistic SD 1.5 model) in Models.");
+      this.relightJob = true;
+      this.tool.working = { label: "Relighting", started: Date.now() };
+      this.tool.latest = null;
+      try {
+        const rec = await this.runJob("relight", { ...this.toolArgs(), prompt: o.prompt, subject: o.subject, direction: o.direction,
+                                                     model: m.id, size: +o.size, hires: o.hires, finder: this.post.cut.finder });
+        if (rec) { this.tool.latest = rec; this.afterPost(rec); }
+      } finally { this.tool.working = null; this.relightJob = false; }
+    },
+    relightIdea(x) { this.post.relight.prompt = x; },
     async toolHeal() {
       const s = this.tool.source;
       if (!s) return;
@@ -9520,7 +9557,7 @@ const protoartApp = createApp({
       return { generated: "Original", img2img: "Image-to-image", faces: "Face-restored", enhanced: "Enhanced",
                depth: "Depth map", inpaint: "Inpainted", outpaint: "Expanded", grid: "Comparison grid",
                edited: "Edited", healed: "Objects removed", word_edit: "Edited with words", combined: "Combined", camera_angle: "Camera angle", faceswap: "Face swap",
-               chain: "Model chain", tiled: "Tiled upscale", animation: "Animation", layer: "Layer", cutout: "Cut out",
+               chain: "Model chain", tiled: "Tiled upscale", animation: "Animation", layer: "Layer", cutout: "Cut out", relit: "Relit",
                papercut: "Paper cut-out" }[kind] || kind;
     },
     depthModelInfo(id) {
