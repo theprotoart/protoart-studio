@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.11
+
+- Fix: the engine's first `ready` no longer rejects pending calls (the start-up `init()` requests, queued in the engine's
+  stdin, were rejected, leaving the model list empty with "The engine restarted before this finished"). Lost calls are
+  now ended in `onEngineExit` / `forceStop` (`endLostCalls`), queued jobs excepted (Force stop re-adds those)
+
 ## 1.6.10
 
 - 🎞 Create → Film: 38 film / camera / damaged-film looks (`FILM_LOOKS`, our own wording) applied as prefix + suffix with an

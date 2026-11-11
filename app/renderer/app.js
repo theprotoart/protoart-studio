@@ -657,7 +657,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.10";  // keep in step with app/package.json
+const APP_VERSION = "1.6.11";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -950,6 +950,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.6.11: fix for an empty model list at start-up", items: [
+              "<b>Fixed: “The engine restarted before this finished”</b> on start-up with an empty model list (All 0, no models). The fix for stuck downloads in 1.6.8 also ended the app's first requests to the engine while it was still starting. Now only requests the engine can no longer answer (it stopped or was restarted) are ended." ] },
             { h: "1.6.10: 🎬 character development board, 🎞 film looks, example prompts", items: [
               "<b>🎞 Film looks</b> (Create → <b>🎞 Film</b>, next to Ideas): 38 looks of real films and cameras: Portra, Ektar, Kodachrome, CineStill 800T, Super 8, Tri-X, Polaroid, disposable camera, Holga, fisheye, tintype, light leaks, double exposure and more. One click wraps your prompt in the look and puts its opposite in the negative prompt; the same click takes it off again.",
               "<b>✨ 16 example prompts</b> (Create → 📒 Saved → <i>start from an example prompt…</i>), in groups: portraits, characters (Emerald Empress, Cybernetic Guardian…), creatures (frost dragon, celestial panther, phoenix), vehicles (hypercar, Art Deco steam train, spaceship), scenes (a rainy Paris café, a reunion at the station, or a reunion of you two from two photos) and art styles. ↩ undo puts your own prompt back. Several of them also teach ✨ Enhance (with the picture reader) to write richer, more varied descriptions: it sees three different examples each time.",
@@ -1793,6 +1795,7 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "New in 1.6.8: if something doesn't work", items: [
+              "<b>“The engine restarted before this finished” right after opening the app, and the model list is empty (All 0)</b>: fixed in 1.6.11. Update the app; with 1.6.8 to 1.6.10, press ↻ refresh next to the model list (or quit and reopen) to load your models.",
               "<b>A recipe (Copy pose…) still says “Downloading…”</b> after its file finished, or after restarting the app: fixed. It happened when the engine restarted during the download. Pick the recipe again; it now notices the file is there.",
               "<b>✂ Cut out with Anime, People, General or Classic says it couldn't download</b>: those finders come from GitHub (~170 MB, once). A VPN or firewall can block it; try again without, or use BiRefNet (the default).",
               "<b>Build a training set stopped part-way</b>: what was made is still in the Library; press Build the set again, or add those pictures to a folder yourself and choose it with Choose a folder of images." ] },
@@ -3453,13 +3456,8 @@ const protoartApp = createApp({
     // -------------------------------------------------------------- startup
     onEvent(m) {
       if (m.type === "ready") {
-        // a fresh engine: anything still waiting for the old one (it restarted or stopped) will never get an answer;
-        // end those waits so no button stays on "Downloading…" / "Checking…" forever
-        for (const [id, p] of pending) {
-          pending.delete(id);
-          jobArgs.delete(id);
-          p.reject(Object.assign(new Error("The engine restarted before this finished. Try it again."), { restarted: true }));
-        }
+        // (requests sent before this are waiting in the engine's input and will be answered: don't end them here;
+        // the ones lost with a stopped engine are ended in onEngineExit / forceStop)
         this.setPaused(false);
         return this.init();
       }
@@ -7701,8 +7699,18 @@ const protoartApp = createApp({
     },
     // The engine (Python backend) stopped without being asked to. Say why in plain words and, unless it
     // keeps happening, start it again by itself and re-add the jobs that were still waiting.
+    endLostCalls() {
+      // the engine stopped: anything still waiting for it (other than queued jobs, which Force stop re-adds) will never
+      // get an answer; end those waits so no button stays on "Downloading…" / "Checking…" forever
+      for (const [id, p] of pending) {
+        if (jobArgs.has(id)) continue;
+        pending.delete(id);
+        p.reject(Object.assign(new Error("The engine restarted before this finished. Try it again."), { restarted: true }));
+      }
+    },
     onEngineExit(info) {
       this.backendDead = true;
+      this.endLostCalls();
       const tail = (info.tail || "").replace(/\/Users\/[^/\s'"]+/g, "~").slice(-600);
       const killed = info.signal === "SIGKILL" || info.signal === "SIGTERM";
       const why = killed
@@ -7740,6 +7748,7 @@ const protoartApp = createApp({
       this.progress = null;
       this.stopping = {};
       this.status = "Force-stopping and restarting the engine…";
+      this.endLostCalls();
       await window.bee.restart();
     },
     jobProgress(job) {
