@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.13
+
+- 🧊 Make 3D setup: libraries are picked from PyPI's JSON (newest release with a wheel for this Python on Apple Silicon),
+  downloaded with curl (sha256 checked) and installed with `pip --no-index --no-deps --target`; the model downloads in the
+  main process (curl-routed when Python is blocked), the worker runs offline. pip's own connections failed behind a VPN
+  (`[Errno 9] Bad file descriptor`), leaving setup stuck
+
 ## 1.6.12
 
 - 🧊 Tools → Make 3D: Hunyuan3D 2 mini shape model (`tencent/Hunyuan3D-2mini`, `hunyuan3d-dit-v2-mini`, fp32 on MPS) in a

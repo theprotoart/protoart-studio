@@ -22,6 +22,16 @@ class Mesh3D(unittest.TestCase):
         self.assertEqual(len(mesh3d.COMMIT), 40)
         self.assertIn("not affiliated", mesh3d.NOTICE)
 
+    def test_only_wheels_for_this_python_on_apple_silicon_are_picked(self):
+        import sys
+        import mesh3d
+        v = f"cp{sys.version_info[0]}{sys.version_info[1]}"
+        self.assertTrue(mesh3d._wheel_ok("einops-0.8.1-py3-none-any.whl"))
+        self.assertTrue(mesh3d._wheel_ok(f"scikit_image-0.25.2-{v}-{v}-macosx_12_0_arm64.whl"))
+        self.assertFalse(mesh3d._wheel_ok(f"scikit_image-0.25.2-{v}-{v}-manylinux_2_17_x86_64.whl"))
+        self.assertFalse(mesh3d._wheel_ok(f"x-1-{v}-{v}-macosx_10_9_x86_64.whl"))
+        self.assertFalse(mesh3d._wheel_ok("x-1-cp27-cp27m-macosx_11_0_arm64.whl"))
+
     def test_make3d_is_a_queued_job(self):
         import bee_backend as b
         self.assertIn("make3d", b.HEAVY)

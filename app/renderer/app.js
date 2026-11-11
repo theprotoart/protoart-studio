@@ -659,7 +659,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.12";  // keep in step with app/package.json
+const APP_VERSION = "1.6.13";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -952,6 +952,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.6.13: 🧊 Make 3D installs behind a VPN", items: [
+              "<b>Fixed: 🧊 Make 3D stuck on “downloading Hunyuan3D's code”.</b> Its one-time setup downloaded its libraries with Python's own connection, which a VPN or firewall can block. They (and the model) now download the same way as the app's models, so the setup finishes." ] },
             { h: "1.6.12: 💡 Relight, 🧊 Make 3D", items: [
               "<b>🧊 Make 3D</b> (Tools): turns the subject of a picture into a 3D model, saved as .glb and .obj for Blender, Unity, Godot or a 3D-printing slicer, with a shaded preview in the Library. Uses Tencent's Hunyuan3D 2 mini (the shape, no colours), the way the Modly app runs it on Apple Silicon. One-time downloads: ~2.5 GB model plus small libraries; you accept its licence first.",
               "<b>💡 Relight</b> (Tools): IC-Light draws your subject again under new light you describe (“sunset over the sea”, “neon light, city”, “soft studio lighting”…), on a new background that matches it. Pick where the light comes from (left, right, top, bottom) or let the words decide. Runs on one of your Stable Diffusion 1.5 models (realistic ones look best); IC-Light is a one-time ~1.7 GB download." ] },
@@ -1809,7 +1811,7 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "New in 1.6.8: if something doesn't work", items: [
-              "<b>🧊 Make 3D stops while installing</b>: the one-time setup uses Python's own downloader, which a VPN or firewall can block; try again without it. <b>It runs out of memory</b>: pick Detail Low and close other apps.",
+              "<b>🧊 Make 3D stays on “downloading Hunyuan3D's code” and never installs</b> (1.6.12): its libraries were downloaded by Python, which a VPN or firewall can block. Fixed in 1.6.13: everything now downloads through curl, like the models. <b>It runs out of memory</b>: pick Detail Low and close other apps.",
               "<b>💡 Relight says it needs a Stable Diffusion 1.5 model</b>: IC-Light only works with SD 1.5. Download Stable Diffusion 1.5, or a realistic SD 1.5 model from Civitai, in Models. <b>It couldn't add IC-Light to the model</b>: that model's layout is unusual; pick another SD 1.5 model.",
               "<b>“The engine restarted before this finished” right after opening the app, and the model list is empty (All 0)</b>: fixed in 1.6.11. Update the app; with 1.6.8 to 1.6.10, press ↻ refresh next to the model list (or quit and reopen) to load your models.",
               "<b>A recipe (Copy pose…) still says “Downloading…”</b> after its file finished, or after restarting the app: fixed. It happened when the engine restarted during the download. Pick the recipe again; it now notices the file is there.",
