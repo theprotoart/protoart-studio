@@ -659,7 +659,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.11";  // keep in step with app/package.json
+const APP_VERSION = "1.6.12";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -952,7 +952,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Coming in the next version: 💡 Relight, 🧊 Make 3D", items: [
+            { h: "1.6.12: 💡 Relight, 🧊 Make 3D", items: [
               "<b>🧊 Make 3D</b> (Tools): turns the subject of a picture into a 3D model, saved as .glb and .obj for Blender, Unity, Godot or a 3D-printing slicer, with a shaded preview in the Library. Uses Tencent's Hunyuan3D 2 mini (the shape, no colours), the way the Modly app runs it on Apple Silicon. One-time downloads: ~2.5 GB model plus small libraries; you accept its licence first.",
               "<b>💡 Relight</b> (Tools): IC-Light draws your subject again under new light you describe (“sunset over the sea”, “neon light, city”, “soft studio lighting”…), on a new background that matches it. Pick where the light comes from (left, right, top, bottom) or let the words decide. Runs on one of your Stable Diffusion 1.5 models (realistic ones look best); IC-Light is a one-time ~1.7 GB download." ] },
             { h: "1.6.11: fix for an empty model list at start-up", items: [

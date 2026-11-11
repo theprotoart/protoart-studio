@@ -1,6 +1,6 @@
 # Changelog
 
-## Next
+## 1.6.12
 
 - 🧊 Tools → Make 3D: Hunyuan3D 2 mini shape model (`tencent/Hunyuan3D-2mini`, `hunyuan3d-dit-v2-mini`, fp32 on MPS) in a
   short-lived worker (`mesh3d_worker.py`); `mesh3d.setup` fetches hy3dgen from a pinned GitHub commit and pip-installs
