@@ -178,7 +178,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("relight", "store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("make3d", "relight", "store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -307,6 +307,8 @@ def job_label(cmd, a):
         return "Procreate layers · " + os.path.basename(str(a.get("path") or ""))
     if cmd == "cutout":
         return {"mask": "Find the subject", "matte": "Cut out · find the subject", "layers": "Split into layers"}.get(a.get("mode"), "Cut out · save")
+    if cmd == "make3d":
+        return "🧊 Make 3D" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
     if cmd == "relight":
         return "💡 Relight · " + str(a.get("prompt") or "")[:40]
     if cmd == "heal":
@@ -921,6 +923,9 @@ def handle_quick(cmd, a):
         _train_folders.add(os.path.realpath(str(a.get("folder"))))
         used = sum(1 for it in items if it["fit"] != trainer.SKIP)
         return {"items": items, "suggested_steps": trainer.suggest_steps(used)}
+    if cmd == "mesh3d_status":  # 🧊 Make 3D: is it set up, is the model here (and its licence notice)
+        import mesh3d
+        return mesh3d.status()
     if cmd == "train_set_make":  # 🧩 Train → Build a training set: copies of the made pictures + a caption file each
         import re
         import shutil
@@ -2296,6 +2301,8 @@ def run_job(kind, a):
         return eng.control_preview(a)
     if kind == "relight":
         return eng.relight(a)
+    if kind == "make3d":
+        return eng.make3d(a)
     if kind == "heal":
         return eng.heal(a)
     if kind == "cutout":

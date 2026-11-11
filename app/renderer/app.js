@@ -6,7 +6,7 @@ let nextId = 1;
 const pending = new Map();
 const listeners = [];
 const HEAVY = new Set(["store_move", "zeng_setup", "lora_hf_download", "ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "faceswap_faces", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
-                        "control_preview", "convert_tdict", "compare", "relight"]);
+                        "control_preview", "convert_tdict", "compare", "relight", "make3d"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
 const jobTab = new Map();  // queue job id -> the tab it was started from (its pictures show there, not in the other tab)
@@ -212,12 +212,13 @@ function defaultPost() {  // Tools settings on a fresh install
     // 📄 Paper cut-out: border width (% of the shorter side), its paper, torn-ness, shadow, print look, background
     paper: { edge: 2, edge_colour: "white", rough: 0.5, shadow: 0.6, print_as: "photo", background: "transparent" },
     relight: { prompt: "", subject: "", direction: "none", model: "", size: 640, hires: true },
+    mesh3d: { steps: 30, octree: 380, faces: 40000 },
   };
 }
 // each Tools module's own starting settings (its ↺ reset button); the big ↺ Reset Tools settings does them all
 const TOOL_PARTS = {
   enhance: { post: ["enh", "do_enhance"] }, faces: { post: ["face_strength", "face_model", "face_fidelity", "do_faces"] },
-  depth: { post: ["depth"] }, vector: { post: ["vec"] }, detail: { post: ["det"] }, cutout: { post: ["cut"] }, paper: { post: ["paper"] }, relight: { post: ["relight"] },
+  depth: { post: ["depth"] }, vector: { post: ["vec"] }, detail: { post: ["det"] }, cutout: { post: ["cut"] }, paper: { post: ["paper"] }, relight: { post: ["relight"] }, mesh3d: { post: ["mesh3d"] },
   heal: {}, tiled: {}, quant: {}, merge: {}, convert: {},
 };
 // 😀 Expression sheets (📷 Camera angle → Picture layout): the expressions to show, picked in the window
@@ -951,7 +952,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Coming in the next version: 💡 Relight", items: [
+            { h: "Coming in the next version: 💡 Relight, 🧊 Make 3D", items: [
+              "<b>🧊 Make 3D</b> (Tools): turns the subject of a picture into a 3D model, saved as .glb and .obj for Blender, Unity, Godot or a 3D-printing slicer, with a shaded preview in the Library. Uses Tencent's Hunyuan3D 2 mini (the shape, no colours), the way the Modly app runs it on Apple Silicon. One-time downloads: ~2.5 GB model plus small libraries; you accept its licence first.",
               "<b>💡 Relight</b> (Tools): IC-Light draws your subject again under new light you describe (“sunset over the sea”, “neon light, city”, “soft studio lighting”…), on a new background that matches it. Pick where the light comes from (left, right, top, bottom) or let the words decide. Runs on one of your Stable Diffusion 1.5 models (realistic ones look best); IC-Light is a one-time ~1.7 GB download." ] },
             { h: "1.6.11: fix for an empty model list at start-up", items: [
               "<b>Fixed: “The engine restarted before this finished”</b> on start-up with an empty model list (All 0, no models). The fix for stuck downloads in 1.6.8 also ended the app's first requests to the engine while it was still starting. Now only requests the engine can no longer answer (it stopped or was restarted) are ended." ] },
@@ -1481,6 +1483,11 @@ const protoartApp = createApp({
               "<b>✂ Cut it out of its picture first</b> (on): only the character is used, not its old background. It uses ✂ Cut out's model (~224 MB once) and takes about 15–30 s per picture on an 8 GB Mac. Turn it off for a picture that already has a plain or see-through background.",
               "<b>💡 Match the scene's light</b> (on): the character's brightness, contrast and colour are moved towards the scene's before it goes in, so a sunny photo of a person doesn't glow in a night forest. <b>How much</b>: higher takes on more of the scene's light and colour. The character keeps its own shading; Klein adds the shadows.",
               "Tips: a clear, full-body picture of the character works best; describe the size (“small, in the distance”) when it should be far away; try another seed if the pose or place isn't right. The result goes to the Library as <b>Combined</b>, linked to the scene." ] },
+            { h: "🧊 Make 3D: a picture into a 3D model", items: [
+              "Tools → pick the picture → <b>🧊 Make 3D</b>. Works best with one clear subject (a character, a toy, a statue, a product) on a plain background, seen from the front or a little to the side. The subject is cut out first (✂ Cut out's finder).",
+              "<b>Quality</b>: Fast / Balanced / High steps. <b>Detail</b>: how fine the surface is (Low is safest on 8 GB). <b>Triangles</b>: the finished model is simplified to that many (20k–100k, or All).",
+              "Tick <b>I accept Hunyuan3D's licence</b> once (Tencent Hunyuan 3D 2.0 Community License: not for use in the EU, the UK or South Korea). The first time downloads its code, a few small libraries (~150 MB) and the model (~2.5 GB). A model takes a few minutes on an 8 GB Mac.",
+              "The files are saved in the <b>3D</b> folder of your images folder (.glb and .obj); <b>Show the 3D files in Finder</b> opens it. The Library shows a grey preview. It's the shape only: colour it in Blender or another 3D app." ] },
             { h: "💡 Relight: new light on a picture", items: [
               "Tools → pick the picture → <b>💡 Relight</b>. Type the light (or click an idea: sunshine from a window, neon city, sunset over the sea, golden hour, soft studio lighting…), optionally what the subject is (“woman, detailed face”), and where the light comes from: <b>Any</b> lets the words decide, ← Left / Right → / ↑ Top / ↓ Bottom puts a bright side there.",
               "It needs a <b>Stable Diffusion 1.5</b> model on this Mac (a realistic one, like Realistic Vision, gives the most natural light; download one in Models if you have none). The first time also downloads IC-Light (~1.7 GB). On an 8 GB Mac a picture takes a few minutes at 640 with Add detail on; 512 without it is quickest.",
@@ -1802,6 +1809,7 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "New in 1.6.8: if something doesn't work", items: [
+              "<b>🧊 Make 3D stops while installing</b>: the one-time setup uses Python's own downloader, which a VPN or firewall can block; try again without it. <b>It runs out of memory</b>: pick Detail Low and close other apps.",
               "<b>💡 Relight says it needs a Stable Diffusion 1.5 model</b>: IC-Light only works with SD 1.5. Download Stable Diffusion 1.5, or a realistic SD 1.5 model from Civitai, in Models. <b>It couldn't add IC-Light to the model</b>: that model's layout is unusual; pick another SD 1.5 model.",
               "<b>“The engine restarted before this finished” right after opening the app, and the model list is empty (All 0)</b>: fixed in 1.6.11. Update the app; with 1.6.8 to 1.6.10, press ↻ refresh next to the model list (or quit and reopen) to load your models.",
               "<b>A recipe (Copy pose…) still says “Downloading…”</b> after its file finished, or after restarting the app: fixed. It happened when the engine restarted during the download. Pick the recipe again; it now notices the file is there.",
@@ -2082,6 +2090,7 @@ const protoartApp = createApp({
       localOk: "",  // "Model imported" note after Add from your Mac
       film: { applied: null },
       relightJob: false,
+      m3d: { job: false, accepted: loadJSON("protoart.mesh3d.accepted", false), status: null, last: null },
       RELIGHT_IDEAS: ["sunshine from a window", "neon light, city", "sunset over the sea", "golden hour", "sci-fi RGB glow, cyberpunk",
                       "natural lighting", "warm atmosphere, cosy bedroom", "magical glow", "gothic, dark and moody", "light and shadow",
                       "shadow from a window", "soft studio lighting", "neon, warm, Wong Kar-wai", "campfire at night", "underwater light"],
@@ -6917,6 +6926,22 @@ const protoartApp = createApp({
       } finally { this.tool.working = null; this.relightJob = false; }
     },
     relightIdea(x) { this.post.relight.prompt = x; },
+    async m3dStatus() { try { this.m3d.status = await call("mesh3d_status"); } catch {} },
+    m3dAccept(on) { this.m3d.accepted = !!on; saveJSON("protoart.mesh3d.accepted", this.m3d.accepted); },
+    async toolMake3d() {  // 🧊 the subject as a 3D model (.glb + .obj) with Hunyuan3D 2 mini
+      const s = this.tool.source, o = this.post.mesh3d;
+      if (!s || this.m3d.job) return;
+      if (!this.m3d.accepted) return (this.error = "Make 3D uses Tencent Hunyuan 3D 2.0: tick that you accept its licence first.");
+      this.m3d.job = true;
+      this.m3d.last = null;
+      this.tool.working = { label: "Making the 3D model", started: Date.now() };
+      this.tool.latest = null;
+      try {
+        const rec = await this.runJob("make3d", { ...this.toolArgs(), accepted: true, steps: +o.steps, octree: +o.octree,
+                                                    faces: +o.faces, finder: this.post.cut.finder });
+        if (rec) { this.tool.latest = rec; this.m3d.last = rec; this.afterPost(rec); }
+      } finally { this.tool.working = null; this.m3d.job = false; this.m3dStatus(); }
+    },
     async toolHeal() {
       const s = this.tool.source;
       if (!s) return;
@@ -9557,7 +9582,7 @@ const protoartApp = createApp({
       return { generated: "Original", img2img: "Image-to-image", faces: "Face-restored", enhanced: "Enhanced",
                depth: "Depth map", inpaint: "Inpainted", outpaint: "Expanded", grid: "Comparison grid",
                edited: "Edited", healed: "Objects removed", word_edit: "Edited with words", combined: "Combined", camera_angle: "Camera angle", faceswap: "Face swap",
-               chain: "Model chain", tiled: "Tiled upscale", animation: "Animation", layer: "Layer", cutout: "Cut out", relit: "Relit",
+               chain: "Model chain", tiled: "Tiled upscale", animation: "Animation", layer: "Layer", cutout: "Cut out", relit: "Relit", mesh3d: "3D model",
                papercut: "Paper cut-out" }[kind] || kind;
     },
     depthModelInfo(id) {

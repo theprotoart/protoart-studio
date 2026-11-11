@@ -2,6 +2,10 @@
 
 ## Next
 
+- 🧊 Tools → Make 3D: Hunyuan3D 2 mini shape model (`tencent/Hunyuan3D-2mini`, `hunyuan3d-dit-v2-mini`, fp32 on MPS) in a
+  short-lived worker (`mesh3d_worker.py`); `mesh3d.setup` fetches hy3dgen from a pinned GitHub commit and pip-installs
+  einops/trimesh/scikit-image/pymeshlab into `<data>/hunyuan3d/site` (after the app's own packages on `sys.path`);
+  floater / degenerate-face removal, face reduction, .glb + .obj + a numpy/PIL shaded preview; licence acceptance required
 - 💡 Tools → Relight: IC-Light (fc) on the user's SD 1.5 model: `postprocess/relight.py` (8-channel `conv_in`, offsets
   merged tensor by tensor from `lllyasviel/ic-light` `iclight_sd15_fc.safetensors`, hooked UNet forward with
   `concat_conds`), `engine.relight` (BiRefNet matte on grey, direction gradient start at 0.9 strength, DPM++ 2M SDE Karras,

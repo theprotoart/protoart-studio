@@ -4092,6 +4092,69 @@ class Engine:
         emit({"type": "image", "record": record})
         return record
 
+    def make3d(self, args, emit=None):
+        """🧊 Make 3D: the subject of a picture as a 3D model (Hunyuan3D 2 mini, in its own process; see mesh3d.py)."""
+        import mesh3d
+        import net
+        import numpy as np
+        from PIL import Image
+        emit = emit or self.emit
+        if not args.get("accepted"):
+            raise UserError("Make 3D uses Tencent Hunyuan 3D 2.0: tick that you accept its licence first.")
+        src, image = self._source_picture(args)
+        image = image.convert("RGB")
+        started = time.time()
+        if not mesh3d.env_ready():
+            if net.strict:
+                raise UserError("Make 3D needs a one-time download (its code and libraries), and Strict offline mode is "
+                                "on. Turn it off in Settings → Privacy.")
+            net.set_online(True)
+            try:
+                mesh3d.setup(emit, self.cancel_event)
+            except mesh3d.Mesh3DError as e:
+                raise UserError(str(e))
+            finally:
+                net.set_online(False)
+        alpha = self._cut_matte(src, image, emit, finder=args.get("finder") or "birefnet")
+        rgba = image.copy()
+        rgba.putalpha(Image.fromarray((np.clip(alpha, 0, 1) * 255).astype(np.uint8)))
+        tmp = paths.HOME / "tmp"
+        tmp.mkdir(parents=True, exist_ok=True)
+        cut = tmp / f"mesh3d_in_{os.getpid()}.png"
+        rgba.save(cut)
+        self.unload()  # the 3D model runs in its own process: give it the memory
+        self.drop_helpers()
+        day = paths.IMAGES_DIR / "3D"
+        day.mkdir(parents=True, exist_ok=True)
+        stem = day / f"{datetime.now().strftime('%Y-%m-%d_%H%M%S')}_{_slug(Path(src['path']).stem)}"
+        seed = int(args["seed"]) if str(args.get("seed") or "").isdigit() else int.from_bytes(os.urandom(4), "little") & 0x7FFFFFFF
+        opts = {"steps": max(5, min(50, int(args.get("steps") or 30))),
+                "octree": int(args.get("octree") or 380) if int(args.get("octree") or 380) in (256, 380, 512) else 380,
+                "guidance": float(args.get("guidance") or 5.5), "faces": int(args.get("faces") or 40000), "seed": seed}
+        if not mesh3d.model_downloaded():
+            net.set_online(True)
+        try:
+            r = mesh3d.run(cut, str(stem), opts, emit, self.cancel_event)
+        except mesh3d.Mesh3DError as e:
+            raise UserError(f"Make 3D didn't finish: {e}")
+        finally:
+            net.set_online(False)
+            try:
+                cut.unlink()
+            except OSError:
+                pass
+        prev = Image.open(r["preview"]).convert("RGB")
+        settings = dict(src.get("settings") or {})
+        settings.update(seed=seed, width=prev.width, height=prev.height, seconds=round(time.time() - started, 1),
+                        mesh3d={"glb": r["glb"], "obj": r["obj"], "faces": r.get("faces"), "vertices": r.get("vertices"),
+                                "steps": opts["steps"], "octree": opts["octree"], "model": mesh3d.REPO})
+        settings["loras"] = []
+        path = self._save(prev, settings, suffix="3d")
+        record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="mesh3d")
+        record["thumb"] = str(thumbs.make(record["id"], path, prev) or "") or None
+        emit({"type": "image", "record": record})
+        return dict(record, glb=r["glb"], obj=r["obj"])
+
     EDIT_MODEL = "flux2_klein_mlx_q4"
     # ↔ Expand with FLUX.2 Klein: fal's outpaint LoRA (Apache-2.0, 76 MB). The picture goes in with a pure green
     # border where the new area should be, and this prompt asks the model to fill it.
