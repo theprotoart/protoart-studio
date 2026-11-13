@@ -2614,3 +2614,30 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .models-line .models-type, .models-line .models-add { max-width: 220px; }
 .models-line .models-type.on { box-shadow: 0 0 0 1px rgba(120, 170, 255, .45); }
 .models-line .models-search { min-width: 160px; flex: 0 1 260px; }
+
+/* double-click a slider's number to type it */
+.mod-val { cursor: text; }
+.mod-val-input { font: 600 13px var(--f-amber, monospace); padding: 1px 4px; border-radius: 3px; border: 1px solid var(--amber, #e8b84a);
+  background: #0d0b08; color: var(--amber, #e8b84a); box-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
+
+/* 💡 Relight: the reference picture's drop zone */
+.relight-ref { display: grid; gap: 6px; padding: 8px; border: 1px dashed rgba(255, 255, 255, .25); border-radius: 4px; margin-top: 6px; }
+.relight-ref.over { border-color: var(--amber, #e8b84a); background: rgba(232, 184, 74, .08); }
+.relight-ref img { max-width: 100%; max-height: 140px; object-fit: contain; border-radius: 3px; }
+.relight-ref .file-pick { cursor: pointer; display: inline-block; }
+
+/* 🔤 Replace text: balloons and shapes (an SVG under the text layers) and the resize handles */
+.tx-stage .tx-shapes { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.tx-stage .tx-shape { pointer-events: visiblePainted; cursor: move; }
+.tx-stage .tx-shape.sel path { filter: drop-shadow(0 0 3px rgba(232, 184, 74, .9)); }
+.tx-stage .tx-handle { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 2px; z-index: 5;
+  background: #fff; border: 2px solid #e8b84a; box-shadow: 0 1px 3px rgba(0, 0, 0, .6); cursor: nwse-resize; }
+.tx-stage .tx-handle.h-ne, .tx-stage .tx-handle.h-sw { cursor: nesw-resize; }
+.tx-stage .tx-handle.tx-tail { border-radius: 50%; border-color: #2f7fc1; cursor: crosshair; }
+.tx-stage .tx-layer .tx-handle.tx-in { margin: 0; }
+.tx-stage .tx-layer .tx-handle.h-nw { left: -8px; top: -8px; }
+.tx-stage .tx-layer .tx-handle.h-ne { right: -8px; top: -8px; }
+.tx-stage .tx-layer .tx-handle.h-sw { left: -8px; bottom: -8px; }
+.tx-stage .tx-layer .tx-handle.h-se { right: -8px; bottom: -8px; }
+.tx-shape-picks { display: flex; flex-wrap: wrap; gap: 4px; }
+.tx-shape-picks .chip { font-size: 11.5px; padding: 3px 7px; }

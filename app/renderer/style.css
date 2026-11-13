@@ -481,3 +481,20 @@ details.fine summary { cursor: pointer; }
 .edit-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 6px 14px; font-size: 13px;
   background: var(--panel); border-bottom: 1px solid var(--accent); }
 .gallery figure .to-i2i.to-tools { left: auto; right: 8px; }
+
+/* 🔤 Replace text: the comic lettering pack (assets/fonts; SIL Open Font License 1.1 / Apache 2.0, see assets/fonts/licences) */
+@font-face { font-family: "Comic Neue"; src: url("assets/fonts/ComicNeue-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Comic Neue"; src: url("assets/fonts/ComicNeue-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Comic Neue"; src: url("assets/fonts/ComicNeue-Italic.ttf") format("truetype"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: "Comic Neue"; src: url("assets/fonts/ComicNeue-BoldItalic.ttf") format("truetype"); font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "Shantell Sans"; src: url("assets/fonts/ShantellSans-Variable.ttf") format("truetype"); font-weight: 300 800; font-style: normal; font-display: swap; }
+@font-face { font-family: "Patrick Hand"; src: url("assets/fonts/PatrickHand-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Architects Daughter"; src: url("assets/fonts/ArchitectsDaughter-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Bangers"; src: url("assets/fonts/Bangers-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Luckiest Guy"; src: url("assets/fonts/LuckiestGuy-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Bowlby One SC"; src: url("assets/fonts/BowlbyOneSC-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Titan One"; src: url("assets/fonts/TitanOne-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Chewy"; src: url("assets/fonts/Chewy-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Boogaloo"; src: url("assets/fonts/Boogaloo-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Bubblegum Sans"; src: url("assets/fonts/BubblegumSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Permanent Marker"; src: url("assets/fonts/PermanentMarker-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }

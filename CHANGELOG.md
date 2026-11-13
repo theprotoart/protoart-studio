@@ -2,6 +2,18 @@
 
 ## 1.6.15
 
+- Replace text: a bundled comic lettering pack (12 SIL OFL / Apache 2.0 fonts in `app/renderer/assets/fonts`, licences
+  beside them), the Mac's installed fonts in the Font list (`fonts:list` IPC, `system_profiler SPFontsDataType`), any
+  family name accepted (`ProtoText.stack`), corner handles to resize a text or shape, and 💬 balloons & shapes
+  (speech, thought, shout, whisper, box, caption, burst; SVG paths shared by the preview and the saved canvas, drawn
+  under the text, with a draggable tail), in Tools and Image to image
+- Double-click a `.mod-val` number to type a slider's value (`installTypeIn`; `data-free` lets the text size pass the
+  slider's end)
+- Relight: Background Keep mine (default; `relight.place_back` composites the relit subject on the original with the
+  matte) or New from Relight; Light like a reference picture (IC-Light `iclight_sd15_fbc`, 12-channel conv_in, the
+  reference's latent concatenated and used as the start picture); the Relight button moved into the module foot (its
+  hint no longer sits under a screw); two light ideas (winter snow, rainy manga Tokyo)
+- Patchbay: TILED, RELIGHT, CUT OUT and PAPER modules
 - Make 3D removed from Tools for now (it never completed on an 8 GB Mac); its backend code stays unused. How to and
   Troubleshooting entries removed; What's new says where its downloads can be deleted
 - Relight: 512 only on Macs under 12 GB RAM (UI buttons disabled with a note; the backend clamps too)

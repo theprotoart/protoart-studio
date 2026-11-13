@@ -1621,12 +1621,29 @@
         <div v-else-if="tx.open && tool.source && !tool.healing" class="adjust-canvas-wrap tx-wrap" @click.stop>
           <div class="tx-stage">
             <img ref="txImg" class="adjust-canvas" :class="{picking: tx.pick}" :src="fileUrl(tx.base.path)" @load="txImgLoad" draggable="false" @pointerdown="txStageDown">
-            <div v-for="(L, i) in tx.layers" :key="'tx' + i" class="tx-layer" :class="{sel: i === tx.sel}" :style="txStyle(L)"
-                 @pointerdown.stop="txLayerDown($event, i)" title="Drag to move · edit it in 🔤 Replace text"><template v-if="L.vertical"><span
+            <svg v-if="tx.nw && tx.layers.some((L) => L.type === 'shape')" class="tx-shapes" :viewBox="'0 0 ' + tx.nw + ' ' + tx.nh" preserveAspectRatio="none">
+              <g v-for="(S, i) in tx.layers" :key="'ts' + i" v-show="S.type === 'shape'" :opacity="S.opacity ?? 1" class="tx-shape" :class="{sel: i === tx.sel}"
+                 @pointerdown.stop="txLayerDown($event, i)"><title>Drag to move · the corners resize it · the dot moves the tail</title>
+                <template v-if="S.type === 'shape'">
+                  <path v-for="(d, k) in ProtoText.shapePaths(S, tx.nw, tx.nh).parts" :key="'o' + k" :d="d" fill="none" :stroke="S.line" :stroke-width="S.lw * 2"
+                        stroke-linejoin="round" :stroke-dasharray="S.kind === 'whisper' ? (S.lw * 3) + ' ' + (S.lw * 2.2) : null" v-if="S.lw > 0"></path>
+                  <path v-for="(d, k) in ProtoText.shapePaths(S, tx.nw, tx.nh).parts" :key="'f' + k" :d="d" :fill="S.fill"></path>
+                </template>
+              </g>
+            </svg>
+            <div v-for="(L, i) in tx.layers" :key="'tx' + i" v-show="L.type !== 'shape'" class="tx-layer" :class="{sel: i === tx.sel}" :style="txStyle(L)"
+                 @pointerdown.stop="txLayerDown($event, i)" title="Drag to move · edit it in 🔤 Replace text"><template v-if="L.type === 'shape'"></template><template v-else-if="L.vertical"><span
                    v-for="(col, ci) in ProtoText.columns(L, tx.scale || 1).cols" :key="'tc' + ci" class="tx-vcol"
-                   :style="{width: ProtoText.columns(L, tx.scale || 1).w + 'px'}"><span v-for="(ch, j) in col" :key="j">{{ ch === ' ' ? '\u00a0' : ch }}</span></span></template><template v-else>{{ L.text || ' ' }}</template></div>
+                   :style="{width: ProtoText.columns(L, tx.scale || 1).w + 'px'}"><span v-for="(ch, j) in col" :key="j">{{ ch === ' ' ? '\u00a0' : ch }}</span></span></template><template v-else>{{ L.text || ' ' }}</template><template v-if="i === tx.sel && L.type !== 'shape'"><i v-for="c in ['nw', 'ne', 'sw', 'se']" :key="'th' + c"
+                   class="tx-handle tx-in" :class="'h-' + c" @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize the text"></i></template></div>
+            <template v-if="txLayer() && tx.nw">
+              <div v-for="c in (txLayer().type === 'shape' ? ['nw', 'ne', 'sw', 'se'] : [])" :key="'h' + c" class="tx-handle" :class="'h-' + c" :style="txHandleStyle(c)"
+                   @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize"></div>
+              <div v-if="txLayer().type === 'shape' && txLayer().tail" class="tx-handle tx-tail" :style="{left: txLayer().tx * 100 + '%', top: txLayer().ty * 100 + '%'}"
+                   @pointerdown.stop="txTailDown($event)" title="Drag to point the tail at the speaker"></div>
+            </template>
           </div>
-          <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE' }}</span>
+          <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE · CORNERS RESIZE' }}</span>
           <span v-if="tx.busy || tx.msg" class="adjust-badge busy">{{ tx.msg || 'Working…' }}</span>
         </div>
         <div v-else-if="cut.open && !tool.healing" class="adjust-canvas-wrap cut-wrap" @click.stop>
@@ -2465,15 +2482,31 @@
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">💡</span>
             <h3>Relight</h3><button class="mod-reset" @click.stop="resetToolPart('relight')" title="This module's settings back to the start">↺</button><span class="mod-sub">new light, IC-Light</span></div>
           <p class="mod-desc" title="IC-Light finds the subject (✂ Cut out's model) and draws it again lit the way you describe, on a new background that matches the light. Runs on one of your Stable Diffusion 1.5 models; IC-Light itself is a one-time ~1.7 GB download">The subject under new light you describe, on a matching new background.</p>
-          <label title="The light and the place, in a few words">Light</label>
+          <label title="Describe the light in words, or give a picture whose light to copy">Light like</label>
+          <div class="seg mod-seg">
+            <button :class="{on: !post.relight.ref_on}" @click="post.relight.ref_on = false" title="Describe the light in a few words">✏️ Words</button>
+            <button :class="{on: post.relight.ref_on}" @click="post.relight.ref_on = true" title="Light the subject like another picture (its colours, direction and mood of the light)">🖼 A reference picture</button>
+          </div>
+          <div v-if="post.relight.ref_on" class="relight-ref" :class="{over: relightRefOver}" @dragover.prevent="relightRefOver = true" @dragleave="relightRefOver = false" @drop.prevent="relightRefDrop"
+               title="Drop a picture here (from Finder or the desktop), or pick one">
+            <img v-if="post.relight.ref" :src="fileUrl(post.relight.ref)" alt="Reference light">
+            <span v-else class="hint">Drop a picture with the light you want here</span>
+            <div class="row small">
+              <label class="ghost small file-pick">Pick a picture…<input type="file" accept="image/*,.heic,.heif,.tif,.tiff,.psd,.avif" @change="relightRefPicked" hidden></label>
+              <button v-if="tool.latest && tool.latest.path" class="ghost small" @click="post.relight.ref = tool.latest.path" title="Use the last result in Tools as the reference">Use the last result</button>
+              <button v-if="post.relight.ref" class="ghost small" @click="post.relight.ref = ''">✕ clear</button>
+            </div>
+            <div class="hint">Uses IC-Light's reference model (another ~1.7 GB download the first time). The words below are optional now.</div>
+          </div>
+          <label :title="post.relight.ref_on ? 'Optional with a reference: words add to its light' : 'The light and the place, in a few words'">Light <span v-if="post.relight.ref_on" class="hint">optional</span></label>
           <input v-model="post.relight.prompt" placeholder="e.g. sunset over the sea">
           <div class="chips relight-ideas">
             <button v-for="x in RELIGHT_IDEAS" :key="x" class="chip" :class="{on: post.relight.prompt === x}" @click="relightIdea(x)">{{ x }}</button>
           </div>
           <label title="Optional: who or what the subject is helps keep it right (e.g. “woman, detailed face”, “red sports car”)">Subject <span class="hint">optional</span></label>
           <input v-model="post.relight.subject" placeholder="e.g. man, detailed face">
-          <label title="Where the light comes from (a bright side to start from); Any lets the words decide">Light from</label>
-          <div class="seg">
+          <label v-if="!post.relight.ref_on" title="Where the light comes from (a bright side to start from); Any lets the words decide">Light from</label>
+          <div v-if="!post.relight.ref_on" class="seg">
             <button v-for="d in [['none', 'Any'], ['left', '← Left'], ['right', 'Right →'], ['top', '↑ Top'], ['bottom', '↓ Bottom']]" :key="d[0]"
                     :class="{on: post.relight.direction === d[0]}" @click="post.relight.direction = d[0]">{{ d[1] }}</button>
           </div>
@@ -2489,8 +2522,15 @@
           </div>
           <div v-if="relightMaxSize() < 768" class="hint">512 on this Mac ({{ sys.ram_gb }} GB): larger sizes need 16 GB. With Add detail on, the result is still 768 px.</div>
           <label class="check" title="IC-Light's second pass: 1.5× larger with more detail (about twice as long)"><input type="checkbox" v-model="post.relight.hires"> Add detail (1.5× larger)</label>
-          <button class="primary mod-go" :disabled="!tool.source || relightJob || !relightModels().length" @click="toolRelight">💡 Relight</button>
-          <div class="hint">The first time downloads IC-Light (~1.7 GB). The background is new: to keep your own, ✂ Cut out the result and place it back.</div>
+          <label title="IC-Light draws a new background to match the light. Keep mine puts the relit subject back on your picture's own background">Background</label>
+          <div class="seg mod-seg">
+            <button :class="{on: (post.relight.background || 'keep') === 'keep'}" @click="post.relight.background = 'keep'" title="The relit subject on your picture's own background (cut out and placed back for you)">Keep mine</button>
+            <button :class="{on: post.relight.background === 'new'}" @click="post.relight.background = 'new'" title="The background IC-Light draws for the new light">New from Relight</button>
+          </div>
+          <div class="hint">The first time downloads IC-Light (~1.7 GB).</div>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!tool.source || relightJob || !relightModels().length" @click="toolRelight">💡 Relight</button>
+          </div>
         </div>
 
         <div id="rack-paper" class="card rack-module paper-card" :class="{active: paperJob}">
@@ -2577,18 +2617,46 @@
             <div v-if="!tx.layers.length" class="hint">Click the picture where the text goes.</div>
             <div v-else class="tx-layers">
               <button v-for="(L, i) in tx.layers" :key="'txl' + i" class="tx-chip" :class="{on: i === tx.sel}" @click="tx.sel = i">
-                {{ (L.text || '…').split('\n')[0].slice(0, 14) || '…' }}<b @click.stop="txRemove(i)" title="Delete this text">✕</b></button>
+                {{ L.type === 'shape' ? txShapeLabel(L.kind) : ((L.text || '…').split('\n')[0].slice(0, 14) || '…') }}<b @click.stop="txRemove(i)" title="Delete this">✕</b></button>
               <button class="tx-chip tx-add" @click="txAdd()" title="Another text, with its own words, font, size and colour (or click an empty spot on the picture)">＋ Add text</button>
             </div>
+            <label title="Speech and thought balloons, captions and sound-effect bursts: they sit under the text">Balloons &amp; shapes</label>
+            <div class="chips tx-shape-picks">
+              <button v-for="k in ProtoText.SHAPES" :key="k[0]" class="chip" @click="txAddShape(k[0])" :title="k[2] + ' (with a text inside it)'">{{ k[1] }}</button>
+            </div>
             <div v-if="tx.layers.length" class="hint">Each text is separate: click an empty spot on the picture (or ＋ Add text) for another one; click a text to pick it, drag it to move it.</div>
-            <template v-if="txLayer()">
+            <template v-if="txLayer() && txLayer().type === 'shape'">
+              <label>Shape</label>
+              <div class="chips tx-shape-picks">
+                <button v-for="k in ProtoText.SHAPES" :key="'k' + k[0]" class="chip" :class="{on: txLayer().kind === k[0]}" @click="txLayer().kind = k[0]; txLayer().tail = !['caption', 'burst'].includes(k[0]) && txLayer().tail !== false" :title="k[2]">{{ k[1] }}</button>
+              </div>
+              <div class="tx-row">
+                <label class="tx-col" title="Inside colour">Fill <input type="color" v-model="txLayer().fill"></label>
+                <label class="tx-col" title="Outline colour">Outline <input type="color" v-model="txLayer().line"></label>
+                <label v-if="!['caption', 'burst'].includes(txLayer().kind)" class="check" title="The tail pointing at the speaker (drag its dot on the picture)"><input type="checkbox" v-model="txLayer().tail"> Tail</label>
+              </div>
+              <label>Outline width <span class="mod-val">{{ txLayer().lw }}</span></label>
+              <input type="range" min="0" max="20" step="1" v-model.number="txLayer().lw" data-free>
+              <label>Opacity <span class="mod-val">{{ Math.round((txLayer().opacity ?? 1) * 100) }}%</span></label>
+              <input type="range" min="0.1" max="1" step="0.05" v-model.number="txLayer().opacity">
+              <div class="hint">Drag it to move · drag a corner to resize · drag the dot to point the tail. Shapes sit under the text.</div>
+            </template>
+            <template v-else-if="txLayer()">
               <textarea ref="txText" v-model="txLayer().text" rows="2" class="mod-input tx-text" placeholder="Type the text (Return for a new line)"></textarea>
               <label>Font</label>
-              <select v-model="txLayer().font" :style="{fontFamily: txLayer().font}">
-                <option v-for="f in ProtoText.FONTS" :key="f[0]" :value="f[0]" :style="{fontFamily: f[1]}">{{ f[0] }}</option>
+              <select v-model="txLayer().font" :style="{fontFamily: ProtoText.stack(txLayer().font)}" @focus="txLoadFonts">
+                <optgroup label="Comic lettering (built in)">
+                  <option v-for="f in ProtoText.PACK" :key="'p' + f[0]" :value="f[0]" :style="{fontFamily: f[1]}" :title="f[2]">{{ f[0] }} · {{ f[2] }}</option>
+                </optgroup>
+                <optgroup label="Mac favourites">
+                  <option v-for="f in ProtoText.FONTS" :key="f[0]" :value="f[0]" :style="{fontFamily: f[1]}">{{ f[0] }}</option>
+                </optgroup>
+                <optgroup :label="tx.fonts ? 'Installed on this Mac (' + tx.fonts.length + ')' : 'Installed on this Mac (loading…)'">
+                  <option v-for="f in (tx.fonts || [])" :key="'s' + f" :value="f" :style="{fontFamily: ProtoText.stack(f)}">{{ f }}</option>
+                </optgroup>
               </select>
               <label>Size <span class="mod-val">{{ txLayer().size }} px</span></label>
-              <input type="range" min="8" :max="Math.max(200, Math.round(Math.min(tx.nw, tx.nh) * 0.5))" step="1" v-model.number="txLayer().size">
+              <input type="range" min="8" :max="Math.max(200, Math.round(Math.min(tx.nw, tx.nh) * 0.5))" step="1" v-model.number="txLayer().size" data-free>
               <div class="tx-row">
                 <label class="tx-col" title="The text's colour">Colour <input type="color" v-model="txLayer().colour"></label>
                 <button class="ghost small" :class="{on: tx.pick}" @click="tx.pick = !tx.pick" title="Click the old text on the picture to use its colour">🎯 from picture</button>
@@ -3261,18 +3329,46 @@
             <div v-if="!tx.layers.length" class="hint">Click the picture on the right where the text goes.</div>
             <div v-else class="tx-layers">
               <button v-for="(L, i) in tx.layers" :key="'txl' + i" class="tx-chip" :class="{on: i === tx.sel}" @click="tx.sel = i">
-                {{ (L.text || '…').split('\n')[0].slice(0, 14) || '…' }}<b @click.stop="txRemove(i)" title="Delete this text">✕</b></button>
+                {{ L.type === 'shape' ? txShapeLabel(L.kind) : ((L.text || '…').split('\n')[0].slice(0, 14) || '…') }}<b @click.stop="txRemove(i)" title="Delete this">✕</b></button>
               <button class="tx-chip tx-add" @click="txAdd()" title="Another text, with its own words, font, size and colour (or click an empty spot on the picture)">＋ Add text</button>
             </div>
+            <label title="Speech and thought balloons, captions and sound-effect bursts: they sit under the text">Balloons &amp; shapes</label>
+            <div class="chips tx-shape-picks">
+              <button v-for="k in ProtoText.SHAPES" :key="k[0]" class="chip" @click="txAddShape(k[0])" :title="k[2] + ' (with a text inside it)'">{{ k[1] }}</button>
+            </div>
             <div v-if="tx.layers.length" class="hint">Each text is separate: click an empty spot on the picture (or ＋ Add text) for another one; click a text to pick it, drag it to move it.</div>
-            <template v-if="txLayer()">
+            <template v-if="txLayer() && txLayer().type === 'shape'">
+              <label>Shape</label>
+              <div class="chips tx-shape-picks">
+                <button v-for="k in ProtoText.SHAPES" :key="'k' + k[0]" class="chip" :class="{on: txLayer().kind === k[0]}" @click="txLayer().kind = k[0]; txLayer().tail = !['caption', 'burst'].includes(k[0]) && txLayer().tail !== false" :title="k[2]">{{ k[1] }}</button>
+              </div>
+              <div class="tx-row">
+                <label class="tx-col" title="Inside colour">Fill <input type="color" v-model="txLayer().fill"></label>
+                <label class="tx-col" title="Outline colour">Outline <input type="color" v-model="txLayer().line"></label>
+                <label v-if="!['caption', 'burst'].includes(txLayer().kind)" class="check" title="The tail pointing at the speaker (drag its dot on the picture)"><input type="checkbox" v-model="txLayer().tail"> Tail</label>
+              </div>
+              <label>Outline width <span class="mod-val">{{ txLayer().lw }}</span></label>
+              <input type="range" min="0" max="20" step="1" v-model.number="txLayer().lw" data-free>
+              <label>Opacity <span class="mod-val">{{ Math.round((txLayer().opacity ?? 1) * 100) }}%</span></label>
+              <input type="range" min="0.1" max="1" step="0.05" v-model.number="txLayer().opacity">
+              <div class="hint">Drag it to move · drag a corner to resize · drag the dot to point the tail. Shapes sit under the text.</div>
+            </template>
+            <template v-else-if="txLayer()">
               <textarea ref="txText" v-model="txLayer().text" rows="2" class="mod-input tx-text" placeholder="Type the text (Return for a new line)"></textarea>
               <label>Font</label>
-              <select v-model="txLayer().font" :style="{fontFamily: txLayer().font}">
-                <option v-for="f in ProtoText.FONTS" :key="f[0]" :value="f[0]" :style="{fontFamily: f[1]}">{{ f[0] }}</option>
+              <select v-model="txLayer().font" :style="{fontFamily: ProtoText.stack(txLayer().font)}" @focus="txLoadFonts">
+                <optgroup label="Comic lettering (built in)">
+                  <option v-for="f in ProtoText.PACK" :key="'p' + f[0]" :value="f[0]" :style="{fontFamily: f[1]}" :title="f[2]">{{ f[0] }} · {{ f[2] }}</option>
+                </optgroup>
+                <optgroup label="Mac favourites">
+                  <option v-for="f in ProtoText.FONTS" :key="f[0]" :value="f[0]" :style="{fontFamily: f[1]}">{{ f[0] }}</option>
+                </optgroup>
+                <optgroup :label="tx.fonts ? 'Installed on this Mac (' + tx.fonts.length + ')' : 'Installed on this Mac (loading…)'">
+                  <option v-for="f in (tx.fonts || [])" :key="'s' + f" :value="f" :style="{fontFamily: ProtoText.stack(f)}">{{ f }}</option>
+                </optgroup>
               </select>
               <label>Size <span class="mod-val">{{ txLayer().size }} px</span></label>
-              <input type="range" min="8" :max="Math.max(200, Math.round(Math.min(tx.nw, tx.nh) * 0.5))" step="1" v-model.number="txLayer().size">
+              <input type="range" min="8" :max="Math.max(200, Math.round(Math.min(tx.nw, tx.nh) * 0.5))" step="1" v-model.number="txLayer().size" data-free>
               <div class="tx-row">
                 <label class="tx-col" title="The text's colour">Colour <input type="color" v-model="txLayer().colour"></label>
                 <button class="ghost small" :class="{on: tx.pick}" @click="tx.pick = !tx.pick" title="Click the old text on the picture to use its colour">🎯 from picture</button>
@@ -3794,12 +3890,29 @@
           <div v-if="tx.open && form.i2i_mode === 'text' && !i2iRunning" class="tx-wrap i2i-tx" @click.stop>
             <div class="tx-stage">
               <img ref="txImg" class="adjust-canvas" :class="{picking: tx.pick}" :src="fileUrl(tx.base.path)" @load="txImgLoad" draggable="false" @pointerdown.stop="txStageDown">
-              <div v-for="(L, i) in tx.layers" :key="'tx' + i" class="tx-layer" :class="{sel: i === tx.sel}" :style="txStyle(L)"
-                   @pointerdown.stop="txLayerDown($event, i)" title="Drag to move"><template v-if="L.vertical"><span
+              <svg v-if="tx.nw && tx.layers.some((L) => L.type === 'shape')" class="tx-shapes" :viewBox="'0 0 ' + tx.nw + ' ' + tx.nh" preserveAspectRatio="none">
+                <g v-for="(S, i) in tx.layers" :key="'ts' + i" v-show="S.type === 'shape'" :opacity="S.opacity ?? 1" class="tx-shape" :class="{sel: i === tx.sel}"
+                   @pointerdown.stop="txLayerDown($event, i)"><title>Drag to move · the corners resize it · the dot moves the tail</title>
+                  <template v-if="S.type === 'shape'">
+                    <path v-for="(d, k) in ProtoText.shapePaths(S, tx.nw, tx.nh).parts" :key="'o' + k" :d="d" fill="none" :stroke="S.line" :stroke-width="S.lw * 2"
+                          stroke-linejoin="round" :stroke-dasharray="S.kind === 'whisper' ? (S.lw * 3) + ' ' + (S.lw * 2.2) : null" v-if="S.lw > 0"></path>
+                    <path v-for="(d, k) in ProtoText.shapePaths(S, tx.nw, tx.nh).parts" :key="'f' + k" :d="d" :fill="S.fill"></path>
+                  </template>
+                </g>
+              </svg>
+              <div v-for="(L, i) in tx.layers" :key="'tx' + i" v-show="L.type !== 'shape'" class="tx-layer" :class="{sel: i === tx.sel}" :style="txStyle(L)"
+                   @pointerdown.stop="txLayerDown($event, i)" title="Drag to move"><template v-if="L.type === 'shape'"></template><template v-else-if="L.vertical"><span
                      v-for="(col, ci) in ProtoText.columns(L, tx.scale || 1).cols" :key="'tc' + ci" class="tx-vcol"
-                     :style="{width: ProtoText.columns(L, tx.scale || 1).w + 'px'}"><span v-for="(ch, j) in col" :key="j">{{ ch === ' ' ? '\u00a0' : ch }}</span></span></template><template v-else>{{ L.text || ' ' }}</template></div>
+                     :style="{width: ProtoText.columns(L, tx.scale || 1).w + 'px'}"><span v-for="(ch, j) in col" :key="j">{{ ch === ' ' ? '\u00a0' : ch }}</span></span></template><template v-else>{{ L.text || ' ' }}</template><template v-if="i === tx.sel && L.type !== 'shape'"><i v-for="c in ['nw', 'ne', 'sw', 'se']" :key="'th' + c"
+                   class="tx-handle tx-in" :class="'h-' + c" @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize the text"></i></template></div>
+            <template v-if="txLayer() && tx.nw">
+              <div v-for="c in (txLayer().type === 'shape' ? ['nw', 'ne', 'sw', 'se'] : [])" :key="'h' + c" class="tx-handle" :class="'h-' + c" :style="txHandleStyle(c)"
+                   @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize"></div>
+              <div v-if="txLayer().type === 'shape' && txLayer().tail" class="tx-handle tx-tail" :style="{left: txLayer().tx * 100 + '%', top: txLayer().ty * 100 + '%'}"
+                   @pointerdown.stop="txTailDown($event)" title="Drag to point the tail at the speaker"></div>
+            </template>
             </div>
-            <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE' }}</span>
+            <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE · CORNERS RESIZE' }}</span>
             <span v-if="tx.busy || tx.msg" class="adjust-badge busy">{{ tx.msg || 'Working…' }}</span>
           </div>
           <template v-else-if="i2iRunning">

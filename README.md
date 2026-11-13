@@ -50,7 +50,8 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 - **Library:** right-click menu; search by prompt, seed, model or LoRA; drag to select many; ⇆ compare side by side with linked zoom; stars; ↺ reuse a picture's prompt or settings; 🗑 delete (asks
   first); batch edit & export; 🗜 compress to the smallest file that still looks the same
 - **Prompt tools:** ✨ enhance, 🎞 film looks (38 films and cameras), example prompts, ideas, wildcards, tag ⇄ sentence conversion
-- **Relight:** 💡 IC-Light: new light described in words, from any side, on your Stable Diffusion 1.5 models
+- **Relight:** 💡 IC-Light: new light described in words or copied from a reference picture, on your own background or a new one, with your Stable Diffusion 1.5 models
+- **Comic lettering:** 🔤 replace or add text with a built-in comic font pack or any font on your Mac, plus 💬 speech, thought, shout and caption balloons and sound-effect bursts
 - **Train (models):** LoRAs on SD 1.5, SDXL, Pony, Illustrious, NoobAI, ERNIE, and on the ⚡ fast engine FLUX.2 Klein and Z-Image Turbo
 - **Train:** 🧩 build a captioned training set from one character picture (FLUX.2 Klein: angles, expressions, scenes); LoRA training (SD 1.5, SDXL incl. Pony / Illustrious, ERNIE Turbo on the ⚡ fast engine; full ERNIE on 32 GB+ Macs) with ★ recommended settings for people, objects, styles and concepts, ↻ continue training a LoRA you made, embedding training (SD 1.5), square crop / keep-whole
   framing, and merging LoRAs of the same type into one

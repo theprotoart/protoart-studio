@@ -4006,8 +4006,12 @@ class Engine:
         src, image = self._source_picture(args)
         image = image.convert("RGB")
         light = " ".join(str(args.get("prompt") or "").split())
-        if not light:
-            raise UserError("Describe the light first (e.g. “sunset over the sea”, “neon light, city”).")
+        ref_img = None
+        if args.get("reference"):  # 🖼 lit like a reference picture (IC-Light's background-conditioned model)
+            _, ref_img = self._source_picture({"path": args["reference"]}, "reference picture")
+            ref_img = ref_img.convert("RGB")
+        if not light and ref_img is None:
+            raise UserError("Describe the light first (e.g. “sunset over the sea”, “neon light, city”), or give a reference picture.")
         subject = " ".join(str(args.get("subject") or "").split())
         direction = args.get("direction") if args.get("direction") in rl.DIRECTIONS else "none"
         model_id = args.get("model")
@@ -4025,25 +4029,27 @@ class Engine:
         seed = int(args["seed"]) if str(args.get("seed") or "").lstrip("-").isdigit() and int(args["seed"]) >= 0 \
             else int.from_bytes(os.urandom(4), "little") & 0x7FFFFFFF
         started = time.time()
-        if rl.downloaded():
-            weights = rl.weights_path(download=False)
+        wfile = rl.FILE_BG if ref_img is not None else rl.FILE
+        if rl.downloaded(wfile):
+            weights = rl.weights_path(download=False, file=wfile)
         else:
             if net.strict:
                 raise UserError(f"Relight needs a one-time download of IC-Light (~{rl.MB / 1000:.1f} GB), and Strict "
                                 "offline mode is on. Turn it off in Settings → Privacy.")
             if free_disk_gb(_hub_dir()) < rl.MB / 1000 + 3:
                 raise UserError(f"Relight needs a one-time ~{rl.MB / 1000:.1f} GB download and the disk is nearly full.")
-            emit({"type": "status", "msg": f"Downloading IC-Light (~{rl.MB / 1000:.1f} GB, first time only)…"})
+            emit({"type": "status", "msg": f"Downloading IC-Light{' (reference light)' if ref_img is not None else ''} "
+                                           f"(~{rl.MB / 1000:.1f} GB, first time only)…"})
             net.set_online(True)
             try:
-                weights = rl.weights_path(download=True)
+                weights = rl.weights_path(download=True, file=wfile)
             except Exception as e:
                 raise UserError(f"Couldn't download IC-Light ({e}). Check the internet connection and try again.")
             finally:
                 net.set_online(False)
         alpha = self._cut_matte(src, image, emit, finder=args.get("finder") or "birefnet")
         fg = rl.foreground(image, alpha)
-        key = ("relight", model_id)
+        key = ("relight", model_id, wfile)
         if self.loaded_key != key or self.pipe is None:
             self.load(model_id)  # a fresh copy of the model (no LoRAs in it); normal pictures load it again afterwards
             emit({"type": "status", "msg": "Adding IC-Light to the model…"})
@@ -4072,10 +4078,10 @@ class Engine:
             return (px.float() * 127.5 + 127.5).clamp(0, 255).byte().cpu().numpy()
 
         w, h = rl.sizes(image.width, image.height, base)
-        lo_steps = steps if direction == "none" else int(round(steps / 0.9))
+        lo_steps = steps if direction == "none" and args.get("reference") is None else int(round(steps / 0.9))
         hi_steps = int(round(steps / 0.5))
         done = [0]
-        total = (steps if direction == "none" else int(round(lo_steps * 0.9))) + (int(round(hi_steps * 0.5)) if hires else 0)
+        total = (steps if direction == "none" and not args.get("reference") else int(round(lo_steps * 0.9))) + (int(round(hi_steps * 0.5)) if hires else 0)
 
         def on_step(p, i, ts, kw):
             if self.cancel_event.is_set():
@@ -4085,6 +4091,8 @@ class Engine:
             return kw
 
         prompt = ", ".join(x for x in (subject, light, rl.ADDED) if x)
+        conds = lambda W, H: (t.cat([enc(rl.fit(fg, W, H)), enc(rl.fit(np.asarray(ref_img), W, H))], dim=1)
+                              if ref_img is not None else enc(rl.fit(fg, W, H)))
         gen = t.Generator("cpu").manual_seed(seed)
         common = dict(prompt=prompt, negative_prompt=rl.NEGATIVE, guidance_scale=cfg, generator=gen, output_type="latent",
                       callback_on_step_end=on_step)
@@ -4093,8 +4101,11 @@ class Engine:
         # swaps so hard on the 960 px detail pass that Relight looks frozen
         self._tune_for_size(pipe, w, h)
         with t.inference_mode():
-            concat = enc(rl.fit(fg, w, h))
-            if direction == "none":
+            concat = conds(w, h)
+            if ref_img is not None:  # IC-Light's background mode: start from the reference, lit around the subject
+                lat = i2i(image=enc(rl.fit(np.asarray(ref_img), w, h)), strength=0.9, num_inference_steps=lo_steps,
+                          cross_attention_kwargs={"concat_conds": concat}, **common).images
+            elif direction == "none":
                 lat = pipe(width=w, height=h, num_inference_steps=steps, cross_attention_kwargs={"concat_conds": concat},
                            **common).images
             else:
@@ -4108,15 +4119,21 @@ class Engine:
                 from PIL import Image
                 big = np.asarray(Image.fromarray(px).resize((w2, h2), Image.LANCZOS))
                 lat = i2i(image=enc(big), strength=0.5, num_inference_steps=hi_steps,
-                          cross_attention_kwargs={"concat_conds": enc(rl.fit(fg, w2, h2))}, **common).images
+                          cross_attention_kwargs={"concat_conds": conds(w2, h2)}, **common).images
                 px = dec(lat)
         from PIL import Image
         out = Image.fromarray(px)
+        keep_bg = args.get("background", "keep") != "new"
+        if keep_bg:  # the relit subject back on the picture's own background (IC-Light draws a new one)
+            emit({"type": "status", "msg": "Relighting: placing the subject back on your background…"})
+            out = rl.place_back(image, alpha, out)
         settings = dict(src.get("settings") or {})
         settings.update(prompt=prompt, negative_prompt=rl.NEGATIVE, model=model_id, sampler="dpmpp_2m_sde_karras",
                         steps=steps, cfg=cfg, seed=seed, width=out.width, height=out.height,
                         seconds=round(time.time() - started, 1),
-                        relight={"light": light, "subject": subject, "direction": direction, "hires": hires})
+                        relight={"light": light, "subject": subject, "direction": direction, "hires": hires,
+                                 **({"reference": str(args["reference"])} if ref_img is not None else {}),
+                                 "background": "kept" if keep_bg else "new"})
         settings["loras"] = []
         path = self._save(out, settings, suffix="relit")
         record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="relit")

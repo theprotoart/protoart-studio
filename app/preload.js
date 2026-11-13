@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld("bee", {
   pickEmbeddings: () => ipcRenderer.invoke("dialog:pickEmbeddings"),
   // Adjust: read a picture's bytes, and save the adjusted PNG for the backend to add to the Library.
   readImage: (p) => ipcRenderer.invoke("image:read", p),
+  // 🔤 Replace text: the font families installed on this Mac
+  listFonts: () => ipcRenderer.invoke("fonts:list"),
   writeAdjusted: (bytes) => ipcRenderer.invoke("adjust:writeTemp", bytes),
   trash: (paths) => ipcRenderer.invoke("shell:trash", paths),
   trashModel: (p) => ipcRenderer.invoke("shell:trashModel", p),

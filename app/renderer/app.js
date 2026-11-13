@@ -211,7 +211,7 @@ function defaultPost() {  // Tools settings on a fresh install
     cut: { threshold: 0.5, softness: 0.1, grow: 0, bg: "transparent", color: "#ffffff", clean: true, fix_edges: true, crop: false, finder: "birefnet" },
     // 📄 Paper cut-out: border width (% of the shorter side), its paper, torn-ness, shadow, print look, background
     paper: { edge: 2, edge_colour: "white", rough: 0.5, shadow: 0.6, print_as: "photo", background: "transparent" },
-    relight: { prompt: "", subject: "", direction: "none", model: "", size: 640, hires: true },
+    relight: { prompt: "", subject: "", direction: "none", model: "", size: 640, hires: true, background: "keep", ref_on: false, ref: "" },
     mesh3d: { steps: 30, octree: 380, faces: 40000 },
   };
 }
@@ -535,6 +535,10 @@ const PATCH_NODES = [
   { id: "depth", label: "DEPTH", sub: "map", icon: "🌊", in: true, out: true },
   { id: "vector", label: "VECTOR", sub: "SVG", icon: "✒️", in: true, out: true },
   { id: "detail", label: "DETAIL", sub: "with a LoRA", icon: "🔎", in: true, out: true },
+  { id: "tiled", label: "TILED", sub: "upscale", icon: "🧩", in: true, out: true },
+  { id: "relight", label: "RELIGHT", sub: "new light", icon: "💡", in: true, out: true },
+  { id: "cutout", label: "CUT OUT", sub: "subject", icon: "✂", in: true, out: true },
+  { id: "paper", label: "PAPER", sub: "cut-out", icon: "📄", in: true, out: true },
   { id: "result", label: "RESULT", sub: "to Library", in: true },
 ];
 const PATCH_X = (i) => 78 + i * 140;           // jack columns in the panel's own 1000-wide drawing
@@ -554,6 +558,52 @@ const PICTURE_EXT = DIRECT_EXT.concat(["heic", "heif", "hif", "avif", "tif", "ti
   "erf", "kdc", "mrw", "raw", "rwl", "iiq", "procreate"]);
 const extOf = (name) => String(name || "").split(".").pop().toLowerCase();
 const isPicture = (f) => !!f && ((f.type || "").startsWith("image/") || PICTURE_EXT.includes(extOf(f.name)));
+// Double-click a slider's number (the amber box beside a module's label) to type the value: Return keeps it, Esc
+// cancels. Works for every slider in Tools (and anywhere a .mod-val sits next to one). Values are kept within the
+// slider's range, except where the slider says data-free (the text size can go past the slider's end).
+function installTypeIn() {
+  const rangeFor = (val) => {
+    const lab = val.closest("label") || val.parentElement;
+    for (let el = lab && lab.nextElementSibling, k = 0; el && k < 2; el = el.nextElementSibling, k++) {
+      if (el.matches && el.matches("input[type=range]")) return el;
+      const r = el.querySelector && el.querySelector("input[type=range]");
+      if (r) return r;
+    }
+    return null;
+  };
+  document.addEventListener("dblclick", (e) => {
+    const val = e.target.closest && e.target.closest(".mod-val");
+    if (!val || val.querySelector("input")) return;
+    const range = rangeFor(val);
+    if (!range) return;
+    e.preventDefault();
+    const box = document.createElement("input");
+    box.type = "number"; box.className = "mod-val-input";
+    box.step = range.step || "any"; box.value = range.value;
+    const r = val.getBoundingClientRect();
+    Object.assign(box.style, { position: "fixed", left: r.left + "px", top: r.top - 2 + "px", width: Math.max(64, r.width + 18) + "px", zIndex: 9999 });
+    document.body.appendChild(box);
+    box.focus(); box.select();
+    let done = false;
+    const finish = (keep) => {
+      if (done) return;
+      done = true;
+      const v = parseFloat(box.value);
+      box.remove();
+      if (!keep || !isFinite(v)) return;
+      const lo = parseFloat(range.min), hi = parseFloat(range.max);
+      let x = v;
+      if (range.hasAttribute("data-free")) { if (isFinite(hi) && x > hi) range.max = String(Math.ceil(x)); }
+      else if (isFinite(hi)) x = Math.min(hi, x);
+      if (isFinite(lo)) x = Math.max(lo, x);
+      range.value = String(x);
+      range.dispatchEvent(new Event("input", { bubbles: true }));
+      range.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    box.addEventListener("keydown", (ev) => { if (ev.key === "Enter") finish(true); else if (ev.key === "Escape") finish(false); ev.stopPropagation(); });
+    box.addEventListener("blur", () => finish(true));
+  });
+}
 const ADJ_KEY = "protoart.adjustLast";  // the last Adjust settings you saved ("Last used")
 let adjEngine = null;                   // the WebGL engine (kept outside Vue: not reactive)
 let adjFrame = 0;
@@ -854,6 +904,7 @@ const protoartApp = createApp({
       paperJob: false,
       i2iInpaintPick: "",
       promptCardOver: false,
+      relightRefOver: false,
       procreateJob: false,   // 🗂 reading a Procreate file's layers
       trainLongAsk: false,   // Train: "this will take many hours" shown before starting // a picture dragged over Tools → Image → prompt    // Image to image → Inpaint: the inpainting model you picked ('' = the first that fits)
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
@@ -944,7 +995,7 @@ const protoartApp = createApp({
       zoom: { tools: { z: 1, x: 0, y: 0 }, i2i: { z: 1, x: 0, y: 0 }, i2iSrc: { z: 1, x: 0, y: 0 } },
       zoomSpace: false,      // Space held: drag to move around (like Photoshop)
       toolMasks: { remove: null, enhArea: null },  // Tools: each painting kept apart ({data, for}): Remove's, Enhance's area
-      tx: { open: false, base: null, layers: [], sel: -1, scale: 1, nw: 0, nh: 0, pick: false, busy: false, msg: "", drag: null, finding: false },  // 🔤 Replace text
+      tx: { open: false, base: null, layers: [], sel: -1, scale: 1, nw: 0, nh: 0, pick: false, busy: false, msg: "", drag: null, finding: false, fonts: null, fontsAsked: false },  // 🔤 Replace text
       pw: { open: false, rec: null, pins: [], sel: -1, density: 48, busy: false, msg: "", error: "", original: false,
             ovl: null, size: null, mode: "rigid", expand: 0, feather: 3, showMesh: true, showBg: true, whole: false,
             hist: [], fut: [],
@@ -988,7 +1039,11 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.15: 💡 Relight on 8 GB Macs, a tidier Models tab, the upscaler in photo info", items: [
+            { h: "1.6.15: 💬 comic balloons and a font pack, 💡 Relight keeps your background or copies a reference's light, more patchbay modules", items: [
+              "<b>🔤 Replace text: comic lettering</b>: a built-in pack of 12 comic fonts (Comic Neue, Shantell Sans, Bangers, Luckiest Guy…), every font installed on your Mac in the Font list, corner handles to resize a text by hand, and <b>💬 Balloons & shapes</b>: speech, thought, shout, whisper, box, caption and burst, with a draggable tail.",
+              "<b>Type exact numbers</b>: double-click a slider's number (the amber box) in Tools to type the value: steps, LoRA weight, change strength, text size… Return keeps it, Esc cancels.",
+              "<b>💡 Relight</b>: <b>Background → Keep mine</b> (new default) puts the relit subject back on your own background automatically; <b>Light like → 🖼 A reference picture</b> lights the subject like a picture you drop in. Two more light ideas: winter snow, and a rainy manga-style Tokyo night. The text at the bottom of the module no longer hides behind a screw.",
+              "<b>🔌 Patchbay</b>: TILED upscale, RELIGHT, CUT OUT and PAPER can now be patched in too.",
               "<b>💡 Relight on 8 GB Macs</b>: runs at <b>512</b> (with Add detail, the result is 768 px). 640 and 768 need 16 GB: on 8 GB they ran out of memory and seemed to freeze. Relight also uses the same memory savers as normal pictures now.",
               "<b>Photo info shows the upscaler</b>: an <b>Upscaled</b> line with the upscaler (⏩ Instant · UltraSharp V2 · 2×…) or the enhancer's settings. The empty Sampler line of imported pictures is hidden.",
               "<b>Models tab: a tidier top row</b>: the 15 model-type buttons are now one <b>All model types</b> list (⚡ Fast engine and Stable Diffusion groups), and the three Add buttons are one <b>+ Add a model…</b> list (Hugging Face, Civitai, your Mac).",
@@ -1518,10 +1573,13 @@ const protoartApp = createApp({
           ] },
         { id: "tools", go: "tools", icon: "🧰", title: "Tools", summary: "Enhance, 🎚 adjust, restore faces, 🩹 remove objects, ✒️ vectorize, 🔌 patchbay, image → prompt, convert files",
           sections: [
+            { h: "🔢 Typing exact numbers", items: [
+              "Every slider in Tools shows its value in an amber box. <b>Double-click that number</b> to type the value you want (steps, LoRA weight, change strength, text size…), then press <b>Return</b> (or click away). <b>Esc</b> cancels. Values stay within the slider's range, except the text size, which can go past it." ] },
             { h: "🔌 Patchbay: run the tools in your own order", items: [
               "<b>＋ Add a module</b> (above the panel) puts in another copy of Faces, Enhance, Remove or Depth, like a second rack unit: cable it in to run that tool twice in one chain (for example Restore faces, then Restore faces again). <b>✕ last added</b> takes the newest copy out.",
               "<b>Each module's settings</b>: press <b>SELECT</b> at the bottom of a module. Its rack unit below lights up and shows that module's settings, with a ⚙ badge naming it; a copy you added, such as FACES 2, keeps <b>its own settings</b> in the same rack unit (model, strength, fidelity for faces; upscale, detail, steps for enhance…), so each copy can do something different. Press SELECTED again to finish.",
               "<b>✕</b> (top right of a module) takes it off the rack; <b>Add a module → ↩ put … back</b> returns it. <b>🔎 DETAIL</b> redraws lightly with its own SD 1.5 or SDXL model (picked in the Detail with a LoRA module: <i>automatic</i> uses Create's if it's one of those) and one LoRA (an “add detail” LoRA works well; change strength 0.2–0.4 keeps the picture). It needs an SD 1.5 or SDXL model on this Mac. When the patchbay is hidden, <b>Run chain</b> lists the patched modules in order and runs them with ▶ Run patch.",
+              "<b>More modules on the patchbay</b>: besides Remove, Faces, Enhance, Depth, Detail and Vector, you can now patch in <b>🧩 TILED</b> upscale (Create's SD model), <b>💡 RELIGHT</b> (its module's light, reference and background), <b>✂ CUT OUT</b> (its module's settings and background) and <b>📄 PAPER</b> cut-out. Replace text stays a module of its own (it needs you to type).",
               "<b>🛡 Protect areas…</b>: paint over parts the rack must not change (a face you like, a logo), press ✓ Done protecting, then ▶ Run patch: those parts are put back from your original at the end. The picture forming shows in the preview while it runs.",
               "<b>Saving a signal flow</b>: type a name next to <b>💾 Save flow</b> and press it: the cables, the copies you added, the module order and the copies' own settings are kept. Load it again from <i>load a saved flow…</i>; 🗑 deletes the saved one (the patchbay stays as it is).",
               "<b>Moving modules</b>: drag a module's name plate left or right, or point at it and press <b>‹</b> / <b>›</b>. PICTURE stays first and RESULT last. Moving a module doesn't change what runs: the <b>cables</b> set the order the picture goes through (shown in the amber readout). <b>↺ reset</b> puts the modules back in their places and pulls out every cable.",
@@ -1540,7 +1598,8 @@ const protoartApp = createApp({
             { h: "💡 Relight: new light on a picture", items: [
               "Tools → pick the picture → <b>💡 Relight</b>. Type the light (or click an idea: sunshine from a window, neon city, sunset over the sea, golden hour, soft studio lighting…), optionally what the subject is (“woman, detailed face”), and where the light comes from: <b>Any</b> lets the words decide, ← Left / Right → / ↑ Top / ↓ Bottom puts a bright side there.",
               "It needs a <b>Stable Diffusion 1.5</b> model on this Mac (a realistic one, like Realistic Vision, gives the most natural light; download one in Models if you have none). The first time also downloads IC-Light (~1.7 GB). On an 8 GB Mac a picture takes a few minutes at 640 with Add detail on; 512 without it is quickest.",
-              "IC-Light keeps the subject and makes a new background that fits the light. To keep your original background, ✂ Cut out the relit subject and put it back on your picture. Faces can change a little: add “detailed face” to Subject, or try another seed." ] },
+              "<b>Background</b>: <b>Keep mine</b> (the default) puts the relit subject back on your picture's own background for you; <b>New from Relight</b> keeps the background IC-Light draws to match the light. Faces can change a little: 🙂 Restore faces afterwards if needed.",
+              "<b>Light like → 🖼 A reference picture</b>: drop (or pick) a picture whose light you want, a sunset photo, a neon street, a film still, and the subject is lit the same way (IC-Light's reference model, another ~1.7 GB download the first time). Words are optional then. On Macs under 16 GB Relight runs at 512." ] },
             { h: "⏩ Which upscaler? (Instant)", items: [
               "Tools → <b>Enhance & upscale</b> → Speed <b>⏩ Instant</b> makes the picture bigger in seconds with an upscaler alone (no new detail invented). Not sure? Use the buttons under the list: <b>⚡ Fastest</b> (<b>UltraSharp V2 Lite</b> for anything, <b>Real-ESRGAN fast</b>, <b>AnimeVideo v3</b> for anime) or <b>★ Best quality</b> (<b>UltraSharp V2</b> for anything, <b>Nomos WebPhoto</b> for phone and web photos, <b>AnimeSharp</b> for anime, line art and text). The list shows each one's speed; hover for what it's best at.",
               "<b>For everything:</b> 4x-UltraSharp (built in, crisp), UltraSharp V2 (most detail; slow: 1–3 min for a 1024 px picture on an 8 GB Mac), UltraSharp V2 Lite (fast), Real-ESRGAN fast. <b>Photos:</b> Real-ESRGAN (old or compressed pictures), Real-ESRGAN 2× (made for 2×), Nomos WebPhoto (noise, lens blur, JPEG/WebP), Nomos8kSC (clean photos, natural texture). <b>Anime, drawings & text:</b> AnimeSharp (extra crisp), Real-ESRGAN Anime (clean lines, flat colours), AnimeVideo v3 (fastest, a little softer).",
@@ -1585,6 +1644,9 @@ const protoartApp = createApp({
               "<b>2 · 🧽 Clear it</b> fills the background in where the text was (✨ Smart fill, as in Remove objects) and opens the Type tool on the cleared picture. The cleared picture is also kept in the Library.",
               "<b>3 · ✏️ Type</b>: click the picture where the text goes and type it in the box (Return for a new line). Pick the <b>font</b>, <b>size</b>, <b>colour</b> (<b>🎯 from picture</b>, then click the old text, to match its colour), <b>B</b>old, <i>I</i>talic and the alignment; <b>A↓ Vertical</b> stacks the letters top to bottom (each line is a column, like a shop sign), and <b>⟲ 90°</b> turns the text on its side like a book's spine; <i>outline, shadow, angle</i> has the rest (letter spacing, line height, opacity). Drag a text to move it; click beside it to add another. The chips list your texts (✕ deletes one).",
               "<b>Several texts</b>: <b>＋ Add text</b> (or a click on an empty spot of the picture) adds another one with its own words, font, size and colour. Its name appears above the box: click a name (or the text on the picture) to change that one, ✕ deletes it. A new text you didn't type in is dropped when you add the next.",
+              "<b>Fonts</b>: the Font list starts with the built-in <b>comic lettering pack</b> (Comic Neue, Shantell Sans, Patrick Hand and Architects Daughter for dialogue and captions; Bangers, Luckiest Guy, Bowlby One SC and Titan One for sound effects and titles; Chewy, Boogaloo, Bubblegum Sans, Permanent Marker), then the Mac favourites, then <b>every font installed on this Mac</b> (including ones you added in Font Book; the list fills in after a few seconds the first time).",
+              "<b>Resize by hand</b>: the selected text has four corner handles: drag one to make the text bigger or smaller. Or <b>double-click the size number</b> (the amber box) and type it, even beyond the slider's end.",
+              "<b>💬 Balloons & shapes</b>: Speech, Thought, Shout, Whisper, Box, Caption and Burst (for sound effects). Each comes with a text inside it in a matching comic font. Drag the balloon to move it (its tail comes along), its corners to resize it, and the blue dot to point the tail at the speaker. Pick its fill, outline colour and width; balloons are always drawn under the text.",
               "<b>💾 Save</b> draws the text into the picture at full size and saves it as a new picture in the Library (the original stays). You can also use ✏️ Type on any picture without clearing anything first." ] },
             { h: "🩹 Remove objects and ✒️ Vectorize", items: [
               "<b>Remove objects in Tools</b>: press <b>🖌 Paint</b> in the module, paint on the picture on the left (all the selection tools work), choose <b>✨ Smart fill</b> (rebuilds what was behind it) or <b>⚡ Quick fill</b> (instant, for small spots), and press <b>🩹 Remove</b>.",
@@ -2158,7 +2220,8 @@ const protoartApp = createApp({
       m3d: { job: false, accepted: loadJSON("protoart.mesh3d.accepted", false), status: null, last: null },
       RELIGHT_IDEAS: ["sunshine from a window", "neon light, city", "sunset over the sea", "golden hour", "sci-fi RGB glow, cyberpunk",
                       "natural lighting", "warm atmosphere, cosy bedroom", "magical glow", "gothic, dark and moody", "light and shadow",
-                      "shadow from a window", "soft studio lighting", "neon, warm, Wong Kar-wai", "campfire at night", "underwater light"],
+                      "shadow from a window", "soft studio lighting", "neon, warm, Wong Kar-wai", "campfire at night", "underwater light",
+                      "winter snow, cold blue daylight, falling snowflakes", "rainy Tokyo street at night, neon reflections on wet asphalt, manga style"],
       tset: { open: false, src: "", trigger: "", angles: true, expressions: true, scenes: true, busy: false, msg: "", done: 0, total: 0, stop: false },
       train: mergeDefaults({ model: "", folder: "", items: [], capMode: "tags", name: "", trigger: "", format: "kohya", kind: "character",
                              precision: "fp16", save_every: 0, preset: "recommended", steps: 1000, lr: 0.0001, rank: 16,
@@ -3481,6 +3544,7 @@ const protoartApp = createApp({
   },
 
   async mounted() {
+    installTypeIn();  // double-click a slider's number (Tools' modules) to type an exact value
     currentTab = this.tab;  // the tab the app opened on: jobs started before any tab change are filed under it
     window.addEventListener("resize", () => { if (this.adj.open) this.adjPlaceOverlay(); if (this.pw.open) this.pwPlaceOverlay(); if (this.tx.open) this.txMeasure(); });
     // the saved form remembers whose prompt is in the box (Create's or Image to image's): match it to the tab the
@@ -5434,7 +5498,8 @@ const protoartApp = createApp({
     patchStepLabel(id) {
       id = String(id).split("#")[0];
       return { heal: "Removing what you painted", faces: "Restoring faces", enhance: "Enhancing & upscaling",
-               depth: "Making a depth map", vector: "Vectorizing", detail: "Adding detail with a LoRA" }[id] || id;
+               depth: "Making a depth map", vector: "Vectorizing", detail: "Adding detail with a LoRA",
+               tiled: "Tiled upscale", relight: "Relighting", cutout: "Cutting out", paper: "Making a paper cut-out" }[id] || id;
     },
     async patchRun() {
       const steps = this.patchChain.steps;
@@ -5446,6 +5511,13 @@ const protoartApp = createApp({
       }
       if (steps.some((x) => String(x).split("#")[0] === "detail") && !this.detModel())
         return (this.error = "DETAIL redraws the picture lightly with an SD 1.5 or SDXL model and a LoRA: download one first (Models tab → SD 1.5).");
+      const has = (t) => steps.some((x) => String(x).split("#")[0] === t);
+      if (has("relight") && !this.relightModel())
+        return (this.error = "RELIGHT runs on a Stable Diffusion 1.5 model: download one first (Models tab → SD 1.5).");
+      if (has("relight") && !this.post.relight.prompt.trim() && !(this.post.relight.ref_on && this.post.relight.ref))
+        return (this.error = "RELIGHT is patched in: describe the light in the 💡 Relight module first (or pick a light idea).");
+      if (has("tiled") && !["sd15", "sdxl"].includes(this.family))
+        return (this.error = "TILED upscale adds detail with Create's model: pick an SD 1.5 or SDXL model in Create first.");
       if (this.tool.protecting) this.patchProtect(false);  // finish painting the protected areas
       this.error = "";
       const mask = this.toolPaintFor("remove");
@@ -5481,6 +5553,22 @@ const protoartApp = createApp({
             const d = (this.patch.copySettings[node] && this.patch.copySettings[node].det) || this.post.det;
             rec = await this.runJob("generate", this.detailArgs(d, curPath));
             if (Array.isArray(rec)) rec = rec[rec.length - 1] || null;  // generate answers with a list of pictures
+          } else if (id === "tiled") {
+            const f = this.form;
+            rec = await this.runJob("tiled_upscale", { ...cur, model: f.model, prompt: (this.tup.prompt || "").trim(), scale: this.tup.scale,
+                                                         strength: this.tup.strength, steps: this.tup.steps, cfg: Math.min(f.cfg || 6, 6), sampler: f.sampler, seed: f.seed });
+          } else if (id === "relight") {
+            const o = this.post.relight;
+            rec = await this.runJob("relight", { ...cur, prompt: o.prompt, subject: o.subject, direction: o.direction, model: this.relightModel().id,
+                                                 size: this.relightSize(), hires: o.hires, background: o.background || "keep",
+                                                 reference: o.ref_on && o.ref ? o.ref : null, finder: this.post.cut.finder });
+          } else if (id === "cutout") {
+            const o = this.post.cut;
+            rec = await this.runJob("cutout", { ...cur, mode: "save", finder: o.finder || "birefnet", threshold: o.threshold, softness: o.softness, grow: o.grow,
+              clean: o.clean, fix_edges: o.fix_edges, crop: o.crop,
+              background: o.bg === "transparent" ? "transparent" : o.bg === "white" ? "#ffffff" : o.bg === "black" ? "#000000" : o.color });
+          } else if (id === "paper") {
+            rec = await this.runJob("papercut", { ...cur, ...this.post.paper, threshold: this.post.cut.threshold, grow: this.post.cut.grow });
           } else if (id === "vector") {
             const v = this.post.vec;
             rec = await this.runJob("vectorize", { ...cur, colors: v.colors, detail: v.detail, smooth: v.smooth });
@@ -6529,6 +6617,7 @@ const protoartApp = createApp({
       const base = rec || (last && last.kind === "healed" ? last : null) || { path: this.form.init_image, id: null };
       if (!base.path) return (this.error = "Add a picture first.");
       Object.assign(this.tx, { open: true, base: { path: base.path, id: base.id ?? null }, sel: -1, pick: false, msg: "" });
+      this.txLoadFonts();
       if (!this.tx.keep) this.tx.layers = [];
       this.tx.keep = false;
       this.status = "Click the picture on the right where the text goes, then type it on the left";
@@ -7047,10 +7136,22 @@ const protoartApp = createApp({
     // Relight's largest size on this Mac: 640 / 768 (and their 960 / 1150 px detail pass) run an 8 GB Mac out of memory
     relightMaxSize() { return this.sys.ram_gb && this.sys.ram_gb < 12 ? 512 : 768; },
     relightSize() { return Math.min(+this.post.relight.size || 640, this.relightMaxSize()); },
+    async relightRefDrop(e) {  // 🖼 the reference picture whose light Relight copies
+      this.relightRefOver = false;
+      const file = [...(e.dataTransfer?.files || [])].find(isPicture);
+      if (!file) return (this.error = "Drop a picture (PNG, JPEG, WebP, HEIC…) with the light you want.");
+      this.post.relight.ref = await this.preparePicture(window.bee.pathForFile(file));
+    },
+    async relightRefPicked(e) {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (file) this.post.relight.ref = await this.preparePicture(window.bee.pathForFile(file));
+    },
     async toolRelight() {
       const s = this.tool.source, o = this.post.relight;
       if (!s || this.relightJob) return;
-      if (!o.prompt.trim()) return (this.error = "Describe the light first, or pick one of the light ideas.");
+      if (o.ref_on && !o.ref) return (this.error = "Drop or pick the reference picture whose light to copy (or switch Light like to ✏️ Words).");
+      if (!o.ref_on && !o.prompt.trim()) return (this.error = "Describe the light first, or pick one of the light ideas.");
       const m = this.relightModel();
       if (!m) return (this.error = "Relight runs on a Stable Diffusion 1.5 model and none is on this Mac yet: download Stable Diffusion 1.5 (or a realistic SD 1.5 model) in Models.");
       this.relightJob = true;
@@ -7058,7 +7159,7 @@ const protoartApp = createApp({
       this.tool.latest = null;
       try {
         const rec = await this.runJob("relight", { ...this.toolArgs(), prompt: o.prompt, subject: o.subject, direction: o.direction,
-                                                     model: m.id, size: this.relightSize(), hires: o.hires, finder: this.post.cut.finder });
+                                                     model: m.id, size: this.relightSize(), hires: o.hires, background: o.background || "keep", reference: o.ref_on && o.ref ? o.ref : null, finder: this.post.cut.finder });
         if (rec) { this.tool.latest = rec; this.afterPost(rec); }
       } finally { this.tool.working = null; this.relightJob = false; }
     },
@@ -10181,6 +10282,7 @@ const protoartApp = createApp({
       if (this.cut.open) this.closeCutout();
       this.tool.healing = false;
       Object.assign(this.tx, { open: true, base: { path: base.path, id: base.id ?? null }, sel: -1, pick: false, msg: "" });
+      this.txLoadFonts();
       if (!this.tx.keep) this.tx.layers = [];
       this.tx.keep = false;
       this.status = "Click the picture where the text goes, then type it in 🔤 Replace text";
@@ -10223,7 +10325,7 @@ const protoartApp = createApp({
       const cur = this.txLayer();
       const blank = (t) => !String(t || "").trim() || t === "Your text";
       if (cur && blank(cur.text) && cur === this.tx.layers[this.tx.layers.length - 1]) this.txRemove(this.tx.sel);  // a new text never typed in isn't kept
-      const prev = this.tx.layers[this.tx.layers.length - 1];
+      const prev = [...this.tx.layers].reverse().find((T) => T.type !== "shape");
       if (x == null) { x = prev ? prev.x : 0.5; y = prev ? Math.min(0.92, prev.y + 0.12) : 0.5; }
       const size = Math.max(12, Math.min(this.tx.nw, this.tx.nh) * 0.07);
       const L = window.ProtoText.layer(x, y, size);
@@ -10237,15 +10339,76 @@ const protoartApp = createApp({
     },
     txLayerDown(e, i) {  // drag a text to move it
       this.tx.sel = i;
-      const L = this.tx.layers[i], [x0, y0] = this.txPoint(e), sx = L.x, sy = L.y;
-      const move = (ev) => { const [x, y] = this.txPoint(ev); L.x = Math.min(1, Math.max(0, sx + x - x0)); L.y = Math.min(1, Math.max(0, sy + y - y0)); };
+      const L = this.tx.layers[i], [x0, y0] = this.txPoint(e), sx = L.x, sy = L.y, stx = L.tx, sty = L.ty;
+      const move = (ev) => {
+        const [x, y] = this.txPoint(ev);
+        L.x = Math.min(1, Math.max(0, sx + x - x0)); L.y = Math.min(1, Math.max(0, sy + y - y0));
+        if (L.type === "shape") { L.tx = stx + (L.x - sx); L.ty = sty + (L.y - sy); }  // the tail moves with its balloon
+      };
       const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
     },
+    txShapeLabel(kind) { return ((window.ProtoText.SHAPES.find((k) => k[0] === kind) || [])[1] || "Shape"); },
+    async txLoadFonts() {  // the fonts installed on this Mac, for the Font list (asked for once)
+      if (this.tx.fonts || this.tx.fontsAsked || !window.bee.listFonts) return;
+      this.tx.fontsAsked = true;
+      try {
+        const list = await window.bee.listFonts();
+        const known = new Set([...window.ProtoText.PACK, ...window.ProtoText.FONTS].map((f) => f[0]));
+        this.tx.fonts = (list || []).filter((f) => !known.has(f));
+      } catch { this.tx.fonts = []; }
+    },
+    txAddShape(kind) {  // 💬 a balloon (under the text) with a text in it, both picked for the comic look
+      const nw = this.tx.nw || 1000, nh = this.tx.nh || 1000, prev = this.txLayer();
+      const x = prev ? Math.min(0.85, Math.max(0.15, prev.x)) : 0.5, y = prev ? Math.min(0.85, Math.max(0.15, prev.y)) : 0.35;
+      const S = window.ProtoText.shape(kind, x, y, nw, nh);
+      this.tx.layers.unshift(S);  // shapes first: they're drawn under the words
+      const size = Math.max(12, Math.round(Math.min(nw, nh) * (kind === "burst" ? 0.07 : 0.035)));
+      const L = window.ProtoText.layer(x, y, size);
+      Object.assign(L, kind === "burst" ? { text: "POW!", font: "Bangers", colour: "#d81e1e", stroke: 6, strokeColour: "#111111", rotate: -8 }
+        : kind === "caption" ? { text: "Meanwhile…", font: "Architects Daughter", colour: "#111111", bold: false }
+        : kind === "shout" ? { text: "WHAT?!", font: "Luckiest Guy", colour: "#111111", bold: false }
+        : { text: kind === "thought" ? "Hmm…" : kind === "whisper" ? "psst…" : "Your words", font: "Comic Neue", colour: "#111111", bold: true });
+      this.tx.layers.push(L);
+      this.tx.sel = this.tx.layers.length - 1;
+      this.$nextTick(() => setTimeout(() => { const ta = this.$refs.txText; if (ta) { ta.focus(); ta.select(); } }, 60));
+    },
+    txHandleStyle(c) {  // a shape's corner handles
+      const S = this.txLayer();
+      if (!S || S.type !== "shape") return { display: "none" };
+      return { left: (S.x + (c.includes("e") ? 1 : -1) * S.w / 2) * 100 + "%", top: (S.y + (c.includes("s") ? 1 : -1) * S.h / 2) * 100 + "%" };
+    },
+    txHandleDown(e, c) {  // drag a corner: a shape's size (its middle stays put) or a text's size
+      const L = this.txLayer();
+      if (!L) return;
+      const im = this.$refs.txImg, r = im.getBoundingClientRect();
+      const cx = r.left + L.x * r.width, cy = r.top + L.y * r.height;
+      const d0 = Math.hypot(e.clientX - cx, e.clientY - cy) || 1, size0 = L.size;
+      const move = (ev) => {
+        if (L.type === "shape") {
+          L.w = Math.max(0.03, Math.min(1.5, (2 * Math.abs(ev.clientX - cx)) / r.width));
+          L.h = Math.max(0.03, Math.min(1.5, (2 * Math.abs(ev.clientY - cy)) / r.height));
+        } else {
+          L.size = Math.max(4, Math.min(4000, Math.round(size0 * Math.hypot(ev.clientX - cx, ev.clientY - cy) / d0)));
+        }
+      };
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    },
+    txTailDown(e) {  // drag the tail's tip
+      const S = this.txLayer();
+      if (!S) return;
+      const move = (ev) => { const [x, y] = this.txPoint(ev); S.tx = x; S.ty = y; };
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      move(e);
+    },
     txRemove(i) { this.tx.layers.splice(i, 1); this.tx.sel = Math.min(this.tx.sel, this.tx.layers.length - 1); },
     async txSave() {  // the picture with the text drawn in, at full size, saved to the Library
-      if (!this.tx.base || !this.tx.layers.some((L) => String(L.text || "").trim())) return (this.error = "Click the picture and type some text first.");
+      if (!this.tx.base || !this.tx.layers.some((L) => L.type === "shape" || String(L.text || "").trim())) return (this.error = "Click the picture and type some text (or add a balloon) first.");
       this.tx.busy = true; this.tx.msg = "Saving…";
       try {
         const bmp = await createImageBitmap(new Blob([await this.readImageBytes(this.tx.base.path)]));

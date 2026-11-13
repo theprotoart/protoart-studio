@@ -375,6 +375,31 @@ handle("dialog:pickModels", async () => {
 });
 // Adjust (Lightroom-style sliders and filters, done on the GPU in the page): the page needs the picture's
 // bytes (a file:// image can't be read back from a WebGL canvas), and hands back the finished PNG.
+// 🔤 Replace text: the font families installed on this Mac (System Settings' fonts and ones you added with Font
+// Book), for the Font list. system_profiler takes a few seconds the first time, so the list is kept for the session.
+let fontFamilies = null;
+handle("fonts:list", () => {
+  if (fontFamilies) return fontFamilies;
+  fontFamilies = new Promise((resolve) => {
+    if (process.platform !== "darwin") return resolve([]);
+    const { execFile } = require("child_process");
+    execFile("/usr/sbin/system_profiler", ["SPFontsDataType", "-json", "-detailLevel", "mini"], { maxBuffer: 256 * 1024 * 1024, timeout: 60000 },
+      (err, out) => {
+        if (err) return resolve([]);
+        try {
+          const names = new Set();
+          for (const f of JSON.parse(out).SPFontsDataType || []) {
+            for (const t of f.typefaces || []) {
+              const fam = t.family || "";
+              if (fam && !fam.startsWith(".") && !/LastResort/i.test(fam)) names.add(fam);
+            }
+          }
+          resolve([...names].sort((a, b) => a.localeCompare(b)));
+        } catch { resolve([]); }
+      });
+  });
+  return fontFamilies;
+});
 handle("image:read", async (_e, p) => {
   if (typeof p !== "string" || !path.isAbsolute(p) || !IMAGE_EXT.has(path.extname(p).toLowerCase())) throw new Error("not a picture");
   const st = await fs.promises.stat(p);

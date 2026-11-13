@@ -8,34 +8,38 @@ import numpy as np
 
 REPO = "lllyasviel/ic-light"
 FILE = "iclight_sd15_fc.safetensors"
+FILE_BG = "iclight_sd15_fbc.safetensors"  # lit like a reference picture (IC-Light's background-conditioned model)
 MB = 1720
 DIRECTIONS = ("none", "left", "right", "top", "bottom")
 ADDED = "best quality"
 NEGATIVE = "lowres, bad anatomy, bad hands, cropped, worst quality"
 
 
-def downloaded():
+def downloaded(file=FILE):
     try:
         from huggingface_hub import hf_hub_download
-        hf_hub_download(REPO, FILE, local_files_only=True)
+        hf_hub_download(REPO, file, local_files_only=True)
         return True
     except Exception:
         return False
 
 
-def weights_path(download=False):
+def weights_path(download=False, file=FILE):
     from huggingface_hub import hf_hub_download
-    return hf_hub_download(REPO, FILE, local_files_only=not download)
+    return hf_hub_download(REPO, file, local_files_only=not download)
 
 
 def patch_unet(unet, offset_file):
-    """In place: an 8-channel first layer (the new 4 start at zero), IC-Light's offsets added to every weight, and a
-    forward that appends the subject's latent (cross_attention_kwargs["concat_conds"]) to the noisy latent."""
+    """In place: a wider first layer (8 channels for the words model, 12 for the reference-picture one; the new ones
+    start at zero), IC-Light's offsets added to every weight, and a forward that appends the subject's latent (and the
+    reference's) from cross_attention_kwargs["concat_conds"] to the noisy latent."""
     import torch
     from safetensors import safe_open
+    with safe_open(offset_file, framework="pt") as f:
+        channels = int(f.get_slice("conv_in.weight").get_shape()[1]) if "conv_in.weight" in f.keys() else 8
     with torch.no_grad():
         old = unet.conv_in
-        new = torch.nn.Conv2d(8, old.out_channels, old.kernel_size, old.stride, old.padding).to(old.weight.device, old.weight.dtype)
+        new = torch.nn.Conv2d(channels, old.out_channels, old.kernel_size, old.stride, old.padding).to(old.weight.device, old.weight.dtype)
         new.weight.zero_()
         new.weight[:, :4].copy_(old.weight)
         new.bias = old.bias
@@ -103,3 +107,16 @@ def to_tensor(arr):
     import torch
     t = torch.from_numpy(np.stack([arr], axis=0)).float() / 127.0 - 1.0  # so that 127 is exactly 0
     return t.movedim(-1, 1)
+
+
+def place_back(original, alpha, relit):
+    """The relit subject (IC-Light's picture, centre-cropped to its own size by fit()) on the original picture's
+    background: the original is cropped and scaled the same way, and the subject's matte decides what comes from where
+    (with a slightly softened edge). original: PIL RGB; alpha: (h, w) 0..1; relit: PIL RGB -> PIL RGB, relit's size."""
+    from PIL import Image, ImageFilter
+    w, h = relit.size
+    bg = Image.fromarray(fit(np.asarray(original.convert("RGB")), w, h))
+    a = Image.fromarray((np.clip(np.asarray(alpha, dtype=np.float32), 0, 1) * 255).astype(np.uint8))
+    a = Image.fromarray(fit(np.stack([np.asarray(a)] * 3, axis=-1), w, h)[..., 0])
+    a = a.filter(ImageFilter.GaussianBlur(max(1, round(max(w, h) / 512))))
+    return Image.composite(relit, bg, a)
