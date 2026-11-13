@@ -2,8 +2,11 @@
 
 ## Next
 
-- ⏩ Instant upscalers: Real-ESRGAN x4plus, x4plus Anime 6B and AnimeVideo v3 (`postprocess/realesrgan.py`: RRDBNet /
-  SRVGGNetCompact with Real-ESRGAN's layer names, weights from its GitHub releases, sha256-pinned, curl first)
+- ⏩ Instant upscalers: Real-ESRGAN x4plus, x2plus, general x4v3, x4plus Anime 6B and AnimeVideo v3, plus 4x-AnimeSharp
+  (Kim2091, CC BY-NC-SA 4.0) and 4xNomos8kSC (Phhofm, CC BY 4.0) (`postprocess/realesrgan.py`: RRDBNet with a 2×
+  pixel-unshuffle variant, SRVGGNetCompact, and the old ESRGAN layout; .pth or .safetensors; weights downloaded from each
+  author's release on first use, sha256-pinned, curl first). Troubleshooting entry for failed upscaler downloads.
+- What's new: the Image to image Replace text entry is now listed under 1.6.14, where it shipped.
 - Image to image → 🔤 Replace text mode (`i2i_mode: "text"`): Find (Florence-2) / Clear (heal job) / Type, with the
   Tools Typesetter's controls and stage (shared `tx` state; the stage in the i2i preview, saved into `i2iResults`).
   Selecting text in other modes offers to switch to it

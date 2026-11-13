@@ -894,12 +894,16 @@ const protoartApp = createApp({
         { label: "Standard", steps: 18, solver: "DDIM", tip: "The enhancer's own default" },
         { label: "★ Best", steps: 30, solver: "DPMSolver", tip: "Most detail and the cleanest textures; about 1.7× the time of Standard" },
       ],
-      // ⏩ Instant: which upscaler (Real-ESRGAN ones download once from its GitHub releases)
+      // ⏩ Instant: which upscaler (all but UltraSharp download once from their authors' releases)
       UPSCALERS: [
         { id: "ultrasharp", label: "4x-UltraSharp", tip: "Sharp and crisp, for photos and renders (non-commercial licence: CC BY-NC-SA)" },
         { id: "realesrgan_x4plus", label: "Real-ESRGAN", tip: "Real-ESRGAN x4plus: photos and general pictures; cleans up blur, noise and JPEG blocks (~64 MB once, BSD licence)" },
         { id: "realesrgan_anime6b", label: "Real-ESRGAN Anime", tip: "Real-ESRGAN x4plus Anime 6B: anime, cartoons, comics and drawings: clean, sharp lines and flat colours (~18 MB once)" },
         { id: "realesr_animevideov3", label: "AnimeVideo v3 (fast)", tip: "Real-ESRGAN AnimeVideo v3: a tiny, very fast anime upscaler (~3 MB once); a little softer than Anime 6B" },
+        { id: "realesr_general_x4v3", label: "Real-ESRGAN fast", tip: "Real-ESRGAN general x4v3: a small, fast all-rounder (~5 MB once); a little softer than Real-ESRGAN" },
+        { id: "realesrgan_x2plus", label: "Real-ESRGAN 2×", tip: "Real-ESRGAN x2plus: made for 2× (photos and general pictures), so 2× is cleaner than shrinking a 4× result (~64 MB once)" },
+        { id: "animesharp", label: "AnimeSharp", tip: "4x-AnimeSharp by Kim2091: anime, line art and text, very crisp (~34 MB once; non-commercial licence: CC BY-NC-SA)" },
+        { id: "nomos8ksc", label: "Nomos8kSC", tip: "4xNomos8kSC by Philip Hofmann: photos, keeps natural texture and fine detail (~64 MB once; CC BY 4.0)" },
       ],
       enhPresets: [
         { label: "Subtle", c: 0.2, r: 1.0, tip: "Sharper and cleaner, almost no new detail" },
@@ -969,9 +973,9 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Coming in the next version: Real-ESRGAN upscalers", items: [
-              "<b>⏩ Instant upscaling with Real-ESRGAN</b> (Tools → Enhance & upscale → Speed: ⏩ Instant → Upscaler): <b>Real-ESRGAN</b> for photos (cleans blur, noise and JPEG blocks), <b>Real-ESRGAN Anime</b> (x4plus Anime 6B) for anime, comics and drawings, and <b>AnimeVideo v3</b>, a tiny, very fast anime upscaler. Each downloads once (3–64 MB). 4x-UltraSharp stays the default." ] },
-            { h: "Coming in the next version: clearer text changes in Image to image", items: [
+            { h: "Coming in the next version: more upscalers (Real-ESRGAN, AnimeSharp, Nomos)", items: [
+              "<b>⏩ Instant upscaling, more choices</b> (Tools → Enhance & upscale → Speed: ⏩ Instant → Upscaler): <b>Real-ESRGAN</b> for photos (cleans blur, noise and JPEG blocks), <b>Real-ESRGAN 2×</b> (made for 2×), <b>Real-ESRGAN fast</b> (small all-rounder), <b>Real-ESRGAN Anime</b> (x4plus Anime 6B) for anime, comics and drawings, <b>AnimeVideo v3</b> (a tiny, very fast anime upscaler), <b>AnimeSharp</b> (very crisp anime, line art and text) and <b>Nomos8kSC</b> (photos with natural texture). Each downloads once (3–64 MB). 4x-UltraSharp stays the default." ] },
+            { h: "1.6.14: clearer text changes in Image to image", items: [
               "<b>🔤 Replace text in Image to image</b>, the same as in Tools: a new mode next to 🩹 Remove. <b>1 · 🔍 Find the text</b> (speech bubbles, signs, captions), fix the selection with the brush if needed, <b>2 · 🧽 Clear it</b>, then <b>3 · ✏️ Type</b>: click the picture on the right where the words go and type them in a real font, size and colour (several texts, drag to move, colour picked from the old text), then <b>💾 Save</b>. Selecting text with the 🔤 Text tool in other modes offers to switch to it, because picture models can't spell." ] },
             { h: "1.6.14: train FLUX.2 Klein and Z-Image, Pony / Illustrious / SDXL apart, downloads fixed", items: [
               "<b>Train LoRAs on FLUX.2 Klein (4B and 9B) and Z-Image Turbo</b> on the ⚡ fast engine (like ERNIE): pick one in Train → LoRA. Models that usually need a bigger Mac are no longer blocked: you get a warning and can still try (or train on a bigger Mac).",
@@ -1521,8 +1525,8 @@ const protoartApp = createApp({
               "It needs a <b>Stable Diffusion 1.5</b> model on this Mac (a realistic one, like Realistic Vision, gives the most natural light; download one in Models if you have none). The first time also downloads IC-Light (~1.7 GB). On an 8 GB Mac a picture takes a few minutes at 640 with Add detail on; 512 without it is quickest.",
               "IC-Light keeps the subject and makes a new background that fits the light. To keep your original background, ✂ Cut out the relit subject and put it back on your picture. Faces can change a little: add “detailed face” to Subject, or try another seed." ] },
             { h: "⏩ Which upscaler? (Instant)", items: [
-              "Tools → <b>Enhance & upscale</b> → Speed <b>⏩ Instant</b> makes the picture bigger in seconds with an upscaler alone (no new detail invented). Pick the <b>Upscaler</b>: <b>4x-UltraSharp</b> (crisp photos and renders; non-commercial licence), <b>Real-ESRGAN</b> (photos, old or compressed pictures: removes blur, noise and JPEG blocks; free to use), <b>Real-ESRGAN Anime</b> (anime, comics, line art: clean lines, flat colours), <b>AnimeVideo v3</b> (anime, fastest, a little softer).",
-              "They all work at 4× and are resized to the size you pick (1.5×, 2×…). For new detail instead (skin, fabric, foliage), use the other speeds: they re-draw the picture with a model." ] },
+              "Tools → <b>Enhance & upscale</b> → Speed <b>⏩ Instant</b> makes the picture bigger in seconds with an upscaler alone (no new detail invented). Pick the <b>Upscaler</b>: <b>4x-UltraSharp</b> (crisp photos and renders; non-commercial licence), <b>Real-ESRGAN</b> (photos, old or compressed pictures: removes blur, noise and JPEG blocks; free to use), <b>Real-ESRGAN 2×</b> (the same, made for 2×), <b>Real-ESRGAN fast</b> (small and quick, a little softer), <b>Nomos8kSC</b> (photos: keeps natural skin, hair and fabric texture; free to use with credit), <b>Real-ESRGAN Anime</b> (anime, comics, line art: clean lines, flat colours), <b>AnimeSharp</b> (anime, line art and text, extra crisp; non-commercial licence), <b>AnimeVideo v3</b> (anime, fastest, a little softer).",
+              "Real-ESRGAN 2× works at 2×, the others at 4×; the result is resized to the size you pick (1.5×, 2×…). Each one downloads once the first time you use it; if that fails (VPN, Strict offline mode) see Troubleshooting. For new detail instead (skin, fabric, foliage), use the other speeds: they re-draw the picture with a model." ] },
             { h: "🔤 Change the words in a picture (speech bubbles, signs)", items: [
               "Image to image → <b>🔤 Replace text</b> (or Tools → 🔤 Replace text: they work the same). <b>1 · 🔍 Find the text</b> selects the writing; add or take away with the brush if it missed a bit.",
               "<b>2 · 🧽 Clear it</b> fills in the background where the words were. <b>3 · ✏️ Type</b>: click the picture on the right where the new words go and type them on the left; pick the font, size and colour (🎯 takes the old text's colour). Click an empty spot for another text; drag a text to move it.",
@@ -2041,6 +2045,9 @@ const protoartApp = createApp({
             { h: "A folder or drive can't be found", items: [
               "<b>Why:</b> you moved or renamed your models / LoRAs folder, or the drive it's on isn't plugged in. The app says so at startup.",
               "<b>Fix:</b> plug the drive in, or open <b>Settings → Moved a folder?</b>, click <b>Find it…</b> next to the red one and pick the folder in its new place. LoRA folders and their types, watched folders, added models, your ⚑ / ● marks, presets and the Library all follow. Picking a different folder by mistake is refused." ] },
+            { h: "⏩ Instant upscaler: “needs a one-time download” or “the download was damaged”", items: [
+              "Every upscaler except 4x-UltraSharp downloads once (3–64 MB) the first time you pick it: Real-ESRGAN ones from GitHub, AnimeSharp from Hugging Face, Nomos8kSC from GitHub. <b>“Strict offline mode is on”</b>: turn it off in Settings → Privacy for that first use, or pick 4x-UltraSharp.",
+              "<b>“The download was damaged; try again”</b>: the file didn't match its known checksum (a cut connection or a VPN in the way); nothing was kept, so just run it again. If it keeps failing, pause the VPN for the download. The files are kept in the app's data folder (weights → realesrgan)." ] },
             { h: "A download is stuck, or stops with “stalled”", items: [
               "<b>Why:</b> the connection went quiet (slow Wi-Fi, VPN, a firewall). Downloads give up on a silent connection after 2 minutes, and a model download stops with a message after 5 minutes without progress, instead of hanging for hours.",
               "<b>Fix:</b> check the internet connection and press <b>Download</b> (or Generate / Enhance) again: it carries on from where it stopped. If the queue looks frozen, <b>Tools → ⟲ Force stop &amp; restart</b> first." ] },

@@ -233,6 +233,11 @@ PE_EXTRA_RAM_GB = 6  # the ERNIE prompt enhancer is an extra language model
 LOW_MEMORY_SAVES_GB = {"sd15": 2, "sdxl": 6}  # rough RAM saved by int8 low-memory mode
 
 
+# ⏩ Instant upscalers other than the built-in 4x-UltraSharp (postprocess/realesrgan.py MODELS)
+_EXTRA_UPSCALERS = ("realesrgan_x4plus", "realesrgan_x2plus", "realesr_general_x4v3", "realesrgan_anime6b",
+                    "realesr_animevideov3", "animesharp", "nomos8ksc")
+
+
 class Cancelled(Exception):
     pass
 
@@ -3547,7 +3552,7 @@ class Engine:
                                      **({"threshold": thr} if thr > 0 else {}), **({"near": near} if near < 1 else {})}
                 continue
             if step == "enhance" and (args.get("options") or {}).get("instant") \
-                    and (args.get("options") or {}).get("upscaler") in ("realesrgan_x4plus", "realesrgan_anime6b", "realesr_animevideov3"):
+                    and (args.get("options") or {}).get("upscaler") in _EXTRA_UPSCALERS:
                 # ⏩ Instant with a Real-ESRGAN model: just the upscaler (no enhancer model to load)
                 from postprocess import realesrgan
                 t = self.torch()
