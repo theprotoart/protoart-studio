@@ -1,5 +1,11 @@
 # Changelog
 
+## Next
+
+- Make 3D: Hunyuan3D's DINOv2 image-encoder weights renamed from transformers 4 to transformers 5 names while loading
+  (`mesh3d_worker.dinov2_new_names`: query/key/value -> q/k/v_proj, output.dense -> o_proj, SwiGLU weights_in split
+  into gate_proj + up_proj, weights_out -> down_proj), fixing "Error(s) in loading state_dict for SingleImageEncoder"
+
 ## 1.6.14
 
 - ⏩ Instant upscalers: Real-ESRGAN x4plus, x2plus, general x4v3, x4plus Anime 6B and AnimeVideo v3, plus 4x-AnimeSharp

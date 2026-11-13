@@ -983,6 +983,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Coming in the next version: 🧊 Make 3D fixed", items: [
+              "<b>Fixed: Make 3D stopping with “Error(s) in loading state_dict for SingleImageEncoder … Missing key(s) … q_proj”</b>: Hunyuan3D's picture reader was saved with older layer names than the ones the app's newer libraries use. The app now renames them as it loads (same model, nothing downloaded again)." ] },
             { h: "1.6.14: 11 upscalers, with ⚡ Fastest and ★ Best quality picks", items: [
               "<b>⏩ Instant upscaling, many more choices</b> (Tools → Enhance & upscale → Speed: ⏩ Instant → Upscaler), in a list grouped <b>For everything / Photos / Anime, drawings & text</b>, each with its speed. Under it, quick buttons: <b>⚡ Fastest</b> (UltraSharp V2 Lite, Real-ESRGAN fast, AnimeVideo v3) and <b>★ Best quality</b> (UltraSharp V2, Nomos WebPhoto, AnimeSharp).",
               "New: <b>UltraSharp V2</b> (the successor of 4x-UltraSharp: the most detail, slower), <b>UltraSharp V2 Lite</b> (nearly as good, fast), <b>Nomos WebPhoto</b> (phone and web photos: noise, lens blur, JPEG), <b>Nomos8kSC</b>, <b>AnimeSharp</b>, and Real-ESRGAN (<b>Real-ESRGAN</b>, <b>2×</b>, <b>fast</b>, <b>Anime</b>, <b>AnimeVideo v3</b>). Each downloads once (3–140 MB). 4x-UltraSharp stays the default." ] },
@@ -2059,6 +2061,8 @@ const protoartApp = createApp({
             { h: "A folder or drive can't be found", items: [
               "<b>Why:</b> you moved or renamed your models / LoRAs folder, or the drive it's on isn't plugged in. The app says so at startup.",
               "<b>Fix:</b> plug the drive in, or open <b>Settings → Moved a folder?</b>, click <b>Find it…</b> next to the red one and pick the folder in its new place. LoRA folders and their types, watched folders, added models, your ⚑ / ● marks, presets and the Library all follow. Picking a different folder by mistake is refused." ] },
+            { h: "🧊 Make 3D: “Error(s) in loading state_dict for SingleImageEncoder” (a long list of “main_image_encoder…” names)", items: [
+              "Fixed in the next version (after 1.6.14): Hunyuan3D's picture reader (DINOv2) was saved with older part names (query / key / value, weights_in) than the app's libraries use now (q_proj, gate_proj…). The app renames them while loading; nothing is downloaded again. Update the app and press <b>Make 3D</b> again." ] },
             { h: "🧊 Make 3D: “IncompleteSnapshotError … model.fp16.ckpt” or “snapshot is incomplete”", items: [
               "Fixed in 1.6.14: Make 3D now uses the model files it downloaded directly (it only needs <b>model.fp16.safetensors</b> and <b>config.yaml</b>; the .ckpt copy is never needed). Update the app and press <b>Make 3D</b> again; nothing is downloaded again.",
               "If it still says a file is missing, the first download was cut short: turn off Strict offline mode (Settings → Privacy), pause the VPN and run Make 3D once more to finish it." ] },

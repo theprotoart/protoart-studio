@@ -5,6 +5,7 @@ out (stdout, JSON lines): {"type": "status"|"progress"|"done"|"error", ...}
 """
 import json
 import os
+import re
 import sys
 import traceback
 
@@ -40,6 +41,41 @@ def preview(mesh, size=768):
     return img
 
 
+_OLD_DINO = re.compile(r"^(.*\.encoder\.layer\.\d+\.)(attention\.attention\.(query|key|value)|attention\.output\.dense|"
+                       r"mlp\.weights_in|mlp\.weights_out)\.(weight|bias)$")
+_NEW_NAME = {"attention.attention.query": "attention.q_proj", "attention.attention.key": "attention.k_proj",
+             "attention.attention.value": "attention.v_proj", "attention.output.dense": "attention.o_proj",
+             "mlp.weights_out": "mlp.down_proj"}
+
+
+def dinov2_new_names(state):
+    """Hunyuan3D's image encoder (DINOv2, SwiGLU) was saved with the layer names of transformers 4; transformers 5
+    renamed them (query/key/value -> q/k/v_proj, output.dense -> o_proj, and the SwiGLU's one weights_in -> gate_proj +
+    up_proj, its two halves in that order; weights_out -> down_proj). Same numbers, new names."""
+    out = {}
+    for k, v in state.items():
+        m = _OLD_DINO.match(k)
+        if not m:
+            out[k] = v
+            continue
+        head, old, kind = m.group(1), m.group(2), m.group(4)
+        if old == "mlp.weights_in":
+            gate, up = v.chunk(2, dim=0)
+            out[f"{head}mlp.gate_proj.{kind}"], out[f"{head}mlp.up_proj.{kind}"] = gate, up
+        else:
+            out[f"{head}{_NEW_NAME[old]}.{kind}"] = v
+    return out
+
+
+def _transformers_has_new_dinov2():
+    try:
+        from transformers.models.dinov2 import modeling_dinov2 as md
+        import inspect
+        return "q_proj" in inspect.getsource(md)
+    except Exception:
+        return False
+
+
 def main():
     a = json.loads(sys.argv[1])
     sys.path.insert(0, os.environ["PROTOART_MESH3D_CODE"])
@@ -50,6 +86,10 @@ def main():
         say(type="status", msg="Make 3D: loading Hunyuan3D 2 mini…")
         from hy3dgen.shapegen import Hunyuan3DDiTFlowMatchingPipeline, FloaterRemover, DegenerateFaceRemover, FaceReducer
         device = "mps" if torch.backends.mps.is_available() else "cpu"
+        if _transformers_has_new_dinov2():  # the checkpoint's image-encoder names, as this transformers calls them
+            import safetensors.torch as st
+            _load = st.load_file
+            st.load_file = lambda *x, **k: dinov2_new_names(_load(*x, **k))
         pipe = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(a["repo"], subfolder=a["subfolder"], use_safetensors=True,
                                                                 device=device, dtype=torch.float32)
         image = Image.open(a["image"]).convert("RGBA")
