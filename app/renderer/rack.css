@@ -2641,3 +2641,7 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .tx-stage .tx-layer .tx-handle.h-se { right: -8px; bottom: -8px; }
 .tx-shape-picks { display: flex; flex-wrap: wrap; gap: 4px; }
 .tx-shape-picks .chip { font-size: 11.5px; padding: 3px 7px; }
+
+/* 💡 Relight's light ideas: long ones wrap inside the module */
+.relight-ideas { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.relight-ideas .chip { white-space: normal; max-width: 100%; text-align: left; line-height: 1.25; height: auto; }

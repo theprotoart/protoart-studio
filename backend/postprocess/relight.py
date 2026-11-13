@@ -149,3 +149,163 @@ def relight_background(bg, relit, matte):
     gain[weak[..., 0]] = 1.0
     out = np.asarray(bg, dtype=np.float32) * gain
     return Image.fromarray(out.clip(0, 255).astype(np.uint8))
+
+
+# ------------------------------------------------------------------ finishing at full size (Keep mine, relit…)
+def crop_size(size, relit_size):
+    """The original's size scaled so that its relit part is exactly relit_size (for results not kept at full size)."""
+    W, H = size
+    w, h = relit_size
+    k = max(w / W, h / H)
+    return max(1, round(W * k)), max(1, round(H * k))
+
+
+def crop_box(W, H, w, h):
+    """The part of a W x H picture that fit() keeps for a w x h result: (left, top, right, bottom) in the picture."""
+    k = max(w / W, h / H)
+    cw, ch = w / k, h / k
+    left, top = (W - cw) / 2, (H - ch) / 2
+    return int(round(left)), int(round(top)), int(round(left + cw)), int(round(top + ch))
+
+
+DIRS = {"left": (-1.0, 0.0), "right": (1.0, 0.0), "top": (0.0, -1.0), "bottom": (0.0, 1.0)}
+
+
+def light_direction(relit, matte, direction="none"):
+    """Where the light comes from, as (dx, dy) on the picture (unit length; y down): the direction you picked, or the
+    bright side of the background IC-Light drew."""
+    if direction in DIRS:
+        return DIRS[direction]
+    from PIL import ImageFilter
+    small = relit.convert("L").resize((64, 64))
+    m = np.asarray(matte.resize((64, 64)), dtype=np.float32) / 255.0
+    lum = np.asarray(small.filter(ImageFilter.GaussianBlur(6)), dtype=np.float32) * (1 - m)
+    lum = np.clip(lum - np.percentile(lum[m < 0.5] if (m < 0.5).any() else lum, 40), 0, None)
+    if lum.sum() < 1:
+        return (0.0, -1.0)
+    yy, xx = np.mgrid[0:64, 0:64]
+    dx, dy = (lum * (xx - 31.5)).sum() / lum.sum(), (lum * (yy - 31.5)).sum() / lum.sum()
+    n = (dx * dx + dy * dy) ** 0.5
+    return (dx / n, dy / n) if n > 1.5 else (0.0, -1.0)
+
+
+def depth_shading(depth, light, strength=0.6):
+    """How much each part of the scene faces the light, from a depth map (PIL L, near = bright): surfaces turned
+    towards the light brighten and those turned away darken. -> (h, w) gain around 1."""
+    d = np.asarray(depth, dtype=np.float32) / 255.0
+    import cv2
+    d = cv2.GaussianBlur(d, (0, 0), max(1.5, max(d.shape) / 300))
+    gy, gx = np.gradient(d)
+    scale = max(d.shape) / 6.0
+    nx, ny, nz = -gx * scale, -gy * scale, np.ones_like(d)
+    norm = np.sqrt(nx * nx + ny * ny + nz * nz)
+    lx, ly = light
+    lz = 0.55
+    ln = (lx * lx + ly * ly + lz * lz) ** 0.5
+    shade = (nx * lx + ny * ly + nz * lz) / (norm * ln)
+    # a little from the near/far too: what's nearer the light's side of the picture catches more of it
+    H, W = d.shape
+    yy, xx = np.mgrid[0:H, 0:W]
+    side = ((xx / W - 0.5) * lx + (yy / H - 0.5) * ly) * 0.5
+    shade = shade + side
+    shade = (shade - shade.mean()) / (shade.std() + 1e-6)
+    return np.clip(1.0 + shade * 0.18 * strength, 0.55, 1.6)
+
+
+def cast_shadow(matte, light, darkness=0.45):
+    """A soft shadow of the subject on its background, thrown away from the light, anchored at the subject's feet.
+    -> (h, w) multiplier (1 = no shadow)."""
+    from PIL import Image, ImageFilter
+    a = np.asarray(matte, dtype=np.float32) / 255.0
+    H, W = a.shape
+    ys, xs = np.nonzero(a > 0.5)
+    if len(ys) < 50:
+        return np.ones_like(a)
+    top, bottom = ys.min(), ys.max()
+    hgt = bottom - top + 1
+    lx, ly = light
+    import cv2
+    if abs(ly) < 0.6 or ly > 0:  # light from a side (or from below): the shadow falls along the ground, away from it
+        sx = lx * 0.9  # (forward map: the top of the subject lands away from the light)
+        M = np.float32([[1, sx * 1.0, -sx * bottom], [0, 0.35, bottom * 0.65]])
+        sh = cv2.warpAffine(a, M, (W, H))
+    else:  # light from above: a soft pool under the subject
+        M = np.float32([[1.1, 0, -0.05 * W], [0, 0.12, bottom * 0.88 + hgt * 0.02]])
+        sh = cv2.warpAffine(a, M, (W, H))
+    sh = np.asarray(Image.fromarray((sh * 255).clip(0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(float(max(2, hgt / 40)))),
+                    dtype=np.float32) / 255.0
+    return 1.0 - sh * darkness
+
+
+def blend_in(subject_rgb, bg_rgb, matte, amount=0.3):
+    """The subject's colours nudged towards the light of the background around it (a soft colour match), so the two
+    look lit by the same light. Arrays float 0..255 (h, w, 3); matte (h, w) 0..1."""
+    import cv2
+    m = matte[..., None]
+    ring = cv2.GaussianBlur(matte, (0, 0), max(4, max(matte.shape) / 40))
+    near = np.clip(ring - matte, 0, 1)[..., None]  # the background just around the subject
+    if near.sum() < 10 or (m > 0.5).sum() < 10:
+        return subject_rgb
+    bg_mean = (bg_rgb * near).sum((0, 1)) / near.sum()
+    sub_mean = (subject_rgb * m).sum((0, 1)) / m.sum()
+    shift = (bg_mean / (sub_mean + 1.0))
+    shift = shift / shift.mean()  # colour only, not brightness
+    tinted = subject_rgb * (1 + (shift - 1) * amount)
+    return tinted
+
+
+def warm_and_tint(arr, warmth=0.0, colour=None, amount=0.25):
+    """The light's warmth (-1 cold blue … +1 warm orange) and an optional light colour (#rrggbb), on an RGB float array."""
+    out = arr
+    if warmth:
+        out = out * np.array([1 + 0.12 * warmth, 1 + 0.02 * warmth, 1 - 0.12 * warmth], dtype=np.float32)
+    if colour:
+        c = np.array([int(colour[i:i + 2], 16) for i in (1, 3, 5)], dtype=np.float32) + 1
+        out = out * (1 + (c / c.mean() - 1) * amount)
+    return out
+
+
+def finish(original, alpha, relit, mode="keep", depth=None, direction="none", shadow=True, blend=True,
+           warmth=0.0, colour=None, upscale=None):
+    """Relight's result at the original picture's full size.
+    original: PIL RGB (full size); alpha: (H, W) 0..1 matte of the subject; relit: IC-Light's picture (w x h, the
+    centre part fit() took); mode: keep / keep_relit / new; depth: PIL L depth map of the original (for keep_relit);
+    upscale(img, (cw, ch)) -> img: makes the relit picture big again (an upscaler; plain resizing if None)."""
+    from PIL import Image, ImageFilter
+    W, H = original.size
+    w, h = relit.size
+    box = crop_box(W, H, w, h)
+    cw, ch = box[2] - box[0], box[3] - box[1]
+    big = upscale(relit, (cw, ch)) if upscale else relit.resize((cw, ch), Image.LANCZOS)
+    if big.size != (cw, ch):
+        big = big.resize((cw, ch), Image.LANCZOS)
+    full = np.asarray(original.convert("RGB"), dtype=np.float32).copy()
+    region = full[box[1]:box[3], box[0]:box[2]]
+    rel = np.asarray(big, dtype=np.float32)
+    a8 = Image.fromarray((np.clip(np.asarray(alpha, dtype=np.float32), 0, 1) * 255).astype(np.uint8))
+    if a8.size != (W, H):
+        a8 = a8.resize((W, H), Image.LANCZOS)
+    a_full = a8.crop(box)
+    if mode == "new":
+        out = rel
+    else:
+        bg = region
+        light = light_direction(relit, a8.crop(box).resize((w, h)), direction)
+        if mode == "keep_relit":
+            small_bg = Image.fromarray(region.clip(0, 255).astype(np.uint8)).resize((w, h), Image.LANCZOS)
+            lit_small = relight_background(small_bg, relit, a_full.resize((w, h), Image.LANCZOS))
+            gain = (np.asarray(lit_small, dtype=np.float32) + 2) / (np.asarray(small_bg, dtype=np.float32) + 2)
+            gain = np.asarray(Image.fromarray(np.clip(gain * 85, 0, 255).astype(np.uint8)).resize((cw, ch), Image.BICUBIC),
+                              dtype=np.float32) / 85.0  # a smooth light map, made big again
+            if depth is not None:
+                d = depth.crop(box) if depth.size == (W, H) else depth.resize((W, H)).crop(box)
+                gain = gain * depth_shading(d, light)[..., None]
+            bg = region * gain
+        if shadow:
+            bg = bg * cast_shadow(a_full, light)[..., None]
+        m = np.asarray(a_full.filter(ImageFilter.GaussianBlur(max(1, round(max(cw, ch) / 700)))), dtype=np.float32) / 255.0
+        subj = blend_in(rel, bg, m) if blend else rel
+        out = subj * m[..., None] + bg * (1 - m[..., None])
+    out = warm_and_tint(out, warmth, colour)
+    full[box[1]:box[3], box[0]:box[2]] = out
+    return Image.fromarray(full.clip(0, 255).astype(np.uint8))

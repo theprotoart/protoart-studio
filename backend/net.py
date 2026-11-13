@@ -271,6 +271,92 @@ def is_blocked_connection(exc):
         errno.EHOSTUNREACH) or any(t in str(e).lower() for t in ("bad file descriptor", "connection abort"))
 
 
+def curl_download(url, dest, label="the file", mb=0, emit=None, timeout=3600, cancel_event=None):
+    """Download url to dest with curl, resuming a part already on disk (dest + ".part") and reporting progress
+    ("Downloading … 45 of 140 MB"). Raises ConnectionError if it couldn't finish. Returns dest."""
+    import subprocess
+    import threading
+    import time
+    from pathlib import Path
+    dest = Path(dest)
+    part = dest.with_name(dest.name + ".part")
+    def run(resume):
+        cmd = [CURL, "-sS", "-L", "--fail", *(["-C", "-"] if resume else []), "--connect-timeout", "30", "--speed-limit", "1024",
+               "--speed-time", "120", "--max-time", str(timeout), "-A", "ProtoartStudio", "-o", str(part), url]
+        return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    proc = run(part.exists())
+    done = threading.Event()
+
+    def report():
+        last = -1
+        while not done.wait(1.5):
+            if cancel_event is not None and cancel_event.is_set():
+                proc.kill()
+                return
+            have = part.stat().st_size / 1e6 if part.exists() else 0
+            if emit and int(have) != last:
+                last = int(have)
+                emit({"type": "status", "msg": f"Downloading {label}: {have:.0f}" + (f" of {mb:.0f} MB" if mb else " MB") + "…"})
+                if mb:
+                    emit({"type": "progress", "image": 1, "images": 1, "step": min(int(have), int(mb)), "steps": int(mb)})
+    threading.Thread(target=report, daemon=True).start()
+    try:
+        _, err = proc.communicate()
+        # the server can't resume this part (no byte ranges, or the part is already whole or stale): start again
+        if proc.returncode == 33 or (proc.returncode == 22 and b"416" in (err or b"")):
+            part.unlink(missing_ok=True)
+            proc = run(False)
+            _, err = proc.communicate()
+    finally:
+        done.set()
+    if proc.returncode != 0:
+        raise ConnectionError(f"curl {proc.returncode}: {(err or b'').decode('utf-8', 'replace').strip()[:200]}")
+    part.replace(dest)
+    return dest
+
+
+class hf_progress:
+    """While a Hugging Face download runs, report how far it got (from the partly downloaded file in the cache):
+    with hf_progress("lllyasviel/ic-light", "IC-Light", 1720, emit): hf_hub_download(...)"""
+
+    def __init__(self, repo, label, mb=0, emit=None):
+        self.repo, self.label, self.mb, self.emit = repo, label, mb, emit
+        self.stop = None
+
+    def __enter__(self):
+        import threading
+        from pathlib import Path
+        if not self.emit:
+            return self
+        try:
+            from huggingface_hub.constants import HF_HUB_CACHE
+            blobs = Path(HF_HUB_CACHE) / ("models--" + self.repo.replace("/", "--")) / "blobs"
+        except Exception:
+            return self
+        self.stop = threading.Event()
+
+        def watch():
+            last = -1
+            while not self.stop.wait(1.5):
+                try:
+                    parts = list(blobs.glob("*.incomplete")) if blobs.exists() else []
+                    have = max((p.stat().st_size for p in parts), default=0) / 1e6
+                except Exception:
+                    continue
+                if parts and int(have) != last:
+                    last = int(have)
+                    self.emit({"type": "status", "msg": f"Downloading {self.label}: {have:.0f}" + (f" of {self.mb:.0f} MB" if self.mb else " MB") + "…"})
+                    if self.mb:
+                        self.emit({"type": "progress", "image": 1, "images": 1, "step": min(int(have), int(self.mb)), "steps": int(self.mb)})
+        threading.Thread(target=watch, daemon=True).start()
+        return self
+
+    def __exit__(self, *exc):
+        if self.stop:
+            self.stop.set()
+        return False
+
+
 def ensure_downloads_work():
     """Called when going online: check once whether Python may connect; if not, switch to curl."""
     global _curl_mode

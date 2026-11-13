@@ -172,12 +172,14 @@ def fetch(mid, emit=None):
         raise RuntimeError(f"{m['label']} needs a one-time download (~{m['mb']} MB), and Strict offline mode is on.")
     if emit:
         emit({"type": "status", "msg": f"Downloading {m['label']} (~{m['mb']} MB, first time only)…"})
-    tmp = dest.with_suffix(".part")
+    tmp = dest.with_name(dest.name + ".download")  # checked before it becomes the model file
     ok = False
-    if net.CURL and os.path.exists(net.CURL):
-        r = subprocess.run([net.CURL, "-sS", "-L", "--fail", "--connect-timeout", "20", "--max-time", "900",
-                            "-A", "ProtoartStudio", "-o", str(tmp), m["url"]], capture_output=True, text=True)
-        ok = r.returncode == 0 and tmp.exists()
+    if net.CURL and os.path.exists(net.CURL):  # resumes a part already downloaded (tmp + ".part"), with progress
+        try:
+            net.curl_download(m["url"], tmp, m["label"], m["mb"], emit)
+            ok = tmp.exists()
+        except ConnectionError as e:
+            print(f"[realesrgan] curl: {e}", flush=True)
     if not ok:
         import urllib.request
         with urllib.request.urlopen(urllib.request.Request(m["url"], headers={"User-Agent": "ProtoartStudio"}), timeout=60) as r, \

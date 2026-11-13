@@ -63,6 +63,33 @@ class RelightHelpers(unittest.TestCase):
         kept = np.asarray(rl.place_back(orig, alpha, relit)).astype(float)[:12, :30]
         self.assertLess(abs(kept[..., 0].mean() - kept[..., 2].mean()), 10)     # Keep mine: unchanged grey
 
+    def test_finish_keeps_the_original_size_and_throws_a_shadow_away_from_the_light(self):
+        from PIL import Image
+        import postprocess.relight as rl
+        W, H = 1000, 750
+        orig = Image.new("RGB", (W, H), (120, 120, 120))
+        alpha = np.zeros((H, W), dtype=np.float32)
+        alpha[150:650, 450:550] = 1.0
+        w, h = rl.sizes(W, H, 512)
+        relit = Image.new("RGB", (w, h), (200, 60, 60))
+        out = np.asarray(rl.finish(orig, alpha, relit, mode="keep", direction="left", blend=False)).astype(float)
+        self.assertEqual(out.shape, (H, W, 3))
+        self.assertGreater(out[400, 500, 0], 180)              # the relit subject, at full size
+        right, left = out[540:600, 620:720].mean(), out[540:600, 280:380].mean()
+        self.assertLess(right, left - 5)                        # light from the left: the shadow falls to the right
+        new = np.asarray(rl.finish(orig, alpha, relit, mode="new")).astype(float)
+        self.assertGreater(new[50, 50, 0], 180)                 # New from Relight: its own background
+        warm = np.asarray(rl.finish(orig, alpha, relit, mode="keep", shadow=False, blend=False, warmth=1.0)).astype(float)
+        self.assertGreater(warm[50, 50, 0], warm[50, 50, 2] + 20)
+
+    def test_depth_shading_brightens_what_faces_the_light(self):
+        from PIL import Image
+        import postprocess.relight as rl
+        d = np.tile(np.linspace(0, 255, 200)[None, :], (100, 1)).astype(np.uint8)  # nearer to the right
+        g = rl.depth_shading(Image.fromarray(d), (1.0, 0.0))
+        self.assertEqual(g.shape, (100, 200))
+        self.assertGreater(g[:, 150:].mean(), g[:, :50].mean())
+
     def test_relight_is_a_queued_job(self):
         import bee_backend as b
         self.assertIn("relight", b.HEAVY)

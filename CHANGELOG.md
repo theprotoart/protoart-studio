@@ -2,6 +2,18 @@
 
 ## 1.6.15
 
+- Relight finishing (`relight.finish`): full-size results (Real-ESRGAN general x4v3 back up to the original's crop),
+  Mine, relit with depth shading (`depth_shading` from Depth Anything V2 small normals), a cast shadow away from the
+  light (`cast_shadow`, light from the chosen side or the bright side of IC-Light's background), Blend in
+  (`blend_in`), Warmth and Light colour (`warm_and_tint`); Relight mode in Image to image; shorter Relight labels and
+  wrapping light ideas (they stuck out of the module)
+- Downloads: `net.curl_download` resumes a `.part` file and reports MB of MB (the upscalers); `net.hf_progress`
+  reports a Hugging Face download's progress (IC-Light)
+- Patchbay: Keep only the final picture (the in-between pictures to the macOS Trash)
+- 📋 Copy diagnostics (error boxes, Settings → Backend log): version, Mac, error, log tail; user name, e-mails and
+  keys removed
+- `packaging/ui_smoke/smoke.js`: Playwright check of every tab and Image to image mode with a pretend backend,
+  reporting cut-off or overflowing controls; `tests/test_ui_copies.py` keeps the two Replace text control blocks equal
 - Three original comic fonts made for Protoart Studio: Protoart Speech (regular and bold), Protoart Kaboom and
   Protoart Chatter (`packaging/fonts/build_comic_fonts.py`: hand-placed letter skeletons drawn with a round, square or
   bouncy pen and merged into clean outlines; SIL OFL 1.1), first in Replace text's Font list and used by the balloons

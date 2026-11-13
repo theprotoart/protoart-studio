@@ -39,3 +39,9 @@ Please add or update tests for backend changes, and keep the tests passing.
 `Build Protoart Studio.command` (or `bash packaging/build_mac_app.sh`) builds `dist/Protoart Studio.app`;
 `Make DMG for friends.command` builds a DMG plus its `.sha256` checksum. `Rebuild installer.command` runs the
 self-tests first (`packaging/run_tests.py`: plain `test_` functions and unittest classes), then builds the DMG.
+
+## Checking the layout before a build
+
+`node packaging/ui_smoke/smoke.js` opens the page in Chromium with a pretend backend, visits every tab and Image to
+image mode at two window widths, and lists buttons whose text is cut off or that stick out of their panel
+(screenshots in `packaging/ui_smoke/out/`). It needs Playwright with Chromium and Vue in `app/node_modules`.

@@ -211,7 +211,8 @@ function defaultPost() {  // Tools settings on a fresh install
     cut: { threshold: 0.5, softness: 0.1, grow: 0, bg: "transparent", color: "#ffffff", clean: true, fix_edges: true, crop: false, finder: "birefnet" },
     // 📄 Paper cut-out: border width (% of the shorter side), its paper, torn-ness, shadow, print look, background
     paper: { edge: 2, edge_colour: "white", rough: 0.5, shadow: 0.6, print_as: "photo", background: "transparent" },
-    relight: { prompt: "", subject: "", direction: "none", model: "", size: 640, hires: true, background: "keep", ref_on: false, ref: "" },
+    relight: { prompt: "", subject: "", direction: "none", model: "", size: 640, hires: true, background: "keep", ref_on: false, ref: "",
+               shadow: true, blend: true, full_size: true, warmth: 0, colour_on: false, colour: "#ffb066" },
     mesh3d: { steps: 30, octree: 380, faces: 40000 },
   };
 }
@@ -402,7 +403,7 @@ const EDIT_QUICK = [
 ];
 const I2I_FORM_KEYS = [...I2I_PICTURE_KEYS, "strength", "use_init_size", "size_link", "size_ratio", "i2i_use_init", "control",
   "heal_method", "keep_faces", "cam", "combine", "i2i_mode", "inpaint", "outpaint", "outpaint_engine", "swap", "i2i_loras"];
-const I2I_KINDS = ["img2img", "healed", "word_edit", "combined", "camera_angle", "inpaint", "outpaint", "controlnet", "faceswap"];  // pictures made in Image to image
+const I2I_KINDS = ["img2img", "healed", "word_edit", "combined", "camera_angle", "inpaint", "outpaint", "controlnet", "faceswap", "relit"];  // pictures made in Image to image
 // Tools → Tiled upscale presets (size, how much new detail, steps)
 // 📒 Saved → Example prompts: ready-made prompts to start from (also used as ✨ Enhance's examples, in prompt_enhance.py)
 const EXAMPLE_PROMPTS = [
@@ -905,6 +906,7 @@ const protoartApp = createApp({
       i2iInpaintPick: "",
       promptCardOver: false,
       relightRefOver: false,
+      diagCopied: false,
       procreateJob: false,   // 🗂 reading a Procreate file's layers
       trainLongAsk: false,   // Train: "this will take many hours" shown before starting // a picture dragged over Tools → Image → prompt    // Image to image → Inpaint: the inpainting model you picked ('' = the first that fits)
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
@@ -1043,7 +1045,10 @@ const protoartApp = createApp({
               "<b>🔤 Replace text: comic lettering</b>: three fonts of our own, designed for Protoart Studio: <b>Protoart Speech</b> (dialogue, regular and bold), <b>Protoart Kaboom</b> (chunky sound effects) and <b>Protoart Chatter</b> (bouncy cartoon lettering), plus a built-in pack of 12 free comic fonts (Comic Neue, Shantell Sans, Bangers, Luckiest Guy…), every font installed on your Mac in the Font list, corner handles to resize a text by hand, and <b>💬 Balloons & shapes</b>: speech, thought, shout, whisper, box, caption and burst, with a draggable tail.",
               "<b>Type exact numbers</b>: double-click a slider's number (the amber box) in Tools to type the value: steps, LoRA weight, change strength, text size… Return keeps it, Esc cancels.",
               "<b>💡 Relight</b>: <b>Background → Keep mine</b> (new default) puts the relit subject back on your own background automatically, and <b>Keep mine, relit</b> also gives your background the new light's brightness and colour; <b>Light like → 🖼 A reference picture</b> lights the subject like a picture you drop in. Two more light ideas: winter snow, and a rainy manga-style Tokyo night. The text at the bottom of the module no longer hides behind a screw.",
-              "<b>🔌 Patchbay</b>: TILED upscale, RELIGHT, CUT OUT and PAPER can now be patched in too.",
+              "<b>🔌 Patchbay</b>: TILED upscale, RELIGHT, CUT OUT and PAPER can now be patched in too, and <b>Keep only the final picture</b> moves the in-between pictures of a run to the Trash.",
+              "<b>💡 Relight, further</b>: the result is now at your <b>picture's full size</b> (sharpened back up with Real-ESRGAN fast) instead of 768 px; <b>Mine, relit</b> also uses a depth map, so surfaces facing the light brighten and those turned away darken; <b>Add a shadow</b> throws a soft shadow away from the light; <b>Blend in</b> matches the subject's colours to the light around it; <b>Warmth</b> and <b>Light colour</b>. Relight is also in <b>Image to image</b> (💡 Relight mode).",
+              "<b>Downloads resume</b>: the upscalers' downloads continue where they stopped if the connection drops, and IC-Light's download shows how far it got (MB of MB).",
+              "<b>📋 Copy diagnostics</b> next to every error message and in Settings → Backend log: the app's version, this Mac, the message and the end of the log in one paste (your user name, e-mail addresses and keys taken out).",
               "<b>💡 Relight on 8 GB Macs</b>: runs at <b>512</b> (with Add detail, the result is 768 px). 640 and 768 need 16 GB: on 8 GB they ran out of memory and seemed to freeze. Relight also uses the same memory savers as normal pictures now.",
               "<b>Photo info shows the upscaler</b>: an <b>Upscaled</b> line with the upscaler (⏩ Instant · UltraSharp V2 · 2×…) or the enhancer's settings. The empty Sampler line of imported pictures is hidden.",
               "<b>Models tab: a tidier top row</b>: the 15 model-type buttons are now one <b>All model types</b> list (⚡ Fast engine and Stable Diffusion groups), and the three Add buttons are one <b>+ Add a model…</b> list (Hugging Face, Civitai, your Mac).",
@@ -1579,6 +1584,7 @@ const protoartApp = createApp({
               "<b>＋ Add a module</b> (above the panel) puts in another copy of Faces, Enhance, Remove or Depth, like a second rack unit: cable it in to run that tool twice in one chain (for example Restore faces, then Restore faces again). <b>✕ last added</b> takes the newest copy out.",
               "<b>Each module's settings</b>: press <b>SELECT</b> at the bottom of a module. Its rack unit below lights up and shows that module's settings, with a ⚙ badge naming it; a copy you added, such as FACES 2, keeps <b>its own settings</b> in the same rack unit (model, strength, fidelity for faces; upscale, detail, steps for enhance…), so each copy can do something different. Press SELECTED again to finish.",
               "<b>✕</b> (top right of a module) takes it off the rack; <b>Add a module → ↩ put … back</b> returns it. <b>🔎 DETAIL</b> redraws lightly with its own SD 1.5 or SDXL model (picked in the Detail with a LoRA module: <i>automatic</i> uses Create's if it's one of those) and one LoRA (an “add detail” LoRA works well; change strength 0.2–0.4 keeps the picture). It needs an SD 1.5 or SDXL model on this Mac. When the patchbay is hidden, <b>Run chain</b> lists the patched modules in order and runs them with ▶ Run patch.",
+              "<b>Keep only the final picture</b> (above the panel): when a run finishes, the in-between pictures (after Enhance, after Faces…) go to the macOS Trash, so the Library only gets the finished one. You can still put them back from the Trash.",
               "<b>More modules on the patchbay</b>: besides Remove, Faces, Enhance, Depth, Detail and Vector, you can now patch in <b>🧩 TILED</b> upscale (Create's SD model), <b>💡 RELIGHT</b> (its module's light, reference and background), <b>✂ CUT OUT</b> (its module's settings and background) and <b>📄 PAPER</b> cut-out. Replace text stays a module of its own (it needs you to type).",
               "<b>🛡 Protect areas…</b>: paint over parts the rack must not change (a face you like, a logo), press ✓ Done protecting, then ▶ Run patch: those parts are put back from your original at the end. The picture forming shows in the preview while it runs.",
               "<b>Saving a signal flow</b>: type a name next to <b>💾 Save flow</b> and press it: the cables, the copies you added, the module order and the copies' own settings are kept. Load it again from <i>load a saved flow…</i>; 🗑 deletes the saved one (the patchbay stays as it is).",
@@ -1598,8 +1604,10 @@ const protoartApp = createApp({
             { h: "💡 Relight: new light on a picture", items: [
               "Tools → pick the picture → <b>💡 Relight</b>. Type the light (or click an idea: sunshine from a window, neon city, sunset over the sea, golden hour, soft studio lighting…), optionally what the subject is (“woman, detailed face”), and where the light comes from: <b>Any</b> lets the words decide, ← Left / Right → / ↑ Top / ↓ Bottom puts a bright side there.",
               "It needs a <b>Stable Diffusion 1.5</b> model on this Mac (a realistic one, like Realistic Vision, gives the most natural light; download one in Models if you have none). The first time also downloads IC-Light (~1.7 GB). On an 8 GB Mac a picture takes a few minutes at 640 with Add detail on; 512 without it is quickest.",
-              "<b>Background</b>: <b>Keep mine</b> (the default) puts the relit subject back on your picture's own background, exactly as it was (only the subject is relit); <b>Keep mine, relit</b> keeps everything in your background but gives it the new light's brightness and colour (taken from the background IC-Light drew; it can't add new shadows or light rays); <b>New from Relight</b> keeps the background IC-Light draws to match the light. Faces can change a little: 🙂 Restore faces afterwards if needed.",
-              "<b>Light like → 🖼 A reference picture</b>: drop (or pick) a picture whose light you want, a sunset photo, a neon street, a film still, and the subject is lit the same way (IC-Light's reference model, another ~1.7 GB download the first time). Words are optional then. On Macs under 16 GB Relight runs at 512." ] },
+              "<b>Background</b>: <b>Mine</b> (the default) puts the relit subject back on your picture's own background, exactly as it was (only the subject is relit); <b>Mine, relit</b> keeps everything in your background but gives it the new light's brightness and colour (taken from the background IC-Light drew; it can't add new shadows or light rays); <b>New one</b> keeps the background IC-Light draws to match the light. Faces can change a little: 🙂 Restore faces afterwards if needed.",
+              "<b>Finishing</b>: <b>Full size</b> (on by default) gives the result at your picture's own size: the relit part is sharpened back up with Real-ESRGAN fast (~5 MB once). <b>Add a shadow</b> throws a soft shadow of the subject away from the light (along the ground for side light, a pool underneath for light from above). <b>Blend in</b> nudges the subject's colours towards the light around it. <b>Warmth</b> (double-click to reset) and <b>Light colour</b> tint the whole result. With <b>Mine, relit</b>, a depth map of your picture (Depth Anything, small) tells which surfaces face the light, so they brighten and the others darken; it still can't add hard shadows or light beams.",
+              "<b>In Image to image</b>: the <b>💡 Relight</b> mode uses the same settings (light, reference, background, add detail, full size, shadow, blend, warmth) on the picture in Image to image.",
+              "<b>Light like → 🖼 A picture</b>: drop (or pick) a picture whose light you want, a sunset photo, a neon street, a film still, and the subject is lit the same way (IC-Light's reference model, another ~1.7 GB download the first time). Words are optional then. On Macs under 16 GB Relight runs at 512." ] },
             { h: "⏩ Which upscaler? (Instant)", items: [
               "Tools → <b>Enhance & upscale</b> → Speed <b>⏩ Instant</b> makes the picture bigger in seconds with an upscaler alone (no new detail invented). Not sure? Use the buttons under the list: <b>⚡ Fastest</b> (<b>UltraSharp V2 Lite</b> for anything, <b>Real-ESRGAN fast</b>, <b>AnimeVideo v3</b> for anime) or <b>★ Best quality</b> (<b>UltraSharp V2</b> for anything, <b>Nomos WebPhoto</b> for phone and web photos, <b>AnimeSharp</b> for anime, line art and text). The list shows each one's speed; hover for what it's best at.",
               "<b>For everything:</b> 4x-UltraSharp (built in, crisp), UltraSharp V2 (most detail; slow: 1–3 min for a 1024 px picture on an 8 GB Mac), UltraSharp V2 Lite (fast), Real-ESRGAN fast. <b>Photos:</b> Real-ESRGAN (old or compressed pictures), Real-ESRGAN 2× (made for 2×), Nomos WebPhoto (noise, lens blur, JPEG/WebP), Nomos8kSC (clean photos, natural texture). <b>Anime, drawings & text:</b> AnimeSharp (extra crisp), Real-ESRGAN Anime (clean lines, flat colours), AnimeVideo v3 (fastest, a little softer).",
@@ -2125,6 +2133,10 @@ const protoartApp = createApp({
             { h: "A folder or drive can't be found", items: [
               "<b>Why:</b> you moved or renamed your models / LoRAs folder, or the drive it's on isn't plugged in. The app says so at startup.",
               "<b>Fix:</b> plug the drive in, or open <b>Settings → Moved a folder?</b>, click <b>Find it…</b> next to the red one and pick the folder in its new place. LoRA folders and their types, watched folders, added models, your ⚑ / ● marks, presets and the Library all follow. Picking a different folder by mistake is refused." ] },
+            { h: "Sending a problem to get help", items: [
+              "Press <b>📋 Copy diagnostics</b> next to the error message (or in Settings → Backend log) and paste it into your message: it has the app's version, this Mac's memory and versions, the message and the end of the backend log. Your user name, e-mail addresses and keys are taken out before it's copied." ] },
+            { h: "A download stopped halfway", items: [
+              "Start the same thing again: the upscalers continue from where the download stopped, and Hugging Face downloads (IC-Light, models) do too. The status line shows how far it got." ] },
             { h: "💡 Relight seems frozen (stays on “Relighting…”)", items: [
               "<b>Why:</b> on an 8 GB Mac the larger detail pass (960 px with <b>Add detail</b> on) needed more memory than the Mac has, so it swapped to disk and barely moved. Since 1.6.15 Macs with less than 16 GB relight at <b>512</b> only (768 px with Add detail).",
               "If it still stalls: press <b>Stop</b> (or Force stop & restart), quit other apps and try again. The first run also downloads IC-Light (~1.7 GB) and adds it to your model, which takes a minute." ] },
@@ -2262,7 +2274,7 @@ const protoartApp = createApp({
       ProtoText: window.ProtoText,  // 🔤 Replace text's fonts
       patchInY: PATCH_IN_Y,
       patchOutY: PATCH_OUT_Y,
-      patch: { on: loadJSON("protoart.patchOn", false), cables: loadJSON("protoart.patchV2", false) ? loadJSON("protoart.patch", PATCH_DEFAULT) : [],  // 1.2.1: cables start cleared
+      patch: { onlyFinal: loadJSON("protoart.patchOnlyFinal", false), on: loadJSON("protoart.patchOn", false), cables: loadJSON("protoart.patchV2", false) ? loadJSON("protoart.patch", PATCH_DEFAULT) : [],  // 1.2.1: cables start cleared
                extra: loadJSON("protoart.patchExtra", []),  // more copies of modules you added: [{id: "faces#2", type: "faces"}]
                order: loadJSON("protoart.patchOrder", []),  // the modules' left-to-right order, if you moved them
                moving: null,  // a module being dragged sideways by its name plate
@@ -5527,6 +5539,7 @@ const protoartApp = createApp({
       let cur = this.toolArgs(), curPath = this.tool.source.path;
       const origin = { path: this.tool.source.path, id: this.tool.source.image_id };
       let last = null;
+      const made = [];  // every picture this run saved (for Keep only the final picture)
       this.patch.steps = steps.length;
       this.patch.stopped = false;
       this.tool.latest = null;
@@ -5561,7 +5574,7 @@ const protoartApp = createApp({
             const o = this.post.relight;
             rec = await this.runJob("relight", { ...cur, prompt: o.prompt, subject: o.subject, direction: o.direction, model: this.relightModel().id,
                                                  size: this.relightSize(), hires: o.hires, background: o.background || "keep",
-                                                 reference: o.ref_on && o.ref ? o.ref : null, finder: this.post.cut.finder });
+                                                 reference: o.ref_on && o.ref ? o.ref : null, ...this.relightFinish(o), finder: this.post.cut.finder });
           } else if (id === "cutout") {
             const o = this.post.cut;
             rec = await this.runJob("cutout", { ...cur, mode: "save", finder: o.finder || "birefnet", threshold: o.threshold, softness: o.softness, grow: o.grow,
@@ -5579,6 +5592,7 @@ const protoartApp = createApp({
             break;
           }
           if (id !== "vector") {
+            if (rec.id != null) made.push(rec.id);
             last = rec;
             this.afterPost(rec);
             cur = rec.id != null ? { image_id: rec.id } : { path: rec.path };
@@ -5591,6 +5605,19 @@ const protoartApp = createApp({
           // 🛡 the areas you protected come back from your picture
           const merged = await call("protect_merge", { image_id: last.id, original: origin.path, original_id: origin.id, mask: pr.data });
           if (merged) { last = merged; this.afterPost(merged); this.status += " · protected areas kept"; }
+        }
+        if (this.patch.onlyFinal && last && last.id != null && !this.patch.stopped) {
+          const extra = made.filter((x) => x !== last.id);
+          if (extra.length) {
+            try {
+              const res = await call("library_delete", { ids: extra, delete_files: false });
+              const errs = await window.bee.trash(res.paths || []);
+              const gone = new Set(res.ids || []);
+              this.tool.results = (this.tool.results || []).filter((r) => !gone.has(r.id));
+              this.session = this.session.filter((r) => !gone.has(r.id));
+              this.status += ` · ${gone.size} in-between picture${gone.size === 1 ? "" : "s"} moved to the Trash` + (errs && errs.length ? " (some couldn't be moved)" : "");
+            } catch (e) { console.warn("keep only final:", e); }
+          }
         }
       } catch (e) {
         this.error = e.message;
@@ -7136,6 +7163,11 @@ const protoartApp = createApp({
     // Relight's largest size on this Mac: 640 / 768 (and their 960 / 1150 px detail pass) run an 8 GB Mac out of memory
     relightMaxSize() { return this.sys.ram_gb && this.sys.ram_gb < 12 ? 512 : 768; },
     relightSize() { return Math.min(+this.post.relight.size || 640, this.relightMaxSize()); },
+    saveJSONPublic(k, v) { saveJSON(k, v); },
+    relightFinish(o) {  // how Relight finishes the picture (full size, shadow, blend, warmth, light colour)
+      return { full_size: o.full_size !== false, shadow: o.shadow !== false, blend: o.blend !== false,
+               warmth: (+o.warmth || 0) / 100, colour: o.colour_on ? o.colour : null };
+    },
     async relightRefDrop(e) {  // 🖼 the reference picture whose light Relight copies
       this.relightRefOver = false;
       const file = [...(e.dataTransfer?.files || [])].find(isPicture);
@@ -7159,7 +7191,8 @@ const protoartApp = createApp({
       this.tool.latest = null;
       try {
         const rec = await this.runJob("relight", { ...this.toolArgs(), prompt: o.prompt, subject: o.subject, direction: o.direction,
-                                                     model: m.id, size: this.relightSize(), hires: o.hires, background: o.background || "keep", reference: o.ref_on && o.ref ? o.ref : null, finder: this.post.cut.finder });
+                                                     model: m.id, size: this.relightSize(), hires: o.hires, background: o.background || "keep", reference: o.ref_on && o.ref ? o.ref : null,
+                                                     ...this.relightFinish(o), finder: this.post.cut.finder });
         if (rec) { this.tool.latest = rec; this.afterPost(rec); }
       } finally { this.tool.working = null; this.relightJob = false; }
     },
@@ -8820,6 +8853,24 @@ const protoartApp = createApp({
         this.error = e.message;
       }
     },
+    async copyDiagnostics() {  // 📋 everything needed to look into a problem, in one paste (no user name, no keys)
+      let tail = this.logs || "";
+      if (!tail) { try { const r = await call("log_tail", { bytes: 30000 }); tail = (r && r.text) || ""; } catch {} }
+      const lines = String(tail).replace(/\/Users\/[^/\s'"]+/g, "~").split("\n").slice(-150);
+      const redact = (t) => String(t || "").replace(/\/Users\/[^/\s'"]+/g, "~")
+        .replace(/(hf_|sk-|ghp_|civitai[_-]?key[=: ]+)[A-Za-z0-9_-]{8,}/gi, "$1•••").replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, "•@•");
+      const s = this.sys || {};
+      const text = [
+        `Protoart Studio ${APP_VERSION} · ${s.ram_gb || "?"} GB RAM · ${s.device || ""} · torch ${s.torch || "?"} · diffusers ${s.diffusers || "?"} · ${s.free_disk_gb ? Math.round(s.free_disk_gb) + " GB free" : ""}`,
+        `Tab: ${this.tab} · engine: ${this.backendDead ? "stopped" : this.busy ? "working, " + this.queue.length + " in queue" : "idle"}`,
+        `Error: ${redact(this.error) || "(none on screen)"}`,
+        "--- end of the backend log ---",
+        ...lines.map(redact),
+      ].join("\n");
+      try { await navigator.clipboard.writeText(text); } catch { this.status = "Couldn't copy: open Settings → Backend log and use Copy all"; return; }
+      this.diagCopied = true;
+      setTimeout(() => (this.diagCopied = false), 1800);
+    },
     async copyLog() {
       const text = this.logs || "";
       try {
@@ -8926,6 +8977,18 @@ const protoartApp = createApp({
         return;
       }
       if (f.i2i_mode === "text") return this.tx.open ? this.txSave() : this.i2iTxClear();  // 🔤 Replace text
+      if (f.i2i_mode === "relight") {  // 💡 IC-Light, with Tools' Relight settings
+        const o = this.post.relight, m = this.relightModel();
+        if (!f.init_image) return (this.error = "Add a picture first.");
+        if (!m) return (this.error = "Relight runs on a Stable Diffusion 1.5 model: download one in Models first.");
+        if (o.ref_on && !o.ref) return (this.error = "Drop or pick the reference picture whose light to copy (or switch to ✏️ Words).");
+        if (!o.ref_on && !o.prompt.trim()) return (this.error = "Describe the light first, or pick one of the light ideas.");
+        this.error = "";
+        await this.runJob("relight", { init_image: f.init_image, prompt: o.prompt, subject: o.subject, direction: o.direction, model: m.id,
+                                       size: this.relightSize(), hires: o.hires, background: o.background || "keep",
+                                       reference: o.ref_on && o.ref ? o.ref : null, ...this.relightFinish(o), finder: this.post.cut.finder });
+        return;
+      }
       if (f.i2i_mode === "remove") {  // 🩹 spot healing: no model or prompt involved
         if (!this.maskIsFor("i2i", f.init_image)) return (this.error = "Paint over what you want to remove first.");
         this.error = "";

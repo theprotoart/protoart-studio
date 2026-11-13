@@ -4042,7 +4042,8 @@ class Engine:
                                            f"(~{rl.MB / 1000:.1f} GB, first time only)…"})
             net.set_online(True)
             try:
-                weights = rl.weights_path(download=True, file=wfile)
+                with net.hf_progress(rl.REPO, "IC-Light" + (" (reference light)" if ref_img is not None else ""), rl.MB, emit):
+                    weights = rl.weights_path(download=True, file=wfile)
             except Exception as e:
                 raise UserError(f"Couldn't download IC-Light ({e}). Check the internet connection and try again.")
             finally:
@@ -4125,16 +4126,48 @@ class Engine:
         out = Image.fromarray(px)
         bg_mode = args.get("background") if args.get("background") in ("keep", "keep_relit", "new") else "keep"
         keep_bg = bg_mode != "new"
-        if keep_bg:  # the relit subject back on the picture's own background (IC-Light draws a new one), relit too if asked
-            emit({"type": "status", "msg": "Relighting: placing the subject back on your background…"})
-            out = rl.place_back(image, alpha, out, relight_bg=bg_mode == "keep_relit")
+        full_size = args.get("full_size", True) is not False
+        warmth = max(-1.0, min(1.0, float(args.get("warmth") or 0)))
+        colour = args.get("colour") if isinstance(args.get("colour"), str) and len(args["colour"]) == 7 else None
+        if full_size or keep_bg or warmth or colour:
+            emit({"type": "status", "msg": "Relighting: finishing at full size…" if full_size else "Relighting: finishing…"})
+            depth = None
+            if bg_mode == "keep_relit":  # which way the scene's surfaces face, so the new light falls on them
+                try:
+                    emit({"type": "status", "msg": "Relighting: reading the scene's depth for the background light…"})
+                    depth = self._get_depth_estimator("small")(image.convert("RGB"))["depth"].convert("L").resize(image.size)
+                except Exception as e:
+                    print("[relight] no depth for the background light:", e, flush=True)
+
+            def upscale(img, size):  # IC-Light's picture back to the original size: a quick upscaler, else plain resizing
+                if size[0] <= img.width * 1.15:
+                    return img.resize(size, Image.LANCZOS)
+                try:
+                    import postprocess.realesrgan as rs
+                    dev = t.device(self.device())
+                    if dev.type == "mps":
+                        t.mps.empty_cache()
+                    emit({"type": "status", "msg": "Relighting: sharpening it back to full size…"})
+                    return rs.upscale("realesr_general_x4v3", img, size[0] / img.width, dev,
+                                      t.float16 if dev.type == "mps" else t.float32, emit, tile=192)
+                except Exception as e:
+                    print("[relight] upscaler skipped:", e, flush=True)
+                    return img.resize(size, Image.LANCZOS)
+
+            src_img = image if full_size else image.resize(rl.crop_size(image.size, out.size), Image.LANCZOS)
+            a_full = alpha if full_size else np.asarray(Image.fromarray((np.clip(alpha, 0, 1) * 255).astype(np.uint8)).resize(src_img.size), dtype=np.float32) / 255.0
+            out = rl.finish(src_img, a_full, out, mode=bg_mode, depth=depth if full_size or depth is None else depth.resize(src_img.size),
+                            direction=direction, shadow=args.get("shadow", True) is not False and keep_bg,
+                            blend=args.get("blend", True) is not False and keep_bg, warmth=warmth, colour=colour,
+                            upscale=upscale if full_size else None)
         settings = dict(src.get("settings") or {})
         settings.update(prompt=prompt, negative_prompt=rl.NEGATIVE, model=model_id, sampler="dpmpp_2m_sde_karras",
                         steps=steps, cfg=cfg, seed=seed, width=out.width, height=out.height,
                         seconds=round(time.time() - started, 1),
                         relight={"light": light, "subject": subject, "direction": direction, "hires": hires,
                                  **({"reference": str(args["reference"])} if ref_img is not None else {}),
-                                 "background": {"keep": "kept", "keep_relit": "kept, relit", "new": "new"}[bg_mode]})
+                                 "background": {"keep": "kept", "keep_relit": "kept, relit", "new": "new"}[bg_mode],
+                                 **({"warmth": warmth} if warmth else {}), **({"colour": colour} if colour else {})})
         settings["loras"] = []
         path = self._save(out, settings, suffix="relit")
         record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="relit")

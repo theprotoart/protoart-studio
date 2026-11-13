@@ -1068,7 +1068,7 @@
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
-      <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
+      <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-diag" @click="copyDiagnostics" title="Copy what went wrong (the app's version, this Mac, the message and the end of the backend log, with your user name taken out) to paste into a message">{{ diagCopied ? '✓ Copied' : '📋 Copy diagnostics' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
       <div v-if="livePreviewShown" class="live-preview" :class="{covered: previewCovered}">
         <img :src="livePreview.src" alt="live preview"><span v-if="previewCovered" class="nsfw-cover">NSFW prompt · preview hidden</span>
         <div class="live-caption">
@@ -2115,6 +2115,7 @@
           <button v-if="!patch.running" class="primary patch-run" :disabled="!tool.source || !patchChain.steps.length" @click="patchRun"
                   :title="tool.source ? 'Run the picture through the patched modules, in cable order. Each module uses its own settings below.' : 'Drop a picture into Tools first'">▶ Run patch</button>
           <button v-else class="danger patch-run" @click="patchStop" title="Stop after this step">■ Stop · {{ patch.step }}/{{ patch.steps }}</button>
+          <label class="check small" title="Keep only the finished picture in the Library: the in-between pictures of each step go to the Trash (you can still get them back from there)"><input type="checkbox" :checked="patch.onlyFinal" @change="patch.onlyFinal = $event.target.checked; saveJSONPublic('protoart.patchOnlyFinal', patch.onlyFinal)"> Keep only the final picture</label>
           <button class="ghost small" :disabled="!!patch.running" @click="patchReset('reset')" title="Pull out every cable and put the modules back in their places">↺ reset</button>
           <button class="ghost small" :disabled="!!patch.running || !patch.cables.length" @click="patchReset('clear')" title="Pull out every cable (the modules stay where they are)">clear cables</button>
           <button class="link small" :disabled="!!patch.running" @click="patchReset('example')" title="Plug in an example chain: Picture → Enhance → Faces → Result">example</button>
@@ -2485,7 +2486,7 @@
           <label title="Describe the light in words, or give a picture whose light to copy">Light like</label>
           <div class="seg mod-seg">
             <button :class="{on: !post.relight.ref_on}" @click="post.relight.ref_on = false" title="Describe the light in a few words">✏️ Words</button>
-            <button :class="{on: post.relight.ref_on}" @click="post.relight.ref_on = true" title="Light the subject like another picture (its colours, direction and mood of the light)">🖼 A reference picture</button>
+            <button :class="{on: post.relight.ref_on}" @click="post.relight.ref_on = true" title="Light the subject like another picture (its colours, direction and mood of the light)">🖼 A picture</button>
           </div>
           <div v-if="post.relight.ref_on" class="relight-ref" :class="{over: relightRefOver}" @dragover.prevent="relightRefOver = true" @dragleave="relightRefOver = false" @drop.prevent="relightRefDrop"
                title="Drop a picture here (from Finder or the desktop), or pick one">
@@ -2524,9 +2525,18 @@
           <label class="check" title="IC-Light's second pass: 1.5× larger with more detail (about twice as long)"><input type="checkbox" v-model="post.relight.hires"> Add detail (1.5× larger)</label>
           <label title="IC-Light draws a new background to match the light. Keep mine puts the relit subject back on your picture's own background">Background</label>
           <div class="seg mod-seg">
-            <button :class="{on: (post.relight.background || 'keep') === 'keep'}" @click="post.relight.background = 'keep'" title="The relit subject on your picture's own background, exactly as it was (cut out and placed back for you)">Keep mine</button>
-            <button :class="{on: post.relight.background === 'keep_relit'}" @click="post.relight.background = 'keep_relit'" title="Your own background with everything in it, taking on the new light's brightness and colour (no new shadows)">Keep mine, relit</button>
-            <button :class="{on: post.relight.background === 'new'}" @click="post.relight.background = 'new'" title="The background IC-Light draws for the new light">New from Relight</button>
+            <button :class="{on: (post.relight.background || 'keep') === 'keep'}" @click="post.relight.background = 'keep'" title="The relit subject on your picture's own background, exactly as it was (cut out and placed back for you)">Mine</button>
+            <button :class="{on: post.relight.background === 'keep_relit'}" @click="post.relight.background = 'keep_relit'" title="Your own background with everything in it, taking on the new light: its colour, and brighter where surfaces face the light (read from a depth map)">Mine, relit</button>
+            <button :class="{on: post.relight.background === 'new'}" @click="post.relight.background = 'new'" title="The background IC-Light draws for the new light">New one</button>
+          </div>
+          <label class="check" title="The finished picture at your original picture's size: the relit part is sharpened back up with an upscaler (Real-ESRGAN fast, ~5 MB once)"><input type="checkbox" v-model="post.relight.full_size"> Full size (your picture's own size)</label>
+          <label v-if="(post.relight.background || 'keep') !== 'new'" class="check" title="A soft shadow of the subject on your background, thrown away from the light"><input type="checkbox" v-model="post.relight.shadow"> Add a shadow</label>
+          <label v-if="(post.relight.background || 'keep') !== 'new'" class="check" title="Nudges the subject's colours towards the light around it, so subject and background look lit by the same light"><input type="checkbox" v-model="post.relight.blend"> Blend in</label>
+          <label title="Colder (blue) or warmer (orange) light, on the whole result">Warmth <span class="mod-val">{{ post.relight.warmth }}</span></label>
+          <input type="range" min="-100" max="100" step="5" v-model.number="post.relight.warmth" @dblclick="post.relight.warmth = 0">
+          <div class="tx-row">
+            <label class="check" title="Tint the light with a colour of your choice"><input type="checkbox" v-model="post.relight.colour_on"> Light colour</label>
+            <input type="color" v-model="post.relight.colour" :disabled="!post.relight.colour_on" title="The light's colour">
           </div>
           <div class="hint">The first time downloads IC-Light (~1.7 GB).</div>
           <div class="mod-foot">
@@ -2924,7 +2934,7 @@
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
-      <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
+      <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-diag" @click="copyDiagnostics" title="Copy what went wrong (the app's version, this Mac, the message and the end of the backend log, with your user name taken out) to paste into a message">{{ diagCopied ? '✓ Copied' : '📋 Copy diagnostics' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
 
       <div v-if="tool.results.length">
         <h3 class="results-head">Results <button class="ghost small" @click="tool.results = []; tool.latest = null"
@@ -2996,6 +3006,7 @@
           <button :class="{on: form.i2i_mode === 'inpaint'}" @click="setI2iMode('inpaint')" title="Paint over a part and redraw only that part">🖌 Inpaint</button>
           <button :class="{on: form.i2i_mode === 'outpaint'}" @click="setI2iMode('outpaint')" title="Make the picture bigger and fill in the new area">↔ Expand</button>
           <button :class="{on: form.i2i_mode === 'text'}" @click="setI2iMode('text')" title="Change the words in speech bubbles, signs or labels: find them, clear them, type new ones in a real font">🔤 Replace text</button>
+          <button :class="{on: form.i2i_mode === 'relight'}" @click="setI2iMode('relight')" title="New light on the picture (IC-Light): described in words or copied from a reference picture, on your own background or a new one">💡 Relight</button>
           <button :class="{on: form.i2i_mode === 'remove'}" @click="setI2iMode('remove')" title="Paint over something and it disappears, filled in from what's around it (no prompt or model needed)">🩹 Remove</button>
           <button :class="{on: form.i2i_mode === 'combine'}" @click="setI2iMode('combine')" title="Put a character (or anything) from another picture into this scene, just by asking: “add this character sitting on the bench”. Its light is matched to the scene">🧩 Combine</button>
           <button :class="{on: form.i2i_mode === 'camera'}" @click="setI2iMode('camera')" title="See the same picture from another angle: turn the camera around the subject, up or down, nearer or further also turnarounds, character and expression sheets (FLUX.2 Klein)">📷 Camera angle</button>
@@ -3294,6 +3305,42 @@
           <label class="check consent"><input type="checkbox" v-model="form.swap.consent"> I have permission from the person whose face this is</label>
           <p class="hint">inswapper_128 is licensed for <b>non-commercial use only</b>, and every result is checked: explicit results aren't saved. First use downloads ~460 MB.</p>
         </template>
+        <template v-else-if="form.i2i_mode === 'relight'">
+          <div class="hint">New light on the picture with IC-Light (on one of your Stable Diffusion 1.5 models). The same settings as Tools → 💡 Relight, where there are a few more.</div>
+          <label>Light like</label>
+          <div class="seg">
+            <button :class="{on: !post.relight.ref_on}" @click="post.relight.ref_on = false">✏️ Words</button>
+            <button :class="{on: post.relight.ref_on}" @click="post.relight.ref_on = true">🖼 A reference picture</button>
+          </div>
+          <div v-if="post.relight.ref_on" class="relight-ref" :class="{over: relightRefOver}" @dragover.prevent="relightRefOver = true" @dragleave="relightRefOver = false" @drop.prevent="relightRefDrop">
+            <img v-if="post.relight.ref" :src="fileUrl(post.relight.ref)" alt="Reference light">
+            <span v-else class="hint">Drop a picture with the light you want here</span>
+            <div class="row small">
+              <label class="ghost small file-pick">Pick a picture…<input type="file" accept="image/*,.heic,.heif,.tif,.tiff,.psd,.avif" @change="relightRefPicked" hidden></label>
+              <button v-if="post.relight.ref" class="ghost small" @click="post.relight.ref = ''">✕ clear</button>
+            </div>
+          </div>
+          <label>Light <span v-if="post.relight.ref_on" class="hint">optional</span></label>
+          <input v-model="post.relight.prompt" placeholder="e.g. sunset over the sea">
+          <div class="chips relight-ideas">
+            <button v-for="x in RELIGHT_IDEAS" :key="'i' + x" class="chip" :class="{on: post.relight.prompt === x}" @click="relightIdea(x)">{{ x }}</button>
+          </div>
+          <label>Background</label>
+          <div class="seg">
+            <button :class="{on: (post.relight.background || 'keep') === 'keep'}" @click="post.relight.background = 'keep'">Keep mine</button>
+            <button :class="{on: post.relight.background === 'keep_relit'}" @click="post.relight.background = 'keep_relit'">Keep mine, relit</button>
+            <button :class="{on: post.relight.background === 'new'}" @click="post.relight.background = 'new'">New from Relight</button>
+          </div>
+          <div class="row small">
+            <label class="check"><input type="checkbox" v-model="post.relight.hires"> Add detail</label>
+            <label class="check"><input type="checkbox" v-model="post.relight.full_size"> Full size</label>
+            <label v-if="(post.relight.background || 'keep') !== 'new'" class="check"><input type="checkbox" v-model="post.relight.shadow"> Shadow</label>
+            <label v-if="(post.relight.background || 'keep') !== 'new'" class="check"><input type="checkbox" v-model="post.relight.blend"> Blend in</label>
+          </div>
+          <label>Warmth <span class="hint">{{ post.relight.warmth }}</span></label>
+          <input type="range" min="-100" max="100" step="5" v-model.number="post.relight.warmth" @dblclick="post.relight.warmth = 0">
+          <div v-if="!relightModels().length" class="hint">Needs a Stable Diffusion 1.5 model: download one in <a href="#" @click.prevent="tab = 'models'">Models</a>.</div>
+        </template>
         <template v-else-if="form.i2i_mode === 'text'">
           <div class="hint">Change the words in speech bubbles, signs, posters or labels. Picture models can't spell, so the
             old words are cleared away and you type the new ones in a real font, size and colour.</div>
@@ -3504,7 +3551,7 @@
           “add sunglasses”, “replace the sky with a sunset”, “turn it into a watercolour painting”, “remove the people in the background”.</p>
         <p v-if="editModel() && !editModel().cached" class="hint warn">The first edit downloads FLUX.2 Klein (~{{ editModel().download_gb }} GB), then it works offline.</p>
       </div>
-      <div v-if="!i2iUsesKlein && !['faceswap', 'text'].includes(form.i2i_mode)" class="card i2ifold" :class="{shut: i2iShut('steps')}">
+      <div v-if="!i2iUsesKlein && !['faceswap', 'text', 'relight'].includes(form.i2i_mode)" class="card i2ifold" :class="{shut: i2iShut('steps')}">
         <h3 @click="i2iFoldToggle('steps')">Sampler, steps &amp; guidance <span class="hint">{{ currentModel ? currentModel.label : '' }} · model is chosen at the top</span>
           <span v-if="i2iShut('steps')" class="cfold-sum">{{ (samplers.find((x) => x.id === form.sampler) || {}).label || '' }} · {{ form.steps }} steps · CFG {{ form.cfg }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <label class="i2i-sampler-label">Sampler <span class="hint">· the same as Create's</span></label>
@@ -3559,7 +3606,7 @@
         <div class="hint">{{ familyLabel }} · the sampler, steps and guidance are shared with Create.</div>
       </div>
 
-      <div v-if="!i2iUsesKlein && !['faceswap', 'peel', 'remove', 'text'].includes(form.i2i_mode)" class="card i2i-loras i2ifold" :class="{shut: i2iShut('loras')}">
+      <div v-if="!i2iUsesKlein && !['faceswap', 'peel', 'remove', 'text', 'relight'].includes(form.i2i_mode)" class="card i2i-loras i2ifold" :class="{shut: i2iShut('loras')}">
         <h3 @click="i2iFoldToggle('loras', $event)">LoRAs <span class="hint">· {{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · its own list (separate from Create's)</span>
           <button v-if="form.loras.length" class="link small-link" @click="form.loras = []">clear all</button><span class="cfold-chev" aria-hidden="true"></span></h3>
         <div v-for="(l, i) in form.loras" :key="l.name" class="lora-row">
@@ -3654,7 +3701,7 @@
         </div>
         <p v-if="!chainModels().length" class="hint">Download SD 1.5, SDXL, Anima, FLUX.1 Schnell or ERNIE in the Models tab first.</p>
       </div>
-      <div v-if="!['change', 'faceswap', 'text'].includes(form.i2i_mode)" class="card hint cn-off">
+      <div v-if="!['change', 'faceswap', 'text', 'relight'].includes(form.i2i_mode)" class="card hint cn-off">
         <div>2 · ControlNet is off while {{ form.i2i_mode === 'camera' ? 'changing the camera angle' : form.i2i_mode === 'combine' ? 'combining' : form.i2i_mode === 'peel' ? 'peeling layers' : form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'faceswap' ? 'swapping faces' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
         <div v-if="form.i2i_mode === 'edit'" class="cn-off-tips">Edit with words already keeps the layout, and <b>More pictures</b> above lend it a style, an outfit or a face.
           To make a new picture that follows this one's <b>structure</b> instead, use ControlNet with an SD 1.5 model:
@@ -3727,7 +3774,7 @@
         </template>
       </div>
 
-      <div v-if="!['faceswap', 'text'].includes(form.i2i_mode)" class="card i2ifold" :class="{shut: i2iShut('prompt')}">
+      <div v-if="!['faceswap', 'text', 'relight'].includes(form.i2i_mode)" class="card i2ifold" :class="{shut: i2iShut('prompt')}">
         <h3 @click="i2iFoldToggle('prompt', $event)">3 · Prompt <span v-if="i2iShut('prompt')" class="cfold-sum">{{ form.prompt ? (form.prompt.length > 60 ? form.prompt.slice(0, 59) + '…' : form.prompt) : 'empty' }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <textarea class="tape" v-model="form.prompt" rows="3"
                   :placeholder="form.i2i_mode === 'camera' ? 'Optional: anything to add · she is holding the sword · he is smiling…' : form.i2i_mode === 'combine' ? 'Where and doing what · sitting on the bench, waving · standing on the left, small, in the distance…' : form.i2i_mode === 'edit' ? 'The change, in a sentence: make the jacket red · add a hat · turn it into a watercolour…' : i2iUsesKlein ? 'Optional: what goes around the picture · more of the street · a sunny beach · the rest of the room…' : 'What the result should look like…'"></textarea>
@@ -3745,7 +3792,7 @@
           <button v-if="undoPrompt" class="link" @click="form.prompt = undoPrompt; undoPrompt = null">↩ undo</button>
           <span v-if="form.i2i_mode === 'edit'" class="hint">Edit with words wants the change itself (“make the jacket red”): the suggestion describes the picture so you can see what to change</span>
         </div>
-        <div v-if="!['edit', 'remove', 'text'].includes(form.i2i_mode) && !i2iUsesKlein" class="row small i2i-enhance">
+        <div v-if="!['edit', 'remove', 'text', 'relight'].includes(form.i2i_mode) && !i2iUsesKlein" class="row small i2i-enhance">
           <label class="check" title="Before each picture, a small language model turns your prompt into a detailed one (the same switch as in Create)">
             <input type="checkbox" v-model="form.enhance_prompt"> ✨ Enhance prompt when generating</label>
           <button class="link" @click="enhanceNow" :disabled="!form.prompt.trim()" title="Rewrite the prompt now, so you can read and edit it first">enhance now</button>
@@ -3792,7 +3839,7 @@
       </div>
 
       <div class="actions" :class="{busy}">
-        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'camera' ? (form.cam.turnaround ? '📷 Make 8 views' : '📷 New angle') + (busy ? ' (queue)' : '') : form.i2i_mode === 'combine' ? '🧩 Combine' + (busy ? ' (queue)' : '') : form.i2i_mode === 'peel' ? '🧅 Peel off' : form.i2i_mode === 'faceswap' ? '🔁 Swap face' + (busy ? ' (queue)' : '') : form.i2i_mode === 'text' ? (tx.open ? '💾 Save the text' : '🧽 Clear the text' + (busy ? ' (queue)' : '')) : form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model' ? '↔ Expand' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
+        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'camera' ? (form.cam.turnaround ? '📷 Make 8 views' : '📷 New angle') + (busy ? ' (queue)' : '') : form.i2i_mode === 'combine' ? '🧩 Combine' + (busy ? ' (queue)' : '') : form.i2i_mode === 'peel' ? '🧅 Peel off' : form.i2i_mode === 'faceswap' ? '🔁 Swap face' + (busy ? ' (queue)' : '') : form.i2i_mode === 'text' ? (tx.open ? '💾 Save the text' : '🧽 Clear the text' + (busy ? ' (queue)' : '')) : form.i2i_mode === 'relight' ? '💡 Relight' + (busy ? ' (queue)' : '') : form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model' ? '↔ Expand' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
         <div v-if="busy" class="stop-group">
           <button v-if="runningJob || queue.length" class="ghost pause-btn" :class="{on: paused}" @click="togglePause"
                   :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
@@ -3808,7 +3855,7 @@
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
-      <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
+      <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-diag" @click="copyDiagnostics" title="Copy what went wrong (the app's version, this Mac, the message and the end of the backend log, with your user name taken out) to paste into a message">{{ diagCopied ? '✓ Copied' : '📋 Copy diagnostics' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
       <div v-if="form.i2i_mode === 'change' && form.control.type && cnGuide" class="card cn-guide cn-guide-card">
         <div class="cn-guide-head"><h3>🎛 {{ cnGuide.title }} <span class="hint">· ControlNet guide</span></h3><span class="grow"></span>
           <button class="ghost small" @click="applyCnGuide" title="Set the strength, timing and picture settings this ControlNet works best with">Use these settings</button></div>
@@ -4931,6 +4978,7 @@
     <div class="row log-tools">
       <button class="ghost small" @click="selectLog" title="Highlight all of the log text">Select all</button>
       <button class="ghost small" @click="copyLog" title="Copy the whole log, e.g. to paste into a message">{{ logCopied ? '✓ Copied' : 'Copy all' }}</button>
+      <button class="ghost small" @click="copyDiagnostics" title="The app's version, this Mac, the last error and the end of the log, ready to paste into a message (your user name taken out)">{{ diagCopied ? '✓ Copied' : '📋 Copy diagnostics' }}</button>
       <button class="ghost small" @click="clearLog" title="Empty the log file">Clear log</button>
       <span class="hint">The log can include parts of prompts and model names; your home folder is shown as ~.</span>
     </div>
@@ -5236,7 +5284,7 @@
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
-      <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
+      <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-diag" @click="copyDiagnostics" title="Copy what went wrong (the app's version, this Mac, the message and the end of the backend log, with your user name taken out) to paste into a message">{{ diagCopied ? '✓ Copied' : '📋 Copy diagnostics' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
         </div>
 
         <div class="row">

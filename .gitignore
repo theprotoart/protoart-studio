@@ -43,3 +43,4 @@ selftest/
 # other projects that live next to this one on the developer's Mac (separate repositories)
 ProtoArtBeautify/
 protoart-press/
+packaging/ui_smoke/out/
