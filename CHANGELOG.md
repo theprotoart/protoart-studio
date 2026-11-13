@@ -1,6 +1,6 @@
 # Changelog
 
-## Next
+## 1.6.14
 
 - Train: fast-engine LoRAs for FLUX.2 Klein 4B / 9B and Z-Image Turbo (`mlx_train.KINDS`, mflux targets from its
   examples; Z-Image's training adapter fetched in the app first); RAM limits warn instead of blocking; FLUX.1 / MOSS

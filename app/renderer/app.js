@@ -669,7 +669,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.13";  // keep in step with app/package.json
+const APP_VERSION = "1.6.14";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -962,7 +962,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Coming in the next version: train FLUX.2 Klein and Z-Image, Pony / Illustrious / SDXL apart, downloads fixed", items: [
+            { h: "1.6.14: train FLUX.2 Klein and Z-Image, Pony / Illustrious / SDXL apart, downloads fixed", items: [
               "<b>Train LoRAs on FLUX.2 Klein (4B and 9B) and Z-Image Turbo</b> on the ⚡ fast engine (like ERNIE): pick one in Train → LoRA. Models that usually need a bigger Mac are no longer blocked: you get a warning and can still try (or train on a bigger Mac).",
               "<b>Pony, Illustrious, NoobAI and SDXL are kept apart</b> everywhere: their own filters in the model list, their own groups for your checkpoints (“Your checkpoints · Illustrious”, “… · Pony”, “… · SDXL”) and their own groups in Train.",
               "<b>Civitai: newer base models recognised</b>: Illustrious, NoobAI, Pony (and Pony V7, which is AuraFlow, not SDXL), FLUX.2 Klein, Krea 2, Z-Image, Qwen, Anima, MOSS, FIBO; Chroma, HiDream and video models are named as not usable here yet.",
