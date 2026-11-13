@@ -669,7 +669,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.14";  // keep in step with app/package.json
+const APP_VERSION = "1.6.15";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -988,7 +988,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Coming in the next version: 🧊 Make 3D and 💡 Relight fixed, a tidier Models tab", items: [
+            { h: "1.6.15: 🧊 Make 3D and 💡 Relight fixed, a tidier Models tab", items: [
               "<b>Fixed: 💡 Relight looking frozen</b> on 8 GB Macs: it now uses the same memory savers as normal pictures (attention slicing, and VAE tiling for the larger detail pass), so the Mac no longer swaps itself to a standstill.",
               "<b>Models tab: a tidier top row</b>: the 15 model-type buttons are now one <b>All model types</b> list (⚡ Fast engine and Stable Diffusion groups), and the three Add buttons are one <b>+ Add a model…</b> list (Hugging Face, Civitai, your Mac).",
               "<b>Fixed: Make 3D stopping with “Error(s) in loading state_dict for SingleImageEncoder … Missing key(s) … q_proj”</b>: Hunyuan3D's picture reader was saved with older layer names than the ones the app's newer libraries use. The app now renames them as it loads (same model, nothing downloaded again)." ] },
@@ -2069,10 +2069,10 @@ const protoartApp = createApp({
               "<b>Why:</b> you moved or renamed your models / LoRAs folder, or the drive it's on isn't plugged in. The app says so at startup.",
               "<b>Fix:</b> plug the drive in, or open <b>Settings → Moved a folder?</b>, click <b>Find it…</b> next to the red one and pick the folder in its new place. LoRA folders and their types, watched folders, added models, your ⚑ / ● marks, presets and the Library all follow. Picking a different folder by mistake is refused." ] },
             { h: "💡 Relight seems frozen (stays on “Relighting…”)", items: [
-              "<b>Why:</b> on an 8 GB Mac the larger detail pass (960 px with <b>Add detail</b> on) needed more memory than the Mac has, so it swapped to disk and barely moved. Fixed in the next version after 1.6.14 (it now saves memory like normal pictures do).",
+              "<b>Why:</b> on an 8 GB Mac the larger detail pass (960 px with <b>Add detail</b> on) needed more memory than the Mac has, so it swapped to disk and barely moved. Fixed in 1.6.15 (it now saves memory like normal pictures do).",
               "<b>Until then:</b> press <b>Stop</b> (or Force stop & restart), quit other apps, then Relight at <b>512</b> with <b>Add detail off</b>. The first run also downloads IC-Light (~1.7 GB) and adds it to your model, which takes a minute." ] },
             { h: "🧊 Make 3D: “Error(s) in loading state_dict for SingleImageEncoder” (a long list of “main_image_encoder…” names)", items: [
-              "Fixed in the next version (after 1.6.14): Hunyuan3D's picture reader (DINOv2) was saved with older part names (query / key / value, weights_in) than the app's libraries use now (q_proj, gate_proj…). The app renames them while loading; nothing is downloaded again. Update the app and press <b>Make 3D</b> again." ] },
+              "Fixed in 1.6.15: Hunyuan3D's picture reader (DINOv2) was saved with older part names (query / key / value, weights_in) than the app's libraries use now (q_proj, gate_proj…). The app renames them while loading; nothing is downloaded again. Update the app and press <b>Make 3D</b> again." ] },
             { h: "🧊 Make 3D: “IncompleteSnapshotError … model.fp16.ckpt” or “snapshot is incomplete”", items: [
               "Fixed in 1.6.14: Make 3D now uses the model files it downloaded directly (it only needs <b>model.fp16.safetensors</b> and <b>config.yaml</b>; the .ckpt copy is never needed). Update the app and press <b>Make 3D</b> again; nothing is downloaded again.",
               "If it still says a file is missing, the first download was cut short: turn off Strict offline mode (Settings → Privacy), pause the VPN and run Make 3D once more to finish it." ] },

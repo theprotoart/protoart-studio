@@ -1,6 +1,6 @@
 # Changelog
 
-## Next
+## 1.6.15
 
 - Make 3D: Hunyuan3D's DINOv2 image-encoder weights renamed from transformers 4 to transformers 5 names while loading
   (`mesh3d_worker.dinov2_new_names`: query/key/value -> q/k/v_proj, output.dense -> o_proj, SwiGLU weights_in split
