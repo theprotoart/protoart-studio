@@ -2928,6 +2928,7 @@
           <button :class="{on: form.i2i_mode === 'change'}" @click="setI2iMode('change')" title="Change the whole picture, keep as much as you like">🔄 Change it</button>
           <button :class="{on: form.i2i_mode === 'inpaint'}" @click="setI2iMode('inpaint')" title="Paint over a part and redraw only that part">🖌 Inpaint</button>
           <button :class="{on: form.i2i_mode === 'outpaint'}" @click="setI2iMode('outpaint')" title="Make the picture bigger and fill in the new area">↔ Expand</button>
+          <button :class="{on: form.i2i_mode === 'text'}" @click="setI2iMode('text')" title="Change the words in speech bubbles, signs or labels: find them, clear them, type new ones in a real font">🔤 Replace text</button>
           <button :class="{on: form.i2i_mode === 'remove'}" @click="setI2iMode('remove')" title="Paint over something and it disappears, filled in from what's around it (no prompt or model needed)">🩹 Remove</button>
           <button :class="{on: form.i2i_mode === 'combine'}" @click="setI2iMode('combine')" title="Put a character (or anything) from another picture into this scene, just by asking: “add this character sitting on the bench”. Its light is matched to the scene">🧩 Combine</button>
           <button :class="{on: form.i2i_mode === 'camera'}" @click="setI2iMode('camera')" title="See the same picture from another angle: turn the camera around the subject, up or down, nearer or further also turnarounds, character and expression sheets (FLUX.2 Klein)">📷 Camera angle</button>
@@ -2956,7 +2957,7 @@
             </div>
             <div v-if="txHint && tab === 'i2i'" class="tx-hint"><b>🔤 Changing the words?</b> Picture models can't spell, so new writing comes out as scribbles.
               <b>Replace text</b> clears the old words and lets you type new ones in a real font, size and colour.
-              <button class="primary small" @click="textToReplaceTool" title="Opens this picture in Tools → 🔤 Replace text and finds the writing">🔤 Replace the text instead</button>
+              <button class="primary small" @click="txHint = false; setI2iMode('text')" title="Switch to 🔤 Replace text (your selection is kept): clear the words, then type new ones">🔤 Replace the text instead</button>
               <button class="link" @click="txHint = false">no thanks, keep painting</button></div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
@@ -3226,6 +3227,87 @@
           <label class="check consent"><input type="checkbox" v-model="form.swap.consent"> I have permission from the person whose face this is</label>
           <p class="hint">inswapper_128 is licensed for <b>non-commercial use only</b>, and every result is checked: explicit results aren't saved. First use downloads ~460 MB.</p>
         </template>
+        <template v-else-if="form.i2i_mode === 'text'">
+          <div class="hint">Change the words in speech bubbles, signs, posters or labels. Picture models can't spell, so the
+            old words are cleared away and you type the new ones in a real font, size and colour.</div>
+          <div class="tx-steps">
+            <button class="ghost small" :disabled="objFinding || i2iRunning" @click="i2iTxFind"
+                    title="Selects the writing in the picture (Florence-2 reads it). Add or take away with the brush if it missed a bit.">{{ objFinding ? 'Finding…' : '1 · 🔍 Find the text' }}</button>
+            <button class="ghost small" :disabled="i2iRunning" @click="i2iTxClear"
+                    title="Fills in the background where the text was (like 🩹 Remove), then opens the Type tool on it">2 · 🧽 Clear it</button>
+            <button class="ghost small" @click="tx.open ? txClose() : i2iTxOpen()"
+                    :title="tx.open ? 'Close the Type tool (the text is kept until you open another picture)' : 'Type on the picture (the cleared one if you just cleared it)'">{{ tx.open ? '✕ Close' : '3 · ✏️ Type' }}</button>
+          </div>
+          <template v-if="!tx.open">
+          <div class="hint">Missed a bit, or picked up too much? Fix the selection with the brush (＋ Add / − Subtract) before 🧽 Clear it.</div>
+          <div class="mask-tools">
+            <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
+              <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
+            </div>
+            <div class="sel-opts">
+              <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
+              <span class="grow"></span><button class="ghost small sel-end" :disabled="!mask.data" @click="maskInvert" title="Swap painted and unpainted areas: after 👤 Subject, everything except the subject (the background)">⇄ Invert</button><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
+              <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
+              <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
+              <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
+              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
+              <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
+            </div>
+            <span class="hint">brush</span>
+            <input type="range" min="4" max="160" step="2" v-model.number="mask.size" @input="brushPreview">
+            <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
+            <span class="hint">{{ mask.size }}</span>
+          </div>
+          </template>
+          <template v-if="tx.open">
+            <div v-if="!tx.layers.length" class="hint">Click the picture on the right where the text goes.</div>
+            <div v-else class="tx-layers">
+              <button v-for="(L, i) in tx.layers" :key="'txl' + i" class="tx-chip" :class="{on: i === tx.sel}" @click="tx.sel = i">
+                {{ (L.text || '…').split('\n')[0].slice(0, 14) || '…' }}<b @click.stop="txRemove(i)" title="Delete this text">✕</b></button>
+              <button class="tx-chip tx-add" @click="txAdd()" title="Another text, with its own words, font, size and colour (or click an empty spot on the picture)">＋ Add text</button>
+            </div>
+            <div v-if="tx.layers.length" class="hint">Each text is separate: click an empty spot on the picture (or ＋ Add text) for another one; click a text to pick it, drag it to move it.</div>
+            <template v-if="txLayer()">
+              <textarea ref="txText" v-model="txLayer().text" rows="2" class="mod-input tx-text" placeholder="Type the text (Return for a new line)"></textarea>
+              <label>Font</label>
+              <select v-model="txLayer().font" :style="{fontFamily: txLayer().font}">
+                <option v-for="f in ProtoText.FONTS" :key="f[0]" :value="f[0]" :style="{fontFamily: f[1]}">{{ f[0] }}</option>
+              </select>
+              <label>Size <span class="mod-val">{{ txLayer().size }} px</span></label>
+              <input type="range" min="8" :max="Math.max(200, Math.round(Math.min(tx.nw, tx.nh) * 0.5))" step="1" v-model.number="txLayer().size">
+              <div class="tx-row">
+                <label class="tx-col" title="The text's colour">Colour <input type="color" v-model="txLayer().colour"></label>
+                <button class="ghost small" :class="{on: tx.pick}" @click="tx.pick = !tx.pick" title="Click the old text on the picture to use its colour">🎯 from picture</button>
+              </div>
+              <div class="seg mod-seg">
+                <button :class="{on: txLayer().bold}" @click="txLayer().bold = !txLayer().bold" title="Bold"><b>B</b></button>
+                <button :class="{on: txLayer().italic}" @click="txLayer().italic = !txLayer().italic" title="Italic"><i>I</i></button>
+                <button v-for="a in [['left', '⇤'], ['center', '↔'], ['right', '⇥']]" :key="a[0]" :class="{on: txLayer().align === a[0]}" @click="txLayer().align = a[0]" :title="txLayer().vertical ? 'Align ' + ({left: 'to the top', center: 'to the middle', right: 'to the bottom'})[a[0]] : 'Align ' + a[0]">{{ a[1] }}</button>
+              </div>
+              <div class="seg mod-seg">
+                <button :class="{on: !txLayer().vertical}" @click="txLayer().vertical = false" title="Text across, left to right">A→ Across</button>
+                <button :class="{on: txLayer().vertical}" @click="txLayer().vertical = true" title="Vertical: the letters stacked top to bottom (each line is its own column, the first on the right). For text lying on its side, use Angle under outline, shadow, angle">A↓ Vertical</button>
+                <button @click="txLayer().rotate = txLayer().rotate === -90 ? 0 : -90" :class="{on: txLayer().rotate === -90}" title="Turn the text on its side (reads bottom to top), like a book's spine">⟲ 90°</button>
+              </div>
+              <details class="mod-more">
+                <summary>outline, shadow, angle</summary>
+                <label>Outline <span class="mod-val">{{ txLayer().stroke }}</span></label>
+                <div class="tx-row"><input type="range" min="0" max="20" step="1" v-model.number="txLayer().stroke"><input type="color" v-model="txLayer().strokeColour" title="Outline colour"></div>
+                <label>Shadow <span class="mod-val">{{ txLayer().shadow }}</span></label>
+                <input type="range" min="0" max="20" step="1" v-model.number="txLayer().shadow">
+                <label>Angle <span class="mod-val">{{ txLayer().rotate }}°</span></label>
+                <input type="range" min="-180" max="180" step="1" v-model.number="txLayer().rotate" @dblclick="txLayer().rotate = 0">
+                <label>Letter spacing <span class="mod-val">{{ txLayer().spacing }}</span></label>
+                <input type="range" min="-10" max="60" step="1" v-model.number="txLayer().spacing">
+                <label>Line height <span class="mod-val">{{ txLayer().lineHeight }}</span></label>
+                <input type="range" min="0.7" max="2" step="0.05" v-model.number="txLayer().lineHeight">
+                <label>Opacity <span class="mod-val">{{ Math.round(txLayer().opacity * 100) }}%</span></label>
+                <input type="range" min="0.1" max="1" step="0.05" v-model.number="txLayer().opacity">
+              </details>
+            </template>
+          </template>
+          <button v-if="tx.open" class="primary" :disabled="tx.busy || !tx.layers.length" @click="txSave">{{ tx.busy ? 'Saving…' : '💾 Save the picture with the text' }}</button>
+        </template>
         <template v-else-if="form.i2i_mode === 'remove'">
           <div class="hint">Paint over what you want gone (cover it fully, a little past its edges), then press <b>🩹 Remove</b>.
             No prompt or model needed; only the painted part changes.</div>
@@ -3235,7 +3317,7 @@
             </div>
             <div v-if="txHint && tab === 'i2i'" class="tx-hint"><b>🔤 Changing the words?</b> Picture models can't spell, so new writing comes out as scribbles.
               <b>Replace text</b> clears the old words and lets you type new ones in a real font, size and colour.
-              <button class="primary small" @click="textToReplaceTool" title="Opens this picture in Tools → 🔤 Replace text and finds the writing">🔤 Replace the text instead</button>
+              <button class="primary small" @click="txHint = false; setI2iMode('text')" title="Switch to 🔤 Replace text (your selection is kept): clear the words, then type new ones">🔤 Replace the text instead</button>
               <button class="link" @click="txHint = false">no thanks, keep painting</button></div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
@@ -3268,7 +3350,7 @@
             </div>
             <div v-if="txHint && tab === 'i2i'" class="tx-hint"><b>🔤 Changing the words?</b> Picture models can't spell, so new writing comes out as scribbles.
               <b>Replace text</b> clears the old words and lets you type new ones in a real font, size and colour.
-              <button class="primary small" @click="textToReplaceTool" title="Opens this picture in Tools → 🔤 Replace text and finds the writing">🔤 Replace the text instead</button>
+              <button class="primary small" @click="txHint = false; setI2iMode('text')" title="Switch to 🔤 Replace text (your selection is kept): clear the words, then type new ones">🔤 Replace the text instead</button>
               <button class="link" @click="txHint = false">no thanks, keep painting</button></div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
@@ -3615,7 +3697,7 @@
       </div>
 
       <div class="actions" :class="{busy}">
-        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'camera' ? (form.cam.turnaround ? '📷 Make 8 views' : '📷 New angle') + (busy ? ' (queue)' : '') : form.i2i_mode === 'combine' ? '🧩 Combine' + (busy ? ' (queue)' : '') : form.i2i_mode === 'peel' ? '🧅 Peel off' : form.i2i_mode === 'faceswap' ? '🔁 Swap face' + (busy ? ' (queue)' : '') : form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model' ? '↔ Expand' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
+        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'camera' ? (form.cam.turnaround ? '📷 Make 8 views' : '📷 New angle') + (busy ? ' (queue)' : '') : form.i2i_mode === 'combine' ? '🧩 Combine' + (busy ? ' (queue)' : '') : form.i2i_mode === 'peel' ? '🧅 Peel off' : form.i2i_mode === 'faceswap' ? '🔁 Swap face' + (busy ? ' (queue)' : '') : form.i2i_mode === 'text' ? (tx.open ? '💾 Save the text' : '🧽 Clear the text' + (busy ? ' (queue)' : '')) : form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model' ? '↔ Expand' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
         <div v-if="busy" class="stop-group">
           <button v-if="runningJob || queue.length" class="ghost pause-btn" :class="{on: paused}" @click="togglePause"
                   :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
@@ -3711,7 +3793,18 @@
             <button @click="zoomReset('i2i')" :disabled="zoom.i2i.z === 1" title="Fit the whole picture">Fit</button>
             <button @click="zoomTo('i2i', zoomOneToOne('i2i'))" title="Actual pixels">1:1</button>
           </div>
-          <template v-if="i2iRunning">
+          <div v-if="tx.open && form.i2i_mode === 'text' && !i2iRunning" class="tx-wrap i2i-tx" @click.stop>
+            <div class="tx-stage">
+              <img ref="txImg" class="adjust-canvas" :class="{picking: tx.pick}" :src="fileUrl(tx.base.path)" @load="txImgLoad" draggable="false" @pointerdown.stop="txStageDown">
+              <div v-for="(L, i) in tx.layers" :key="'tx' + i" class="tx-layer" :class="{sel: i === tx.sel}" :style="txStyle(L)"
+                   @pointerdown.stop="txLayerDown($event, i)" title="Drag to move"><template v-if="L.vertical"><span
+                     v-for="(col, ci) in ProtoText.columns(L, tx.scale || 1).cols" :key="'tc' + ci" class="tx-vcol"
+                     :style="{width: ProtoText.columns(L, tx.scale || 1).w + 'px'}"><span v-for="(ch, j) in col" :key="j">{{ ch === ' ' ? '\u00a0' : ch }}</span></span></template><template v-else>{{ L.text || ' ' }}</template></div>
+            </div>
+            <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE' }}</span>
+            <span v-if="tx.busy || tx.msg" class="adjust-badge busy">{{ tx.msg || 'Working…' }}</span>
+          </div>
+          <template v-else-if="i2iRunning">
             <figure v-if="opts.previews && livePreview && livePreview.job === runningJob.id">
               <img :src="livePreview.src"><figcaption><span class="live-dot"></span> live preview</figcaption></figure>
             <figure v-else class="waiting"><div class="spinner"></div><figcaption>{{ status }}</figcaption></figure>

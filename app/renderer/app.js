@@ -963,7 +963,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Coming in the next version: clearer text changes in Image to image", items: [
-              "<b>🔤 Text in Image to image</b>: after selecting writing with the 🔤 Text tool (speech bubbles, signs), a note explains that picture models can't spell and offers <b>🔤 Replace the text instead</b>, which opens the picture in Tools → Replace text and finds the writing for you: clear it, then type new words in a real font." ] },
+              "<b>🔤 Replace text in Image to image</b>, the same as in Tools: a new mode next to 🩹 Remove. <b>1 · 🔍 Find the text</b> (speech bubbles, signs, captions), fix the selection with the brush if needed, <b>2 · 🧽 Clear it</b>, then <b>3 · ✏️ Type</b>: click the picture on the right where the words go and type them in a real font, size and colour (several texts, drag to move, colour picked from the old text), then <b>💾 Save</b>. Selecting text with the 🔤 Text tool in other modes offers to switch to it, because picture models can't spell." ] },
             { h: "1.6.14: train FLUX.2 Klein and Z-Image, Pony / Illustrious / SDXL apart, downloads fixed", items: [
               "<b>Train LoRAs on FLUX.2 Klein (4B and 9B) and Z-Image Turbo</b> on the ⚡ fast engine (like ERNIE): pick one in Train → LoRA. Models that usually need a bigger Mac are no longer blocked: you get a warning and can still try (or train on a bigger Mac).",
               "<b>Pony, Illustrious, NoobAI and SDXL are kept apart</b> everywhere: their own filters in the model list, their own groups for your checkpoints (“Your checkpoints · Illustrious”, “… · Pony”, “… · SDXL”) and their own groups in Train.",
@@ -1511,6 +1511,10 @@ const protoartApp = createApp({
               "Tools → pick the picture → <b>💡 Relight</b>. Type the light (or click an idea: sunshine from a window, neon city, sunset over the sea, golden hour, soft studio lighting…), optionally what the subject is (“woman, detailed face”), and where the light comes from: <b>Any</b> lets the words decide, ← Left / Right → / ↑ Top / ↓ Bottom puts a bright side there.",
               "It needs a <b>Stable Diffusion 1.5</b> model on this Mac (a realistic one, like Realistic Vision, gives the most natural light; download one in Models if you have none). The first time also downloads IC-Light (~1.7 GB). On an 8 GB Mac a picture takes a few minutes at 640 with Add detail on; 512 without it is quickest.",
               "IC-Light keeps the subject and makes a new background that fits the light. To keep your original background, ✂ Cut out the relit subject and put it back on your picture. Faces can change a little: add “detailed face” to Subject, or try another seed." ] },
+            { h: "🔤 Change the words in a picture (speech bubbles, signs)", items: [
+              "Image to image → <b>🔤 Replace text</b> (or Tools → 🔤 Replace text: they work the same). <b>1 · 🔍 Find the text</b> selects the writing; add or take away with the brush if it missed a bit.",
+              "<b>2 · 🧽 Clear it</b> fills in the background where the words were. <b>3 · ✏️ Type</b>: click the picture on the right where the new words go and type them on the left; pick the font, size and colour (🎯 takes the old text's colour). Click an empty spot for another text; drag a text to move it.",
+              "<b>💾 Save</b> keeps a new picture in the Library (the original is unchanged). Why not just inpaint? Picture models can't spell: new writing comes out as scribbles." ] },
             { h: "🎞 Film looks: make it look shot on real film", items: [
               "Create → <b>🎞 Film</b> (in the row of prompt tools). Write what the picture shows first, then click a look: colour films (Portra 400, Ektar 100, Gold 200, Kodachrome, Velvia…), cinema (CineStill 800T for neon nights with glowing lights, Vision3 500T, Super 8), black and white (Tri-X, HP5 pushed, T-Max, sepia), instant (Polaroid SX-70, expired Polaroid, Instax), cameras (disposable, point-and-shoot flash, Holga, Lomo, pinhole, fisheye, sprocket holes, 2000s digicam), antique plates, looks and damaged film (light leaks, double exposure, scratches, expired film).",
               "The look is named at the start and end of the prompt with what it looks like spelled out (colours, grain, borders, glow), and its opposite goes in the negative prompt. Another click swaps the look; the same one again, or ✕ no film look, takes it off. Hover a look to see what it does.",
@@ -6111,6 +6115,7 @@ const protoartApp = createApp({
 
     // -------------------------------------------------------------- inpaint mask painting
     setI2iMode(m) {
+      if (m !== "text" && this.tx.open && this.tab === "i2i") this.txClose();
       this.form.i2i_mode = m;
       if (m !== "change") this.controlMap = null;
     },
@@ -6439,12 +6444,36 @@ const protoartApp = createApp({
         tmp.getContext("2d").drawImage(img, 0, 0, cv2.width, cv2.height);
         this.selStamp(asSelection(tmp.getContext("2d").getImageData(0, 0, cv2.width, cv2.height)), sub);
         this.status = `Text selected (${r.count} place${r.count === 1 ? "" : "s"}): add or take away with the brush if needed`;
-        if (this.tab === "i2i" && !sub) this.txHint = true;  // offer 🔤 Replace text: it types real words
+        if (this.tab === "i2i" && !sub && this.form.i2i_mode !== "text") this.txHint = true;  // offer 🔤 Replace text: it types real words
       } catch (e) {
         this.error = "Select text failed: " + (e.message || e);
       } finally {
         this.objFinding = false;
       }
+    },
+    // -------------------------------------------------------------- Image to image → 🔤 Replace text (same as Tools')
+    async i2iTxFind() {  // 1 · select the writing on the picture (the painting layer on the left)
+      if (this.tx.open) this.txClose();
+      await this.$nextTick();
+      for (let i = 0; i < 40 && !(this.$refs.maskCanvas && this.$refs.maskCanvas.width); i++) await new Promise((r) => setTimeout(r, 50));
+      await this.selAutoText(false);
+    },
+    async i2iTxClear() {  // 2 · fill in where the text was (🩹 Remove's fill), then the Type tool on the cleared picture
+      const f = this.form;
+      if (!f.init_image) return (this.error = "Add a picture first.");
+      if (!this.maskIsFor("i2i", f.init_image)) return (this.error = "Select the text first (1 · 🔍 Find the text, or paint over it).");
+      this.error = "";
+      const rec = await this.runJob("heal", { init_image: f.init_image, mask: this.mask.data, method: f.heal_method || "lama" });
+      if (rec && rec.path) this.i2iTxOpen(rec);
+    },
+    i2iTxOpen(rec) {  // 3 · the Type tool, on the right: the cleared picture, or the picture as it is
+      const last = this.i2iLatest;
+      const base = rec || (last && last.kind === "healed" ? last : null) || { path: this.form.init_image, id: null };
+      if (!base.path) return (this.error = "Add a picture first.");
+      Object.assign(this.tx, { open: true, base: { path: base.path, id: base.id ?? null }, sel: -1, pick: false, msg: "" });
+      if (!this.tx.keep) this.tx.layers = [];
+      this.tx.keep = false;
+      this.status = "Click the picture on the right where the text goes, then type it on the left";
     },
     async textToReplaceTool() {  // Image to image → Tools → 🔤 Replace text, with this picture, and find the writing
       const path = this.form.init_image;
@@ -8734,6 +8763,7 @@ const protoartApp = createApp({
                                         restore: sw.restore !== false, consent: true, ...extra });
         return;
       }
+      if (f.i2i_mode === "text") return this.tx.open ? this.txSave() : this.i2iTxClear();  // 🔤 Replace text
       if (f.i2i_mode === "remove") {  // 🩹 spot healing: no model or prompt involved
         if (!this.maskIsFor("i2i", f.init_image)) return (this.error = "Paint over what you want to remove first.");
         this.error = "";
@@ -10116,7 +10146,8 @@ const protoartApp = createApp({
         const L = this.txLayer();
         this.tx.pick = false;
         try {
-          const bmp = await createImageBitmap(new Blob([await this.readImageBytes(this.tool.source.path)]));
+          const orig = this.tab === "i2i" ? this.form.init_image : this.tool.source.path;
+          const bmp = await createImageBitmap(new Blob([await this.readImageBytes(orig)]));
           const c = document.createElement("canvas");
           c.width = 1; c.height = 1;
           c.getContext("2d").drawImage(bmp, Math.floor(x * bmp.width), Math.floor(y * bmp.height), 1, 1, 0, 0, 1, 1);
@@ -10177,7 +10208,11 @@ const protoartApp = createApp({
           args.data_b64 = btoa(bin);
         }
         const rec = await call("adjust_save", args);
-        if (rec && rec.id != null) {
+        if (rec && rec.id != null && this.tab === "i2i") {
+          this.i2iResults.unshift(rec);
+          this.txClose();
+          this.status = "Picture with the new text saved to the Library (the original is unchanged)";
+        } else if (rec && rec.id != null) {
           this.tool.results.unshift(rec);
           this.tool.latest = rec;
           this.txClose();

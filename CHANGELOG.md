@@ -2,8 +2,9 @@
 
 ## Next
 
-- Image to image: after 🔤 Text selection, a note offers Tools → Replace text (`textToReplaceTool`: opens the picture
-  there and runs Find the text), since inpainting can't write real words
+- Image to image → 🔤 Replace text mode (`i2i_mode: "text"`): Find (Florence-2) / Clear (heal job) / Type, with the
+  Tools Typesetter's controls and stage (shared `tx` state; the stage in the i2i preview, saved into `i2iResults`).
+  Selecting text in other modes offers to switch to it
 
 ## 1.6.14
 
