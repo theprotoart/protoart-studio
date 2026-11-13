@@ -431,13 +431,13 @@ def train(engine, args, emit, cancel_event, lora_dir):
     if resume and spec and resume["family"] and resume["family"] != spec["family"]:
         raise TrainError(f"'{resume['name']}' was made for a different kind of model. "
                          "Pick a base model of the same kind it was trained on.")
-    if spec and spec.get("engine") == "mlx" and spec["family"] == "ernie":
-        # ERNIE on the fast engine: QLoRA on the 4-bit model, runs on much smaller Macs than the full model
-        import mlx_train
+    import mlx_train
+    if spec and mlx_train.kind_of(spec):
+        # ERNIE, FLUX.2 Klein and Z-Image Turbo on the fast engine: QLoRA on the 4-bit model (mflux's trainer)
         import paths as _paths
         try:
             res = mlx_train.train(spec=spec, items=items, caption_for=_caption_for, args=args, name=name,
-                                   final_path=final_path, work_dir=_paths.HOME / "train_work" / "ernie",
+                                   final_path=final_path, work_dir=_paths.HOME / "train_work" / spec["family"],
                                    emit=emit, cancel_event=cancel_event, ram_gb=total_ram_gb(),
                                    pause_event=getattr(engine, "pause_event", None))
             if res.get("stopped_early") and res.get("checkpoint"):
@@ -451,7 +451,13 @@ def train(engine, args, emit, cancel_event, lora_dir):
         except mlx_train.TrainError as e:
             raise TrainError(str(e))
     if not spec or spec["family"] not in ("sd15", "sdxl", "ernie") or spec.get("engine"):
-        raise TrainError("LoRA training works with SD 1.5, SDXL and (on 32 GB+ Macs) ERNIE models.")
+        if spec and spec["family"] == "flux":
+            raise TrainError("FLUX.1 LoRAs can't be trained on a Mac yet (mflux dropped FLUX.1 training). "
+                             "Train on FLUX.2 Klein instead.")
+        if spec and spec["family"] == "moss":
+            raise TrainError("MOSS Image has no LoRA trainer yet (on any Mac).")
+        raise TrainError("LoRA training works with SD 1.5, SDXL (Pony, Illustrious, NoobAI), ERNIE, FLUX.2 Klein and "
+                         "Z-Image Turbo models.")
     family = spec["family"]
     if family == "ernie":
         return train_ernie(engine, spec, args, items, cfg, name, fmt, precision, trigger, res, rank, alpha, steps, lr,

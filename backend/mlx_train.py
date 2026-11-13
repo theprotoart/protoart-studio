@@ -1,4 +1,4 @@
-"""ERNIE LoRA training on the fast engine (MLX, via mflux's trainer).
+"""LoRA training on the fast engine (MLX, via mflux's trainer): ERNIE, FLUX.2 Klein (4B / 9B) and Z-Image Turbo.
 
 The PyTorch trainer needs the full-precision ERNIE model and 32 GB+. mflux can train a LoRA on top of the
 4-bit fast-engine model instead (QLoRA-style: the base stays compressed, only the small LoRA is learned),
@@ -24,6 +24,63 @@ ERNIE_TARGETS_ATTENTION = ("self_attention.to_q", "self_attention.to_k", "self_a
 ERNIE_TARGETS_FULL = ERNIE_TARGETS_ATTENTION + ("mlp.gate_proj", "mlp.up_proj", "mlp.linear_fc2")
 ERNIE_BLOCKS = 36
 
+
+def _targets(rows, rank):
+    out = []
+    for path, end in rows:
+        t = {"module_path": path, "rank": int(rank)}
+        if end:
+            t["blocks"] = {"start": 0, "end": end}
+        out.append(t)
+    return out
+
+
+def _flux2_targets(double, single, full):
+    rows = [(f"transformer_blocks.{{block}}.attn.{n}", double) for n in ("to_q", "to_k", "to_v", "to_out")]
+    rows += [(f"single_transformer_blocks.{{block}}.attn.{n}", single) for n in ("to_qkv_mlp_proj", "to_out")]
+    if full:
+        rows += [(f"transformer_blocks.{{block}}.attn.{n}", double) for n in ("add_q_proj", "add_k_proj", "add_v_proj", "to_add_out")]
+        rows += [(f"transformer_blocks.{{block}}.{n}", double) for n in ("ff.linear_in", "ff.linear_out", "ff_context.linear_in", "ff_context.linear_out")]
+    return rows
+
+
+def _zimage_targets(full):
+    rows = [(f"layers.{{block}}.attention.{n}", 30) for n in ("to_q", "to_k", "to_v", "to_out.0")]
+    if full:
+        rows += [(f"layers.{{block}}.feed_forward.{n}", 30) for n in ("w1", "w2", "w3")]
+        rows += [("cap_embedder.1", None), ("all_final_layer.2-1.linear", None)]
+    return rows
+
+
+# what each fast-engine model trains with (mflux's own example settings, LoRA targets from its examples / READMEs)
+KINDS = {
+    "ernie": {"name": "ERNIE", "model": lambda s: "ernie-image-turbo", "steps": 8, "guidance": 1.0, "t": (1, 8),
+              "targets": lambda full: [(f"layers.{{block}}.{n}", ERNIE_BLOCKS) for n in (ERNIE_TARGETS_FULL if full else ERNIE_TARGETS_ATTENTION)]
+              + ([("text_proj", None)] if full else []),
+              "meta": {"ss_base_model_version": "ernie_image", "modelspec.architecture": "ernie-image/lora"}},
+    "flux2": {"name": "FLUX.2 Klein", "model": lambda s: s.get("mlx_base") or "flux2-klein-4b", "steps": 4, "guidance": 1.0,
+              "t": (1, 4), "targets": None,  # set per size below
+              "meta": {"ss_base_model_version": "flux2_klein", "modelspec.architecture": "flux-2-klein/lora"}},
+    "zimage": {"name": "Z-Image Turbo", "model": lambda s: "z-image-turbo", "steps": 9, "guidance": 0.0, "t": (4, 9),
+               "targets": _zimage_targets,
+               "meta": {"ss_base_model_version": "z_image_turbo", "modelspec.architecture": "z-image/lora"}},
+}
+# Z-Image Turbo needs this helper LoRA while training (mflux loads it itself; downloaded beforehand, in the app)
+ZIMAGE_ADAPTER = ("ostris/zimage_turbo_training_adapter", "zimage_turbo_training_adapter_v2.safetensors")
+
+
+def kind_of(spec):
+    return spec.get("family") if spec.get("engine") == "mlx" and spec.get("family") in KINDS else None
+
+
+def lora_rows(spec, targets):
+    full = targets == "full"
+    fam = spec["family"]
+    if fam == "flux2":
+        big = "9b" in str(spec.get("mlx_base") or "").lower()
+        return _flux2_targets(8 if big else 5, 24 if big else 20, full)
+    return KINDS[fam]["targets"](full)
+
 _PROGRESS = re.compile(r"(\d+)/(\d+) \[[^\]]*?(?:([\d.]+)s/it|([\d.]+)it/s)")
 
 
@@ -35,26 +92,25 @@ class Cancelled(Exception):
     pass
 
 
-def build_config(*, model_path, data_dir, out_dir, steps, n_samples, lr, rank, res, targets, save_every, ram_gb, seed=42):
-    """mflux training config (same layout as its train_ernie_image_turbo.json example)."""
+def build_config(*, model_path, data_dir, out_dir, steps, n_samples, lr, rank, res, targets, save_every, ram_gb, seed=42,
+                 spec=None):
+    """mflux training config (same layout as its train_*.json examples)."""
+    spec = spec or {"family": "ernie", "engine": "mlx"}
+    k = KINDS[spec["family"]]
     epochs = max(1, math.ceil(steps / max(1, n_samples)))
-    names = ERNIE_TARGETS_FULL if targets == "full" else ERNIE_TARGETS_ATTENTION
-    lora = [{"module_path": f"layers.{{block}}.{n}", "blocks": {"start": 0, "end": ERNIE_BLOCKS}, "rank": int(rank)}
-            for n in names]
-    if targets == "full":
-        lora.append({"module_path": "text_proj", "rank": int(rank)})
+    lora = _targets(lora_rows(spec, targets), rank)
     small = 0 < ram_gb < 32
     cfg = {
-        "model": "ernie-image-turbo",
+        "model": k["model"](spec),
         "model_path": str(model_path),
         "data": str(data_dir),
         "seed": int(seed),
-        "steps": 8, "guidance": 1.0,   # the Turbo model's own sampling settings
+        "steps": k["steps"], "guidance": k["guidance"],   # the model's own sampling settings (previews)
         "quantize": None,               # the fast-engine model is already 4-bit
         "max_resolution": int(res),
         "low_ram": small,               # encoded data kept on disk instead of in memory
         "gradient_checkpointing": 0 < ram_gb < 64,  # ~30% slower, much less memory
-        "training_loop": {"num_epochs": epochs, "batch_size": 1, "timestep_low": 1, "timestep_high": 8},
+        "training_loop": {"num_epochs": epochs, "batch_size": 1, "timestep_low": k["t"][0], "timestep_high": k["t"][1]},
         "optimizer": {"name": "AdamW", "learning_rate": float(lr)},
         # saved every 50 steps (or as set), so ■ Stop keeps the progress and ▶ Continue can carry on from it
         "checkpoint": {"output_path": str(out_dir), "save_frequency": int(save_every) if save_every else min(50, max(1, epochs * n_samples))},
@@ -120,7 +176,8 @@ def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, c
     import mlx_engine
     from PIL import Image, ImageOps
     if not mlx_engine.installed():
-        raise TrainError("The fast engine isn't installed yet: make one picture with the ERNIE fast-engine model first.")
+        raise TrainError(f"The fast engine isn't installed yet: make one picture with {spec['label']} first.")
+    kind = KINDS[spec["family"]]
     try:
         from huggingface_hub import snapshot_download
         model_path = snapshot_download(spec["mlx_repo"], local_files_only=True)
@@ -169,14 +226,26 @@ def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, c
 
     cfg = build_config(model_path=model_path, data_dir=data_dir, out_dir=out_dir, steps=steps, n_samples=n, lr=lr,
                        rank=rank, res=res, targets=args.get("targets"), save_every=int(args.get("save_every") or 0),
-                       ram_gb=ram_gb)
+                       ram_gb=ram_gb, spec=spec)
+    if spec["family"] == "zimage" and not resume_zip:
+        # its training helper LoRA: fetched here (this app's downloads get past a VPN that blocks the trainer's Python)
+        import net
+        from huggingface_hub import hf_hub_download
+        emit({"type": "status", "msg": "Downloading Z-Image's training helper (once, small)…"})
+        net.set_online(True)
+        try:
+            hf_hub_download(*ZIMAGE_ADAPTER)
+        except Exception as e:
+            raise TrainError(f"Couldn't download Z-Image's training helper ({e}). Check the internet connection.")
+        finally:
+            net.set_online(False)
     cfg_path = Path(work_dir) / "train.json"
     if not resume_zip:
         cfg_path.write_text(json.dumps(cfg, indent=2))
 
     # 2. run mflux's trainer in the fast engine's Python
-    emit({"type": "status", "msg": "Loading ERNIE to carry on training (fast engine)…" if resume_zip
-          else "Loading ERNIE for training (fast engine)…"})
+    emit({"type": "status", "msg": f"Loading {kind['name']} to carry on training (fast engine)…" if resume_zip
+          else f"Loading {kind['name']} for training (fast engine)…"})
     env = dict(os.environ, PYTHONUNBUFFERED="1", HF_HUB_OFFLINE="1")
     how = ["--resume", str(resume_zip)] if resume_zip else ["--config", str(cfg_path)]
     proc = subprocess.Popen([str(mlx_engine.PY), "-m", "mflux.models.common.cli.train", *how],
@@ -241,13 +310,12 @@ def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, c
         msg = "\n".join(tail[-8:])
         if code and code < 0 or "memory" in msg.lower() or "Metal" in msg:
             msg = "The Mac ran out of memory. Try 512 px, rank 8 and “attention layers”, and close other apps.\n\n" + msg
-        raise TrainError("ERNIE training on the fast engine failed:\n" + msg)
+        raise TrainError(f"{kind['name']} training on the fast engine failed:\n" + msg)
     with zipfile.ZipFile(zpath) as zf, zf.open(member) as src, open(final_path, "wb") as dst:
         shutil.copyfileobj(src, dst)
     step_done = int(re.match(r"(\d+)", Path(member).name).group(1)) if re.match(r"(\d+)", Path(member).name) else steps
     add_metadata(final_path, {
-        "beestudio_family": "ernie", "protoart_engine": "mlx", "ss_base_model_version": "ernie_image",
-        "modelspec.architecture": "ernie-image/lora", "modelspec.trigger_phrase": trigger,
+        "beestudio_family": spec["family"], "protoart_engine": "mlx", **kind["meta"], "modelspec.trigger_phrase": trigger,
         "ss_output_name": name, "ss_steps": step_done, "ss_resolution": res, "ss_network_dim": rank,
         "ss_learning_rate": lr, "ss_sd_model_name": spec["label"],
     })

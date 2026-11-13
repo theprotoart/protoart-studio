@@ -23,16 +23,31 @@ API = "https://civitai.com/api/v1"
 UA = "ProtoartStudio/1.1 (+https://civitai.com)"
 
 # Civitai "baseModel" -> (family, flavour)
+# (order matters: the first match wins; Civitai's ecosystems as of late 2026)
 _BASES = [
     (r"^sd ?1\.[45]|^sd 1|^sd1", ("sd15", None)),
+    (r"pony ?v ?7|auraflow", ("auraflow", None)),       # Pony V7 is built on AuraFlow, not SDXL
     (r"pony", ("sdxl", "pony")),
-    (r"illustrious", ("sdxl", "illustrious")),
     (r"noob", ("sdxl", "noobai")),
-    (r"^sdxl", ("sdxl", None)),
-    (r"^flux[ .-]?2", ("flux2", None)),
-    (r"^flux", ("flux", None)),
+    (r"illustrious", ("sdxl", "illustrious")),
+    (r"animagine", ("sdxl", "animagine")),
+    (r"^sdxl|^sd ?xl", ("sdxl", None)),
+    (r"^sd ?[23]|stable cascade", ("sd_other", None)),
+    (r"^flux[ .-]?2|klein", ("flux2", None)),
+    (r"krea ?2", ("krea2", None)),
+    (r"krea ?3", ("other_image", None)),
+    (r"^flux|krea", ("flux", None)),                     # FLUX.1 D / S / Krea / Kontext
+    (r"z[- ]?image", ("zimage", None)),
+    (r"qwen", ("qwen21", None)),
+    (r"fibo", ("fibo2", None)),
+    (r"anima", ("anima", None)),
+    (r"moss", ("moss", None)),
     (r"ernie", ("ernie", None)),
+    (r"chroma|hidream|hunyuan|lumina|kolors|pixart|cogview|sana", ("other_image", None)),
+    (r"wan|ltx|mochi|cogvideo|video|kling|seedance|veo", ("video", None)),
 ]
+# what each family is called in notes
+FAMILY_NAMES = {"auraflow": "Pony V7 (AuraFlow)", "sd_other": "SD 2 / SD 3", "other_image": "this", "video": "Video"}
 LORA_TYPES = ("LORA", "LoCon", "DoRA", "LyCORIS")
 
 
@@ -160,6 +175,9 @@ def describe(model, version):
     elif kind == "lora" and fam is None:
         notes.append(f"Its base model ({version.get('baseModel') or 'not given'}) isn't one this app knows; "
                      "it's saved in your LoRA folder and its type is read from the file.")
+    elif kind == "lora" and fam in ("auraflow", "sd_other", "other_image", "video"):
+        notes.append(f"{version.get('baseModel') or 'This'} LoRAs can't be used here yet (no {version.get('baseModel') or 'such'} "
+                     "model in this app); it's saved in your LoRA folder for later or for another app.")
     elif kind not in ("lora", "checkpoint", "embedding", "vae", "controlnet"):
         ok = False
         notes.append(f"{mtype or 'This kind of file'} isn't supported yet "

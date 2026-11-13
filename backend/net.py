@@ -9,6 +9,7 @@
 Must be imported before torch / diffusers / transformers / huggingface_hub.
 """
 import os
+import sys
 
 for _k, _v in {
     "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1", "HF_DATASETS_OFFLINE": "1",
@@ -275,7 +276,11 @@ def ensure_downloads_work():
     global _curl_mode
     if _curl_mode is not None:
         return _curl_mode
-    if os.environ.get("PROTOART_FORCE_CURL") == "1" or not python_can_connect():
+    # On a Mac, always through curl: some VPNs and firewalls let Python open a connection but cut it as soon as data
+    # flows ("[Errno 53] Software caused connection abort"), which the quick check below can't see. curl gets
+    # through them, and it's what macOS itself uses. (PROTOART_NO_CURL=1 turns this off.)
+    always = sys.platform == "darwin" and os.environ.get("PROTOART_NO_CURL") != "1"
+    if always or os.environ.get("PROTOART_FORCE_CURL") == "1" or not python_can_connect():
         if os.path.exists(CURL):
             try:
                 _install_curl_hf()

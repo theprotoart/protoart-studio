@@ -1,5 +1,16 @@
 # Changelog
 
+## Next
+
+- Train: fast-engine LoRAs for FLUX.2 Klein 4B / 9B and Z-Image Turbo (`mlx_train.KINDS`, mflux targets from its
+  examples; Z-Image's training adapter fetched in the app first); RAM limits warn instead of blocking; FLUX.1 / MOSS
+  explain why they can't be trained
+- Pony / Illustrious / NoobAI / Animagine / SDXL as separate kinds (`sdKind`): model filters, "Your …" groups, Train groups
+- Civitai `family_of`: Pony V7 (AuraFlow), NoobAI before Illustrious, Animagine, Klein, Krea 2/3, Z-Image, Qwen, FIBO,
+  Anima, MOSS, Chroma / HiDream / other image, video
+- `net.ensure_downloads_work`: always curl on macOS (VPNs that accept the connection then abort it, Errno 53);
+  Make 3D downloads only `config.yaml` + `model.fp16.safetensors`
+
 ## 1.6.13
 
 - 🧊 Make 3D setup: libraries are picked from PyPI's JSON (newest release with a wheel for this Python on Apple Silicon),

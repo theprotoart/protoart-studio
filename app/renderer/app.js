@@ -260,6 +260,16 @@ function defaultForm() {
 }
 
 const FLAVOR_LABEL = { pony: "Pony", illustrious: "Illustrious", noobai: "NoobAI" };
+// the kind of a Stable Diffusion model, for lists: Pony, Illustrious and NoobAI are SDXL underneath but each its own kind
+function sdKind(m) {
+  if (m.family === "sdxl") return FLAVOR_LABEL[m.flavor] || (m.flavor === "animagine" ? "Animagine" : "SDXL");
+  return m.family === "sd15" ? "SD 1.5" : FAMILY_LABEL[m.family] || "Other";
+}
+const SD_KIND_ORDER = ["Illustrious", "NoobAI", "Pony", "Animagine", "SDXL", "SD 1.5"];
+function byKind(title, list) {  // one group per kind: "Your checkpoints · Illustrious", "… · Pony", "… · SDXL"…
+  const kinds = [...new Set(list.map(sdKind))].sort((a, b) => (SD_KIND_ORDER.indexOf(a) + 1 || 99) - (SD_KIND_ORDER.indexOf(b) + 1 || 99));
+  return kinds.map((k) => ({ name: `${title} · ${k}`, models: list.filter((m) => sdKind(m) === k) }));
+}
 const QUALITY_TAGS = {
   pony: "score_9, score_8_up, score_7_up",
   illustrious: "masterpiece, best quality, amazing quality, very aesthetic, absurdres",
@@ -952,6 +962,11 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Coming in the next version: train FLUX.2 Klein and Z-Image, Pony / Illustrious / SDXL apart, downloads fixed", items: [
+              "<b>Train LoRAs on FLUX.2 Klein (4B and 9B) and Z-Image Turbo</b> on the ⚡ fast engine (like ERNIE): pick one in Train → LoRA. Models that usually need a bigger Mac are no longer blocked: you get a warning and can still try (or train on a bigger Mac).",
+              "<b>Pony, Illustrious, NoobAI and SDXL are kept apart</b> everywhere: their own filters in the model list, their own groups for your checkpoints (“Your checkpoints · Illustrious”, “… · Pony”, “… · SDXL”) and their own groups in Train.",
+              "<b>Civitai: newer base models recognised</b>: Illustrious, NoobAI, Pony (and Pony V7, which is AuraFlow, not SDXL), FLUX.2 Klein, Krea 2, Z-Image, Qwen, Anima, MOSS, FIBO; Chroma, HiDream and video models are named as not usable here yet.",
+              "<b>Fixed: downloads that failed behind a VPN</b> (“Couldn't download IC-Light”, “Hunyuan3D 2 mini … Errno 53”): on a Mac, model downloads now always go through curl. Make 3D downloads only the file it uses (not the extra .ckpt copy)." ] },
             { h: "1.6.13: 🧊 Make 3D installs behind a VPN", items: [
               "<b>Fixed: 🧊 Make 3D stuck on “downloading Hunyuan3D's code”.</b> Its one-time setup downloaded its libraries with Python's own connection, which a VPN or firewall can block. They (and the model) now download the same way as the app's models, so the setup finishes." ] },
             { h: "1.6.12: 💡 Relight, 🧊 Make 3D", items: [
@@ -2322,9 +2337,9 @@ const protoartApp = createApp({
         { id: "ernie", label: "ERNIE", count: count((m) => m.family === "ernie") },
         { id: "anima", label: "Anima", count: count((m) => m.family === "anima") },
         { id: "moss", label: "MOSS", count: count((m) => m.family === "moss") },
-        { id: "sdxl", label: "SDXL", count: count((m) => m.family === "sdxl") },
-        { id: "sd15", label: "SD 1.5", count: count((m) => m.family === "sd15") },
         ...Object.entries(FLAVOR_LABEL).map(([k, label]) => ({ id: "fl:" + k, label, count: count((m) => m.flavor === k) })),
+        { id: "sdxl", label: "SDXL", count: count((m) => m.family === "sdxl" && sdKind(m) === "SDXL") },
+        { id: "sd15", label: "SD 1.5", count: count((m) => m.family === "sd15") },
         { id: "mine", label: "My checkpoints", count: count((m) => m.id.startsWith("file:")) },
         { id: "dbee", label: "DiffusionBee (BEE)", count: count((m) => m.id.startsWith("tdict:")) },
         { id: "hub", label: "Added", count: count((m) => m.id.startsWith("hf:") || m.id.startsWith("local:")) },
@@ -2386,6 +2401,7 @@ const protoartApp = createApp({
             : this.modelFilter === "dbee" ? !m.id.startsWith("tdict:")
             : this.modelFilter === "hub" ? !(m.id.startsWith("hf:") || m.id.startsWith("local:"))
             : this.modelFilter.startsWith("fl:") ? m.flavor !== this.modelFilter.slice(3)
+            : this.modelFilter === "sdxl" ? sdKind(m) !== "SDXL"
             : this.modelFilter !== "all" && m.family !== this.modelFilter) return false;
         if (!this.modelKindOk(m, this.modelKind)) return false;
         if (!q) return true;
@@ -2403,12 +2419,12 @@ const protoartApp = createApp({
         { name: "ERNIE-Image", models: this.models.filter((m) => m.family === "ernie") },
         { name: "Anima (anime)", models: this.models.filter((m) => m.family === "anima") },
         { name: "MOSS-Image (lettering, posters, layouts)", models: this.models.filter((m) => m.family === "moss") },
-        { name: "Stable Diffusion", models: this.models.filter((m) => (SD_FAMILIES.includes(m.family) || !m.family || m.family === "unknown") && m.engine !== "mlx" && !m.id.includes(":")) },
+        ...byKind("Stable Diffusion", this.models.filter((m) => (SD_FAMILIES.includes(m.family) || !m.family || m.family === "unknown") && m.engine !== "mlx" && !m.id.includes(":"))),
         { name: "Other models", models: this.models.filter((m) => !SD_FAMILIES.includes(m.family) && m.family && m.family !== "unknown" && !FAMILY_LABEL[m.family] && !m.id.includes(":")) },
-        { name: "Your checkpoints", models: this.models.filter((m) => m.id.startsWith("file:")) },
-        { name: "From DiffusionBee", models: this.models.filter((m) => m.id.startsWith("tdict:")) },
-        { name: "Your model files", models: this.models.filter((m) => m.id.startsWith("local:")) },
-        { name: "Added from Hugging Face", models: this.models.filter((m) => m.id.startsWith("hf:")) },
+        ...byKind("Your checkpoints", this.models.filter((m) => m.id.startsWith("file:"))),
+        ...byKind("From DiffusionBee", this.models.filter((m) => m.id.startsWith("tdict:"))),
+        ...byKind("Your model files", this.models.filter((m) => m.id.startsWith("local:"))),
+        ...byKind("Added from Hugging Face", this.models.filter((m) => m.id.startsWith("hf:"))),
       ];
       return groups.filter((g) => g.models.length);
     },
@@ -2504,11 +2520,16 @@ const protoartApp = createApp({
       const by = (f) => this.models.filter((m) => f(m) && this.safeModel(m) && !(hasFull && m.id === "sdxl_int8"));
       return [
         { name: "SD 1.5", models: by((m) => m.family === "sd15") },
-        { name: "Pony / Illustrious (SDXL, tag prompts)", models: by((m) => m.family === "sdxl" && ["pony", "illustrious", "noobai", "animagine"].includes(m.flavor)) },
-        { name: "SDXL", models: by((m) => m.family === "sdxl" && !["pony", "illustrious", "noobai", "animagine"].includes(m.flavor)) },
+        { name: "Illustrious (tag prompts)", models: by((m) => sdKind(m) === "Illustrious") },
+        { name: "NoobAI (tag prompts)", models: by((m) => sdKind(m) === "NoobAI") },
+        { name: "Pony (tag prompts)", models: by((m) => sdKind(m) === "Pony") },
+        { name: "Animagine (tag prompts)", models: by((m) => sdKind(m) === "Animagine") },
+        { name: "SDXL", models: by((m) => m.family === "sdxl" && sdKind(m) === "SDXL") },
+        { name: "FLUX.2 Klein · ⚡ fast engine", models: by((m) => m.family === "flux2" && m.engine === "mlx") },
+        { name: "Z-Image Turbo · ⚡ fast engine", models: by((m) => m.family === "zimage" && m.engine === "mlx") },
         { name: "ERNIE · ⚡ fast engine (4-bit: trains on smaller Macs)", models: by((m) => m.family === "ernie" && m.engine === "mlx") },
         { name: "ERNIE (full precision: 32 GB+)", models: by((m) => m.family === "ernie" && m.engine !== "mlx") },
-        { name: "Other", models: by((m) => !["sd15", "sdxl", "ernie"].includes(m.family)) },
+        { name: "Other", models: by((m) => !["sd15", "sdxl", "ernie", "flux2", "zimage"].includes(m.family)) },
       ].filter((g) => g.models.length);
     },
     trainKinds() {
@@ -2564,8 +2585,9 @@ const protoartApp = createApp({
     },
     trainFastErnie() {
       const m = this.models.find((x) => x.id === this.train.model);
-      return !!(m && m.family === "ernie" && m.engine === "mlx");
+      return !!(m && ["ernie", "flux2", "zimage"].includes(m.family) && m.engine === "mlx");  // any fast-engine training
     },
+    trainFastName() { return { ernie: "ERNIE", flux2: "FLUX.2 Klein", zimage: "Z-Image Turbo" }[this.trainFamily] || "this model"; },
     trainFamily() {
       return this.models.find((m) => m.id === this.train.model)?.family || "sd15";
     },
@@ -2585,8 +2607,8 @@ const protoartApp = createApp({
                                : "SDXL: UNet LoRA at 1024 (or 768 to save memory and time).";
       if (this.trainFastErnie)
         return ram && ram < 16
-          ? "ERNIE on the fast engine: trains a LoRA on the 4-bit model. Experimental on 8 GB Macs: it may run out of memory or take many hours. Use 512 px, rank 8 and attention layers, and close other apps."
-          : "ERNIE on the fast engine: trains a LoRA on the 4-bit model (low-memory settings are used automatically). The LoRA works with the fast-engine ERNIE.";
+          ? `${this.trainFastName} on the fast engine: trains a LoRA on the 4-bit model. Experimental on 8 GB Macs: it may run out of memory or take many hours. Use 512 px, rank 8 and attention layers, and close other apps.`
+          : `${this.trainFastName} on the fast engine: trains a LoRA on the 4-bit model (low-memory settings are used automatically). The LoRA works with the fast-engine ${this.trainFastName}.`;
       if (this.trainFamily === "ernie")
         return "ERNIE: transformer LoRA (flow matching), saved in Diffusers format. Needs the full-precision model and 32 GB+.";
       return ram && ram < 16 ? "SD 1.5: the best fit for this Mac. Your DiffusionBee, downloaded and own SD 1.5 models all work as a base."
@@ -2633,12 +2655,12 @@ const protoartApp = createApp({
       const flip = kind !== "character";  // a face isn't the same mirrored (a parting, a scar, a logo)
       let te = fam === "sd15" && kind !== "style";
       let res = { sd15: 512, sdxl: ram && ram < 16 ? 768 : 1024, ernie: 768 }[fam] || 512;
-      if (fast) {  // ERNIE learns quickly; on a small Mac every step is slow, so fewer of them
+      if (fast) {  // fast-engine models learn quickly; on a small Mac every step is slow, so fewer of them
         rank = ram && ram < 16 ? 8 : 16; res = ram && ram < 16 ? 512 : 768; te = false;
         steps = ram && ram < 16 ? clamp(n * 40, 300, 600) : Math.min(steps, 1500);
       }
       if (fam === "sdxl") { te = false; if (kind === "style") steps = Math.min(steps, 2500); }
-      const famName = fast ? "ERNIE ⚡ fast engine" : tagged ? this.flavorName(this.trainFlavor) : { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE" }[fam] || fam;
+      const famName = fast ? `${this.trainFastName} ⚡ fast engine` : tagged ? this.flavorName(this.trainFlavor) : { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE" }[fam] || fam;
       const kindName = (this.trainKinds.find((k) => k.id === kind) || {}).label || kind;
       return { id: "recommended", label: "★ Recommended", steps, lr, rank, targets, flip, train_text_encoder: te, resolution: res,
                capMode: tagged ? "tags" : undefined,
@@ -2662,17 +2684,24 @@ const protoartApp = createApp({
           if (m.family !== "sd15" || m.engine === "mlx") return "embeddings: SD 1.5 only for now";
           return "";
         }
-        if (m.family === "ernie" && m.engine === "mlx") return ""; // fast engine: trains on the 4-bit model
-        if (m.family === "ernie") {
-          if (this.sys.ram_gb && this.sys.ram_gb < 32) return "needs a Mac with 32 GB+ (use the ⚡ fast engine one)";
-          if (m.quant) return "compressed build can't be trained; use the ⚡ fast engine one";
-        }
+        // fast engine: trains on the 4-bit model (mflux's trainer)
+        if (["ernie", "flux2", "zimage"].includes(m.family) && m.engine === "mlx") return "";
+        if (m.family === "ernie" && m.quant) return "compressed build can't be trained; use the ⚡ fast engine one";
+        if (m.family === "flux") return "FLUX.1 can't be trained on a Mac yet: use FLUX.2 Klein";
+        if (m.family === "moss") return "MOSS Image has no LoRA trainer yet";
         if (!["sd15", "sdxl", "ernie"].includes(m.family)) return "not supported for training";
         if (m.engine === "mlx") return "not supported for training";
         if (m.family === "sdxl" && (m.disk_gb || /8-bit/.test(m.label)) && !this.models.some((x) => x.id === "sdxl_base_fp16"))
           return "8-bit build can't be trained";
         return "";
       };
+    },
+    trainRamWarn() {  // a model this Mac may be too small to train: allowed, with a warning (it may run out of memory)
+      const m = this.models.find((x) => x.id === this.train.model), ram = this.sys.ram_gb || 0;
+      if (!m || !ram) return "";
+      const need = m.family === "ernie" && m.engine !== "mlx" ? 32 : m.family === "zimage" ? 16
+        : m.family === "flux2" ? (/9b/i.test(m.id) ? 24 : 12) : m.family === "sdxl" ? 16 : m.family === "ernie" ? 12 : 8;
+      return ram < need ? `This kind of model usually needs ${need} GB+ to train; this Mac has ${ram} GB, so it may be very slow or run out of memory. You can still try (or train it on a bigger Mac).` : "";
     },
     trainProblem() {
       if (!this.trainModels.length) return "No SD 1.5 model available: download Stable Diffusion 1.5 in Create first.";

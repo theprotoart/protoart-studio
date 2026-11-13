@@ -40,7 +40,13 @@ class ParseTests(unittest.TestCase):
         self.assertEqual(civitai.family_of("Pony"), ("sdxl", "pony"))
         self.assertEqual(civitai.family_of("Illustrious"), ("sdxl", "illustrious"))
         self.assertEqual(civitai.family_of("Flux.1 D"), ("flux", None))
-        self.assertEqual(civitai.family_of("Wan Video"), (None, None))
+        self.assertEqual(civitai.family_of("Wan Video"), ("video", None))
+        self.assertEqual(civitai.family_of("NoobAI"), ("sdxl", "noobai"))
+        self.assertEqual(civitai.family_of("Pony V7"), ("auraflow", None))  # AuraFlow, not SDXL
+        self.assertEqual(civitai.family_of("ZImageTurbo"), ("zimage", None))
+        self.assertEqual(civitai.family_of("Flux.2 Klein 9B"), ("flux2", None))
+        self.assertEqual(civitai.family_of("MOSS Image"), ("moss", None))
+        self.assertEqual(civitai.family_of("Something new"), (None, None))
 
     def test_inspect_picks_version_and_safetensors(self):
         get = lambda url, token=None: LORA_MODEL

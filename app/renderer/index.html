@@ -3948,7 +3948,7 @@
           <div><label>Trigger word <span class="hint">added to every caption</span></label>
             <input v-model="train.trigger" placeholder="e.g. pxlstyle"></div>
           <div class="span2"><label>Output format</label>
-            <div v-if="trainFastErnie" class="hint">Saved in the fast engine's own LoRA format; works with the ⚡ fast-engine ERNIE.</div>
+            <div v-if="trainFastErnie" class="hint">Saved in the fast engine's own LoRA format; works with the ⚡ fast-engine {{ trainFastName }}.</div>
             <select title="The LoRA file format: Kohya .safetensors works in most apps (A1111, ComfyUI, Draw Things…)" v-else v-model="train.format" :disabled="trainFamily === 'ernie'">
               <option value="kohya">.safetensors (Kohya) · works in A1111, ComfyUI, Draw Things, DiffusionBee, Protoart</option>
               <option value="diffusers">.safetensors (Diffusers/PEFT) · for diffusers scripts</option>
@@ -4000,6 +4000,7 @@
         </div>
       </div>
       <div v-if="trainProblem" class="hint warn">{{ trainProblem }}</div>
+      <div v-if="trainRamWarn && train.mode !== 'embedding'" class="hint warn">{{ trainRamWarn }}</div>
       </template>
     </section>
 

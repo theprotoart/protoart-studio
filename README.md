@@ -52,6 +52,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 - **Prompt tools:** ✨ enhance, 🎞 film looks (38 films and cameras), example prompts, ideas, wildcards, tag ⇄ sentence conversion
 - **Make 3D:** 🧊 a picture into a 3D model (.glb / .obj) with Hunyuan3D 2 mini
 - **Relight:** 💡 IC-Light: new light described in words, from any side, on your Stable Diffusion 1.5 models
+- **Train (models):** LoRAs on SD 1.5, SDXL, Pony, Illustrious, NoobAI, ERNIE, and on the ⚡ fast engine FLUX.2 Klein and Z-Image Turbo
 - **Train:** 🧩 build a captioned training set from one character picture (FLUX.2 Klein: angles, expressions, scenes); LoRA training (SD 1.5, SDXL incl. Pony / Illustrious, ERNIE Turbo on the ⚡ fast engine; full ERNIE on 32 GB+ Macs) with ★ recommended settings for people, objects, styles and concepts, ↻ continue training a LoRA you made, embedding training (SD 1.5), square crop / keep-whole
   framing, and merging LoRAs of the same type into one
 - **Models tab:** download models, add your own files or folders (removals locked and confirmed), Civitai downloads of

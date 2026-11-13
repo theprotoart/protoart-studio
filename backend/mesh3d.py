@@ -26,6 +26,8 @@ COMMIT = "f8db63096c8282cb27354314d896feba5ba6ff8a"
 CODE_URL = f"https://codeload.github.com/Tencent-Hunyuan/Hunyuan3D-2/zip/{COMMIT}"
 REPO = "tencent/Hunyuan3D-2mini"
 SUBFOLDER = "hunyuan3d-dit-v2-mini"
+# only what the app loads (the half-precision .safetensors and its config): the folder also holds a .ckpt copy
+PATTERNS = [f"{SUBFOLDER}/config.yaml", f"{SUBFOLDER}/model.fp16.safetensors"]
 # installed from wheels this Mac downloads with curl (pip's own connections are what a VPN or firewall blocks), without
 # their dependencies: those the app already has (numpy, scipy, Pillow, packaging) come from the app, the rest are listed
 LIBS = ["einops", "trimesh", "scikit-image", "pymeshlab", "networkx", "imageio", "tifffile", "lazy_loader"]
@@ -63,7 +65,7 @@ def env_ready():
 def model_downloaded():
     try:
         from huggingface_hub import snapshot_download
-        snapshot_download(REPO, allow_patterns=[f"{SUBFOLDER}/*"], local_files_only=True)
+        snapshot_download(REPO, allow_patterns=PATTERNS, local_files_only=True)
         return True
     except Exception:
         return False
@@ -222,7 +224,7 @@ def run(image_path, out_stem, opts, emit, cancel_event=None):
         # here, not in the worker: this process's downloads go through curl when Python's own connections are blocked
         from huggingface_hub import snapshot_download
         try:
-            snapshot_download(REPO, allow_patterns=[f"{SUBFOLDER}/*"])
+            snapshot_download(REPO, allow_patterns=PATTERNS)
         except Exception as e:
             raise Mesh3DError(f"Couldn't download Hunyuan3D 2 mini ({e}). Check the internet connection and try again.")
     env["HF_HUB_OFFLINE"] = "1"
