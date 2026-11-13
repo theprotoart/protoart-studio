@@ -262,7 +262,7 @@
     puig: { alu: [180, 190, 199], aluDark: [134, 145, 156], black: [46, 54, 64] },
     magma: { alu: [196, 186, 182], aluDark: [150, 139, 135], black: [26, 21, 21] },
     // Powder (from ProtoArt Dandelion): powder-coated cornflower blue on the Light faceplate, burnt orange on the Dark one
-    powder: { alu: [96, 146, 232], aluDark: [74, 120, 205], black: [176, 80, 32] },
+    powder: { alu: [74, 118, 200], aluDark: [62, 102, 182], black: [176, 80, 32] },
   };
   let skin = "studio";
   try { const v = JSON.parse(localStorage.getItem(SKIN_KEY)); if (SKINS[v]) skin = v; } catch { /* default */ }

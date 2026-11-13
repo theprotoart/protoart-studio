@@ -2,6 +2,9 @@
 
 ## 1.6.15
 
+- Powder (Light) easier to read: a deeper cornflower (`alu` [74,118,200], plate #4a76c8: white text 4.5 : 1, was 2.8 : 1),
+  pure white text, white links with a yellow underline, and dark words on lit (yellow) switches and chips again (the
+  skin's white `label` rule had turned them white)
 - Replace text: text effects. Bevel & emboss (raised/pressed, light angle, softness, highlight/shade colours), inner
   shadow, outer glow, second outline, two-colour gradient fill, drop shadow colour/direction/softness, arc, ALL CAPS,
   and ready-made looks (Comic SFX, Chrome, Neon, Pressed). The preview is now a canvas drawn by the same code as the

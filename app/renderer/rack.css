@@ -2663,8 +2663,9 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
   --key-hi: #8fb6f2; --key-mid: #4d7cc7; --key-lo: #33599c; --key-edge: #1a2f57; --key-lit-hi: #fffbe0; --key-lit-mid: #f6e35a; --key-lit-lo: #d9b52a; --key-lit-ink: #2a2300;
 }
 :root[data-skin="powder"][data-theme="light"] {
-  --plate-card: linear-gradient(180deg, #7ea7ee, #6590df) 0 0 / 100% 100%, #6f9ae6;
-  --panel: #6f9ae6; --panel2: #5f8bdc; --bg: #1c3463; --muted: #e3ebfb; --text: #f7f8fc; --ink: #ffe45c;
+  /* a deeper cornflower than Dandelion's, so white printing reads (white on #4a76c8 is 4.5 : 1; on #6f9ae6 it was 2.8 : 1) */
+  --plate-card: linear-gradient(180deg, #5683d4, #4570c3) 0 0 / 100% 100%, #4a76c8;
+  --panel: #4a76c8; --panel2: #4370c0; --bg: #1c3463; --muted: #f0f4ff; --text: #ffffff; --ink: #ffffff;
   --orange: #ffe45c; --orange-deep: #fff6b8;
   --ear-1: #4a78c8; --ear-2: #6f9ae6; --ear-3: #5f8bdc; --ear-4: #426ebd; --ear-edge: #2c3f78;
   --stripe-1: #f6e35a; --stripe-2: #e2c43a; --stripe-3: #b8971f;
@@ -2679,6 +2680,21 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
   color: var(--text); text-shadow: 0 1px 0 rgba(10, 30, 70, .35);
 }
 :root[data-skin="powder"][data-theme="light"] .hint, :root[data-skin="powder"][data-theme="light"] .mod-sub { color: var(--muted); }
+/* links: white with a yellow underline (yellow text on the blue was hard to read) */
+:root[data-skin="powder"][data-theme="light"] a, :root[data-skin="powder"][data-theme="light"] button.link {
+  color: #ffffff; text-decoration-color: #ffe45c; text-decoration-thickness: 2px; text-underline-offset: 3px;
+  text-shadow: 0 1px 1px rgba(10, 30, 70, .6);
+}
+/* a lit (on) switch is yellow: its words go back to dark ink (the white printing above made them unreadable) */
+:root[data-skin="powder"] label:has(> input[type=radio]:checked), :root[data-skin="powder"] label:has(> input[type=checkbox]:checked),
+:root[data-skin="powder"] label:has(> input:checked) .hint, :root[data-skin="powder"] .chip.on, :root[data-skin="powder"] .seg button.on {
+  color: var(--lit-ink); text-shadow: 0 1px 0 rgba(255, 255, 255, .45);
+}
+:root[data-skin="powder"] label:has(> input:checked) a, :root[data-skin="powder"] label:has(> input:checked) button.link { color: var(--lit-ink2); text-shadow: none; }
+:root[data-skin="powder"][data-theme="light"] body, :root[data-skin="powder"][data-theme="light"] .hint,
+:root[data-skin="powder"][data-theme="light"] .mod-desc, :root[data-skin="powder"][data-theme="light"] label {
+  text-shadow: 0 1px 1px rgba(10, 30, 70, .5);
+}
 :root[data-skin="powder"][data-theme="dark"] {
   --plate-card: linear-gradient(180deg, #a9532a, #8c4220) 0 0 / 100% 100%, #9a4a24;
   --panel: #c4683a; --panel2: #a8552b; --bg: #2a1206; --muted: #f6dcc8; --text: #fff4ea; --ink: #ffe45c;
