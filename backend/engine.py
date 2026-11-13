@@ -235,7 +235,8 @@ LOW_MEMORY_SAVES_GB = {"sd15": 2, "sdxl": 6}  # rough RAM saved by int8 low-memo
 
 # ⏩ Instant upscalers other than the built-in 4x-UltraSharp (postprocess/realesrgan.py MODELS)
 _EXTRA_UPSCALERS = ("realesrgan_x4plus", "realesrgan_x2plus", "realesr_general_x4v3", "realesrgan_anime6b",
-                    "realesr_animevideov3", "animesharp", "nomos8ksc")
+                    "realesr_animevideov3", "animesharp", "nomos8ksc", "ultrasharpv2", "ultrasharpv2_lite",
+                    "nomos_webphoto")
 
 
 class Cancelled(Exception):
@@ -3567,6 +3568,8 @@ class Engine:
                     raise UserError(str(e))
                 settings["enhance"] = {"instant": True, "upscaler": realesrgan.MODELS[o["upscaler"]]["label"],
                                        "upscale_factor": factor}
+                if dev.type == "mps":
+                    t.mps.empty_cache()
                 continue
             if step == "enhance":
                 enh = self.get_enhancer(force=force)

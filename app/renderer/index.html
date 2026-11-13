@@ -2271,8 +2271,19 @@
           </div>
           <template v-if="post.enh.instant">
             <label title="Which upscaler ⏩ Instant uses">Upscaler</label>
-            <div class="seg mod-seg mod-seg-wrap">
-              <button v-for="u in UPSCALERS" :key="u.id" :class="{on: (post.enh.upscaler || 'ultrasharp') === u.id}" @click="post.enh.upscaler = u.id" :title="u.tip">{{ u.label }}</button>
+            <div class="up-pick">
+              <select v-model="post.enh.upscaler" :title="upscaler().tip" :class="{'rec-sampler': !!upscaler().pick}">
+                <optgroup v-for="g in UPSCALER_GROUPS" :key="g.id" :label="g.label">
+                  <option v-for="u in upscalersIn(g.id)" :key="u.id" :value="u.id">{{ u.pick === 'fast' ? '⚡ ' : u.pick === 'quality' ? '★ ' : '' }}{{ u.label }} · {{ UPSCALER_SPEED[u.speed] }}</option>
+                </optgroup>
+              </select>
+              <div class="sampler-picks">
+                <div class="chips"><span class="hint">⚡ Fastest:</span>
+                  <button v-for="u in upscalerPicks('fast')" :key="'uf' + u.id" class="chip rec" :class="{on: upscaler().id === u.id}" @click="post.enh.upscaler = u.id" :title="u.tip">{{ u.label }} <span class="hint">· {{ upscalerUse(u) }}</span></button></div>
+                <div class="chips"><span class="hint">★ Best quality:</span>
+                  <button v-for="u in upscalerPicks('quality')" :key="'uq' + u.id" class="chip rec" :class="{on: upscaler().id === u.id}" @click="post.enh.upscaler = u.id" :title="u.tip">{{ u.label }} <span class="hint">· {{ upscalerUse(u) }}</span></button></div>
+              </div>
+              <div class="hint up-tip">{{ upscaler().tip }}</div>
             </div>
           </template>
           <label>Look</label>

@@ -2598,3 +2598,9 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .tx-hint .primary.small { margin: 6px 8px 0 0; }
 .i2i-tx { position: relative; display: flex; justify-content: center; width: 100%; }
 .i2i-tx .tx-stage { max-width: 100%; }
+
+/* ⏩ Instant: the upscaler list with ⚡ Fastest / ★ Best quality picks under it */
+.up-pick { display: grid; gap: 4px; min-width: 0; }
+.up-pick select { max-width: 100%; }
+.up-pick .chip .hint { font-size: 10px; opacity: .75; }
+.up-pick .up-tip { font-size: 11px; line-height: 1.35; white-space: normal; }

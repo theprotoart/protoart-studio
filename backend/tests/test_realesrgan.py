@@ -44,7 +44,8 @@ class RealESRGANNets(unittest.TestCase):
         for m in r.MODELS.values():
             self.assertTrue(m["url"].startswith(("https://github.com/xinntao/Real-ESRGAN/releases/download/",
                                                  "https://github.com/Phhofm/models/releases/download/",
-                                                 "https://huggingface.co/Kim2091/AnimeSharp/resolve/")))
+                                                 "https://huggingface.co/Kim2091/AnimeSharp/resolve/",
+                                                 "https://huggingface.co/Kim2091/UltraSharpV2/resolve/")))
             self.assertEqual(len(m["sha256"]), 64)
 
 

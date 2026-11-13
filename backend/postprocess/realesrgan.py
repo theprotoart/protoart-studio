@@ -8,6 +8,10 @@
   Community ESRGAN models (the older "model.N" layout, the app's ESRGAN4x):
   * 4x-AnimeSharp by Kim2091      anime and text (CC BY-NC-SA 4.0: non-commercial; huggingface.co/Kim2091/AnimeSharp)
   * 4xNomos8kSC by Philip Hofmann photos, natural detail (CC BY 4.0; github.com/Phhofm/models)
+  Newer networks (sr_arch.py, from spandrel), run in full precision:
+  * 4x-UltraSharpV2 by Kim2091       DAT2 transformer: best quality, slow (CC BY-NC-SA 4.0: non-commercial)
+  * 4x-UltraSharpV2 Lite by Kim2091  RealPLKSR: most of V2's quality, fast (CC BY-NC-SA 4.0: non-commercial)
+  * 4xNomosWebPhoto RealPLKSR        photos from the web/phones: noise, lens blur, JPEG/WebP (CC BY 4.0)
 Our own small re-implementation of the network shapes (the same layer names as the checkpoints, so they load
 unchanged); the tiling is the app's ESRGAN one.
 """
@@ -40,6 +44,19 @@ MODELS = {
                   "url": "https://github.com/Phhofm/models/releases/download/4xNomos8kSC/4xNomos8kSC.pth",
                   "sha256": "d73b89267320411c7eb0ec7ab56ab17f1044f2408fed211588cee845bee48407",
                   "license": "CC BY 4.0"},
+    "ultrasharpv2": {"label": "4x-UltraSharpV2", "kind": "dat", "file": "4x-UltraSharpV2.safetensors", "mb": 140,
+                     "url": "https://huggingface.co/Kim2091/UltraSharpV2/resolve/main/4x-UltraSharpV2.safetensors",
+                     "sha256": "2b5db674aa8f3864a696dccd1d07d7cc0500fbf220f35044cd30eee9a7f971a7", "fp32": True,
+                     "tile": 128, "license": "CC BY-NC-SA 4.0 (non-commercial)"},
+    "ultrasharpv2_lite": {"label": "4x-UltraSharpV2 Lite", "kind": "plksr", "file": "4x-UltraSharpV2_Lite.safetensors",
+                          "url": "https://huggingface.co/Kim2091/UltraSharpV2/resolve/main/4x-UltraSharpV2_Lite.safetensors",
+                          "sha256": "7a330ef6b7c632477d311ac03499c91c350e35c5986d4a6c295f0628cb871a09", "mb": 30,
+                          "fp32": True, "license": "CC BY-NC-SA 4.0 (non-commercial)"},
+    "nomos_webphoto": {"label": "4xNomosWebPhoto", "kind": "plksr", "file": "4xNomosWebPhoto_RealPLKSR.safetensors",
+                       "url": "https://github.com/Phhofm/models/releases/download/4xNomosWebPhoto_RealPLKSR/"
+                              "4xNomosWebPhoto_RealPLKSR.safetensors",
+                       "sha256": "9be0228f98156a100d6636d99b373ed2785b999723f9adc4cca504329ab157f2", "mb": 30,
+                       "fp32": True, "license": "CC BY 4.0"},
     "realesrgan_x4plus": {"label": "Real-ESRGAN x4plus", "kind": "rrdb", "blocks": 23, "file": "RealESRGAN_x4plus.pth",
                           "url": _REL + "v0.1.0/RealESRGAN_x4plus.pth", "mb": 64,
                           "sha256": "4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1"},
@@ -178,6 +195,8 @@ class RealESRGAN(UpscalerESRGAN):
 
     def __init__(self, mid, device, dtype, emit=None):
         self.mid = mid
+        if MODELS[mid].get("fp32"):  # DAT and RealPLKSR give wrong colours / NaNs in half precision
+            dtype = torch.float32
         super().__init__(fetch(mid, emit), device, dtype)
 
     def _load(self, path):
@@ -188,11 +207,19 @@ class RealESRGAN(UpscalerESRGAN):
         else:
             state = torch.load(path, weights_only=True, map_location="cpu")
         state = state.get("params_ema") or state.get("params") or state
-        state = {k: v.float() for k, v in state.items()}
+        state = {k: v.float() if v.is_floating_point() else v for k, v in state.items()}
         if m["kind"] == "rrdb":
             net = RRDBNet(m["blocks"], scale=m.get("scale", 4))
         elif m["kind"] == "vgg":
             net = SRVGGNetCompact(m["convs"])
+        elif m["kind"] in ("dat", "plksr"):
+            from . import sr_arch
+            if sr_arch.is_dat(state):
+                net, _ = sr_arch.dat_from_state(state)
+            elif sr_arch.is_realplksr(state):
+                net, _ = sr_arch.realplksr_from_state(state)
+            else:
+                raise RuntimeError(f"{m['label']}: this file isn't a DAT or RealPLKSR model.")
         elif "conv_first.weight" in state:  # a community model saved in basicsr's layout
             blocks = 1 + max(int(k.split(".")[1]) for k in state if k.startswith("body."))
             net = RRDBNet(blocks)
@@ -213,11 +240,22 @@ class RealESRGAN(UpscalerESRGAN):
 
 def upscale(mid, img, factor, device, dtype, emit=None, tile=256, overlap=16):
     """img (PIL) upscaled factor× (the model works at its own scale, 2× or 4×; other factors are resized from that)."""
+    m = MODELS[mid]
     up = RealESRGAN(mid, device, dtype, emit)
     if emit:
-        emit({"type": "status", "msg": f"Upscaling with {MODELS[mid]['label']}…"})
+        emit({"type": "status", "msg": f"Upscaling with {m['label']}…" + (" (a slower, high-quality one)" if m["kind"] == "dat" else "")})
     alpha = img.getchannel("A") if img.mode in ("RGBA", "LA") else None
-    out = up.upscale_with_tiling(img.convert("RGB"), tile=tile, overlap=overlap)
+    tile = min(tile, m.get("tile", tile))
+    try:
+        out = up.upscale_with_tiling(img.convert("RGB"), tile=tile, overlap=overlap)
+    except RuntimeError as e:  # an operation the Mac's GPU can't do (or out of GPU memory): the CPU is slower but works
+        if getattr(device, "type", str(device)) == "cpu":
+            raise
+        print(f"[upscale] {m['label']} on {device} failed ({str(e)[:200]}); trying on the CPU", flush=True)
+        if emit:
+            emit({"type": "status", "msg": f"Upscaling with {m['label']} on the CPU (slower)…"})
+        up.to(torch.device("cpu"), torch.float32)
+        out = up.upscale_with_tiling(img.convert("RGB"), tile=tile, overlap=overlap)
     w, h = round(img.width * factor), round(img.height * factor)
     if out.size != (w, h):
         out = out.resize((w, h), Image.LANCZOS)

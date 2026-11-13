@@ -1,17 +1,19 @@
 # Changelog
 
-## Next
+## 1.6.14
 
 - ⏩ Instant upscalers: Real-ESRGAN x4plus, x2plus, general x4v3, x4plus Anime 6B and AnimeVideo v3, plus 4x-AnimeSharp
   (Kim2091, CC BY-NC-SA 4.0) and 4xNomos8kSC (Phhofm, CC BY 4.0) (`postprocess/realesrgan.py`: RRDBNet with a 2×
   pixel-unshuffle variant, SRVGGNetCompact, and the old ESRGAN layout; .pth or .safetensors; weights downloaded from each
   author's release on first use, sha256-pinned, curl first). Troubleshooting entry for failed upscaler downloads.
-- What's new: the Image to image Replace text entry is now listed under 1.6.14, where it shipped.
+- ⏩ Instant: 4x-UltraSharpV2 (DAT2) and UltraSharpV2 Lite (RealPLKSR) by Kim2091 (CC BY-NC-SA 4.0) and
+  4xNomosWebPhoto RealPLKSR by Philip Hofmann (CC BY 4.0). Network code from spandrel (`postprocess/sr_arch.py`: DAT,
+  RealPLKSR, DySample; inference only, no einops / timm; settings read from the checkpoint), run in float32, with a CPU
+  fallback if the GPU can't run it. The Upscaler buttons became a grouped list (For everything / Photos / Anime) with
+  each one's speed, plus ⚡ Fastest and ★ Best quality quick picks like the sampler's.
 - Image to image → 🔤 Replace text mode (`i2i_mode: "text"`): Find (Florence-2) / Clear (heal job) / Type, with the
   Tools Typesetter's controls and stage (shared `tx` state; the stage in the i2i preview, saved into `i2iResults`).
   Selecting text in other modes offers to switch to it
-
-## 1.6.14
 
 - Train: fast-engine LoRAs for FLUX.2 Klein 4B / 9B and Z-Image Turbo (`mlx_train.KINDS`, mflux targets from its
   examples; Z-Image's training adapter fetched in the app first); RAM limits warn instead of blocking; FLUX.1 / MOSS
