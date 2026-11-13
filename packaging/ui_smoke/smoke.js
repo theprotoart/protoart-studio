@@ -26,11 +26,13 @@ const MOCK = `
       { id: "sdxl", label: "SDXL Base 1.0 · 8-bit", family: "sdxl", downloaded: true, installed: true },
       { id: "klein", label: "FLUX.2 Klein 4B · 4-bit", family: "flux2", engine: "mlx", downloaded: true, installed: true },
     ],
-    read_settings: {}, privacy_get: { strict: false }, main_folder_get: { path: "/Users/test/Pictures/Protoart" },
-    images_dir_get: { path: "/Users/test/Pictures/Protoart" }, store_info: {}, diffusionbee_info: {}, log_tail: { text: "" },
+    read_settings: {}, privacy_get: { strict: false }, main_folder_get: { path: "/Users/test/Protoart", subs: [], access: true },
+    images_dir_get: { path: "/Users/test/Pictures/Protoart", access: true, default: true }, store_info: { kinds: [] }, log_tail: { text: "" },
+    diffusionbee_info: { enabled: false, folder: "", loras: [], checkpoints: [], embeddings: [], skipped: [] },
     library_list: { rows: [], total: 0 }, queue_get: [], edit_pending: { pending: [], folder: "" },
     list_vaes: { vaes: [], folder: "" }, list_controlnets: { controlnets: [], folder: "" }, libraries_get: { offer: [], used: [], found: [] },
-    lora_dirs_get: { dirs: [] }, model_dirs_get: { dirs: [] }, embedding_dirs_get: { dirs: [] }, list_loras: [],
+    lora_dirs_get: { dirs: [], default: "/Users/test/.protoartstudio/loras", families: {} }, model_dirs_get: { dirs: [] },
+    embedding_dirs_get: { dirs: [], default: "/Users/test/.protoartstudio/embeddings" }, list_loras: [], export_presets_get: [], adjust_presets_get: [],
   };
   window.bee = {
     send(msg) {
@@ -84,9 +86,16 @@ const CHECK = `
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch();
   let problems = 0;
+  const looks = (process.env.UI_LOOKS || "").split(",").filter(Boolean);  // e.g. UI_LOOKS=powder:light,powder:dark
   for (const width of [1440, 1180]) {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     await page.addInitScript(MOCK);
+    // the patchbay switched on, so the Tools screenshot shows it (its rows of modules)
+    await page.addInitScript(() => { try { localStorage.setItem("protoart.patchOn", "true"); } catch {} });
+    if (looks.length) {  // screenshots in other looks (skin:theme) too
+      const [skin, theme] = looks[0].split(":");
+      await page.addInitScript(([k, t]) => { localStorage.setItem("protoart.skin", JSON.stringify(k)); if (t) localStorage.setItem("protoart.theme", JSON.stringify(t)); }, [skin, theme]);
+    }
     page.on("console", (m) => { if (m.type() === "error") console.log(`  [console] ${m.text().split("\n").slice(0, 4).join(" | ").slice(0, 400)}`); });
     page.on("pageerror", (e) => console.log(`  [page error] ${(e.stack || e.message).split("\n").slice(0, 3).join(" | ")}`));
     await page.goto("file://" + path.join(tmp, "renderer", "index.html"));

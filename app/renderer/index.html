@@ -185,9 +185,9 @@
         <span class="eng slot-label">Look <span class="hint">{{ (SKIN_LIST.find(k => k.id === skin) || {}).title?.split(':')[0] }} · {{ theme === 'system' ? 'follows your Mac (light by day, dark at night)' : theme === 'dark' ? 'dark faceplate' : 'light faceplate' }}</span></span>
         <div class="look-row">
         <div class="seg">
+          <button :class="{on: theme === 'system'}" @click="setTheme('system')" title="Light or dark, following macOS (System Settings → Appearance)"><span class="lbl">Match macOS</span><span class="short">Auto</span></button>
           <button :class="{on: theme === 'light'}" @click="setTheme('light')" title="Brushed aluminium faceplate">☀︎<span class="lbl"> Light</span></button>
           <button :class="{on: theme === 'dark'}" @click="setTheme('dark')" title="Black anodised faceplate">☾<span class="lbl"> Dark</span></button>
-          <button :class="{on: theme === 'system'}" @click="setTheme('system')" title="Light or dark, following macOS (System Settings → Appearance)"><span class="lbl">Match macOS</span><span class="short">Auto</span></button>
         </div>
         <div class="seg skin-pick" role="radiogroup" aria-label="Theme">
           <button v-for="k in SKIN_LIST" :key="k.id" :class="{on: skin === k.id}" @click="setSkin(k.id)" :title="k.title" role="radio" :aria-checked="skin === k.id">
@@ -2148,7 +2148,7 @@
           <button class="ghost small" :disabled="!patch.presetName.trim()" @click="patchSavePreset"
                   title="Save the cables, the copies you added, the module order and the copies' own settings as a preset">💾 Save flow</button>
         </div>
-        <svg ref="patchSvg" class="patchbay" :view-box.camel="'0 0 ' + patchW + ' 300'" role="img" aria-label="Patchbay: drag cables from OUT jacks to IN jacks"
+        <svg ref="patchSvg" class="patchbay" :view-box.camel="'0 0 ' + patchW + ' ' + patchH" role="img" aria-label="Patchbay: drag cables from OUT jacks to IN jacks"
              @pointermove="patchMove" @pointerup="patchUp" @pointerdown.self="patchCancel">
           <defs>
             <linearGradient id="pbPanel" x1="0" y1="0" x2="0" y2="1">
@@ -2164,17 +2164,17 @@
               <stop offset="0" stop-color="#e9eaec"/><stop offset="1" stop-color="#777b82"/>
             </radialGradient>
           </defs>
-          <rect x="0" y="0" :width="patchW" height="300" rx="6" fill="url(#pbPanel)" stroke="#11161d" stroke-width="2" @pointerdown="patchCancel"/>
+          <rect x="0" y="0" :width="patchW" :height="patchH" rx="6" fill="url(#pbPanel)" stroke="#11161d" stroke-width="2" @pointerdown="patchCancel"/>
           <rect x="22" y="12" :width="patchW - 44" height="22" rx="2" fill="#1f2935" opacity=".7" pointer-events="none"/>
           <text x="34" y="27" class="pb-silk pb-title" pointer-events="none">PATCHBAY · PB-7</text>
           <text :x="patchW - 34" y="27" text-anchor="end" class="pb-silk" pointer-events="none">SIGNAL FLOWS  OUT ▸ IN</text>
           <g v-for="sx in [10, patchW - 10]" :key="'sc' + sx" pointer-events="none">
             <circle :cx="sx" cy="24" r="5" fill="url(#pbScrew)" stroke="#222" stroke-width=".8"/>
-            <circle :cx="sx" cy="276" r="5" fill="url(#pbScrew)" stroke="#222" stroke-width=".8"/>
-            <path :d="'M' + (sx - 3) + ',24 h6 M' + (sx - 3) + ',276 h6'" stroke="#444" stroke-width="1.2"/>
+            <circle :cx="sx" :cy="patchH - 24" r="5" fill="url(#pbScrew)" stroke="#222" stroke-width=".8"/>
+            <path :d="'M' + (sx - 3) + ',24 h6 M' + (sx - 3) + ',' + (patchH - 24) + ' h6'" stroke="#444" stroke-width="1.2"/>
           </g>
           <g v-for="(n, i) in patchNodes" :key="'pn' + n.id" :class="{'pb-moving': patch.moving && patch.moving.id === n.id, 'pb-selected': patch.sel === n.id}"
-             :transform="patch.moving && patch.moving.id === n.id ? 'translate(' + patch.moving.dx + ',0)' : null">
+             :transform="'translate(' + (patch.moving && patch.moving.id === n.id ? patch.moving.dx : 0) + ',' + patchRowY(i) + ')'">
             <template v-if="i > 0 && i < patchNodes.length - 1">
               <rect class="pb-head" :x="patchX(i) - 66" y="40" width="132" height="54" rx="3" @pointerdown="patchHeadDown(n.id, $event)">
                 <title>Click to show this module's settings · drag the name left or right to move it (the cables decide the order the picture goes through)</title></rect>
@@ -2183,8 +2183,8 @@
               <g v-if="i < patchNodes.length - 2" class="pb-arrow" @pointerdown.stop="patchMoveModule(n.id, i)"><title>Move right</title>
                 <rect :x="patchX(i) + 44" y="42" width="18" height="18" rx="2"/><text :x="patchX(i) + 53" y="55" text-anchor="middle">›</text></g>
             </template>
-            <line v-if="i > 0" :x1="patchX(i) - 70" :x2="patchX(i) - 70" y1="44" y2="262" stroke="#1d2631" stroke-width="1.5" pointer-events="none"/>
-            <line v-if="i > 0" :x1="patchX(i) - 68.5" :x2="patchX(i) - 68.5" y1="44" y2="262" stroke="#5d7085" stroke-width=".8" opacity=".5" pointer-events="none"/>
+            <line v-if="patchX(i) > 78" :x1="patchX(i) - 70" :x2="patchX(i) - 70" y1="44" y2="262" stroke="#1d2631" stroke-width="1.5" pointer-events="none"/>
+            <line v-if="patchX(i) > 78" :x1="patchX(i) - 68.5" :x2="patchX(i) - 68.5" y1="44" y2="262" stroke="#5d7085" stroke-width=".8" opacity=".5" pointer-events="none"/>
             <circle :cx="patchX(i)" cy="50" r="4.5" class="pb-led" pointer-events="none"
                     :class="{run: patch.running === n.id, chain: n.id === 'src' || n.id === 'result' ? patchChain.steps.length > 0 && (n.id === 'src' || patchChain.done) : patchChain.steps.includes(n.id), loose: patchLoose.includes(n.id)}"/>
             <text :x="patchX(i)" y="72" text-anchor="middle" class="pb-silk pb-name" pointer-events="none">{{ n.icon ? n.icon + ' ' : '' }}{{ n.label }}</text>
@@ -2529,15 +2529,18 @@
             <button :class="{on: post.relight.background === 'keep_relit'}" @click="post.relight.background = 'keep_relit'" title="Your own background with everything in it, taking on the new light: its colour, and brighter where surfaces face the light (read from a depth map)">Mine, relit</button>
             <button :class="{on: post.relight.background === 'new'}" @click="post.relight.background = 'new'" title="The background IC-Light draws for the new light">New one</button>
           </div>
-          <label class="check" title="The finished picture at your original picture's size: the relit part is sharpened back up with an upscaler (Real-ESRGAN fast, ~5 MB once)"><input type="checkbox" v-model="post.relight.full_size"> Full size (your picture's own size)</label>
-          <label v-if="(post.relight.background || 'keep') !== 'new'" class="check" title="A soft shadow of the subject on your background, thrown away from the light"><input type="checkbox" v-model="post.relight.shadow"> Add a shadow</label>
-          <label v-if="(post.relight.background || 'keep') !== 'new'" class="check" title="Nudges the subject's colours towards the light around it, so subject and background look lit by the same light"><input type="checkbox" v-model="post.relight.blend"> Blend in</label>
-          <label title="Colder (blue) or warmer (orange) light, on the whole result">Warmth <span class="mod-val">{{ post.relight.warmth }}</span></label>
-          <input type="range" min="-100" max="100" step="5" v-model.number="post.relight.warmth" @dblclick="post.relight.warmth = 0">
-          <div class="tx-row">
-            <label class="check" title="Tint the light with a colour of your choice"><input type="checkbox" v-model="post.relight.colour_on"> Light colour</label>
-            <input type="color" v-model="post.relight.colour" :disabled="!post.relight.colour_on" title="The light's colour">
-          </div>
+          <details class="mod-more" title="Full size, shadow, blend in, warmth and light colour">
+            <summary>finish: size, shadow, blend, warmth</summary>
+            <label class="check" title="The finished picture at your original picture's size: the relit part is sharpened back up with an upscaler (Real-ESRGAN fast, ~5 MB once)"><input type="checkbox" v-model="post.relight.full_size"> Full size (your picture's own size)</label>
+            <label v-if="(post.relight.background || 'keep') !== 'new'" class="check" title="A soft shadow of the subject on your background, thrown away from the light"><input type="checkbox" v-model="post.relight.shadow"> Add a shadow</label>
+            <label v-if="(post.relight.background || 'keep') !== 'new'" class="check" title="Nudges the subject's colours towards the light around it, so subject and background look lit by the same light"><input type="checkbox" v-model="post.relight.blend"> Blend in</label>
+            <label title="Colder (blue) or warmer (orange) light, on the whole result">Warmth <span class="mod-val">{{ post.relight.warmth }}</span></label>
+            <input type="range" min="-100" max="100" step="5" v-model.number="post.relight.warmth" @dblclick="post.relight.warmth = 0">
+            <div class="tx-row">
+              <label class="check" title="Tint the light with a colour of your choice"><input type="checkbox" v-model="post.relight.colour_on"> Light colour</label>
+              <input type="color" v-model="post.relight.colour" :disabled="!post.relight.colour_on" title="The light's colour">
+            </div>
+          </details>
           <div class="hint">The first time downloads IC-Light (~1.7 GB).</div>
           <div class="mod-foot">
             <button class="primary mod-go" :disabled="!tool.source || relightJob || !relightModels().length" @click="toolRelight">💡 Relight</button>

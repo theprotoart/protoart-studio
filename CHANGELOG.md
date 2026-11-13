@@ -2,6 +2,13 @@
 
 ## 1.6.15
 
+- Powder look (`data-skin="powder"`, ported from ProtoArt Dandelion's palette): cornflower-blue powder coat (Light) /
+  burnt orange (Dark), white printing, yellow lamps; Settings → Look on one row (Match macOS first; `.look-row .seg`
+  no longer wraps; swatch-only themes and icon-only Tips/Sounds/SFW on narrower windows)
+- Patchbay rows: seven jacks a row (`PATCH_PER_ROW`, `PATCH_ROW_Y`, `patchH`), the panel grows downwards
+- Tools rack: `.module-rack { align-items: start }`, Relight's finishing options in a `details`
+- Tools Split view: `cmpDraw` draws again when its canvas was replaced or a picture wasn't ready (it stayed black
+  until the line was dragged)
 - Relight finishing (`relight.finish`): full-size results (Real-ESRGAN general x4v3 back up to the original's crop),
   Mine, relit with depth shading (`depth_shading` from Depth Anything V2 small normals), a cast shadow away from the
   light (`cast_shadow`, light from the chosen side or the bright side of IC-Light's background), Blend in

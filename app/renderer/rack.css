@@ -2645,3 +2645,52 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 /* 💡 Relight's light ideas: long ones wrap inside the module */
 .relight-ideas { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
 .relight-ideas .chip { white-space: normal; max-width: 100%; text-align: left; line-height: 1.25; height: auto; }
+
+/* Settings → Look: Match macOS · Light · Dark on one row (the general .seg wrapping put Match macOS on a second
+   line, over the Tools and Train tabs) */
+.look-row .seg { flex-wrap: nowrap; }
+.look-row .seg button { white-space: nowrap; }
+
+/* Tools: modules keep their own height (a tall module, like Relight, no longer stretches the others in its row and
+   leaves a big gap above their buttons) */
+.module-rack { align-items: start; }
+
+/* Powder (from ProtoArt Dandelion): powder-coated cornflower blue (Light) or burnt orange (Dark), white printing,
+   yellow lamps */
+:root[data-skin="powder"] {
+  --lit-hi: #fffbe0; --lit-mid: #f6e35a; --lit-lo: #d9b52a; --lit-ink: #2a2300; --lit-ink2: #5a4a00; --lit-edge: #6e5a00;
+  --glow-rgb: 255, 228, 90; --accent-rgb: 246, 227, 90; --accent: #f6e35a; --accent-2: #d4542e; --amber: #ffd84a;
+  --key-hi: #8fb6f2; --key-mid: #4d7cc7; --key-lo: #33599c; --key-edge: #1a2f57; --key-lit-hi: #fffbe0; --key-lit-mid: #f6e35a; --key-lit-lo: #d9b52a; --key-lit-ink: #2a2300;
+}
+:root[data-skin="powder"][data-theme="light"] {
+  --plate-card: linear-gradient(180deg, #7ea7ee, #6590df) 0 0 / 100% 100%, #6f9ae6;
+  --panel: #6f9ae6; --panel2: #5f8bdc; --bg: #1c3463; --muted: #e3ebfb; --text: #f7f8fc; --ink: #ffe45c;
+  --orange: #ffe45c; --orange-deep: #fff6b8;
+  --ear-1: #4a78c8; --ear-2: #6f9ae6; --ear-3: #5f8bdc; --ear-4: #426ebd; --ear-edge: #2c3f78;
+  --stripe-1: #f6e35a; --stripe-2: #e2c43a; --stripe-3: #b8971f;
+}
+:root[data-skin="powder"][data-theme="light"] h2, :root[data-skin="powder"][data-theme="light"] h3,
+:root[data-skin="powder"][data-theme="light"] .card h3, :root[data-skin="powder"][data-theme="light"] .tools h3 {
+  color: #fff6b8; text-shadow: 0 1px 1px rgba(10, 30, 70, .55);
+}
+:root[data-skin="powder"][data-theme="light"] body, :root[data-skin="powder"][data-theme="light"] label,
+:root[data-skin="powder"][data-theme="light"] .hint, :root[data-skin="powder"][data-theme="light"] .mod-desc,
+:root[data-skin="powder"][data-theme="light"] .mod-sub, :root[data-skin="powder"][data-theme="light"] .slot-label {
+  color: var(--text); text-shadow: 0 1px 0 rgba(10, 30, 70, .35);
+}
+:root[data-skin="powder"][data-theme="light"] .hint, :root[data-skin="powder"][data-theme="light"] .mod-sub { color: var(--muted); }
+:root[data-skin="powder"][data-theme="dark"] {
+  --plate-card: linear-gradient(180deg, #a9532a, #8c4220) 0 0 / 100% 100%, #9a4a24;
+  --panel: #c4683a; --panel2: #a8552b; --bg: #2a1206; --muted: #f6dcc8; --text: #fff4ea; --ink: #ffe45c;
+}
+.skin-swatch.powder { background: linear-gradient(90deg, #5a8ce6 0 45%, #c45822 45% 75%, #f3df45 75%); }
+/* Settings → Look with five themes: on most screens the themes show their colour swatches only (the name is in the
+   tip and the line above), and Tips / Sounds / SFW their icons, so the whole row fits beside the logo */
+@media (max-width: 1900px) {
+  .slot-look .skin-pick .lbl { display: none; }
+  .slot-look .skin-pick button { padding: 4px 7px; }
+  .slot-look .skin-pick .skin-swatch { width: 26px; height: 14px; }
+}
+@media (max-width: 1500px) {
+  .slot-look .look-row > .tips-btn .lbl { display: none; }
+}

@@ -542,7 +542,10 @@ const PATCH_NODES = [
   { id: "paper", label: "PAPER", sub: "cut-out", icon: "📄", in: true, out: true },
   { id: "result", label: "RESULT", sub: "to Library", in: true },
 ];
-const PATCH_X = (i) => 78 + i * 140;           // jack columns in the panel's own 1000-wide drawing
+const PATCH_PER_ROW = 7;                       // PICTURE and up to six modules a row; more modules start a new row below
+const PATCH_ROW_H = 250;                       // a row's height in the panel's drawing
+const PATCH_X = (i) => 78 + (i % PATCH_PER_ROW) * 140;  // jack columns in the panel's own 1000-wide drawing
+const PATCH_ROW_Y = (i) => Math.floor(i / PATCH_PER_ROW) * PATCH_ROW_H;
 const PATCH_IN_Y = 118, PATCH_OUT_Y = 206;
 const CABLE_COLOURS = ["#c8372d", "#e0882a", "#2f7fc1", "#3d9a4b", "#d9b52c", "#8a4fb5"];
 const PATCH_DEFAULT = [];  // the patchbay starts with no cables: you plug in what you want
@@ -773,6 +776,7 @@ const protoartApp = createApp({
         { id: "console", label: "Cream", title: "Cream: warm cream and muted metal, yellow lamps and deep red accents" },
         { id: "puig", label: "Slate", title: "Slate: blue-grey steel, cream lettering and soft ivory lamps" },
         { id: "magma", label: "Ember", title: "Ember: black panels with red-orange lamps" },
+        { id: "powder", label: "Powder", title: "Powder: a light blue powder-coated faceplate with white lettering and yellow lamps (burnt orange on the Dark faceplate), as in ProtoArt Dandelion" },
       ],
       sys: {},
       models: [],
@@ -1045,6 +1049,8 @@ const protoartApp = createApp({
               "<b>🔤 Replace text: comic lettering</b>: three fonts of our own, designed for Protoart Studio: <b>Protoart Speech</b> (dialogue, regular and bold), <b>Protoart Kaboom</b> (chunky sound effects) and <b>Protoart Chatter</b> (bouncy cartoon lettering), plus a built-in pack of 12 free comic fonts (Comic Neue, Shantell Sans, Bangers, Luckiest Guy…), every font installed on your Mac in the Font list, corner handles to resize a text by hand, and <b>💬 Balloons & shapes</b>: speech, thought, shout, whisper, box, caption and burst, with a draggable tail.",
               "<b>Type exact numbers</b>: double-click a slider's number (the amber box) in Tools to type the value: steps, LoRA weight, change strength, text size… Return keeps it, Esc cancels.",
               "<b>💡 Relight</b>: <b>Background → Keep mine</b> (new default) puts the relit subject back on your own background automatically, and <b>Keep mine, relit</b> also gives your background the new light's brightness and colour; <b>Light like → 🖼 A reference picture</b> lights the subject like a picture you drop in. Two more light ideas: winter snow, and a rainy manga-style Tokyo night. The text at the bottom of the module no longer hides behind a screw.",
+              "<b>🎨 Powder look</b> (Settings → Look), from ProtoArt Dandelion: a light blue powder-coated faceplate with white lettering and yellow lamps, or burnt orange on the Dark faceplate. Settings → Look now reads <b>Match macOS · Light · Dark</b> on one row (it used to wrap over the Tools and Train tabs), with the themes as colour swatches.",
+              "<b>Fixes</b>: the patchbay grows downwards (a new row after six modules) instead of getting ever wider; a tall module (Relight) no longer leaves a big empty gap in the other modules of its row (Relight's finishing options are folded under <i>finish</i>); Tools' Split view shows both pictures straight away instead of staying black until you drag the line.",
               "<b>🔌 Patchbay</b>: TILED upscale, RELIGHT, CUT OUT and PAPER can now be patched in too, and <b>Keep only the final picture</b> moves the in-between pictures of a run to the Trash.",
               "<b>💡 Relight, further</b>: the result is now at your <b>picture's full size</b> (sharpened back up with Real-ESRGAN fast) instead of 768 px; <b>Mine, relit</b> also uses a depth map, so surfaces facing the light brighten and those turned away darken; <b>Add a shadow</b> throws a soft shadow away from the light; <b>Blend in</b> matches the subject's colours to the light around it; <b>Warmth</b> and <b>Light colour</b>. Relight is also in <b>Image to image</b> (💡 Relight mode).",
               "<b>Downloads resume</b>: the upscalers' downloads continue where they stopped if the connection drops, and IC-Light's download shows how far it got (MB of MB).",
@@ -2975,7 +2981,10 @@ const protoartApp = createApp({
       return [base.find((n) => n.id === "src"), ...mid, PATCH_NODES.find((n) => n.id === "result")];
     },
     patchW() {  // the panel's drawing widens with every module you add
-      return Math.max(1000, 156 + (this.patchNodes.length - 1) * 140);
+      return Math.max(1000, 156 + (Math.min(this.patchNodes.length, PATCH_PER_ROW) - 1) * 140);
+    },
+    patchH() {  // and grows downwards: a new row for every six more modules
+      return 300 + (Math.ceil(this.patchNodes.length / PATCH_PER_ROW) - 1) * PATCH_ROW_H;
     },
     patchChain() {  // the modules the picture goes through, in order: follow the cables from PICTURE's OUT
       const out = [];
@@ -5215,9 +5224,10 @@ const protoartApp = createApp({
     patchX(i) {
       return PATCH_X(i);
     },
+    patchRowY(i) { return PATCH_ROW_Y(i); },
     patchJack(id, kind) {  // a jack's position in the panel's drawing
       const i = this.patchNodes.findIndex((n) => n.id === id);
-      return { x: PATCH_X(i), y: kind === "in" ? PATCH_IN_Y : PATCH_OUT_Y };
+      return { x: PATCH_X(i), y: (kind === "in" ? PATCH_IN_Y : PATCH_OUT_Y) + PATCH_ROW_Y(Math.max(0, i)) };
     },
     cablePath(a, b) {  // a hanging cable: it sags under its own weight, more the longer it is
       const d = Math.hypot(b.x - a.x, b.y - a.y);
@@ -6736,7 +6746,17 @@ const protoartApp = createApp({
         return this._cmpImgs[p];
       };
       const [a, b] = await Promise.all([load(s.path), load(r.path)]);
-      if (!a || !b || cv !== this.$refs.cmpCanvas) return;
+      // the split view was drawn only once you dragged its line: the canvas had been replaced while the pictures
+      // loaded (or a picture wasn't ready yet), and nothing drew again. Try again, a few times.
+      const again = (forget) => {
+        this._cmpTries = (this._cmpTries || 0) + 1;
+        if (this._cmpTries > 6) { this._cmpTries = 0; return; }
+        if (forget) { delete this._cmpImgs[s.path]; delete this._cmpImgs[r.path]; }
+        setTimeout(() => this.cmpDraw(), forget ? 400 : 60);
+      };
+      if (cv !== this.$refs.cmpCanvas) return again(false);
+      if (!a || !b) return again(true);
+      this._cmpTries = 0;
       const k = Math.min(1, 1600 / Math.max(b.naturalWidth, b.naturalHeight));
       const W = Math.max(1, Math.round(b.naturalWidth * k)), H = Math.max(1, Math.round(b.naturalHeight * k));
       if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }

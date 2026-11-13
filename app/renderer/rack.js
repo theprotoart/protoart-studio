@@ -254,12 +254,15 @@
   // Themes ("skins"): the colour of the metal and of the lit controls. Light / dark still applies on top.
   //   studio  = Classic Studio (charcoal + amber)       console = Vintage Console (warm cream, red & yellow lamps)
   //   puig    = Vintage Compressor (blue-grey steel)    magma   = Magma (black and ember)
+  //   powder  = Powder (blue / burnt orange powder coat, as in ProtoArt Dandelion)
   const SKIN_KEY = "protoart.skin";
   const SKINS = {
     studio: { alu: [204, 202, 198], aluDark: [154, 153, 150], black: [40, 41, 44] },
     console: { alu: [224, 213, 192], aluDark: [178, 166, 146], black: [54, 47, 40] },
     puig: { alu: [180, 190, 199], aluDark: [134, 145, 156], black: [46, 54, 64] },
     magma: { alu: [196, 186, 182], aluDark: [150, 139, 135], black: [26, 21, 21] },
+    // Powder (from ProtoArt Dandelion): powder-coated cornflower blue on the Light faceplate, burnt orange on the Dark one
+    powder: { alu: [96, 146, 232], aluDark: [74, 120, 205], black: [176, 80, 32] },
   };
   let skin = "studio";
   try { const v = JSON.parse(localStorage.getItem(SKIN_KEY)); if (SKINS[v]) skin = v; } catch { /* default */ }
