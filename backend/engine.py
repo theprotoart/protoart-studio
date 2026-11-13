@@ -3546,9 +3546,27 @@ class Engine:
                 settings["depth"] = {"model": cnet.DEPTH_MODELS[size][0], "size": size, "style": style,
                                      **({"threshold": thr} if thr > 0 else {}), **({"near": near} if near < 1 else {})}
                 continue
+            if step == "enhance" and (args.get("options") or {}).get("instant") \
+                    and (args.get("options") or {}).get("upscaler") in ("realesrgan_x4plus", "realesrgan_anime6b", "realesr_animevideov3"):
+                # ⏩ Instant with a Real-ESRGAN model: just the upscaler (no enhancer model to load)
+                from postprocess import realesrgan
+                t = self.torch()
+                o = args.get("options") or {}
+                dev = t.device("mps") if t.backends.mps.is_available() else t.device("cpu")
+                factor = float(o.get("upscale_factor") or 2)
+                self.emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
+                try:
+                    out = realesrgan.upscale(o["upscaler"], out, factor, dev, t.float16 if dev.type == "mps" else t.float32,
+                                             emit=self.emit, tile=192 if 0 < total_ram_gb() < 12 else 256)
+                except RuntimeError as e:
+                    raise UserError(str(e))
+                settings["enhance"] = {"instant": True, "upscaler": realesrgan.MODELS[o["upscaler"]]["label"],
+                                       "upscale_factor": factor}
+                continue
             if step == "enhance":
                 enh = self.get_enhancer(force=force)
                 opts = dict(args.get("options") or {})
+                opts.pop("upscaler", None)  # the enhancer uses its own 4x-UltraSharp
                 keep_style = bool(opts.pop("keep_style", False)) and not opts.get("instant")
                 style_words = str(opts.pop("style_words", "") or "").strip()[:200]
                 if not opts.get("prompt"):

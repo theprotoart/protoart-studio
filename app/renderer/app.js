@@ -204,7 +204,7 @@ function defaultPost() {  // Tools settings on a fresh install
     do_faces: false,
     enh: { upscale_factor: 2, num_inference_steps: 18, denoise_strength: 0.35, controlnet_scale: 0.6,
            solver: "DDIM", seed: -1, prompt: "", turbo: false, instant: false, work_size: "auto",
-           keep_style: false, style_words: "" },  // 🎨 keep the picture's own look (painting, anime…) instead of turning photographic
+           keep_style: false, style_words: "", upscaler: "ultrasharp" },  // 🎨 keep the picture's own look (painting, anime…) instead of turning photographic
     vec: { colors: 8, detail: "medium", smooth: true },   // ✒️ Vectorize
     det: { model: "", lora: "", weight: 0.8, strength: 0.35, steps: 20 },  // model "": Create's (if SD) or the first SD 1.5  // 🔎 Detail with a LoRA (patchbay module)
     // ✂ Cut out: threshold / softness on the model's matte, grow (+) or shrink (−) in px, then the clean-ups
@@ -888,11 +888,18 @@ const protoartApp = createApp({
       // Enhance & upscale speed/quality presets. Only steps × creativity steps actually run (it refines the
       // picture rather than starting from noise); DPM-Solver gets sharp results in fewer steps than DDIM.
       enhSpeed: [
-        { label: "⏩ Instant", steps: 0, solver: "DDIM", instant: true, tip: "The 4× sharpening upscaler only: seconds instead of minutes, but it invents no new detail. Good for previews and big batches." },
+        { label: "⏩ Instant", steps: 0, solver: "DDIM", instant: true, tip: "An upscaler only (pick which one below): seconds instead of minutes, but it invents no new detail. Good for previews, big batches, anime and drawings." },
         { label: "🚀 Turbo", steps: 6, solver: "DDIM", turbo: true, tip: "A distilled few-step add-on (LCM-LoRA, ~135 MB once): a few steps and no negative-prompt pass, several times faster. Slightly softer detail." },
         { label: "⚡ Fast", steps: 10, solver: "DPMSolver", tip: "Fewer steps that still look clean: about half the time of Standard" },
         { label: "Standard", steps: 18, solver: "DDIM", tip: "The enhancer's own default" },
         { label: "★ Best", steps: 30, solver: "DPMSolver", tip: "Most detail and the cleanest textures; about 1.7× the time of Standard" },
+      ],
+      // ⏩ Instant: which upscaler (Real-ESRGAN ones download once from its GitHub releases)
+      UPSCALERS: [
+        { id: "ultrasharp", label: "4x-UltraSharp", tip: "Sharp and crisp, for photos and renders (non-commercial licence: CC BY-NC-SA)" },
+        { id: "realesrgan_x4plus", label: "Real-ESRGAN", tip: "Real-ESRGAN x4plus: photos and general pictures; cleans up blur, noise and JPEG blocks (~64 MB once, BSD licence)" },
+        { id: "realesrgan_anime6b", label: "Real-ESRGAN Anime", tip: "Real-ESRGAN x4plus Anime 6B: anime, cartoons, comics and drawings: clean, sharp lines and flat colours (~18 MB once)" },
+        { id: "realesr_animevideov3", label: "AnimeVideo v3 (fast)", tip: "Real-ESRGAN AnimeVideo v3: a tiny, very fast anime upscaler (~3 MB once); a little softer than Anime 6B" },
       ],
       enhPresets: [
         { label: "Subtle", c: 0.2, r: 1.0, tip: "Sharper and cleaner, almost no new detail" },
@@ -962,6 +969,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Coming in the next version: Real-ESRGAN upscalers", items: [
+              "<b>⏩ Instant upscaling with Real-ESRGAN</b> (Tools → Enhance & upscale → Speed: ⏩ Instant → Upscaler): <b>Real-ESRGAN</b> for photos (cleans blur, noise and JPEG blocks), <b>Real-ESRGAN Anime</b> (x4plus Anime 6B) for anime, comics and drawings, and <b>AnimeVideo v3</b>, a tiny, very fast anime upscaler. Each downloads once (3–64 MB). 4x-UltraSharp stays the default." ] },
             { h: "Coming in the next version: clearer text changes in Image to image", items: [
               "<b>🔤 Replace text in Image to image</b>, the same as in Tools: a new mode next to 🩹 Remove. <b>1 · 🔍 Find the text</b> (speech bubbles, signs, captions), fix the selection with the brush if needed, <b>2 · 🧽 Clear it</b>, then <b>3 · ✏️ Type</b>: click the picture on the right where the words go and type them in a real font, size and colour (several texts, drag to move, colour picked from the old text), then <b>💾 Save</b>. Selecting text with the 🔤 Text tool in other modes offers to switch to it, because picture models can't spell." ] },
             { h: "1.6.14: train FLUX.2 Klein and Z-Image, Pony / Illustrious / SDXL apart, downloads fixed", items: [
@@ -1511,6 +1520,9 @@ const protoartApp = createApp({
               "Tools → pick the picture → <b>💡 Relight</b>. Type the light (or click an idea: sunshine from a window, neon city, sunset over the sea, golden hour, soft studio lighting…), optionally what the subject is (“woman, detailed face”), and where the light comes from: <b>Any</b> lets the words decide, ← Left / Right → / ↑ Top / ↓ Bottom puts a bright side there.",
               "It needs a <b>Stable Diffusion 1.5</b> model on this Mac (a realistic one, like Realistic Vision, gives the most natural light; download one in Models if you have none). The first time also downloads IC-Light (~1.7 GB). On an 8 GB Mac a picture takes a few minutes at 640 with Add detail on; 512 without it is quickest.",
               "IC-Light keeps the subject and makes a new background that fits the light. To keep your original background, ✂ Cut out the relit subject and put it back on your picture. Faces can change a little: add “detailed face” to Subject, or try another seed." ] },
+            { h: "⏩ Which upscaler? (Instant)", items: [
+              "Tools → <b>Enhance & upscale</b> → Speed <b>⏩ Instant</b> makes the picture bigger in seconds with an upscaler alone (no new detail invented). Pick the <b>Upscaler</b>: <b>4x-UltraSharp</b> (crisp photos and renders; non-commercial licence), <b>Real-ESRGAN</b> (photos, old or compressed pictures: removes blur, noise and JPEG blocks; free to use), <b>Real-ESRGAN Anime</b> (anime, comics, line art: clean lines, flat colours), <b>AnimeVideo v3</b> (anime, fastest, a little softer).",
+              "They all work at 4× and are resized to the size you pick (1.5×, 2×…). For new detail instead (skin, fabric, foliage), use the other speeds: they re-draw the picture with a model." ] },
             { h: "🔤 Change the words in a picture (speech bubbles, signs)", items: [
               "Image to image → <b>🔤 Replace text</b> (or Tools → 🔤 Replace text: they work the same). <b>1 · 🔍 Find the text</b> selects the writing; add or take away with the brush if it missed a bit.",
               "<b>2 · 🧽 Clear it</b> fills in the background where the words were. <b>3 · ✏️ Type</b>: click the picture on the right where the new words go and type them on the left; pick the font, size and colour (🎯 takes the old text's colour). Click an empty spot for another text; drag a text to move it.",

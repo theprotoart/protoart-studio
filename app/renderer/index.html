@@ -2269,6 +2269,12 @@
           <div class="seg mod-seg mod-seg-wrap">
             <button v-for="p in enhSpeed" :key="p.label" :class="{on: enhSpeedOn(p)}" @click="pickEnhSpeed(p)" :title="p.tip">{{ p.label }}</button>
           </div>
+          <template v-if="post.enh.instant">
+            <label title="Which upscaler ⏩ Instant uses">Upscaler</label>
+            <div class="seg mod-seg mod-seg-wrap">
+              <button v-for="u in UPSCALERS" :key="u.id" :class="{on: (post.enh.upscaler || 'ultrasharp') === u.id}" @click="post.enh.upscaler = u.id" :title="u.tip">{{ u.label }}</button>
+            </div>
+          </template>
           <label>Look</label>
           <div class="seg mod-seg">
             <button v-for="p in enhPresets" :key="p.label" :class="{on: post.enh.denoise_strength===p.c && post.enh.controlnet_scale===p.r}"

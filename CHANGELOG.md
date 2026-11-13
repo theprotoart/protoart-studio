@@ -2,6 +2,8 @@
 
 ## Next
 
+- ⏩ Instant upscalers: Real-ESRGAN x4plus, x4plus Anime 6B and AnimeVideo v3 (`postprocess/realesrgan.py`: RRDBNet /
+  SRVGGNetCompact with Real-ESRGAN's layer names, weights from its GitHub releases, sha256-pinned, curl first)
 - Image to image → 🔤 Replace text mode (`i2i_mode: "text"`): Find (Florence-2) / Clear (heal job) / Type, with the
   Tools Typesetter's controls and stage (shared `tx` state; the stage in the i2i preview, saved into `i2iResults`).
   Selecting text in other modes offers to switch to it
