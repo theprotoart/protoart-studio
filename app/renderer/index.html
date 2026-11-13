@@ -2885,7 +2885,7 @@
              @click="$refs.startPick.click()">
           Drop a picture here <span class="hint">(or click to choose · or “Send to Image to image” on any library picture)</span>
         </div>
-        <div v-else-if="['inpaint', 'remove', 'edit', 'peel', 'combine'].includes(form.i2i_mode)" class="i2i-src mask-editor" :class="{over: startDragOver}"
+        <div v-else-if="['inpaint', 'remove', 'text', 'edit', 'peel', 'combine'].includes(form.i2i_mode)" class="i2i-src mask-editor" :class="{over: startDragOver}"
              @dragover.prevent="startDragOver=true" @dragleave="startDragOver=false" @drop.prevent="onStartDrop" title="Drop another picture here to replace this one">
           <div class="i2i-zoom-src zoom-frame" :class="{zoomed: zoom.i2iSrc.z > 1, panning: zoomSpace}"
                @wheel="zoomWheel('i2iSrc', $event)" @pointerdown.capture="zoomPanDown('i2iSrc', $event)">
@@ -3409,7 +3409,7 @@
           “add sunglasses”, “replace the sky with a sunset”, “turn it into a watercolour painting”, “remove the people in the background”.</p>
         <p v-if="editModel() && !editModel().cached" class="hint warn">The first edit downloads FLUX.2 Klein (~{{ editModel().download_gb }} GB), then it works offline.</p>
       </div>
-      <div v-if="!i2iUsesKlein && form.i2i_mode !== 'faceswap'" class="card i2ifold" :class="{shut: i2iShut('steps')}">
+      <div v-if="!i2iUsesKlein && !['faceswap', 'text'].includes(form.i2i_mode)" class="card i2ifold" :class="{shut: i2iShut('steps')}">
         <h3 @click="i2iFoldToggle('steps')">Sampler, steps &amp; guidance <span class="hint">{{ currentModel ? currentModel.label : '' }} · model is chosen at the top</span>
           <span v-if="i2iShut('steps')" class="cfold-sum">{{ (samplers.find((x) => x.id === form.sampler) || {}).label || '' }} · {{ form.steps }} steps · CFG {{ form.cfg }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <label class="i2i-sampler-label">Sampler <span class="hint">· the same as Create's</span></label>
@@ -3464,7 +3464,7 @@
         <div class="hint">{{ familyLabel }} · the sampler, steps and guidance are shared with Create.</div>
       </div>
 
-      <div v-if="!i2iUsesKlein && !['faceswap', 'peel', 'remove'].includes(form.i2i_mode)" class="card i2i-loras i2ifold" :class="{shut: i2iShut('loras')}">
+      <div v-if="!i2iUsesKlein && !['faceswap', 'peel', 'remove', 'text'].includes(form.i2i_mode)" class="card i2i-loras i2ifold" :class="{shut: i2iShut('loras')}">
         <h3 @click="i2iFoldToggle('loras', $event)">LoRAs <span class="hint">· {{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · its own list (separate from Create's)</span>
           <button v-if="form.loras.length" class="link small-link" @click="form.loras = []">clear all</button><span class="cfold-chev" aria-hidden="true"></span></h3>
         <div v-for="(l, i) in form.loras" :key="l.name" class="lora-row">
@@ -3559,7 +3559,7 @@
         </div>
         <p v-if="!chainModels().length" class="hint">Download SD 1.5, SDXL, Anima, FLUX.1 Schnell or ERNIE in the Models tab first.</p>
       </div>
-      <div v-if="form.i2i_mode !== 'change' && form.i2i_mode !== 'faceswap'" class="card hint cn-off">
+      <div v-if="!['change', 'faceswap', 'text'].includes(form.i2i_mode)" class="card hint cn-off">
         <div>2 · ControlNet is off while {{ form.i2i_mode === 'camera' ? 'changing the camera angle' : form.i2i_mode === 'combine' ? 'combining' : form.i2i_mode === 'peel' ? 'peeling layers' : form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'faceswap' ? 'swapping faces' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
         <div v-if="form.i2i_mode === 'edit'" class="cn-off-tips">Edit with words already keeps the layout, and <b>More pictures</b> above lend it a style, an outfit or a face.
           To make a new picture that follows this one's <b>structure</b> instead, use ControlNet with an SD 1.5 model:
@@ -3632,7 +3632,7 @@
         </template>
       </div>
 
-      <div v-if="form.i2i_mode !== 'faceswap'" class="card i2ifold" :class="{shut: i2iShut('prompt')}">
+      <div v-if="!['faceswap', 'text'].includes(form.i2i_mode)" class="card i2ifold" :class="{shut: i2iShut('prompt')}">
         <h3 @click="i2iFoldToggle('prompt', $event)">3 · Prompt <span v-if="i2iShut('prompt')" class="cfold-sum">{{ form.prompt ? (form.prompt.length > 60 ? form.prompt.slice(0, 59) + '…' : form.prompt) : 'empty' }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <textarea class="tape" v-model="form.prompt" rows="3"
                   :placeholder="form.i2i_mode === 'camera' ? 'Optional: anything to add · she is holding the sword · he is smiling…' : form.i2i_mode === 'combine' ? 'Where and doing what · sitting on the bench, waving · standing on the left, small, in the distance…' : form.i2i_mode === 'edit' ? 'The change, in a sentence: make the jacket red · add a hat · turn it into a watercolour…' : i2iUsesKlein ? 'Optional: what goes around the picture · more of the street · a sunny beach · the rest of the room…' : 'What the result should look like…'"></textarea>
@@ -3650,7 +3650,7 @@
           <button v-if="undoPrompt" class="link" @click="form.prompt = undoPrompt; undoPrompt = null">↩ undo</button>
           <span v-if="form.i2i_mode === 'edit'" class="hint">Edit with words wants the change itself (“make the jacket red”): the suggestion describes the picture so you can see what to change</span>
         </div>
-        <div v-if="form.i2i_mode !== 'edit' && form.i2i_mode !== 'remove' && !i2iUsesKlein" class="row small i2i-enhance">
+        <div v-if="!['edit', 'remove', 'text'].includes(form.i2i_mode) && !i2iUsesKlein" class="row small i2i-enhance">
           <label class="check" title="Before each picture, a small language model turns your prompt into a detailed one (the same switch as in Create)">
             <input type="checkbox" v-model="form.enhance_prompt"> ✨ Enhance prompt when generating</label>
           <button class="link" @click="enhanceNow" :disabled="!form.prompt.trim()" title="Rewrite the prompt now, so you can read and edit it first">enhance now</button>
