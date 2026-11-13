@@ -2696,3 +2696,13 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 }
 
 .tx-stage .tx-handle.tx-rot { border-radius: 50%; border-color: #3d9a4b; cursor: grab; width: 14px; height: 14px; margin: -7px 0 0 -7px; }
+
+/* 🔤 Replace text: everything (balloons and text with their effects) is drawn on one canvas over the picture, the same
+   way it's saved; the shapes' outlines and the text boxes above it are only there to pick and drag */
+.tx-stage .tx-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.tx-stage .tx-shape path { opacity: 0; }
+.tx-stage .tx-shapes { z-index: 1; }
+.tx-stage .tx-layer { z-index: 2; }
+.tx-stage .tx-handle { z-index: 5; }
+.tx-presets { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.tx-presets button { flex: 1 1 auto; white-space: nowrap; }

@@ -2,6 +2,10 @@
 
 ## 1.6.15
 
+- Replace text: text effects. Bevel & emboss (raised/pressed, light angle, softness, highlight/shade colours), inner
+  shadow, outer glow, second outline, two-colour gradient fill, drop shadow colour/direction/softness, arc, ALL CAPS,
+  and ready-made looks (Comic SFX, Chrome, Neon, Pressed). The preview is now a canvas drawn by the same code as the
+  saved picture (`text_tool.js` `draw()`), so what you see is what is saved; a new text copies the last one's effects
 - Replace text: balloons and shapes turn (`rot`: a turn handle, an Angle slider; the tail tip stays put; corner
   handles and resizing follow the turn)
 - Powder look (`data-skin="powder"`, ported from ProtoArt Dandelion's palette): cornflower-blue powder coat (Light) /

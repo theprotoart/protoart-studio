@@ -1045,12 +1045,13 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.15: 💬 comic balloons and a font pack, 💡 Relight keeps your background or copies a reference's light, more patchbay modules", items: [
+            { h: "1.6.15: 💬 comic balloons and a font pack, ✨ text effects (bevel & emboss, glow, gradient, arc), 💡 Relight keeps your background or copies a reference's light, more patchbay modules", items: [
               "<b>🔤 Replace text: comic lettering</b>: three fonts of our own, designed for Protoart Studio: <b>Protoart Speech</b> (dialogue, regular and bold), <b>Protoart Kaboom</b> (chunky sound effects) and <b>Protoart Chatter</b> (bouncy cartoon lettering), plus a built-in pack of 12 free comic fonts (Comic Neue, Shantell Sans, Bangers, Luckiest Guy…), every font installed on your Mac in the Font list, corner handles to resize a text by hand, and <b>💬 Balloons & shapes</b>: speech, thought, shout, whisper, box, caption and burst, with a draggable tail.",
               "<b>Type exact numbers</b>: double-click a slider's number (the amber box) in Tools to type the value: steps, LoRA weight, change strength, text size… Return keeps it, Esc cancels.",
               "<b>💡 Relight</b>: <b>Background → Keep mine</b> (new default) puts the relit subject back on your own background automatically, and <b>Keep mine, relit</b> also gives your background the new light's brightness and colour; <b>Light like → 🖼 A reference picture</b> lights the subject like a picture you drop in. Two more light ideas: winter snow, and a rainy manga-style Tokyo night. The text at the bottom of the module no longer hides behind a screw.",
               "<b>🎨 Powder look</b> (Settings → Look), from ProtoArt Dandelion: a light blue powder-coated faceplate with white lettering and yellow lamps, or burnt orange on the Dark faceplate. Settings → Look now reads <b>Match macOS · Light · Dark</b> on one row (it used to wrap over the Tools and Train tabs), with the themes as colour swatches.",
               "<b>Fixes</b>: the patchbay grows downwards (a new row after six modules) instead of getting ever wider; a tall module (Relight) no longer leaves a big empty gap in the other modules of its row (Relight's finishing options are folded under <i>finish</i>); Tools' Split view shows both pictures straight away instead of staying black until you drag the line.",
+              "<b>✨ Text effects</b> (Replace text, like Photoshop's layer styles): <b>bevel &amp; emboss</b> (raised or pressed, where the light comes from, softness, highlight and shade colours), <b>inner shadow</b>, <b>outer glow</b>, a <b>second outline</b> for comic sound effects, a <b>two-colour gradient</b> fill, the <b>drop shadow</b>'s colour, direction and softness, an <b>arc</b> to bend the words, and <b>AA</b> for ALL CAPITALS without retyping. Ready-made looks: 💥 Comic SFX, 🪙 Chrome, 💡 Neon, 🔨 Pressed. The preview now draws exactly what will be saved, and a new text copies the last one's look.",
               "<b>💬 Turn balloons and shapes</b>: drag the round green handle above a shape (Shift for 15° steps, double-click to straighten) or use its <b>Angle</b> slider; the tail keeps pointing where you put it.",
               "<b>🔌 Patchbay</b>: TILED upscale, RELIGHT, CUT OUT and PAPER can now be patched in too, and <b>Keep only the final picture</b> moves the in-between pictures of a run to the Trash.",
               "<b>💡 Relight, further</b>: the result is now at your <b>picture's full size</b> (sharpened back up with Real-ESRGAN fast) instead of 768 px; <b>Mine, relit</b> also uses a depth map, so surfaces facing the light brighten and those turned away darken; <b>Add a shadow</b> throws a soft shadow away from the light; <b>Blend in</b> matches the subject's colours to the light around it; <b>Warmth</b> and <b>Light colour</b>. Relight is also in <b>Image to image</b> (💡 Relight mode).",
@@ -1661,6 +1662,7 @@ const protoartApp = createApp({
               "<b>Several texts</b>: <b>＋ Add text</b> (or a click on an empty spot of the picture) adds another one with its own words, font, size and colour. Its name appears above the box: click a name (or the text on the picture) to change that one, ✕ deletes it. A new text you didn't type in is dropped when you add the next.",
               "<b>Fonts</b>: the Font list starts with <b>Protoart's own fonts</b>: <b>Protoart Speech</b> for dialogue (B for its bold), <b>Protoart Kaboom</b> for sound effects and <b>Protoart Chatter</b> for bouncy cartoon lettering (all in capitals, like comic lettering; lowercase keys give slightly smaller capitals). Then the built-in <b>comic lettering pack</b> (Comic Neue, Shantell Sans, Patrick Hand and Architects Daughter for dialogue and captions; Bangers, Luckiest Guy, Bowlby One SC and Titan One for sound effects and titles; Chewy, Boogaloo, Bubblegum Sans, Permanent Marker), then the Mac favourites, then <b>every font installed on this Mac</b> (including ones you added in Font Book; the list fills in after a few seconds the first time).",
               "<b>Resize by hand</b>: the selected text has four corner handles: drag one to make the text bigger or smaller. Or <b>double-click the size number</b> (the amber box) and type it, even beyond the slider's end.",
+              "<b>✨ Text effects</b>: pick a text, then open <b>outline, shadow, angle</b> (outline, a second outline, drop shadow colour, direction and softness) and <b>bevel &amp; emboss, glow, gradient, arc</b>. Bevel &amp; emboss makes letters look raised (or pressed in with <b>Pressed</b>); <b>Light from</b> sets which side catches the light. <b>Arc</b> bends the words up or down (double-click it to straighten). <b>AA</b> next to Bold and Italic shows the text in capitals. Not sure where to start? Try a ready-made look (💥 Comic SFX, 🪙 Chrome, 💡 Neon, 🔨 Pressed) and adjust from there; ✕ No effects takes them all off.",
               "<b>💬 Balloons & shapes</b>: Speech, Thought, Shout, Whisper, Box, Caption and Burst (for sound effects). Each comes with a text inside it in a matching comic font. Drag the balloon to move it (its tail comes along), its corners to resize it, the round green handle above it to turn it (Shift: 15° steps; double-click: straight again; or the <b>Angle</b> slider), and the blue dot to point the tail at the speaker. Pick its fill, outline colour and width; balloons are always drawn under the text.",
               "<b>💾 Save</b> draws the text into the picture at full size and saves it as a new picture in the Library (the original stays). You can also use ✏️ Type on any picture without clearing anything first." ] },
             { h: "🩹 Remove objects and ✒️ Vectorize", items: [
@@ -3471,6 +3473,9 @@ const protoartApp = createApp({
 
   watch: {
     "tool.view"() { this.$nextTick(() => this.cmpDraw()); },
+    "tx.layers": { deep: true, handler() { this.txRedraw(); } },
+    "tx.scale"() { this.txRedraw(); },
+    "tx.open"(v) { if (v) this.$nextTick(() => { this.txRedraw(); document.fonts && document.fonts.ready.then(() => this.txRedraw()); }); },
     "tool.latest"() { this.$nextTick(() => this.cmpDraw()); },
     "tool.working"(v) { if (!v) this.$nextTick(() => this.cmpDraw()); },
     // which tab an error message belongs to: the tab of the job that failed (if it just failed), else the open tab
@@ -10379,9 +10384,34 @@ const protoartApp = createApp({
     txMeasure() {
       const im = this.$refs.txImg;
       if (im && this.tx.nw) this.tx.scale = im.clientWidth / this.tx.nw;
+      this.txRedraw();
     },
     txStyle(L) { return window.ProtoText.style(L, this.tx.scale || 1); },
-    txLayer() { return this.tx.layers[this.tx.sel] || null; },
+    txRedraw() {  // the preview: the same drawing as the saved picture, at the size it's shown
+      cancelAnimationFrame(this._txRaf);
+      this._txRaf = requestAnimationFrame(() => {
+        const cv = this.$refs.txCanvas, im = this.$refs.txImg;
+        if (!cv || !im || !this.tx.nw) return;
+        const dpr = window.devicePixelRatio || 1, W = im.clientWidth, H = im.clientHeight;
+        if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+        const ctx = cv.getContext("2d");
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, cv.width, cv.height);
+        ctx.setTransform((W * dpr) / this.tx.nw, 0, 0, (H * dpr) / this.tx.nh, 0, 0);
+        try { window.ProtoText.draw(ctx, this.tx.layers, this.tx.nw, this.tx.nh); } catch (e) { console.warn("text preview", e); }
+        // a font that hasn't loaded yet is drawn as a stand-in: load it, then draw again
+        if (document.fonts) for (const L of this.tx.layers) {
+          if (L.type === "shape") continue;
+          const f = window.ProtoText.fontCss(L, 40);
+          if (!document.fonts.check(f)) document.fonts.load(f).then(() => this.txRedraw()).catch(() => {});
+        }
+      });
+    },
+    txLayer() {
+      const L = this.tx.layers[this.tx.sel] || null;
+      if (L && L.type !== "shape" && L.caps === undefined) window.ProtoText.withEffects(L);  // a text from before the effects
+      return L;
+    },
     txPoint(e) {
       const r = this.$refs.txImg.getBoundingClientRect();
       return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
@@ -10413,8 +10443,11 @@ const protoartApp = createApp({
       if (x == null) { x = prev ? prev.x : 0.5; y = prev ? Math.min(0.92, prev.y + 0.12) : 0.5; }
       const size = Math.max(12, Math.min(this.tx.nw, this.tx.nh) * 0.07);
       const L = window.ProtoText.layer(x, y, size);
-      if (prev) Object.assign(L, { font: prev.font, colour: prev.colour, bold: prev.bold, italic: prev.italic, stroke: prev.stroke,
-                                   strokeColour: prev.strokeColour, shadow: prev.shadow, size: prev.size });
+      if (prev) {  // the next text looks like the last one (its font, colours and effects)
+        Object.assign(L, { font: prev.font, colour: prev.colour, bold: prev.bold, italic: prev.italic, stroke: prev.stroke,
+                           strokeColour: prev.strokeColour, shadow: prev.shadow, size: prev.size });
+        for (const k of Object.keys(window.ProtoText.EFFECTS)) if (prev[k] !== undefined && k !== "curve") L[k] = prev[k];
+      }
       this.tx.layers.push(L);
       this.tx.sel = this.tx.layers.length - 1;
       await this.$nextTick();
@@ -10432,6 +10465,19 @@ const protoartApp = createApp({
       const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
+    },
+    txPreset(kind) {  // ready-made text looks (only the effects change; the words, font, size and colour stay unless the look needs its own)
+      const L = this.txLayer();
+      if (!L) return;
+      Object.assign(L, window.ProtoText.EFFECTS, { stroke: 0, shadow: 0, curve: L.curve, caps: L.caps });
+      const P = {
+        sfx: { colour: "#ffe23a", gradient: true, colour2: "#ff7a00", gradAngle: 90, stroke: 5, strokeColour: "#111111", stroke2: 5, stroke2Colour: "#d81e1e",
+               shadow: 8, shadowColour: "#000000", shadowAngle: 45, shadowSoft: 0, caps: true, bevel: 3, bevelSoft: 1 },
+        chrome: { colour: "#f4f6f8", gradient: true, colour2: "#6d747c", gradAngle: 90, stroke: 3, strokeColour: "#1b1e22", bevel: 5, bevelSoft: 1.5, shadow: 5 },
+        neon: { colour: "#ffffff", stroke: 3, strokeColour: "#ff3fd2", glow: 14, glowColour: "#ff3fd2" },
+        stamp: { colour: "#8a8f96", bevel: 4, bevelStyle: "pressed", bevelSoft: 1, inner: 4 },
+      }[kind] || {};
+      Object.assign(L, P);
     },
     txShapeLabel(kind) { return ((window.ProtoText.SHAPES.find((k) => k[0] === kind) || [])[1] || "Shape"); },
     async txLoadFonts() {  // the fonts installed on this Mac, for the Font list (asked for once)

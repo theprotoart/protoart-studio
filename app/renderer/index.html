@@ -1621,6 +1621,7 @@
         <div v-else-if="tx.open && tool.source && !tool.healing" class="adjust-canvas-wrap tx-wrap" @click.stop>
           <div class="tx-stage">
             <img ref="txImg" class="adjust-canvas" :class="{picking: tx.pick}" :src="fileUrl(tx.base.path)" @load="txImgLoad" draggable="false" @pointerdown="txStageDown">
+            <canvas ref="txCanvas" class="tx-overlay"></canvas>
             <svg v-if="tx.nw && tx.layers.some((L) => L.type === 'shape')" class="tx-shapes" :viewBox="'0 0 ' + tx.nw + ' ' + tx.nh" preserveAspectRatio="none">
               <g v-for="(S, i) in tx.layers" :key="'ts' + i" v-show="S.type === 'shape'" :opacity="S.opacity ?? 1" class="tx-shape" :class="{sel: i === tx.sel}"
                  :transform="S.type === 'shape' && S.rot ? 'rotate(' + S.rot + ' ' + S.x * tx.nw + ' ' + S.y * tx.nh + ')' : null"
@@ -2683,6 +2684,7 @@
               <div class="seg mod-seg">
                 <button :class="{on: txLayer().bold}" @click="txLayer().bold = !txLayer().bold" title="Bold"><b>B</b></button>
                 <button :class="{on: txLayer().italic}" @click="txLayer().italic = !txLayer().italic" title="Italic"><i>I</i></button>
+                <button :class="{on: txLayer().caps}" @click="txLayer().caps = !txLayer().caps" title="ALL CAPITALS (comic lettering), without retyping">AA</button>
                 <button v-for="a in [['left', '⇤'], ['center', '↔'], ['right', '⇥']]" :key="a[0]" :class="{on: txLayer().align === a[0]}" @click="txLayer().align = a[0]" :title="txLayer().vertical ? 'Align ' + ({left: 'to the top', center: 'to the middle', right: 'to the bottom'})[a[0]] : 'Align ' + a[0]">{{ a[1] }}</button>
               </div>
               <div class="seg mod-seg">
@@ -2694,8 +2696,14 @@
                 <summary>outline, shadow, angle</summary>
                 <label>Outline <span class="mod-val">{{ txLayer().stroke }}</span></label>
                 <div class="tx-row"><input type="range" min="0" max="20" step="1" v-model.number="txLayer().stroke"><input type="color" v-model="txLayer().strokeColour" title="Outline colour"></div>
-                <label>Shadow <span class="mod-val">{{ txLayer().shadow }}</span></label>
-                <input type="range" min="0" max="20" step="1" v-model.number="txLayer().shadow">
+                <label title="A second outline around the first, like comic sound effects (white inside black, or the other way round)">Second outline <span class="mod-val">{{ txLayer().stroke2 }}</span></label>
+                <div class="tx-row"><input type="range" min="0" max="20" step="1" v-model.number="txLayer().stroke2"><input type="color" v-model="txLayer().stroke2Colour" title="Second outline colour"></div>
+                <label>Drop shadow <span class="mod-val">{{ txLayer().shadow }}</span></label>
+                <div class="tx-row"><input type="range" min="0" max="30" step="1" v-model.number="txLayer().shadow"><input type="color" v-model="txLayer().shadowColour" title="Shadow colour"></div>
+                <label title="Which way the shadow falls (90 = straight down)">Shadow direction <span class="mod-val">{{ txLayer().shadowAngle }}°</span></label>
+                <input type="range" min="0" max="360" step="1" v-model.number="txLayer().shadowAngle">
+                <label title="0 = a hard shadow, higher = softer">Shadow softness <span class="mod-val">{{ txLayer().shadowSoft }}</span></label>
+                <input type="range" min="0" max="3" step="0.1" v-model.number="txLayer().shadowSoft">
                 <label>Angle <span class="mod-val">{{ txLayer().rotate }}°</span></label>
                 <input type="range" min="-180" max="180" step="1" v-model.number="txLayer().rotate" @dblclick="txLayer().rotate = 0">
                 <label>Letter spacing <span class="mod-val">{{ txLayer().spacing }}</span></label>
@@ -2704,6 +2712,45 @@
                 <input type="range" min="0.7" max="2" step="0.05" v-model.number="txLayer().lineHeight">
                 <label>Opacity <span class="mod-val">{{ Math.round(txLayer().opacity * 100) }}%</span></label>
                 <input type="range" min="0.1" max="1" step="0.05" v-model.number="txLayer().opacity">
+              </details>
+              <details class="mod-more">
+                <summary>bevel &amp; emboss, glow, gradient, arc</summary>
+                <label title="Makes the letters look raised (or pressed in): light catches one side of each letter and the other falls into shade">Bevel &amp; emboss <span class="mod-val">{{ txLayer().bevel }}</span></label>
+                <input type="range" min="0" max="20" step="1" v-model.number="txLayer().bevel">
+                <div class="seg mod-seg">
+                  <button :class="{on: txLayer().bevelStyle !== 'pressed'}" @click="txLayer().bevelStyle = 'raised'" title="The letters stand out from the picture">Raised</button>
+                  <button :class="{on: txLayer().bevelStyle === 'pressed'}" @click="txLayer().bevelStyle = 'pressed'" title="The letters are pressed into the picture">Pressed</button>
+                </div>
+                <label title="Where the light comes from (135 = the top left)">Light from <span class="mod-val">{{ txLayer().bevelAngle }}°</span></label>
+                <input type="range" min="0" max="360" step="1" v-model.number="txLayer().bevelAngle">
+                <label>Bevel softness <span class="mod-val">{{ txLayer().bevelSoft }}</span></label>
+                <input type="range" min="0" max="10" step="0.5" v-model.number="txLayer().bevelSoft">
+                <div class="tx-row">
+                  <label class="tx-col" title="The colour of the lit edges">Highlight <input type="color" v-model="txLayer().bevelHi"></label>
+                  <label class="tx-col" title="The colour of the shaded edges">Shade <input type="color" v-model="txLayer().bevelLo"></label>
+                </div>
+                <label title="A shadow falling into the letters">Inner shadow <span class="mod-val">{{ txLayer().inner }}</span></label>
+                <div class="tx-row"><input type="range" min="0" max="20" step="1" v-model.number="txLayer().inner"><input type="color" v-model="txLayer().innerColour" title="Inner shadow colour"></div>
+                <label title="A soft coloured light around the letters">Outer glow <span class="mod-val">{{ txLayer().glow }}</span></label>
+                <div class="tx-row"><input type="range" min="0" max="30" step="1" v-model.number="txLayer().glow"><input type="color" v-model="txLayer().glowColour" title="Glow colour"></div>
+                <div class="tx-row">
+                  <label class="check" title="Fill the letters with two colours blending into each other (the first is the text colour)"><input type="checkbox" v-model="txLayer().gradient"> Gradient</label>
+                  <input type="color" v-model="txLayer().colour2" :disabled="!txLayer().gradient" title="The second colour">
+                </div>
+                <template v-if="txLayer().gradient">
+                  <label title="90 = top to bottom, 0 = left to right">Gradient direction <span class="mod-val">{{ txLayer().gradAngle }}°</span></label>
+                  <input type="range" min="0" max="360" step="5" v-model.number="txLayer().gradAngle">
+                </template>
+                <label title="Bend the line(s) into an arc: up (+) or down (−). Double-click to straighten. Not with vertical text">Arc <span class="mod-val">{{ txLayer().curve }}°</span></label>
+                <input type="range" min="-180" max="180" step="5" v-model.number="txLayer().curve" @dblclick="txLayer().curve = 0" :disabled="txLayer().vertical">
+                <label>Ready-made looks</label>
+                <div class="tx-presets">
+                  <button class="ghost small" @click="txPreset('sfx')" title="Yellow to orange, a red second outline, a black outline and a hard shadow">💥 Comic SFX</button>
+                  <button class="ghost small" @click="txPreset('chrome')" title="A metal look: grey gradient, raised bevel, dark outline">🪙 Chrome</button>
+                  <button class="ghost small" @click="txPreset('neon')" title="A thin bright line with a coloured glow">💡 Neon</button>
+                  <button class="ghost small" @click="txPreset('stamp')" title="Pressed into the surface">🔨 Pressed</button>
+                  <button class="ghost small" @click="txPreset('plain')" title="Take every effect off (keeps the words, font, size and colour)">✕ No effects</button>
+                </div>
               </details>
             </template>
           </template>
@@ -3434,6 +3481,7 @@
               <div class="seg mod-seg">
                 <button :class="{on: txLayer().bold}" @click="txLayer().bold = !txLayer().bold" title="Bold"><b>B</b></button>
                 <button :class="{on: txLayer().italic}" @click="txLayer().italic = !txLayer().italic" title="Italic"><i>I</i></button>
+                <button :class="{on: txLayer().caps}" @click="txLayer().caps = !txLayer().caps" title="ALL CAPITALS (comic lettering), without retyping">AA</button>
                 <button v-for="a in [['left', '⇤'], ['center', '↔'], ['right', '⇥']]" :key="a[0]" :class="{on: txLayer().align === a[0]}" @click="txLayer().align = a[0]" :title="txLayer().vertical ? 'Align ' + ({left: 'to the top', center: 'to the middle', right: 'to the bottom'})[a[0]] : 'Align ' + a[0]">{{ a[1] }}</button>
               </div>
               <div class="seg mod-seg">
@@ -3445,8 +3493,14 @@
                 <summary>outline, shadow, angle</summary>
                 <label>Outline <span class="mod-val">{{ txLayer().stroke }}</span></label>
                 <div class="tx-row"><input type="range" min="0" max="20" step="1" v-model.number="txLayer().stroke"><input type="color" v-model="txLayer().strokeColour" title="Outline colour"></div>
-                <label>Shadow <span class="mod-val">{{ txLayer().shadow }}</span></label>
-                <input type="range" min="0" max="20" step="1" v-model.number="txLayer().shadow">
+                <label title="A second outline around the first, like comic sound effects (white inside black, or the other way round)">Second outline <span class="mod-val">{{ txLayer().stroke2 }}</span></label>
+                <div class="tx-row"><input type="range" min="0" max="20" step="1" v-model.number="txLayer().stroke2"><input type="color" v-model="txLayer().stroke2Colour" title="Second outline colour"></div>
+                <label>Drop shadow <span class="mod-val">{{ txLayer().shadow }}</span></label>
+                <div class="tx-row"><input type="range" min="0" max="30" step="1" v-model.number="txLayer().shadow"><input type="color" v-model="txLayer().shadowColour" title="Shadow colour"></div>
+                <label title="Which way the shadow falls (90 = straight down)">Shadow direction <span class="mod-val">{{ txLayer().shadowAngle }}°</span></label>
+                <input type="range" min="0" max="360" step="1" v-model.number="txLayer().shadowAngle">
+                <label title="0 = a hard shadow, higher = softer">Shadow softness <span class="mod-val">{{ txLayer().shadowSoft }}</span></label>
+                <input type="range" min="0" max="3" step="0.1" v-model.number="txLayer().shadowSoft">
                 <label>Angle <span class="mod-val">{{ txLayer().rotate }}°</span></label>
                 <input type="range" min="-180" max="180" step="1" v-model.number="txLayer().rotate" @dblclick="txLayer().rotate = 0">
                 <label>Letter spacing <span class="mod-val">{{ txLayer().spacing }}</span></label>
@@ -3455,6 +3509,45 @@
                 <input type="range" min="0.7" max="2" step="0.05" v-model.number="txLayer().lineHeight">
                 <label>Opacity <span class="mod-val">{{ Math.round(txLayer().opacity * 100) }}%</span></label>
                 <input type="range" min="0.1" max="1" step="0.05" v-model.number="txLayer().opacity">
+              </details>
+              <details class="mod-more">
+                <summary>bevel &amp; emboss, glow, gradient, arc</summary>
+                <label title="Makes the letters look raised (or pressed in): light catches one side of each letter and the other falls into shade">Bevel &amp; emboss <span class="mod-val">{{ txLayer().bevel }}</span></label>
+                <input type="range" min="0" max="20" step="1" v-model.number="txLayer().bevel">
+                <div class="seg mod-seg">
+                  <button :class="{on: txLayer().bevelStyle !== 'pressed'}" @click="txLayer().bevelStyle = 'raised'" title="The letters stand out from the picture">Raised</button>
+                  <button :class="{on: txLayer().bevelStyle === 'pressed'}" @click="txLayer().bevelStyle = 'pressed'" title="The letters are pressed into the picture">Pressed</button>
+                </div>
+                <label title="Where the light comes from (135 = the top left)">Light from <span class="mod-val">{{ txLayer().bevelAngle }}°</span></label>
+                <input type="range" min="0" max="360" step="1" v-model.number="txLayer().bevelAngle">
+                <label>Bevel softness <span class="mod-val">{{ txLayer().bevelSoft }}</span></label>
+                <input type="range" min="0" max="10" step="0.5" v-model.number="txLayer().bevelSoft">
+                <div class="tx-row">
+                  <label class="tx-col" title="The colour of the lit edges">Highlight <input type="color" v-model="txLayer().bevelHi"></label>
+                  <label class="tx-col" title="The colour of the shaded edges">Shade <input type="color" v-model="txLayer().bevelLo"></label>
+                </div>
+                <label title="A shadow falling into the letters">Inner shadow <span class="mod-val">{{ txLayer().inner }}</span></label>
+                <div class="tx-row"><input type="range" min="0" max="20" step="1" v-model.number="txLayer().inner"><input type="color" v-model="txLayer().innerColour" title="Inner shadow colour"></div>
+                <label title="A soft coloured light around the letters">Outer glow <span class="mod-val">{{ txLayer().glow }}</span></label>
+                <div class="tx-row"><input type="range" min="0" max="30" step="1" v-model.number="txLayer().glow"><input type="color" v-model="txLayer().glowColour" title="Glow colour"></div>
+                <div class="tx-row">
+                  <label class="check" title="Fill the letters with two colours blending into each other (the first is the text colour)"><input type="checkbox" v-model="txLayer().gradient"> Gradient</label>
+                  <input type="color" v-model="txLayer().colour2" :disabled="!txLayer().gradient" title="The second colour">
+                </div>
+                <template v-if="txLayer().gradient">
+                  <label title="90 = top to bottom, 0 = left to right">Gradient direction <span class="mod-val">{{ txLayer().gradAngle }}°</span></label>
+                  <input type="range" min="0" max="360" step="5" v-model.number="txLayer().gradAngle">
+                </template>
+                <label title="Bend the line(s) into an arc: up (+) or down (−). Double-click to straighten. Not with vertical text">Arc <span class="mod-val">{{ txLayer().curve }}°</span></label>
+                <input type="range" min="-180" max="180" step="5" v-model.number="txLayer().curve" @dblclick="txLayer().curve = 0" :disabled="txLayer().vertical">
+                <label>Ready-made looks</label>
+                <div class="tx-presets">
+                  <button class="ghost small" @click="txPreset('sfx')" title="Yellow to orange, a red second outline, a black outline and a hard shadow">💥 Comic SFX</button>
+                  <button class="ghost small" @click="txPreset('chrome')" title="A metal look: grey gradient, raised bevel, dark outline">🪙 Chrome</button>
+                  <button class="ghost small" @click="txPreset('neon')" title="A thin bright line with a coloured glow">💡 Neon</button>
+                  <button class="ghost small" @click="txPreset('stamp')" title="Pressed into the surface">🔨 Pressed</button>
+                  <button class="ghost small" @click="txPreset('plain')" title="Take every effect off (keeps the words, font, size and colour)">✕ No effects</button>
+                </div>
               </details>
             </template>
           </template>
@@ -3948,6 +4041,7 @@
           <div v-if="tx.open && form.i2i_mode === 'text' && !i2iRunning" class="tx-wrap i2i-tx" @click.stop>
             <div class="tx-stage">
               <img ref="txImg" class="adjust-canvas" :class="{picking: tx.pick}" :src="fileUrl(tx.base.path)" @load="txImgLoad" draggable="false" @pointerdown.stop="txStageDown">
+            <canvas ref="txCanvas" class="tx-overlay"></canvas>
               <svg v-if="tx.nw && tx.layers.some((L) => L.type === 'shape')" class="tx-shapes" :viewBox="'0 0 ' + tx.nw + ' ' + tx.nh" preserveAspectRatio="none">
                 <g v-for="(S, i) in tx.layers" :key="'ts' + i" v-show="S.type === 'shape'" :opacity="S.opacity ?? 1" class="tx-shape" :class="{sel: i === tx.sel}"
                  :transform="S.type === 'shape' && S.rot ? 'rotate(' + S.rot + ' ' + S.x * tx.nw + ' ' + S.y * tx.nh + ')' : null"
