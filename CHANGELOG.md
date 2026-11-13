@@ -5,6 +5,10 @@
 - Make 3D: Hunyuan3D's DINOv2 image-encoder weights renamed from transformers 4 to transformers 5 names while loading
   (`mesh3d_worker.dinov2_new_names`: query/key/value -> q/k/v_proj, output.dense -> o_proj, SwiGLU weights_in split
   into gate_proj + up_proj, weights_out -> down_proj), fixing "Error(s) in loading state_dict for SingleImageEncoder"
+- Relight: `_tune_for_size` before each pass (attention slicing, VAE tiling at 960 px): it swapped to a standstill on
+  8 GB Macs ("frozen")
+- Models tab header: the 15 family buttons became one grouped "All model types" select, the three Add buttons one
+  "+ Add a model…" select (`SHOP_FAMILIES`, `addModelFrom`)
 
 ## 1.6.14
 

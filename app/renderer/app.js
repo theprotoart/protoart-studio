@@ -909,6 +909,11 @@ const protoartApp = createApp({
         { id: "realesrgan_anime6b", group: "anime", speed: "fast", label: "Real-ESRGAN Anime", tip: "Real-ESRGAN x4plus Anime 6B: anime, cartoons, comics and drawings: clean, sharp lines and flat colours (~18 MB once)" },
         { id: "realesr_animevideov3", group: "anime", speed: "fastest", pick: "fast", label: "AnimeVideo v3", tip: "Real-ESRGAN AnimeVideo v3: a tiny, very fast anime upscaler (~3 MB once); a little softer than Anime 6B" },
       ],
+      // Models tab: the model-type list, in two groups (ids as before: fl:… are SDXL-based kinds)
+      SHOP_FAMILIES: [
+        { label: "⚡ Fast engine", items: [{ id: "flux", label: "FLUX" }, { id: "flux2", label: "FLUX.2 Klein" }, { id: "zimage", label: "Z-Image" }, { id: "qwen21", label: "Qwen-Image" }, { id: "krea2", label: "Krea 2" }, { id: "fibo2", label: "FIBO 2" }, { id: "ernie", label: "ERNIE" }, { id: "anima", label: "Anima" }, { id: "moss", label: "MOSS" }] },
+        { label: "Stable Diffusion", items: [{ id: "sdxl", label: "SDXL" }, { id: "fl:pony", label: "Pony" }, { id: "fl:illustrious", label: "Illustrious" }, { id: "fl:noobai", label: "NoobAI" }, { id: "sd15", label: "SD 1.5" }] },
+      ],
       UPSCALER_GROUPS: [
         { id: "all", label: "For everything" },
         { id: "photo", label: "Photos" },
@@ -983,7 +988,9 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Coming in the next version: 🧊 Make 3D fixed", items: [
+            { h: "Coming in the next version: 🧊 Make 3D and 💡 Relight fixed, a tidier Models tab", items: [
+              "<b>Fixed: 💡 Relight looking frozen</b> on 8 GB Macs: it now uses the same memory savers as normal pictures (attention slicing, and VAE tiling for the larger detail pass), so the Mac no longer swaps itself to a standstill.",
+              "<b>Models tab: a tidier top row</b>: the 15 model-type buttons are now one <b>All model types</b> list (⚡ Fast engine and Stable Diffusion groups), and the three Add buttons are one <b>+ Add a model…</b> list (Hugging Face, Civitai, your Mac).",
               "<b>Fixed: Make 3D stopping with “Error(s) in loading state_dict for SingleImageEncoder … Missing key(s) … q_proj”</b>: Hunyuan3D's picture reader was saved with older layer names than the ones the app's newer libraries use. The app now renames them as it loads (same model, nothing downloaded again)." ] },
             { h: "1.6.14: 11 upscalers, with ⚡ Fastest and ★ Best quality picks", items: [
               "<b>⏩ Instant upscaling, many more choices</b> (Tools → Enhance & upscale → Speed: ⏩ Instant → Upscaler), in a list grouped <b>For everything / Photos / Anime, drawings & text</b>, each with its speed. Under it, quick buttons: <b>⚡ Fastest</b> (UltraSharp V2 Lite, Real-ESRGAN fast, AnimeVideo v3) and <b>★ Best quality</b> (UltraSharp V2, Nomos WebPhoto, AnimeSharp).",
@@ -1770,7 +1777,7 @@ const protoartApp = createApp({
               "A plain folder of models (not another app's library) goes in <b>Watched model folders</b> instead: add as many as you like." ] },
             { h: "Organising your models and LoRAs", items: [
               "<b>Embeddings, VAEs &amp; ControlNets</b> folds up too (click its name), and <b>Your model files</b> (base models you added from this Mac) is at the bottom of the tab.",
-              "<b>On this Mac</b>, <b>Available to download</b> and the other lists fold up (click their names), under the Your model files / Civitai / Hugging Face / Fix a type panels. Filters at the top include <b>Pony</b>, <b>Illustrious</b> and <b>NoobAI</b>.",
+              "<b>On this Mac</b>, <b>Available to download</b> and the other lists fold up (click their names), under the Your model files / Civitai / Hugging Face / Fix a type panels. At the top: <b>All model types</b> (a list: ⚡ Fast engine types, then Stable Diffusion: SDXL, Pony, Illustrious, NoobAI, SD 1.5), <b>★ Favorites</b>, the search box, <b>↻ Refresh</b> and <b>+ Add a model…</b> (from Hugging Face, Civitai or your Mac).",
               "<b>+ Add from your Mac</b> says “✓ Model imported” when it's done; inpainting models are recognised and go to Image to image → Inpaint / Expand.",
               "<b>Trigger words</b> panel: search LoRAs, edit each one's words, or tick several and add / remove a word on all of them. Your words are added to the prompt when you add the LoRA. <b>↺ Back to the file's words</b> forgets your edits.",
               "New files not showing? Press <b>↻ Refresh</b> (top of the Models tab, or in Create's model list). LoRAs anywhere in a watched model folder are found too." ] },
@@ -2061,6 +2068,9 @@ const protoartApp = createApp({
             { h: "A folder or drive can't be found", items: [
               "<b>Why:</b> you moved or renamed your models / LoRAs folder, or the drive it's on isn't plugged in. The app says so at startup.",
               "<b>Fix:</b> plug the drive in, or open <b>Settings → Moved a folder?</b>, click <b>Find it…</b> next to the red one and pick the folder in its new place. LoRA folders and their types, watched folders, added models, your ⚑ / ● marks, presets and the Library all follow. Picking a different folder by mistake is refused." ] },
+            { h: "💡 Relight seems frozen (stays on “Relighting…”)", items: [
+              "<b>Why:</b> on an 8 GB Mac the larger detail pass (960 px with <b>Add detail</b> on) needed more memory than the Mac has, so it swapped to disk and barely moved. Fixed in the next version after 1.6.14 (it now saves memory like normal pictures do).",
+              "<b>Until then:</b> press <b>Stop</b> (or Force stop & restart), quit other apps, then Relight at <b>512</b> with <b>Add detail off</b>. The first run also downloads IC-Light (~1.7 GB) and adds it to your model, which takes a minute." ] },
             { h: "🧊 Make 3D: “Error(s) in loading state_dict for SingleImageEncoder” (a long list of “main_image_encoder…” names)", items: [
               "Fixed in the next version (after 1.6.14): Hunyuan3D's picture reader (DINOv2) was saved with older part names (query / key / value, weights_in) than the app's libraries use now (q_proj, gate_proj…). The app renames them while loading; nothing is downloaded again. Update the app and press <b>Make 3D</b> again." ] },
             { h: "🧊 Make 3D: “IncompleteSnapshotError … model.fp16.ckpt” or “snapshot is incomplete”", items: [
@@ -4215,6 +4225,10 @@ const protoartApp = createApp({
       const t = this.errorTab, here = this.tab;
       if (!t || !["create", "i2i", "tools"].includes(t)) return true;
       return t === here || !["create", "i2i", "tools"].includes(here);
+    },
+    addModelFrom(where) {
+      if (where === "mac") this.addLocalModels();
+      else if (where === "hub" || where === "civitai") this.openModelSettings(where);
     },
     upscaler() { return this.UPSCALERS.find(u => u.id === (this.post.enh.upscaler || "ultrasharp")) || this.UPSCALERS[0]; },
     upscalersIn(group) { return this.UPSCALERS.filter(u => u.group === group); },

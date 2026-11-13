@@ -2608,3 +2608,9 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .up-pick .sampler-picks .chips > .chip { margin: 0; max-width: 100%; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .up-pick .chip .hint { font-size: 10px; opacity: .75; }
 .up-pick .up-tip { font-size: 11px; line-height: 1.35; white-space: normal; }
+
+/* Models tab header: one tidy row (type list, favourites, search · refresh, add) */
+.models-line { flex-wrap: wrap; gap: 8px; align-items: center; }
+.models-line .models-type, .models-line .models-add { max-width: 220px; }
+.models-line .models-type.on { box-shadow: 0 0 0 1px rgba(120, 170, 255, .45); }
+.models-line .models-search { min-width: 160px; flex: 0 1 260px; }

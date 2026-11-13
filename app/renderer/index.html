@@ -160,19 +160,24 @@
       </div>
       <!-- Models: filters, search and adding your own -->
       <div v-else-if="tab==='models'" class="slot-models">
-        <span class="eng slot-label">Models <span class="hint">on this Mac appear in Create; the others download the first time you use them</span></span>
-        <div class="slot-line">
-          <div class="seg">
-            <button v-for="f in [{id: 'all', label: 'All'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein'}, {id: 'zimage', label: 'Z-Image'}, {id: 'qwen21', label: 'Qwen-Image'}, {id: 'krea2', label: 'Krea 2'}, {id: 'fibo2', label: 'FIBO 2'}, {id: 'ernie', label: 'ERNIE'}, {id: 'anima', label: 'Anima'}, {id: 'moss', label: 'MOSS'}, {id: 'sdxl', label: 'SDXL'}, {id: 'fl:pony', label: 'Pony'}, {id: 'fl:illustrious', label: 'Illustrious'}, {id: 'fl:noobai', label: 'NoobAI'}, {id: 'sd15', label: 'SD 1.5'}]" :key="f.id"
-                    :class="{on: shop.family === f.id}" @click="shop.family = f.id" :title="f.id.startsWith('fl:') ? f.label + ' models (SDXL-based, with their own prompt style and quality tags)' : ''">{{ f.label }}</button>
-          </div>
+        <span class="eng slot-label">Models <span class="hint">downloaded ones appear in Create</span></span>
+        <div class="slot-line models-line">
+          <select v-model="shop.family" class="models-type" :class="{on: shop.family !== 'all'}" title="Show one type of model">
+            <option value="all">All model types</option>
+            <optgroup v-for="g in SHOP_FAMILIES" :key="g.label" :label="g.label">
+              <option v-for="f in g.items" :key="f.id" :value="f.id">{{ f.label }}</option>
+            </optgroup>
+          </select>
           <button class="chip" :class="{on: shop.fav}" @click="shop.fav = !shop.fav" title="Show only your ★ favourite models">★ Favorites <small>{{ favModels.length }}</small></button>
-          <input v-model="shop.search" placeholder="Search models…">
+          <input v-model="shop.search" class="models-search" placeholder="Search models…">
           <span class="spacer"></span>
           <button class="ghost" @click="refreshModels" title="Look again for models and LoRAs: new files in your folders, finished downloads">↻ Refresh</button>
-          <button class="ghost" @click="openModelSettings('hub')" title="Paste a Hugging Face model id or link">+ Add from Hugging Face…</button>
-          <button class="ghost" @click="openModelSettings('civitai')" title="Paste a civitai.com model link: LoRAs and checkpoints">+ Add from Civitai…</button>
-          <button @click="addLocalModels" title="Checkpoint files (.safetensors / .ckpt) or model folders already on this Mac">+ Add from your Mac…</button>
+          <select class="models-add" value="" @change="addModelFrom($event.target.value); $event.target.value = ''" title="Add a model: from Hugging Face, Civitai or a file on this Mac">
+            <option value="" disabled selected hidden>+ Add a model…</option>
+            <option value="hub">From Hugging Face…</option>
+            <option value="civitai">From Civitai…</option>
+            <option value="mac">From your Mac (.safetensors, .ckpt, folders)…</option>
+          </select>
         </div>
       </div>
       <!-- Settings: the look -->

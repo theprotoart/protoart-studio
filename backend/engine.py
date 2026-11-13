@@ -4087,6 +4087,9 @@ class Engine:
         common = dict(prompt=prompt, negative_prompt=rl.NEGATIVE, guidance_scale=cfg, generator=gen, output_type="latent",
                       callback_on_step_end=on_step)
         emit({"type": "status", "msg": "Relighting…"})
+        # the same memory savers as normal pictures (attention slicing, VAE tiling): without them an 8 GB Mac
+        # swaps so hard on the 960 px detail pass that Relight looks frozen
+        self._tune_for_size(pipe, w, h)
         with t.inference_mode():
             concat = enc(rl.fit(fg, w, h))
             if direction == "none":
@@ -4099,6 +4102,7 @@ class Engine:
             if hires:  # IC-Light's second pass: 1.5× larger, half the noise, for detail
                 emit({"type": "status", "msg": "Relighting: adding detail…"})
                 w2, h2 = int(round(w * 1.5 / 64)) * 64, int(round(h * 1.5 / 64)) * 64
+                self._tune_for_size(pipe, w2, h2)
                 from PIL import Image
                 big = np.asarray(Image.fromarray(px).resize((w2, h2), Image.LANCZOS))
                 lat = i2i(image=enc(big), strength=0.5, num_inference_steps=hi_steps,
