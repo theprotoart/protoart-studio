@@ -2,6 +2,9 @@
 
 ## 1.6.15
 
+- Three original comic fonts made for Protoart Studio: Protoart Speech (regular and bold), Protoart Kaboom and
+  Protoart Chatter (`packaging/fonts/build_comic_fonts.py`: hand-placed letter skeletons drawn with a round, square or
+  bouncy pen and merged into clean outlines; SIL OFL 1.1), first in Replace text's Font list and used by the balloons
 - Replace text: a bundled comic lettering pack (12 SIL OFL / Apache 2.0 fonts in `app/renderer/assets/fonts`, licences
   beside them), the Mac's installed fonts in the Font list (`fonts:list` IPC, `system_profiler SPFontsDataType`), any
   family name accepted (`ProtoText.stack`), corner handles to resize a text or shape, and 💬 balloons & shapes

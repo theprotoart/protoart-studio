@@ -498,3 +498,9 @@ details.fine summary { cursor: pointer; }
 @font-face { font-family: "Boogaloo"; src: url("assets/fonts/Boogaloo-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: "Bubblegum Sans"; src: url("assets/fonts/BubblegumSans-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: "Permanent Marker"; src: url("assets/fonts/PermanentMarker-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+
+/* Protoart Studio's own comic lettering (assets/fonts/protoart; SIL Open Font License 1.1, original designs) */
+@font-face { font-family: "Protoart Speech"; src: url("assets/fonts/protoart/ProtoartSpeech-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Protoart Speech"; src: url("assets/fonts/protoart/ProtoartSpeech-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Protoart Kaboom"; src: url("assets/fonts/protoart/ProtoartKaboom-Regular.ttf") format("truetype"); font-weight: 400 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Protoart Chatter"; src: url("assets/fonts/protoart/ProtoartChatter-Regular.ttf") format("truetype"); font-weight: 400 900; font-style: normal; font-display: swap; }

@@ -3,6 +3,10 @@
 (function () {
   // the comic lettering pack that comes with the app (assets/fonts, SIL Open Font License / Apache 2.0)
   const PACK = [
+    // Protoart Studio's own lettering (packaging/fonts/build_comic_fonts.py)
+    ["Protoart Speech", "'Protoart Speech', 'Comic Neue', cursive", "Protoart original: dialogue lettering, in capitals"],
+    ["Protoart Kaboom", "'Protoart Kaboom', Impact, sans-serif", "Protoart original: chunky sound effects, KA-BOOM!"],
+    ["Protoart Chatter", "'Protoart Chatter', 'Comic Neue', cursive", "Protoart original: bouncy cartoon lettering"],
     ["Comic Neue", "'Comic Neue', 'Comic Sans MS', cursive", "dialogue: clean, like hand lettering"],
     ["Shantell Sans", "'Shantell Sans', 'Comic Neue', cursive", "dialogue: lively, a little bouncy"],
     ["Patrick Hand", "'Patrick Hand', 'Comic Neue', cursive", "dialogue: hand-lettered"],
