@@ -777,7 +777,7 @@ const protoartApp = createApp({
         { id: "poly", icon: "⬠", label: "Polygon", tip: "Polygonal lasso: click the corners for straight edges; click the first point or double-click to close (P)" },
         { id: "wand", icon: "🪄", label: "Wand", tip: "Magic wand: click a colour to pick the connected area of similar colour (W)" },
         { id: "object", icon: "⬚", label: "Object", tip: "Object selection: drag a box around something and its outline is found (O)" },
-        { id: "text", icon: "🔤", label: "Text", tip: "Select text: finds the writing in the picture by itself (signs, logos, captions, watermarks), e.g. to peel it onto its own layer or remove it (T). Uses Florence-2 (~1.5 GB the first time)" },
+        { id: "text", icon: "🔤", label: "Text", tip: "Select text: finds the writing in the picture by itself (signs, logos, captions, watermarks), e.g. to peel it onto its own layer or remove it (T). To change the words, use Tools → 🔤 Replace text (picture models can't spell). Uses Florence-2 (~1.5 GB the first time)" },
         { id: "subject", icon: "👤", label: "Subject", tip: "Select subject: finds the people, animals or main thing in the picture by itself, like Photoshop's Select Subject (S). ~224 MB download the first time" },
       ],
       brush: { show: false, x: 0, y: 0 },
@@ -962,6 +962,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Coming in the next version: clearer text changes in Image to image", items: [
+              "<b>🔤 Text in Image to image</b>: after selecting writing with the 🔤 Text tool (speech bubbles, signs), a note explains that picture models can't spell and offers <b>🔤 Replace the text instead</b>, which opens the picture in Tools → Replace text and finds the writing for you: clear it, then type new words in a real font." ] },
             { h: "1.6.14: train FLUX.2 Klein and Z-Image, Pony / Illustrious / SDXL apart, downloads fixed", items: [
               "<b>Train LoRAs on FLUX.2 Klein (4B and 9B) and Z-Image Turbo</b> on the ⚡ fast engine (like ERNIE): pick one in Train → LoRA. Models that usually need a bigger Mac are no longer blocked: you get a warning and can still try (or train on a bigger Mac).",
               "<b>Pony, Illustrious, NoobAI and SDXL are kept apart</b> everywhere: their own filters in the model list, their own groups for your checkpoints (“Your checkpoints · Illustrious”, “… · Pony”, “… · SDXL”) and their own groups in Train.",
@@ -2107,6 +2109,7 @@ const protoartApp = createApp({
       localOk: "",  // "Model imported" note after Add from your Mac
       film: { applied: null },
       relightJob: false,
+      txHint: false,  // Image to image: after 🔤 Text selection, point to Tools → Replace text
       m3d: { job: false, accepted: loadJSON("protoart.mesh3d.accepted", false), status: null, last: null },
       RELIGHT_IDEAS: ["sunshine from a window", "neon light, city", "sunset over the sea", "golden hour", "sci-fi RGB glow, cyberpunk",
                       "natural lighting", "warm atmosphere, cosy bedroom", "magical glow", "gothic, dark and moody", "light and shadow",
@@ -6436,11 +6439,24 @@ const protoartApp = createApp({
         tmp.getContext("2d").drawImage(img, 0, 0, cv2.width, cv2.height);
         this.selStamp(asSelection(tmp.getContext("2d").getImageData(0, 0, cv2.width, cv2.height)), sub);
         this.status = `Text selected (${r.count} place${r.count === 1 ? "" : "s"}): add or take away with the brush if needed`;
+        if (this.tab === "i2i" && !sub) this.txHint = true;  // offer 🔤 Replace text: it types real words
       } catch (e) {
         this.error = "Select text failed: " + (e.message || e);
       } finally {
         this.objFinding = false;
       }
+    },
+    async textToReplaceTool() {  // Image to image → Tools → 🔤 Replace text, with this picture, and find the writing
+      const path = this.form.init_image;
+      this.txHint = false;
+      if (!path) return;
+      await this.setToolFile(path, path.split("/").pop());
+      this.tab = "tools";
+      this.$nextTick(() => {
+        const el = document.getElementById("rack-text");
+        if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
+        setTimeout(() => this.txFindText(), 400);
+      });
     },
     async objectSelect(x, y, w, h, sub) {  // object selection: the outline of the thing inside the box (OpenCV GrabCut)
       const cv = this.$refs.maskCanvas;

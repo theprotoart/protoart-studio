@@ -2593,3 +2593,6 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .film-group > .hint { min-width: 92px; }
 .relight-ideas { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 6px; }
 .relight-ideas .chip { text-transform: none; }
+.tx-hint { flex-basis: 100%; margin: 4px 0; padding: 8px 10px; border-radius: 6px; font-size: 12.5px; line-height: 1.4;
+  background: rgba(240, 210, 120, 0.12); border: 1px solid rgba(240, 210, 120, 0.45); }
+.tx-hint .primary.small { margin: 6px 8px 0 0; }

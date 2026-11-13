@@ -2954,6 +2954,10 @@
             <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
               <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
             </div>
+            <div v-if="txHint && tab === 'i2i'" class="tx-hint"><b>🔤 Changing the words?</b> Picture models can't spell, so new writing comes out as scribbles.
+              <b>Replace text</b> clears the old words and lets you type new ones in a real font, size and colour.
+              <button class="primary small" @click="textToReplaceTool" title="Opens this picture in Tools → 🔤 Replace text and finds the writing">🔤 Replace the text instead</button>
+              <button class="link" @click="txHint = false">no thanks, keep painting</button></div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
               <span class="grow"></span><button class="ghost small sel-end" :disabled="!mask.data" @click="maskInvert" title="Swap painted and unpainted areas: after 👤 Subject, everything except the subject (the background)">⇄ Invert</button><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
@@ -3229,6 +3233,10 @@
             <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
               <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
             </div>
+            <div v-if="txHint && tab === 'i2i'" class="tx-hint"><b>🔤 Changing the words?</b> Picture models can't spell, so new writing comes out as scribbles.
+              <b>Replace text</b> clears the old words and lets you type new ones in a real font, size and colour.
+              <button class="primary small" @click="textToReplaceTool" title="Opens this picture in Tools → 🔤 Replace text and finds the writing">🔤 Replace the text instead</button>
+              <button class="link" @click="txHint = false">no thanks, keep painting</button></div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
               <span class="grow"></span><button class="ghost small sel-end" :disabled="!mask.data" @click="maskInvert" title="Swap painted and unpainted areas: after 👤 Subject, everything except the subject (the background)">⇄ Invert</button><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
@@ -3258,6 +3266,10 @@
             <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
               <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
             </div>
+            <div v-if="txHint && tab === 'i2i'" class="tx-hint"><b>🔤 Changing the words?</b> Picture models can't spell, so new writing comes out as scribbles.
+              <b>Replace text</b> clears the old words and lets you type new ones in a real font, size and colour.
+              <button class="primary small" @click="textToReplaceTool" title="Opens this picture in Tools → 🔤 Replace text and finds the writing">🔤 Replace the text instead</button>
+              <button class="link" @click="txHint = false">no thanks, keep painting</button></div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
               <span class="grow"></span><button class="ghost small sel-end" :disabled="!mask.data" @click="maskInvert" title="Swap painted and unpainted areas: after 👤 Subject, everything except the subject (the background)">⇄ Invert</button><button class="ghost small sel-end sel-clear" :disabled="!mask.data" @click="maskClear" title="Take away everything painted or selected, to start again">✕ Clear selection</button>
