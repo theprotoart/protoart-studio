@@ -240,7 +240,7 @@ class FinegrainEnhancer:
             on_progress(1, 1)
         if big.size != (w, h):
             big = big.resize((w, h), Image.Resampling.LANCZOS)
-        return big, dict(o, solver="Instant (upscaler only)", num_inference_steps=0)
+        return big, dict(o, solver="Instant (upscaler only)", num_inference_steps=0, upscaler="4x-UltraSharp")
 
     def _load_turbo(self):
         from huggingface_hub import hf_hub_download, try_to_load_from_cache

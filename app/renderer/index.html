@@ -2484,37 +2484,13 @@
           <div v-else class="hint">Needs a Stable Diffusion 1.5 model: download one in <a href="#" @click.prevent="tab = 'models'">Models</a> (a realistic one is best).</div>
           <label title="Bigger is sharper but slower; the second pass makes it 1.5× larger">Size</label>
           <div class="seg">
-            <button v-for="z in [512, 640, 768]" :key="z" :class="{on: +post.relight.size === z}" @click="post.relight.size = z">{{ z }}</button>
+            <button v-for="z in [512, 640, 768]" :key="z" :class="{on: +relightSize() === z}" :disabled="z > relightMaxSize()" @click="post.relight.size = z"
+                    :title="z > relightMaxSize() ? 'Needs a Mac with 16 GB or more: on this Mac it runs out of memory and seems to freeze' : ''">{{ z }}</button>
           </div>
+          <div v-if="relightMaxSize() < 768" class="hint">512 on this Mac ({{ sys.ram_gb }} GB): larger sizes need 16 GB. With Add detail on, the result is still 768 px.</div>
           <label class="check" title="IC-Light's second pass: 1.5× larger with more detail (about twice as long)"><input type="checkbox" v-model="post.relight.hires"> Add detail (1.5× larger)</label>
           <button class="primary mod-go" :disabled="!tool.source || relightJob || !relightModels().length" @click="toolRelight">💡 Relight</button>
           <div class="hint">The first time downloads IC-Light (~1.7 GB). The background is new: to keep your own, ✂ Cut out the result and place it back.</div>
-        </div>
-
-        <div id="rack-mesh3d" class="card rack-module mesh3d-card" :class="{active: m3d.job}" @mouseenter="m3d.status || m3dStatus()">
-          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🧊</span>
-            <h3>Make 3D</h3><button class="mod-reset" @click.stop="resetToolPart('mesh3d')" title="This module's settings back to the start">↺</button><span class="mod-sub">picture → 3D model</span></div>
-          <p class="mod-desc" title="The subject is cut out (✂ Cut out's model) and Hunyuan3D 2 mini builds its 3D shape: saved as .glb and .obj (for Blender, Unity, Godot, 3D printing slicers…), with a shaded preview in the Library. Shape only, no colours">The subject as a 3D model (.glb and .obj), shape only.</p>
-          <label title="More steps: a cleaner shape, slower">Quality</label>
-          <div class="seg">
-            <button v-for="q in [[10, 'Fast'], [30, 'Balanced'], [50, 'High']]" :key="q[0]" :class="{on: +post.mesh3d.steps === q[0]}" @click="post.mesh3d.steps = q[0]">{{ q[1] }}</button>
-          </div>
-          <label title="How fine the surface is built: higher shows more detail but takes longer and more memory (Low is safest on 8 GB)">Detail</label>
-          <div class="seg">
-            <button v-for="q in [[256, 'Low'], [380, 'Medium'], [512, 'High']]" :key="q[0]" :class="{on: +post.mesh3d.octree === q[0]}" @click="post.mesh3d.octree = q[0]">{{ q[1] }}</button>
-          </div>
-          <label title="The finished model is simplified to at most this many triangles (smaller files, easier to use in games)">Triangles</label>
-          <div class="seg">
-            <button v-for="q in [[20000, '20k'], [40000, '40k'], [100000, '100k'], [0, 'All']]" :key="q[0]" :class="{on: +post.mesh3d.faces === q[0]}" @click="post.mesh3d.faces = q[0]">{{ q[1] }}</button>
-          </div>
-          <label class="check" title="Hunyuan3D is made by Tencent and isn't shipped with the app: it's downloaded to this Mac the first time, under its own licence">
-            <input type="checkbox" :checked="m3d.accepted" @change="m3dAccept($event.target.checked)"> I accept Hunyuan3D's licence</label>
-          <div class="hint">The <a href="https://github.com/Tencent-Hunyuan/Hunyuan3D-2/blob/main/LICENSE" target="_blank">Tencent Hunyuan 3D 2.0 Community License</a>: it doesn't allow use in the EU, the UK or South Korea.</div>
-          <button class="primary mod-go" :disabled="!tool.source || m3d.job || !m3d.accepted" @click="toolMake3d">🧊 Make 3D</button>
-          <div v-if="m3d.last && m3d.last.glb" class="row small">
-            <button class="ghost small" @click="showInFolder(m3d.last.glb)" title="The .glb and .obj files, in the 3D folder of your images folder">Show the 3D files in Finder</button>
-          </div>
-          <div class="hint">The first time downloads Hunyuan3D 2 mini (~2.5 GB) and a few small libraries. Takes a few minutes on an 8 GB Mac. Powered by Tencent Hunyuan; Protoart Studio isn't affiliated with Tencent.</div>
         </div>
 
         <div id="rack-paper" class="card rack-module paper-card" :class="{active: paperJob}">
@@ -5097,12 +5073,13 @@
         <div class="detail-facts">
         <table>
           <tr><td>Model</td><td>{{ modelLabel(detail.model) }}</td></tr>
-          <tr><td>Sampler</td><td>{{ detail.sampler }} · {{ detail.steps }} steps · CFG {{ detail.cfg }}</td></tr>
+          <tr v-if="detail.sampler || detail.steps"><td>Sampler</td><td>{{ detail.sampler }} · {{ detail.steps }} steps · CFG {{ detail.cfg }}</td></tr>
           <tr><td>Size</td><td>{{ detail.width }} × {{ detail.height }}</td></tr>
           <tr><td>Seed</td><td>{{ detail.seed }}
             <button v-if="detail.seed != null" class="link small-link" @click="findSeed(detail.seed)" title="Show every picture in the Library made with this seed">find all with this seed</button></td></tr>
           <tr v-if="detail.settings?.clip_skip"><td>CLIP skip</td><td>{{ detail.settings.clip_skip }}</td></tr>
           <tr><td>Made with</td><td>{{ madeWith(detail) }}</td></tr>
+          <tr v-if="enhanceInfo(detail)"><td>Upscaled</td><td>{{ enhanceInfo(detail) }}</td></tr>
           <tr><td>LoRAs</td>
             <td><button v-for="l in detail.loras" :key="l.name" class="chip static lora-link" @click="filterByLora(l.name)"
                         title="Show all images made with this LoRA">{{ l.name }} {{ l.weight }}</button><span v-if="!detail.loras.length" class="hint">none</span></td></tr>

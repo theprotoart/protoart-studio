@@ -988,10 +988,11 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.15: 🧊 Make 3D and 💡 Relight fixed, a tidier Models tab", items: [
-              "<b>Fixed: 💡 Relight looking frozen</b> on 8 GB Macs: it now uses the same memory savers as normal pictures (attention slicing, and VAE tiling for the larger detail pass), so the Mac no longer swaps itself to a standstill.",
+            { h: "1.6.15: 💡 Relight on 8 GB Macs, a tidier Models tab, the upscaler in photo info", items: [
+              "<b>💡 Relight on 8 GB Macs</b>: runs at <b>512</b> (with Add detail, the result is 768 px). 640 and 768 need 16 GB: on 8 GB they ran out of memory and seemed to freeze. Relight also uses the same memory savers as normal pictures now.",
+              "<b>Photo info shows the upscaler</b>: an <b>Upscaled</b> line with the upscaler (⏩ Instant · UltraSharp V2 · 2×…) or the enhancer's settings. The empty Sampler line of imported pictures is hidden.",
               "<b>Models tab: a tidier top row</b>: the 15 model-type buttons are now one <b>All model types</b> list (⚡ Fast engine and Stable Diffusion groups), and the three Add buttons are one <b>+ Add a model…</b> list (Hugging Face, Civitai, your Mac).",
-              "<b>Fixed: Make 3D stopping with “Error(s) in loading state_dict for SingleImageEncoder … Missing key(s) … q_proj”</b>: Hunyuan3D's picture reader was saved with older layer names than the ones the app's newer libraries use. The app now renames them as it loads (same model, nothing downloaded again)." ] },
+              "<b>🧊 Make 3D is removed for now</b>: it didn't work reliably on 8 GB Macs. Its downloads (~2.7 GB) can be deleted: the <b>hunyuan3d</b> folder in the app's data folder (~/.protoartstudio) and <b>models--tencent--Hunyuan3D-2mini</b> in ~/.cache/huggingface/hub." ] },
             { h: "1.6.14: 11 upscalers, with ⚡ Fastest and ★ Best quality picks", items: [
               "<b>⏩ Instant upscaling, many more choices</b> (Tools → Enhance & upscale → Speed: ⏩ Instant → Upscaler), in a list grouped <b>For everything / Photos / Anime, drawings & text</b>, each with its speed. Under it, quick buttons: <b>⚡ Fastest</b> (UltraSharp V2 Lite, Real-ESRGAN fast, AnimeVideo v3) and <b>★ Best quality</b> (UltraSharp V2, Nomos WebPhoto, AnimeSharp).",
               "New: <b>UltraSharp V2</b> (the successor of 4x-UltraSharp: the most detail, slower), <b>UltraSharp V2 Lite</b> (nearly as good, fast), <b>Nomos WebPhoto</b> (phone and web photos: noise, lens blur, JPEG), <b>Nomos8kSC</b>, <b>AnimeSharp</b>, and Real-ESRGAN (<b>Real-ESRGAN</b>, <b>2×</b>, <b>fast</b>, <b>Anime</b>, <b>AnimeVideo v3</b>). Each downloads once (3–140 MB). 4x-UltraSharp stays the default." ] },
@@ -1536,11 +1537,6 @@ const protoartApp = createApp({
               "<b>✂ Cut it out of its picture first</b> (on): only the character is used, not its old background. It uses ✂ Cut out's model (~224 MB once) and takes about 15–30 s per picture on an 8 GB Mac. Turn it off for a picture that already has a plain or see-through background.",
               "<b>💡 Match the scene's light</b> (on): the character's brightness, contrast and colour are moved towards the scene's before it goes in, so a sunny photo of a person doesn't glow in a night forest. <b>How much</b>: higher takes on more of the scene's light and colour. The character keeps its own shading; Klein adds the shadows.",
               "Tips: a clear, full-body picture of the character works best; describe the size (“small, in the distance”) when it should be far away; try another seed if the pose or place isn't right. The result goes to the Library as <b>Combined</b>, linked to the scene." ] },
-            { h: "🧊 Make 3D: a picture into a 3D model", items: [
-              "Tools → pick the picture → <b>🧊 Make 3D</b>. Works best with one clear subject (a character, a toy, a statue, a product) on a plain background, seen from the front or a little to the side. The subject is cut out first (✂ Cut out's finder).",
-              "<b>Quality</b>: Fast / Balanced / High steps. <b>Detail</b>: how fine the surface is (Low is safest on 8 GB). <b>Triangles</b>: the finished model is simplified to that many (20k–100k, or All).",
-              "Tick <b>I accept Hunyuan3D's licence</b> once (Tencent Hunyuan 3D 2.0 Community License: not for use in the EU, the UK or South Korea). The first time downloads its code, a few small libraries (~150 MB) and the model (~2.5 GB). A model takes a few minutes on an 8 GB Mac.",
-              "The files are saved in the <b>3D</b> folder of your images folder (.glb and .obj); <b>Show the 3D files in Finder</b> opens it. The Library shows a grey preview. It's the shape only: colour it in Blender or another 3D app." ] },
             { h: "💡 Relight: new light on a picture", items: [
               "Tools → pick the picture → <b>💡 Relight</b>. Type the light (or click an idea: sunshine from a window, neon city, sunset over the sea, golden hour, soft studio lighting…), optionally what the subject is (“woman, detailed face”), and where the light comes from: <b>Any</b> lets the words decide, ← Left / Right → / ↑ Top / ↓ Bottom puts a bright side there.",
               "It needs a <b>Stable Diffusion 1.5</b> model on this Mac (a realistic one, like Realistic Vision, gives the most natural light; download one in Models if you have none). The first time also downloads IC-Light (~1.7 GB). On an 8 GB Mac a picture takes a few minutes at 640 with Add detail on; 512 without it is quickest.",
@@ -1871,7 +1867,6 @@ const protoartApp = createApp({
           goLabel: "Open Settings (backend log, restart, reset)",
           sections: [
             { h: "New in 1.6.8: if something doesn't work", items: [
-              "<b>🧊 Make 3D stays on “downloading Hunyuan3D's code” and never installs</b> (1.6.12): its libraries were downloaded by Python, which a VPN or firewall can block. Fixed in 1.6.13: everything now downloads through curl, like the models. <b>It runs out of memory</b>: pick Detail Low and close other apps.",
               "<b>💡 Relight says it needs a Stable Diffusion 1.5 model</b>: IC-Light only works with SD 1.5. Download Stable Diffusion 1.5, or a realistic SD 1.5 model from Civitai, in Models. <b>It couldn't add IC-Light to the model</b>: that model's layout is unusual; pick another SD 1.5 model.",
               "<b>“The engine restarted before this finished” right after opening the app, and the model list is empty (All 0)</b>: fixed in 1.6.11. Update the app; with 1.6.8 to 1.6.10, press ↻ refresh next to the model list (or quit and reopen) to load your models.",
               "<b>A recipe (Copy pose…) still says “Downloading…”</b> after its file finished, or after restarting the app: fixed. It happened when the engine restarted during the download. Pick the recipe again; it now notices the file is there.",
@@ -2069,13 +2064,8 @@ const protoartApp = createApp({
               "<b>Why:</b> you moved or renamed your models / LoRAs folder, or the drive it's on isn't plugged in. The app says so at startup.",
               "<b>Fix:</b> plug the drive in, or open <b>Settings → Moved a folder?</b>, click <b>Find it…</b> next to the red one and pick the folder in its new place. LoRA folders and their types, watched folders, added models, your ⚑ / ● marks, presets and the Library all follow. Picking a different folder by mistake is refused." ] },
             { h: "💡 Relight seems frozen (stays on “Relighting…”)", items: [
-              "<b>Why:</b> on an 8 GB Mac the larger detail pass (960 px with <b>Add detail</b> on) needed more memory than the Mac has, so it swapped to disk and barely moved. Fixed in 1.6.15 (it now saves memory like normal pictures do).",
-              "<b>Until then:</b> press <b>Stop</b> (or Force stop & restart), quit other apps, then Relight at <b>512</b> with <b>Add detail off</b>. The first run also downloads IC-Light (~1.7 GB) and adds it to your model, which takes a minute." ] },
-            { h: "🧊 Make 3D: “Error(s) in loading state_dict for SingleImageEncoder” (a long list of “main_image_encoder…” names)", items: [
-              "Fixed in 1.6.15: Hunyuan3D's picture reader (DINOv2) was saved with older part names (query / key / value, weights_in) than the app's libraries use now (q_proj, gate_proj…). The app renames them while loading; nothing is downloaded again. Update the app and press <b>Make 3D</b> again." ] },
-            { h: "🧊 Make 3D: “IncompleteSnapshotError … model.fp16.ckpt” or “snapshot is incomplete”", items: [
-              "Fixed in 1.6.14: Make 3D now uses the model files it downloaded directly (it only needs <b>model.fp16.safetensors</b> and <b>config.yaml</b>; the .ckpt copy is never needed). Update the app and press <b>Make 3D</b> again; nothing is downloaded again.",
-              "If it still says a file is missing, the first download was cut short: turn off Strict offline mode (Settings → Privacy), pause the VPN and run Make 3D once more to finish it." ] },
+              "<b>Why:</b> on an 8 GB Mac the larger detail pass (960 px with <b>Add detail</b> on) needed more memory than the Mac has, so it swapped to disk and barely moved. Since 1.6.15 Macs with less than 16 GB relight at <b>512</b> only (768 px with Add detail).",
+              "If it still stalls: press <b>Stop</b> (or Force stop & restart), quit other apps and try again. The first run also downloads IC-Light (~1.7 GB) and adds it to your model, which takes a minute." ] },
             { h: "⏩ Instant upscaler: “needs a one-time download” or “the download was damaged”", items: [
               "Every upscaler except 4x-UltraSharp downloads once (3–140 MB) the first time you pick it: Real-ESRGAN and Nomos ones from GitHub, AnimeSharp and UltraSharp V2 from Hugging Face. <b>“Strict offline mode is on”</b>: turn it off in Settings → Privacy for that first use, or pick 4x-UltraSharp.",
               "<b>“The download was damaged; try again”</b>: the file didn't match its known checksum (a cut connection or a VPN in the way); nothing was kept, so just run it again. If it keeps failing, pause the VPN for the download. The files are kept in the app's data folder (weights → realesrgan).",
@@ -4904,6 +4894,15 @@ const protoartApp = createApp({
       if (!this.isInstalled(m)) this.status = `${m.label} selected · it downloads (${Math.round(m.download_gb)} GB) the first time you press Generate`;
     },
     // Library details: which tool made a picture (Create, Image to image's modes, Tools…), with its main choices
+    // the photo info's "Upscaled" line: which upscaler (⏩ Instant) or enhancer settings made this picture
+    enhanceInfo(d) {
+      const e = d && d.settings && d.settings.enhance;
+      if (!e) return "";
+      const x = e.upscale_factor ? ` · ${e.upscale_factor}×` : "";
+      if (e.instant) return `⏩ Instant · ${e.upscaler || "4x-UltraSharp"}${x}`;
+      const how = e.solver ? String(e.solver) : "Enhance";
+      return `${how}${x}${e.num_inference_steps ? ` · ${e.num_inference_steps} steps` : ""}${e.keep_style ? " · kept the picture's style" : ""}${e.protected ? " · 🛡 protected areas" : ""}`;
+    },
     madeWith(d) {
       const st = (d && d.settings) || {};
       if (st.camera) return "📷 Camera angle (FLUX.2 Klein) · " + (st.camera.view || "");
@@ -7045,6 +7044,9 @@ const protoartApp = createApp({
       const list = this.relightModels(), o = this.post.relight;
       return list.find((m) => m.id === o.model) || list[0] || null;
     },
+    // Relight's largest size on this Mac: 640 / 768 (and their 960 / 1150 px detail pass) run an 8 GB Mac out of memory
+    relightMaxSize() { return this.sys.ram_gb && this.sys.ram_gb < 12 ? 512 : 768; },
+    relightSize() { return Math.min(+this.post.relight.size || 640, this.relightMaxSize()); },
     async toolRelight() {
       const s = this.tool.source, o = this.post.relight;
       if (!s || this.relightJob) return;
@@ -7056,7 +7058,7 @@ const protoartApp = createApp({
       this.tool.latest = null;
       try {
         const rec = await this.runJob("relight", { ...this.toolArgs(), prompt: o.prompt, subject: o.subject, direction: o.direction,
-                                                     model: m.id, size: +o.size, hires: o.hires, finder: this.post.cut.finder });
+                                                     model: m.id, size: this.relightSize(), hires: o.hires, finder: this.post.cut.finder });
         if (rec) { this.tool.latest = rec; this.afterPost(rec); }
       } finally { this.tool.working = null; this.relightJob = false; }
     },

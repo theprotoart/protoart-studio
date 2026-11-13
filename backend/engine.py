@@ -4017,6 +4017,8 @@ class Engine:
                             "or download Stable Diffusion 1.5 in Models.")
         base = int(args.get("size") or 640)
         base = base if base in (512, 640, 768) else 640
+        if 0 < total_ram_gb() < 12:  # 640 / 768 (960+ px detail pass) run an 8 GB Mac out of memory: it seems to freeze
+            base = 512
         hires = args.get("hires", True) is not False
         steps = max(10, min(50, int(args.get("steps") or 25)))
         cfg = float(args.get("cfg") or 2.0)

@@ -2,6 +2,11 @@
 
 ## 1.6.15
 
+- Make 3D removed from Tools for now (it never completed on an 8 GB Mac); its backend code stays unused. How to and
+  Troubleshooting entries removed; What's new says where its downloads can be deleted
+- Relight: 512 only on Macs under 12 GB RAM (UI buttons disabled with a note; the backend clamps too)
+- Photo info: an "Upscaled" line (⏩ Instant · upscaler · factor, or the enhancer's solver / factor / steps); the instant
+  4x-UltraSharp path records `upscaler`; the Sampler line is hidden when a picture has none (imported)
 - Make 3D: Hunyuan3D's DINOv2 image-encoder weights renamed from transformers 4 to transformers 5 names while loading
   (`mesh3d_worker.dinov2_new_names`: query/key/value -> q/k/v_proj, output.dense -> o_proj, SwiGLU weights_in split
   into gate_proj + up_proj, weights_out -> down_proj), fixing "Error(s) in loading state_dict for SingleImageEncoder"
