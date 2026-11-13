@@ -109,14 +109,43 @@ def to_tensor(arr):
     return t.movedim(-1, 1)
 
 
-def place_back(original, alpha, relit):
+def place_back(original, alpha, relit, relight_bg=False):
     """The relit subject (IC-Light's picture, centre-cropped to its own size by fit()) on the original picture's
     background: the original is cropped and scaled the same way, and the subject's matte decides what comes from where
-    (with a slightly softened edge). original: PIL RGB; alpha: (h, w) 0..1; relit: PIL RGB -> PIL RGB, relit's size."""
+    (with a slightly softened edge). relight_bg: the background keeps everything in it but takes on the new light's
+    brightness and colour, read from the background IC-Light drew (a soft light map; no new shadows).
+    original: PIL RGB; alpha: (h, w) 0..1; relit: PIL RGB -> PIL RGB, relit's size."""
     from PIL import Image, ImageFilter
     w, h = relit.size
     bg = Image.fromarray(fit(np.asarray(original.convert("RGB")), w, h))
     a = Image.fromarray((np.clip(np.asarray(alpha, dtype=np.float32), 0, 1) * 255).astype(np.uint8))
     a = Image.fromarray(fit(np.stack([np.asarray(a)] * 3, axis=-1), w, h)[..., 0])
+    if relight_bg:
+        bg = relight_background(bg, relit, a)
     a = a.filter(ImageFilter.GaussianBlur(max(1, round(max(w, h) / 512))))
     return Image.composite(relit, bg, a)
+
+
+def relight_background(bg, relit, matte):
+    """bg (PIL RGB) lit like relit's background: both are blurred a lot with the subject left out (so only the light
+    and colour remain, not the shapes), and bg is multiplied by new light / old light, per colour."""
+    from PIL import Image, ImageFilter
+    w, h = bg.size
+    r = max(4, round(max(w, h) / 14))
+    keep = 255 - np.asarray(matte.filter(ImageFilter.MaxFilter(9)), dtype=np.float32)  # background only, a bit away from the subject
+    m = Image.fromarray(keep.astype(np.uint8))
+
+    def light(img):
+        ar = np.asarray(img, dtype=np.float32) * (keep[..., None] / 255.0)
+        num = np.stack([np.asarray(Image.fromarray(ar[..., c].clip(0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(r)),
+                                   dtype=np.float32) for c in range(3)], axis=-1)
+        den = np.asarray(m.filter(ImageFilter.GaussianBlur(r)), dtype=np.float32)[..., None]
+        return num / np.maximum(den / 255.0, 1e-3), den  # the average colour of the background nearby
+
+    new, den = light(relit)
+    old, _ = light(bg)
+    gain = np.clip((new + 2.0) / (old + 2.0), 0.2, 3.0)
+    weak = (den < 8)  # hardly any background around (a subject filling the picture): leave it as it was
+    gain[weak[..., 0]] = 1.0
+    out = np.asarray(bg, dtype=np.float32) * gain
+    return Image.fromarray(out.clip(0, 255).astype(np.uint8))

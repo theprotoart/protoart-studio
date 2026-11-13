@@ -47,6 +47,22 @@ class RelightHelpers(unittest.TestCase):
         self.assertGreater(out[2, 2, 2], 200)     # a corner: the original background
         self.assertLess(out[2, 2, 0], 60)
 
+    def test_relit_background_keeps_its_detail_and_takes_the_new_light(self):
+        from PIL import Image
+        import postprocess.relight as rl
+        rng = np.random.default_rng(0)
+        detail = rng.integers(60, 140, (64, 128, 3)).astype(np.uint8)  # a busy grey background
+        orig = Image.fromarray(detail)
+        alpha = np.zeros((64, 128), dtype=np.float32)
+        alpha[20:44, 54:74] = 1.0
+        relit = Image.new("RGB", (128, 64), (230, 120, 40))  # IC-Light's new background: warm orange light
+        out = np.asarray(rl.place_back(orig, alpha, relit, relight_bg=True)).astype(float)
+        corner = out[:12, :30]
+        self.assertGreater(corner[..., 0].mean(), corner[..., 2].mean() + 40)    # now warm
+        self.assertGreater(corner[..., 0].std(), 8)                             # the detail is still there
+        kept = np.asarray(rl.place_back(orig, alpha, relit)).astype(float)[:12, :30]
+        self.assertLess(abs(kept[..., 0].mean() - kept[..., 2].mean()), 10)     # Keep mine: unchanged grey
+
     def test_relight_is_a_queued_job(self):
         import bee_backend as b
         self.assertIn("relight", b.HEAVY)

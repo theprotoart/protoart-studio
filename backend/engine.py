@@ -4123,17 +4123,18 @@ class Engine:
                 px = dec(lat)
         from PIL import Image
         out = Image.fromarray(px)
-        keep_bg = args.get("background", "keep") != "new"
-        if keep_bg:  # the relit subject back on the picture's own background (IC-Light draws a new one)
+        bg_mode = args.get("background") if args.get("background") in ("keep", "keep_relit", "new") else "keep"
+        keep_bg = bg_mode != "new"
+        if keep_bg:  # the relit subject back on the picture's own background (IC-Light draws a new one), relit too if asked
             emit({"type": "status", "msg": "Relighting: placing the subject back on your background…"})
-            out = rl.place_back(image, alpha, out)
+            out = rl.place_back(image, alpha, out, relight_bg=bg_mode == "keep_relit")
         settings = dict(src.get("settings") or {})
         settings.update(prompt=prompt, negative_prompt=rl.NEGATIVE, model=model_id, sampler="dpmpp_2m_sde_karras",
                         steps=steps, cfg=cfg, seed=seed, width=out.width, height=out.height,
                         seconds=round(time.time() - started, 1),
                         relight={"light": light, "subject": subject, "direction": direction, "hires": hires,
                                  **({"reference": str(args["reference"])} if ref_img is not None else {}),
-                                 "background": "kept" if keep_bg else "new"})
+                                 "background": {"keep": "kept", "keep_relit": "kept, relit", "new": "new"}[bg_mode]})
         settings["loras"] = []
         path = self._save(out, settings, suffix="relit")
         record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="relit")

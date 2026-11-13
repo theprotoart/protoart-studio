@@ -2524,7 +2524,8 @@
           <label class="check" title="IC-Light's second pass: 1.5× larger with more detail (about twice as long)"><input type="checkbox" v-model="post.relight.hires"> Add detail (1.5× larger)</label>
           <label title="IC-Light draws a new background to match the light. Keep mine puts the relit subject back on your picture's own background">Background</label>
           <div class="seg mod-seg">
-            <button :class="{on: (post.relight.background || 'keep') === 'keep'}" @click="post.relight.background = 'keep'" title="The relit subject on your picture's own background (cut out and placed back for you)">Keep mine</button>
+            <button :class="{on: (post.relight.background || 'keep') === 'keep'}" @click="post.relight.background = 'keep'" title="The relit subject on your picture's own background, exactly as it was (cut out and placed back for you)">Keep mine</button>
+            <button :class="{on: post.relight.background === 'keep_relit'}" @click="post.relight.background = 'keep_relit'" title="Your own background with everything in it, taking on the new light's brightness and colour (no new shadows)">Keep mine, relit</button>
             <button :class="{on: post.relight.background === 'new'}" @click="post.relight.background = 'new'" title="The background IC-Light draws for the new light">New from Relight</button>
           </div>
           <div class="hint">The first time downloads IC-Light (~1.7 GB).</div>

@@ -13,7 +13,8 @@
 - Double-click a `.mod-val` number to type a slider's value (`installTypeIn`; `data-free` lets the text size pass the
   slider's end)
 - Relight: Background Keep mine (default; `relight.place_back` composites the relit subject on the original with the
-  matte) or New from Relight; Light like a reference picture (IC-Light `iclight_sd15_fbc`, 12-channel conv_in, the
+  matte), Keep mine, relit (`relight_background`: a soft per-colour light map from IC-Light's background, subject
+  left out, multiplied into the original background) or New from Relight; Light like a reference picture (IC-Light `iclight_sd15_fbc`, 12-channel conv_in, the
   reference's latent concatenated and used as the start picture); the Relight button moved into the module foot (its
   hint no longer sits under a screw); two light ideas (winter snow, rainy manga Tokyo)
 - Patchbay: TILED, RELIGHT, CUT OUT and PAPER modules
