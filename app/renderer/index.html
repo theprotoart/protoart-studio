@@ -1623,6 +1623,7 @@
             <img ref="txImg" class="adjust-canvas" :class="{picking: tx.pick}" :src="fileUrl(tx.base.path)" @load="txImgLoad" draggable="false" @pointerdown="txStageDown">
             <svg v-if="tx.nw && tx.layers.some((L) => L.type === 'shape')" class="tx-shapes" :viewBox="'0 0 ' + tx.nw + ' ' + tx.nh" preserveAspectRatio="none">
               <g v-for="(S, i) in tx.layers" :key="'ts' + i" v-show="S.type === 'shape'" :opacity="S.opacity ?? 1" class="tx-shape" :class="{sel: i === tx.sel}"
+                 :transform="S.type === 'shape' && S.rot ? 'rotate(' + S.rot + ' ' + S.x * tx.nw + ' ' + S.y * tx.nh + ')' : null"
                  @pointerdown.stop="txLayerDown($event, i)"><title>Drag to move · the corners resize it · the dot moves the tail</title>
                 <template v-if="S.type === 'shape'">
                   <path v-for="(d, k) in ProtoText.shapePaths(S, tx.nw, tx.nh).parts" :key="'o' + k" :d="d" fill="none" :stroke="S.line" :stroke-width="S.lw * 2"
@@ -1641,6 +1642,8 @@
                    @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize"></div>
               <div v-if="txLayer().type === 'shape' && txLayer().tail" class="tx-handle tx-tail" :style="{left: txLayer().tx * 100 + '%', top: txLayer().ty * 100 + '%'}"
                    @pointerdown.stop="txTailDown($event)" title="Drag to point the tail at the speaker"></div>
+              <div v-if="txLayer().type === 'shape'" class="tx-handle tx-rot" :style="txRotStyle()"
+                   @pointerdown.stop="txRotDown($event)" @dblclick.stop="txLayer().rot = 0" title="Drag to turn the shape (Shift: in 15° steps) · double-click to straighten it"></div>
             </template>
           </div>
           <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE · CORNERS RESIZE' }}</span>
@@ -2651,9 +2654,11 @@
               </div>
               <label>Outline width <span class="mod-val">{{ txLayer().lw }}</span></label>
               <input type="range" min="0" max="20" step="1" v-model.number="txLayer().lw" data-free>
+              <label>Angle <span class="mod-val">{{ txLayer().rot || 0 }}°</span></label>
+              <input type="range" min="-180" max="180" step="1" :value="txLayer().rot || 0" @input="txLayer().rot = +$event.target.value" @dblclick="txLayer().rot = 0">
               <label>Opacity <span class="mod-val">{{ Math.round((txLayer().opacity ?? 1) * 100) }}%</span></label>
               <input type="range" min="0.1" max="1" step="0.05" v-model.number="txLayer().opacity">
-              <div class="hint">Drag it to move · drag a corner to resize · drag the dot to point the tail. Shapes sit under the text.</div>
+              <div class="hint">Drag it to move · drag a corner to resize · the round handle on top turns it · drag the blue dot to point the tail. Shapes sit under the text.</div>
             </template>
             <template v-else-if="txLayer()">
               <textarea ref="txText" v-model="txLayer().text" rows="2" class="mod-input tx-text" placeholder="Type the text (Return for a new line)"></textarea>
@@ -3400,9 +3405,11 @@
               </div>
               <label>Outline width <span class="mod-val">{{ txLayer().lw }}</span></label>
               <input type="range" min="0" max="20" step="1" v-model.number="txLayer().lw" data-free>
+              <label>Angle <span class="mod-val">{{ txLayer().rot || 0 }}°</span></label>
+              <input type="range" min="-180" max="180" step="1" :value="txLayer().rot || 0" @input="txLayer().rot = +$event.target.value" @dblclick="txLayer().rot = 0">
               <label>Opacity <span class="mod-val">{{ Math.round((txLayer().opacity ?? 1) * 100) }}%</span></label>
               <input type="range" min="0.1" max="1" step="0.05" v-model.number="txLayer().opacity">
-              <div class="hint">Drag it to move · drag a corner to resize · drag the dot to point the tail. Shapes sit under the text.</div>
+              <div class="hint">Drag it to move · drag a corner to resize · the round handle on top turns it · drag the blue dot to point the tail. Shapes sit under the text.</div>
             </template>
             <template v-else-if="txLayer()">
               <textarea ref="txText" v-model="txLayer().text" rows="2" class="mod-input tx-text" placeholder="Type the text (Return for a new line)"></textarea>
@@ -3943,6 +3950,7 @@
               <img ref="txImg" class="adjust-canvas" :class="{picking: tx.pick}" :src="fileUrl(tx.base.path)" @load="txImgLoad" draggable="false" @pointerdown.stop="txStageDown">
               <svg v-if="tx.nw && tx.layers.some((L) => L.type === 'shape')" class="tx-shapes" :viewBox="'0 0 ' + tx.nw + ' ' + tx.nh" preserveAspectRatio="none">
                 <g v-for="(S, i) in tx.layers" :key="'ts' + i" v-show="S.type === 'shape'" :opacity="S.opacity ?? 1" class="tx-shape" :class="{sel: i === tx.sel}"
+                 :transform="S.type === 'shape' && S.rot ? 'rotate(' + S.rot + ' ' + S.x * tx.nw + ' ' + S.y * tx.nh + ')' : null"
                    @pointerdown.stop="txLayerDown($event, i)"><title>Drag to move · the corners resize it · the dot moves the tail</title>
                   <template v-if="S.type === 'shape'">
                     <path v-for="(d, k) in ProtoText.shapePaths(S, tx.nw, tx.nh).parts" :key="'o' + k" :d="d" fill="none" :stroke="S.line" :stroke-width="S.lw * 2"
@@ -3961,6 +3969,8 @@
                    @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize"></div>
               <div v-if="txLayer().type === 'shape' && txLayer().tail" class="tx-handle tx-tail" :style="{left: txLayer().tx * 100 + '%', top: txLayer().ty * 100 + '%'}"
                    @pointerdown.stop="txTailDown($event)" title="Drag to point the tail at the speaker"></div>
+              <div v-if="txLayer().type === 'shape'" class="tx-handle tx-rot" :style="txRotStyle()"
+                   @pointerdown.stop="txRotDown($event)" @dblclick.stop="txLayer().rot = 0" title="Drag to turn the shape (Shift: in 15° steps) · double-click to straighten it"></div>
             </template>
             </div>
             <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE · CORNERS RESIZE' }}</span>

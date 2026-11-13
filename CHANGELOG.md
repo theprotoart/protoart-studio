@@ -2,6 +2,8 @@
 
 ## 1.6.15
 
+- Replace text: balloons and shapes turn (`rot`: a turn handle, an Angle slider; the tail tip stays put; corner
+  handles and resizing follow the turn)
 - Powder look (`data-skin="powder"`, ported from ProtoArt Dandelion's palette): cornflower-blue powder coat (Light) /
   burnt orange (Dark), white printing, yellow lamps; Settings → Look on one row (Match macOS first; `.look-row .seg`
   no longer wraps; swatch-only themes and icon-only Tips/Sounds/SFW on narrower windows)

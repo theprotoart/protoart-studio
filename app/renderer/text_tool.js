@@ -122,7 +122,7 @@
     const w = kind === "caption" ? 0.36 : kind === "burst" ? 0.34 : 0.32, h = kind === "caption" ? 0.1 : kind === "burst" ? 0.3 : 0.2;
     return { type: "shape", kind, x, y, w: w * m / nw, h: h * m / nh, tx: Math.max(0.02, x - 0.08), ty: Math.min(0.98, y + 0.2),
              tail: !!TAIL[kind], fill: kind === "caption" ? "#fff6c8" : kind === "burst" ? "#ffd23f" : "#ffffff",
-             line: "#111111", lw: Math.max(2, Math.round(m * 0.005)), opacity: 1 };
+             line: "#111111", lw: Math.max(2, Math.round(m * 0.005)), opacity: 1, rot: 0 };
   }
   const f1 = (v) => Math.round(v * 10) / 10;
   function ellipse(cx, cy, rx, ry) {
@@ -137,7 +137,15 @@
   }
   // the shape's outline(s) in picture pixels: { parts: [svg path…], dash }
   function shapePaths(S, w, h) {
-    const cx = S.x * w, cy = S.y * h, rx = S.w * w / 2, ry = S.h * h / 2, tx = S.tx * w, ty = S.ty * h;
+    const cx = S.x * w, cy = S.y * h, rx = S.w * w / 2, ry = S.h * h / 2;
+    // a turned shape (S.rot degrees) is drawn turned; its tail tip stays where you put it, so it's worked out here in
+    // the shape's own, unturned frame
+    const rot = ((S.rot || 0) * Math.PI) / 180;
+    let tx = S.tx * w, ty = S.ty * h;
+    if (rot) {
+      const dx0 = tx - cx, dy0 = ty - cy, c = Math.cos(-rot), s0 = Math.sin(-rot);
+      tx = cx + dx0 * c - dy0 * s0; ty = cy + dx0 * s0 + dy0 * c;
+    }
     const parts = [];
     const ang = Math.atan2(ty - cy, tx - cx), dx = Math.cos(ang), dy = Math.sin(ang);
     const tailTri = (width) => {  // from inside the balloon to the tip
@@ -177,11 +185,12 @@
         });
       }
     }
-    return { parts, dash: S.kind === "whisper" };
+    return { parts, dash: S.kind === "whisper", rot: S.rot || 0, cx, cy };
   }
   function drawShape(ctx, S, w, h) {
-    const { parts, dash } = shapePaths(S, w, h);
+    const { parts, dash, rot, cx, cy } = shapePaths(S, w, h);
     ctx.save();
+    if (rot) { ctx.translate(cx, cy); ctx.rotate((rot * Math.PI) / 180); ctx.translate(-cx, -cy); }
     ctx.globalAlpha = S.opacity ?? 1;
     ctx.lineJoin = "round";
     if (S.lw > 0) {  // outlines first, then the fills over them: the tail joins the balloon without a line across

@@ -2694,3 +2694,5 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 @media (max-width: 1500px) {
   .slot-look .look-row > .tips-btn .lbl { display: none; }
 }
+
+.tx-stage .tx-handle.tx-rot { border-radius: 50%; border-color: #3d9a4b; cursor: grab; width: 14px; height: 14px; margin: -7px 0 0 -7px; }

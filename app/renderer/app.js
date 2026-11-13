@@ -1051,6 +1051,7 @@ const protoartApp = createApp({
               "<b>💡 Relight</b>: <b>Background → Keep mine</b> (new default) puts the relit subject back on your own background automatically, and <b>Keep mine, relit</b> also gives your background the new light's brightness and colour; <b>Light like → 🖼 A reference picture</b> lights the subject like a picture you drop in. Two more light ideas: winter snow, and a rainy manga-style Tokyo night. The text at the bottom of the module no longer hides behind a screw.",
               "<b>🎨 Powder look</b> (Settings → Look), from ProtoArt Dandelion: a light blue powder-coated faceplate with white lettering and yellow lamps, or burnt orange on the Dark faceplate. Settings → Look now reads <b>Match macOS · Light · Dark</b> on one row (it used to wrap over the Tools and Train tabs), with the themes as colour swatches.",
               "<b>Fixes</b>: the patchbay grows downwards (a new row after six modules) instead of getting ever wider; a tall module (Relight) no longer leaves a big empty gap in the other modules of its row (Relight's finishing options are folded under <i>finish</i>); Tools' Split view shows both pictures straight away instead of staying black until you drag the line.",
+              "<b>💬 Turn balloons and shapes</b>: drag the round green handle above a shape (Shift for 15° steps, double-click to straighten) or use its <b>Angle</b> slider; the tail keeps pointing where you put it.",
               "<b>🔌 Patchbay</b>: TILED upscale, RELIGHT, CUT OUT and PAPER can now be patched in too, and <b>Keep only the final picture</b> moves the in-between pictures of a run to the Trash.",
               "<b>💡 Relight, further</b>: the result is now at your <b>picture's full size</b> (sharpened back up with Real-ESRGAN fast) instead of 768 px; <b>Mine, relit</b> also uses a depth map, so surfaces facing the light brighten and those turned away darken; <b>Add a shadow</b> throws a soft shadow away from the light; <b>Blend in</b> matches the subject's colours to the light around it; <b>Warmth</b> and <b>Light colour</b>. Relight is also in <b>Image to image</b> (💡 Relight mode).",
               "<b>Downloads resume</b>: the upscalers' downloads continue where they stopped if the connection drops, and IC-Light's download shows how far it got (MB of MB).",
@@ -1660,7 +1661,7 @@ const protoartApp = createApp({
               "<b>Several texts</b>: <b>＋ Add text</b> (or a click on an empty spot of the picture) adds another one with its own words, font, size and colour. Its name appears above the box: click a name (or the text on the picture) to change that one, ✕ deletes it. A new text you didn't type in is dropped when you add the next.",
               "<b>Fonts</b>: the Font list starts with <b>Protoart's own fonts</b>: <b>Protoart Speech</b> for dialogue (B for its bold), <b>Protoart Kaboom</b> for sound effects and <b>Protoart Chatter</b> for bouncy cartoon lettering (all in capitals, like comic lettering; lowercase keys give slightly smaller capitals). Then the built-in <b>comic lettering pack</b> (Comic Neue, Shantell Sans, Patrick Hand and Architects Daughter for dialogue and captions; Bangers, Luckiest Guy, Bowlby One SC and Titan One for sound effects and titles; Chewy, Boogaloo, Bubblegum Sans, Permanent Marker), then the Mac favourites, then <b>every font installed on this Mac</b> (including ones you added in Font Book; the list fills in after a few seconds the first time).",
               "<b>Resize by hand</b>: the selected text has four corner handles: drag one to make the text bigger or smaller. Or <b>double-click the size number</b> (the amber box) and type it, even beyond the slider's end.",
-              "<b>💬 Balloons & shapes</b>: Speech, Thought, Shout, Whisper, Box, Caption and Burst (for sound effects). Each comes with a text inside it in a matching comic font. Drag the balloon to move it (its tail comes along), its corners to resize it, and the blue dot to point the tail at the speaker. Pick its fill, outline colour and width; balloons are always drawn under the text.",
+              "<b>💬 Balloons & shapes</b>: Speech, Thought, Shout, Whisper, Box, Caption and Burst (for sound effects). Each comes with a text inside it in a matching comic font. Drag the balloon to move it (its tail comes along), its corners to resize it, the round green handle above it to turn it (Shift: 15° steps; double-click: straight again; or the <b>Angle</b> slider), and the blue dot to point the tail at the speaker. Pick its fill, outline colour and width; balloons are always drawn under the text.",
               "<b>💾 Save</b> draws the text into the picture at full size and saves it as a new picture in the Library (the original stays). You can also use ✏️ Type on any picture without clearing anything first." ] },
             { h: "🩹 Remove objects and ✒️ Vectorize", items: [
               "<b>Remove objects in Tools</b>: press <b>🖌 Paint</b> in the module, paint on the picture on the left (all the selection tools work), choose <b>✨ Smart fill</b> (rebuilds what was behind it) or <b>⚡ Quick fill</b> (instant, for small spots), and press <b>🩹 Remove</b>.",
@@ -10461,7 +10462,10 @@ const protoartApp = createApp({
     txHandleStyle(c) {  // a shape's corner handles
       const S = this.txLayer();
       if (!S || S.type !== "shape") return { display: "none" };
-      return { left: (S.x + (c.includes("e") ? 1 : -1) * S.w / 2) * 100 + "%", top: (S.y + (c.includes("s") ? 1 : -1) * S.h / 2) * 100 + "%" };
+      const W = this.tx.nw || 1, H = this.tx.nh || 1, a = ((S.rot || 0) * Math.PI) / 180;  // the corners turn with the shape
+      const dx = (c.includes("e") ? 1 : -1) * S.w / 2 * W, dy = (c.includes("s") ? 1 : -1) * S.h / 2 * H;
+      const rx = dx * Math.cos(a) - dy * Math.sin(a), ry = dx * Math.sin(a) + dy * Math.cos(a);
+      return { left: (S.x + rx / W) * 100 + "%", top: (S.y + ry / H) * 100 + "%" };
     },
     txHandleDown(e, c) {  // drag a corner: a shape's size (its middle stays put) or a text's size
       const L = this.txLayer();
@@ -10470,12 +10474,35 @@ const protoartApp = createApp({
       const cx = r.left + L.x * r.width, cy = r.top + L.y * r.height;
       const d0 = Math.hypot(e.clientX - cx, e.clientY - cy) || 1, size0 = L.size;
       const move = (ev) => {
-        if (L.type === "shape") {
-          L.w = Math.max(0.03, Math.min(1.5, (2 * Math.abs(ev.clientX - cx)) / r.width));
-          L.h = Math.max(0.03, Math.min(1.5, (2 * Math.abs(ev.clientY - cy)) / r.height));
+        if (L.type === "shape") {  // measured in the shape's own (turned) frame
+          const t = (-(L.rot || 0) * Math.PI) / 180, px = ev.clientX - cx, py = ev.clientY - cy;
+          const ux = px * Math.cos(t) - py * Math.sin(t), uy = px * Math.sin(t) + py * Math.cos(t);
+          L.w = Math.max(0.03, Math.min(1.5, (2 * Math.abs(ux)) / r.width));
+          L.h = Math.max(0.03, Math.min(1.5, (2 * Math.abs(uy)) / r.height));
         } else {
           L.size = Math.max(4, Math.min(4000, Math.round(size0 * Math.hypot(ev.clientX - cx, ev.clientY - cy) / d0)));
         }
+      };
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    },
+    txRotStyle() {  // the turn handle: above the shape's top, turned with it
+      const S = this.txLayer();
+      if (!S || S.type !== "shape" || !this.tx.nw) return { display: "none" };
+      const a = ((S.rot || 0) * Math.PI) / 180, k = this.tx.nh / this.tx.nw;
+      const up = S.h / 2 + 0.05 / Math.max(0.3, k);  // a little above the top edge (in picture heights)
+      return { left: (S.x + Math.sin(a) * up * k) * 100 + "%", top: (S.y - Math.cos(a) * up) * 100 + "%" };
+    },
+    txRotDown(e) {  // drag the turn handle round the shape's middle
+      const S = this.txLayer();
+      if (!S) return;
+      const r = this.$refs.txImg.getBoundingClientRect(), cx = r.left + S.x * r.width, cy = r.top + S.y * r.height;
+      const move = (ev) => {
+        let deg = (Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180) / Math.PI + 90;
+        if (deg > 180) deg -= 360;
+        deg = ev.shiftKey ? Math.round(deg / 15) * 15 : Math.abs(deg) < 3 ? 0 : Math.round(deg);
+        S.rot = deg;
       };
       const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
       window.addEventListener("pointermove", move);
