@@ -228,7 +228,11 @@ def run(image_path, out_stem, opts, emit, cancel_event=None):
         except Exception as e:
             raise Mesh3DError(f"Couldn't download Hunyuan3D 2 mini ({e}). Check the internet connection and try again.")
     env["HF_HUB_OFFLINE"] = "1"
-    args = dict(opts, image=str(image_path), out=str(out_stem), repo=REPO, subfolder=SUBFOLDER)
+    # the downloaded folder itself (an absolute path): Hunyuan3D's loader then reads it as is. Given the repo name it
+    # asks Hugging Face for the whole folder, .ckpt copy included, which we don't download ("snapshot is incomplete")
+    from huggingface_hub import snapshot_download
+    local = snapshot_download(REPO, allow_patterns=PATTERNS, local_files_only=True)
+    args = dict(opts, image=str(image_path), out=str(out_stem), repo=str(Path(local).resolve()), subfolder=SUBFOLDER)
     p = subprocess.Popen([sys.executable, str(HERE / "mesh3d_worker.py"), json.dumps(args)], stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE, text=True, cwd=str(HERE), env=env)
     tail = []

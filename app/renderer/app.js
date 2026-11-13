@@ -992,7 +992,8 @@ const protoartApp = createApp({
               "<b>Train LoRAs on FLUX.2 Klein (4B and 9B) and Z-Image Turbo</b> on the ⚡ fast engine (like ERNIE): pick one in Train → LoRA. Models that usually need a bigger Mac are no longer blocked: you get a warning and can still try (or train on a bigger Mac).",
               "<b>Pony, Illustrious, NoobAI and SDXL are kept apart</b> everywhere: their own filters in the model list, their own groups for your checkpoints (“Your checkpoints · Illustrious”, “… · Pony”, “… · SDXL”) and their own groups in Train.",
               "<b>Civitai: newer base models recognised</b>: Illustrious, NoobAI, Pony (and Pony V7, which is AuraFlow, not SDXL), FLUX.2 Klein, Krea 2, Z-Image, Qwen, Anima, MOSS, FIBO; Chroma, HiDream and video models are named as not usable here yet.",
-              "<b>Fixed: downloads that failed behind a VPN</b> (“Couldn't download IC-Light”, “Hunyuan3D 2 mini … Errno 53”): on a Mac, model downloads now always go through curl. Make 3D downloads only the file it uses (not the extra .ckpt copy)." ] },
+              "<b>Fixed: downloads that failed behind a VPN</b> (“Couldn't download IC-Light”, “Hunyuan3D 2 mini … Errno 53”): on a Mac, model downloads now always go through curl. Make 3D downloads only the file it uses (not the extra .ckpt copy).",
+              "<b>Fixed: Make 3D stopping with “snapshot … is incomplete: model.fp16.ckpt missing”</b>: it now reads the downloaded model folder directly instead of asking Hugging Face for files it doesn't use." ] },
             { h: "1.6.13: 🧊 Make 3D installs behind a VPN", items: [
               "<b>Fixed: 🧊 Make 3D stuck on “downloading Hunyuan3D's code”.</b> Its one-time setup downloaded its libraries with Python's own connection, which a VPN or firewall can block. They (and the model) now download the same way as the app's models, so the setup finishes." ] },
             { h: "1.6.12: 💡 Relight, 🧊 Make 3D", items: [
@@ -2058,6 +2059,9 @@ const protoartApp = createApp({
             { h: "A folder or drive can't be found", items: [
               "<b>Why:</b> you moved or renamed your models / LoRAs folder, or the drive it's on isn't plugged in. The app says so at startup.",
               "<b>Fix:</b> plug the drive in, or open <b>Settings → Moved a folder?</b>, click <b>Find it…</b> next to the red one and pick the folder in its new place. LoRA folders and their types, watched folders, added models, your ⚑ / ● marks, presets and the Library all follow. Picking a different folder by mistake is refused." ] },
+            { h: "🧊 Make 3D: “IncompleteSnapshotError … model.fp16.ckpt” or “snapshot is incomplete”", items: [
+              "Fixed in 1.6.14: Make 3D now uses the model files it downloaded directly (it only needs <b>model.fp16.safetensors</b> and <b>config.yaml</b>; the .ckpt copy is never needed). Update the app and press <b>Make 3D</b> again; nothing is downloaded again.",
+              "If it still says a file is missing, the first download was cut short: turn off Strict offline mode (Settings → Privacy), pause the VPN and run Make 3D once more to finish it." ] },
             { h: "⏩ Instant upscaler: “needs a one-time download” or “the download was damaged”", items: [
               "Every upscaler except 4x-UltraSharp downloads once (3–140 MB) the first time you pick it: Real-ESRGAN and Nomos ones from GitHub, AnimeSharp and UltraSharp V2 from Hugging Face. <b>“Strict offline mode is on”</b>: turn it off in Settings → Privacy for that first use, or pick 4x-UltraSharp.",
               "<b>“The download was damaged; try again”</b>: the file didn't match its known checksum (a cut connection or a VPN in the way); nothing was kept, so just run it again. If it keeps failing, pause the VPN for the download. The files are kept in the app's data folder (weights → realesrgan).",

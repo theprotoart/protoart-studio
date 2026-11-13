@@ -2600,7 +2600,11 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .i2i-tx .tx-stage { max-width: 100%; }
 
 /* ⏩ Instant: the upscaler list with ⚡ Fastest / ★ Best quality picks under it */
-.up-pick { display: grid; gap: 4px; min-width: 0; }
-.up-pick select { max-width: 100%; }
+.up-pick { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; }
+.up-pick select { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; text-overflow: ellipsis; }
+/* the module is narrow: the "⚡ Fastest:" label on its own line, the buttons full width below it */
+.up-pick .sampler-picks .chips { padding-left: 0; display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-width: 0; }
+.up-pick .sampler-picks .chips > .hint { position: static; min-width: 0; }
+.up-pick .sampler-picks .chips > .chip { margin: 0; max-width: 100%; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .up-pick .chip .hint { font-size: 10px; opacity: .75; }
 .up-pick .up-tip { font-size: 11px; line-height: 1.35; white-space: normal; }

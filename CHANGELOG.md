@@ -23,6 +23,10 @@
   Anima, MOSS, Chroma / HiDream / other image, video
 - `net.ensure_downloads_work`: always curl on macOS (VPNs that accept the connection then abort it, Errno 53);
   Make 3D downloads only `config.yaml` + `model.fp16.safetensors`
+- Make 3D: the worker gets the downloaded snapshot's own folder (an absolute path) as the model path, so Hunyuan3D's
+  `smart_load_model` doesn't call `snapshot_download` for the whole subfolder offline (IncompleteSnapshotError on
+  `model.fp16.ckpt`)
+- ⏩ Instant's upscaler list and quick picks fit the Enhance module (they were cut off at its right edge)
 
 ## 1.6.13
 
