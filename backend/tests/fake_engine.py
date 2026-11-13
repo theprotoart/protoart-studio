@@ -33,7 +33,7 @@ class FakeEngine:
         return [{"prompt": args.get("prompt")}]
 
     def preload(self, args, force=False, low_memory=False):
-        for _ in range(10):  # "loading" takes 0.5 s
+        for _ in range(60):  # "loading" takes 3 s: long enough that a busy Mac's next message still finds it running
             if self.cancel_event.is_set():
                 raise Cancelled()
             time.sleep(0.05)
