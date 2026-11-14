@@ -2,6 +2,12 @@
 
 ## 1.6.16
 
+- 📐 Text perspective (`perspH`, `perspV`): a projective map from the flat text to a four-sided shape
+  (`squareToQuad`, Heckbert), drawn as a grid of small affine cells overlapping by a pixel (no clipping, so no seams);
+  combines with a warp (warp first, on a taller canvas)
+- 🔤 Replace text → **Text & balloons** (Tools module and Image to image mode): an always-visible *Add to the picture* row
+  (✏️ Words and every balloon, `txQuick`) opens the text tool on the picture as it is and adds the text or balloon at once;
+  Find / Clear / Type moved under *Replace words already in the picture (optional)*
 - Replace text: turn a text with a handle (the green dot, like balloons), slant (`skewX` / `skewY`, CSS `skew` in the
   pick box, `ctx.transform` when drawing) and warp (`warp`: bottle / bulge / wave / rise, `warpAmt`): the text and its
   effects are drawn flat on their own canvas (`layerBody`) and bent onto the picture in 2 px columns (`warpOnto`); only

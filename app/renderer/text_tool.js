@@ -53,7 +53,8 @@
     shadowColour: "#000000", shadowAngle: 53, shadowSoft: 1.2,  // drop shadow: colour, direction (degrees, 90 = straight down), softness
     curve: 0,                                            // arc: bend the line(s) up (+) or down (−), in degrees of the circle
     skewX: 0, skewY: 0,                                  // slant sideways / up and down, in degrees
-    warp: "none", warpAmt: 50,                           // warp the whole text: "bottle" (round a can or bottle), "bulge", "wave", "rise"
+    warp: "none", warpAmt: 50,
+    perspH: 0, perspV: 0,                                // perspective: turned away left/right (−/+) and leaning back/forward, −100…100                           // warp the whole text: "bottle" (round a can or bottle), "bulge", "wave", "rise"
   };
   const WARPS = [
     { id: "none", label: "None" },
@@ -164,15 +165,26 @@
       const { spots, bw, bh } = spotsOf(ctx, L, px, lines, lh);
       const u = px / 100;  // effect sizes are in hundredths of the text size, so they scale with it
       const amt = Math.max(-100, Math.min(100, +L.warpAmt || 0));
-      if (L.warp && L.warp !== "none" && amt) {
-        // drawn flat on its own canvas first (with every effect), then bent onto the picture slice by slice
+      const warp = L.warp && L.warp !== "none" && amt;
+      const ph = Math.max(-100, Math.min(100, +L.perspH || 0)) / 100, pv = Math.max(-100, Math.min(100, +L.perspV || 0)) / 100;
+      if (warp || ph || pv) {
+        // drawn flat on its own canvas first (with every effect), then bent and/or put in perspective onto the picture
         const pad = Math.ceil(((L.stroke || 0) + (L.stroke2 || 0)) * u * 2 + (L.glow || 0) * u * 3 + (L.shadow || 0) * u * 2.5 + px * 0.3 + 6);
         const HW = Math.ceil(bw / 2 + pad), HH = Math.ceil(bh / 2 + pad);
-        const c = document.createElement("canvas"); c.width = HW * 2; c.height = HH * 2;
-        const cx = c.getContext("2d");
-        cx.translate(HW, HH); setup(cx);
+        const canvas = (w2, h2) => { const c = document.createElement("canvas"); c.width = w2 * 2; c.height = h2 * 2; const x = c.getContext("2d"); x.translate(w2, h2); return [c, x]; };
+        const [c, cx] = canvas(HW, HH);
+        setup(cx);
         layerBody(cx, L, spots, setup, bw, bh, u);
-        warpOnto(ctx, c, HW, HH, bw / 2, bh / 2, L.warp, amt / 100);
+        if (!ph && !pv) warpOnto(ctx, c, HW, HH, bw / 2, bh / 2, L.warp, amt / 100);
+        else {
+          let src = c, sw = HW, shh = HH;
+          if (warp) {  // bend first, on a taller canvas (a wave or a bulge reaches above and below), then the perspective
+            const [c2, x2] = canvas(HW, HH * 2);
+            warpOnto(x2, c, HW, HH, bw / 2, bh / 2, L.warp, amt / 100);
+            src = c2; shh = HH * 2;
+          }
+          perspOnto(ctx, src, sw, shh, ph, pv);
+        }
       } else layerBody(ctx, L, spots, setup, bw, bh, u);
       ctx.restore();
     }
@@ -209,6 +221,37 @@
     ctx.fillStyle = fill;
     each(ctx, spots, (t, x, y) => ctx.fillText(t, x, y));
     if (L.bevel > 0 || L.inner > 0) insideEffects(ctx, L, spots, setup, bw, bh, u);
+  }
+  // 📐 perspective (like Photoshop's Transform → Perspective): the flat picture src (its middle at HW, HH) mapped onto a
+  // four-sided shape round (0, 0) of ctx, with true foreshortening. ph: + the right side comes nearer (bigger), the left
+  // goes away; pv: + the bottom comes nearer, the top leans back. Drawn as a grid of small triangles
+  function perspOnto(ctx, src, HW, HH, ph, pv) {
+    const a = ph * 0.6, b = pv * 0.6;
+    const corner = (sx, sy) => [sx * HW * (1 + sy * b), sy * HH * (1 + sx * a)];  // the far side shrinks, the near grows
+    const Q = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)];
+    const H = squareToQuad(Q);
+    const map = (u, v) => { const d = H[6] * u + H[7] * v + 1; return [(H[0] * u + H[1] * v + H[2]) / d, (H[3] * u + H[4] * v + H[5]) / d]; };
+    // a grid of small cells, each drawn as a straight (affine) piece and overlapping its neighbours by a pixel: with
+    // cells this small the error is invisible, and nothing is clipped, so no hairline seams
+    const W = HW * 2, Hh = HH * 2, N = Math.max(8, Math.min(48, Math.ceil(Math.max(W, Hh) / 24)));
+    const cw = W / N, chh = Hh / N;
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const d00 = map(i / N, j / N), d10 = map((i + 1) / N, j / N), d01 = map(i / N, (j + 1) / N);
+      ctx.save();
+      ctx.transform((d10[0] - d00[0]) / cw, (d10[1] - d00[1]) / cw, (d01[0] - d00[0]) / chh, (d01[1] - d00[1]) / chh, d00[0], d00[1]);
+      const sx = i * cw, sy = j * chh;
+      const ew = Math.min(cw + 1.2, W - sx), eh = Math.min(chh + 1.2, Hh - sy);  // a little over into the next cell
+      ctx.drawImage(src, sx, sy, ew, eh, 0, 0, ew, eh);
+      ctx.restore();
+    }
+  }
+  function squareToQuad(q) {  // the projective map from the unit square to the four corners q (TL, TR, BR, BL), Heckbert's way
+    const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = q;
+    const sx = x0 - x1 + x2 - x3, sy = y0 - y1 + y2 - y3;
+    if (Math.abs(sx) < 1e-9 && Math.abs(sy) < 1e-9) return [x1 - x0, x3 - x0, x0, y1 - y0, y3 - y0, y0, 0, 0];
+    const dx1 = x1 - x2, dx2 = x3 - x2, dy1 = y1 - y2, dy2 = y3 - y2, den = dx1 * dy2 - dx2 * dy1;
+    const g = (sx * dy2 - dx2 * sy) / den, h = (dx1 * sy - sx * dy1) / den;
+    return [x1 - x0 + g * x1, x3 - x0 + h * x3, x0, y1 - y0 + g * y1, y3 - y0 + h * y3, y0, g, h];
   }
   // bend the flat text (canvas src, its middle at HW, HH; the words reach ±tw, ±th from it) onto ctx round (0, 0),
   // one thin column at a time. k = −1…1

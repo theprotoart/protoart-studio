@@ -1634,7 +1634,7 @@
               </g>
             </svg>
             <div v-for="(L, i) in tx.layers" :key="'tx' + i" v-show="L.type !== 'shape'" class="tx-layer" :class="{sel: i === tx.sel}" :style="txStyle(L)"
-                 @pointerdown.stop="txLayerDown($event, i)" title="Drag to move · edit it in 🔤 Replace text"><template v-if="L.type === 'shape'"></template><template v-else-if="L.vertical"><span
+                 @pointerdown.stop="txLayerDown($event, i)" title="Drag to move · edit it in 🔤 Text &amp; balloons"><template v-if="L.type === 'shape'"></template><template v-else-if="L.vertical"><span
                    v-for="(col, ci) in ProtoText.columns(L, tx.scale || 1).cols" :key="'tc' + ci" class="tx-vcol"
                    :style="{width: ProtoText.columns(L, tx.scale || 1).w + 'px'}"><span v-for="(ch, j) in col" :key="j">{{ ch === ' ' ? '\u00a0' : ch }}</span></span></template><template v-else>{{ L.text || ' ' }}</template><template v-if="i === tx.sel && L.type !== 'shape'"><i v-for="c in ['nw', 'ne', 'sw', 'se']" :key="'th' + c"
                    class="tx-handle tx-in" :class="'h-' + c" @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize the text"></i><i
@@ -2623,15 +2623,23 @@
 
         <div id="rack-text" class="card rack-module tx-module" :class="{active: tx.open}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🔤</span>
-            <h3>Replace text</h3><span class="mod-sub">find · clear · type</span></div>
-          <p class="mod-desc">Swap the writing in a picture (a sign, a poster, a label) for your own: find it, clear it away, then type the new text in the font, size and colour you want.</p>
+            <h3>Text &amp; balloons</h3><span class="mod-sub">add words · balloons · replace old words</span></div>
+          <p class="mod-desc">Add words, speech and thought balloons, captions and sound effects to any picture, in a real font. To change words that are already in the picture, find and clear them first (optional).</p>
+          <div class="tx-quick">
+            <label>Add to the picture <span class="hint">· no need to clear anything</span></label>
+            <div class="chips tx-shape-picks">
+              <button class="chip tx-quick-words" :disabled="!tool.source" @click="txQuick('text', false)" title="Words straight on the picture, in any font, size and colour, with effects">✏️ Words</button>
+              <button v-for="k in ProtoText.SHAPES" :key="'q' + k[0]" class="chip" :disabled="!tool.source" @click="txQuick(k[0], false)" :title="k[2] + ' (with a text inside it), straight on the picture'">{{ k[1] }}</button>
+            </div>
+          </div>
+          <label class="tx-replace-head">Replace words already in the picture <span class="hint">· optional</span></label>
           <div class="tx-steps">
             <button class="ghost small" :disabled="!tool.source || tx.finding || objFinding" @click="txFindText"
                     title="Selects the writing in the picture (Florence-2 reads it). Add or take away with the brush if it missed a bit.">{{ tx.finding || objFinding ? 'Finding…' : '1 · 🔍 Find the text' }}</button>
             <button class="ghost small" :disabled="!tool.source || !!tool.working || !toolPaintFor('remove')" @click="txClear"
                     title="Fills in the background where the text was (like Remove objects), then opens the Type tool on it">2 · 🧽 Clear it</button>
             <button class="ghost small" :disabled="!tool.source" @click="tx.open ? txClose() : txOpen()"
-                    :title="tx.open ? 'Close the Type tool (the text is kept until you open another picture)' : 'Type on the picture (the cleared one if you just cleared it)'">{{ tx.open ? '✕ Close' : '3 · ✏️ Type' }}</button>
+                    :title="tx.open ? 'Close the text tool (the text is kept until you open another picture)' : 'Type on the picture (the cleared one if you just cleared it)'">{{ tx.open ? '✕ Close' : '3 · ✏️ Type' }}</button>
           </div>
           <template v-if="tx.open">
             <div v-if="!tx.layers.length" class="hint">Click the picture where the text goes.</div>
@@ -2639,10 +2647,6 @@
               <button v-for="(L, i) in tx.layers" :key="'txl' + i" class="tx-chip" :class="{on: i === tx.sel}" @click="tx.sel = i">
                 {{ L.type === 'shape' ? txShapeLabel(L.kind) : ((L.text || '…').split('\n')[0].slice(0, 14) || '…') }}<b @click.stop="txRemove(i)" title="Delete this">✕</b></button>
               <button class="tx-chip tx-add" @click="txAdd()" title="Another text, with its own words, font, size and colour (or click an empty spot on the picture)">＋ Add text</button>
-            </div>
-            <label title="Speech and thought balloons, captions and sound-effect bursts: they sit under the text">Balloons &amp; shapes</label>
-            <div class="chips tx-shape-picks">
-              <button v-for="k in ProtoText.SHAPES" :key="k[0]" class="chip" @click="txAddShape(k[0])" :title="k[2] + ' (with a text inside it)'">{{ k[1] }}</button>
             </div>
             <div v-if="tx.layers.length" class="hint">Each text is separate: click an empty spot on the picture (or ＋ Add text) for another one; click a text to pick it, drag it to move it.</div>
             <template v-if="txLayer() && txLayer().type === 'shape'">
@@ -2751,13 +2755,17 @@
                 </div>
               </details>
               <details class="mod-more">
-                <summary>Turn, slant &amp; warp <span class="more-hint">angle, skew, arc, wrap round a bottle</span></summary>
+                <summary>Turn, slant &amp; warp <span class="more-hint">angle, slant, perspective, arc, wrap round a bottle</span></summary>
                 <label title="Or drag the round green handle above the text">Angle <span class="mod-val">{{ txLayer().rotate }}°</span></label>
                 <input type="range" min="-180" max="180" step="1" v-model.number="txLayer().rotate" @dblclick="txLayer().rotate = 0">
                 <label title="Slant the letters sideways (like italics, either way). Double-click to straighten">Slant sideways <span class="mod-val">{{ txLayer().skewX }}°</span></label>
                 <input type="range" min="-60" max="60" step="1" v-model.number="txLayer().skewX" @dblclick="txLayer().skewX = 0">
                 <label title="Slant the text up or down, for a side or a surface seen at an angle. Double-click to straighten">Slant up / down <span class="mod-val">{{ txLayer().skewY }}°</span></label>
                 <input type="range" min="-45" max="45" step="1" v-model.number="txLayer().skewY" @dblclick="txLayer().skewY = 0">
+                <label title="Like Photoshop's Perspective: one side comes nearer (bigger) and the other goes away (smaller), for a wall or sign seen from the side. + the right side nearer, − the left. Double-click for 0">Perspective ↔ <span class="mod-val">{{ txLayer().perspH || 0 }}</span></label>
+                <input type="range" min="-100" max="100" step="1" :value="txLayer().perspH || 0" @input="txLayer().perspH = +$event.target.value" @dblclick="txLayer().perspH = 0">
+                <label title="Lean the text back (+, like words on a floor or a road, or the opening words of a space film) or forward (−). Double-click for 0">Perspective ↕ <span class="mod-val">{{ txLayer().perspV || 0 }}</span></label>
+                <input type="range" min="-100" max="100" step="1" :value="txLayer().perspV || 0" @input="txLayer().perspV = +$event.target.value" @dblclick="txLayer().perspV = 0">
                 <label title="Bend only the words to fit something in the picture; the picture itself is not changed">Warp</label>
                 <div class="seg mod-seg tx-warps">
                   <button v-for="W in ProtoText.WARPS" :key="W.id" :class="{on: (txLayer().warp || 'none') === W.id}" @click="txLayer().warp = W.id" :title="W.tip || 'No warp'">{{ W.label }}</button>
@@ -3078,7 +3086,7 @@
           <button :class="{on: form.i2i_mode === 'change'}" @click="setI2iMode('change')" title="Change the whole picture, keep as much as you like">🔄 Change it</button>
           <button :class="{on: form.i2i_mode === 'inpaint'}" @click="setI2iMode('inpaint')" title="Paint over a part and redraw only that part">🖌 Inpaint</button>
           <button :class="{on: form.i2i_mode === 'outpaint'}" @click="setI2iMode('outpaint')" title="Make the picture bigger and fill in the new area">↔ Expand</button>
-          <button :class="{on: form.i2i_mode === 'text'}" @click="setI2iMode('text')" title="Change the words in speech bubbles, signs or labels: find them, clear them, type new ones in a real font">🔤 Replace text</button>
+          <button :class="{on: form.i2i_mode === 'text'}" @click="setI2iMode('text')" title="Add words, speech and thought balloons and sound effects in a real font, or replace words already in the picture">🔤 Text &amp; balloons</button>
           <button :class="{on: form.i2i_mode === 'relight'}" @click="setI2iMode('relight')" title="New light on the picture (IC-Light): described in words or copied from a reference picture, on your own background or a new one">💡 Relight</button>
           <button :class="{on: form.i2i_mode === 'remove'}" @click="setI2iMode('remove')" title="Paint over something and it disappears, filled in from what's around it (no prompt or model needed)">🩹 Remove</button>
           <button :class="{on: form.i2i_mode === 'combine'}" @click="setI2iMode('combine')" title="Put a character (or anything) from another picture into this scene, just by asking: “add this character sitting on the bench”. Its light is matched to the scene">🧩 Combine</button>
@@ -3107,8 +3115,8 @@
               <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
             </div>
             <div v-if="txHint && tab === 'i2i'" class="tx-hint"><b>🔤 Changing the words?</b> Picture models can't spell, so new writing comes out as scribbles.
-              <b>Replace text</b> clears the old words and lets you type new ones in a real font, size and colour.
-              <button class="primary small" @click="txHint = false; setI2iMode('text')" title="Switch to 🔤 Replace text (your selection is kept): clear the words, then type new ones">🔤 Replace the text instead</button>
+              <b>🔤 Text &amp; balloons</b> clears the old words and lets you type new ones in a real font, size and colour.
+              <button class="primary small" @click="txHint = false; setI2iMode('text')" title="Switch to 🔤 Text &amp; balloons (your selection is kept): clear the words, then type new ones">🔤 Replace the text instead</button>
               <button class="link" @click="txHint = false">no thanks, keep painting</button></div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
@@ -3415,15 +3423,23 @@
           <div v-if="!relightModels().length" class="hint">Needs a Stable Diffusion 1.5 model: download one in <a href="#" @click.prevent="tab = 'models'">Models</a>.</div>
         </template>
         <template v-else-if="form.i2i_mode === 'text'">
-          <div class="hint">Change the words in speech bubbles, signs, posters or labels. Picture models can't spell, so the
-            old words are cleared away and you type the new ones in a real font, size and colour.</div>
+          <div class="hint">Add words, speech and thought balloons, captions and sound effects to the picture, in a real font. To change
+            words already in it (speech bubbles, signs, labels), find and clear them first: picture models can't spell.</div>
+          <div class="tx-quick">
+            <label>Add to the picture <span class="hint">· no need to clear anything</span></label>
+            <div class="chips tx-shape-picks">
+              <button class="chip tx-quick-words" :disabled="!form.init_image" @click="txQuick('text', true)" title="Words straight on the picture, in any font, size and colour, with effects">✏️ Words</button>
+              <button v-for="k in ProtoText.SHAPES" :key="'q' + k[0]" class="chip" :disabled="!form.init_image" @click="txQuick(k[0], true)" :title="k[2] + ' (with a text inside it), straight on the picture'">{{ k[1] }}</button>
+            </div>
+          </div>
+          <label class="tx-replace-head">Replace words already in the picture <span class="hint">· optional</span></label>
           <div class="tx-steps">
             <button class="ghost small" :disabled="objFinding || i2iRunning" @click="i2iTxFind"
                     title="Selects the writing in the picture (Florence-2 reads it). Add or take away with the brush if it missed a bit.">{{ objFinding ? 'Finding…' : '1 · 🔍 Find the text' }}</button>
             <button class="ghost small" :disabled="i2iRunning" @click="i2iTxClear"
                     title="Fills in the background where the text was (like 🩹 Remove), then opens the Type tool on it">2 · 🧽 Clear it</button>
             <button class="ghost small" @click="tx.open ? txClose() : i2iTxOpen()"
-                    :title="tx.open ? 'Close the Type tool (the text is kept until you open another picture)' : 'Type on the picture (the cleared one if you just cleared it)'">{{ tx.open ? '✕ Close' : '3 · ✏️ Type' }}</button>
+                    :title="tx.open ? 'Close the text tool (the text is kept until you open another picture)' : 'Type on the picture (the cleared one if you just cleared it)'">{{ tx.open ? '✕ Close' : '3 · ✏️ Type' }}</button>
           </div>
           <template v-if="!tx.open">
           <div class="hint">Missed a bit, or picked up too much? Fix the selection with the brush (＋ Add / − Subtract) before 🧽 Clear it.</div>
@@ -3452,10 +3468,6 @@
               <button v-for="(L, i) in tx.layers" :key="'txl' + i" class="tx-chip" :class="{on: i === tx.sel}" @click="tx.sel = i">
                 {{ L.type === 'shape' ? txShapeLabel(L.kind) : ((L.text || '…').split('\n')[0].slice(0, 14) || '…') }}<b @click.stop="txRemove(i)" title="Delete this">✕</b></button>
               <button class="tx-chip tx-add" @click="txAdd()" title="Another text, with its own words, font, size and colour (or click an empty spot on the picture)">＋ Add text</button>
-            </div>
-            <label title="Speech and thought balloons, captions and sound-effect bursts: they sit under the text">Balloons &amp; shapes</label>
-            <div class="chips tx-shape-picks">
-              <button v-for="k in ProtoText.SHAPES" :key="k[0]" class="chip" @click="txAddShape(k[0])" :title="k[2] + ' (with a text inside it)'">{{ k[1] }}</button>
             </div>
             <div v-if="tx.layers.length" class="hint">Each text is separate: click an empty spot on the picture (or ＋ Add text) for another one; click a text to pick it, drag it to move it.</div>
             <template v-if="txLayer() && txLayer().type === 'shape'">
@@ -3564,13 +3576,17 @@
                 </div>
               </details>
               <details class="mod-more">
-                <summary>Turn, slant &amp; warp <span class="more-hint">angle, skew, arc, wrap round a bottle</span></summary>
+                <summary>Turn, slant &amp; warp <span class="more-hint">angle, slant, perspective, arc, wrap round a bottle</span></summary>
                 <label title="Or drag the round green handle above the text">Angle <span class="mod-val">{{ txLayer().rotate }}°</span></label>
                 <input type="range" min="-180" max="180" step="1" v-model.number="txLayer().rotate" @dblclick="txLayer().rotate = 0">
                 <label title="Slant the letters sideways (like italics, either way). Double-click to straighten">Slant sideways <span class="mod-val">{{ txLayer().skewX }}°</span></label>
                 <input type="range" min="-60" max="60" step="1" v-model.number="txLayer().skewX" @dblclick="txLayer().skewX = 0">
                 <label title="Slant the text up or down, for a side or a surface seen at an angle. Double-click to straighten">Slant up / down <span class="mod-val">{{ txLayer().skewY }}°</span></label>
                 <input type="range" min="-45" max="45" step="1" v-model.number="txLayer().skewY" @dblclick="txLayer().skewY = 0">
+                <label title="Like Photoshop's Perspective: one side comes nearer (bigger) and the other goes away (smaller), for a wall or sign seen from the side. + the right side nearer, − the left. Double-click for 0">Perspective ↔ <span class="mod-val">{{ txLayer().perspH || 0 }}</span></label>
+                <input type="range" min="-100" max="100" step="1" :value="txLayer().perspH || 0" @input="txLayer().perspH = +$event.target.value" @dblclick="txLayer().perspH = 0">
+                <label title="Lean the text back (+, like words on a floor or a road, or the opening words of a space film) or forward (−). Double-click for 0">Perspective ↕ <span class="mod-val">{{ txLayer().perspV || 0 }}</span></label>
+                <input type="range" min="-100" max="100" step="1" :value="txLayer().perspV || 0" @input="txLayer().perspV = +$event.target.value" @dblclick="txLayer().perspV = 0">
                 <label title="Bend only the words to fit something in the picture; the picture itself is not changed">Warp</label>
                 <div class="seg mod-seg tx-warps">
                   <button v-for="W in ProtoText.WARPS" :key="W.id" :class="{on: (txLayer().warp || 'none') === W.id}" @click="txLayer().warp = W.id" :title="W.tip || 'No warp'">{{ W.label }}</button>
@@ -3595,8 +3611,8 @@
               <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
             </div>
             <div v-if="txHint && tab === 'i2i'" class="tx-hint"><b>🔤 Changing the words?</b> Picture models can't spell, so new writing comes out as scribbles.
-              <b>Replace text</b> clears the old words and lets you type new ones in a real font, size and colour.
-              <button class="primary small" @click="txHint = false; setI2iMode('text')" title="Switch to 🔤 Replace text (your selection is kept): clear the words, then type new ones">🔤 Replace the text instead</button>
+              <b>🔤 Text &amp; balloons</b> clears the old words and lets you type new ones in a real font, size and colour.
+              <button class="primary small" @click="txHint = false; setI2iMode('text')" title="Switch to 🔤 Text &amp; balloons (your selection is kept): clear the words, then type new ones">🔤 Replace the text instead</button>
               <button class="link" @click="txHint = false">no thanks, keep painting</button></div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
@@ -3628,8 +3644,8 @@
               <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
             </div>
             <div v-if="txHint && tab === 'i2i'" class="tx-hint"><b>🔤 Changing the words?</b> Picture models can't spell, so new writing comes out as scribbles.
-              <b>Replace text</b> clears the old words and lets you type new ones in a real font, size and colour.
-              <button class="primary small" @click="txHint = false; setI2iMode('text')" title="Switch to 🔤 Replace text (your selection is kept): clear the words, then type new ones">🔤 Replace the text instead</button>
+              <b>🔤 Text &amp; balloons</b> clears the old words and lets you type new ones in a real font, size and colour.
+              <button class="primary small" @click="txHint = false; setI2iMode('text')" title="Switch to 🔤 Text &amp; balloons (your selection is kept): clear the words, then type new ones">🔤 Replace the text instead</button>
               <button class="link" @click="txHint = false">no thanks, keep painting</button></div>
             <div class="sel-opts">
               <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>

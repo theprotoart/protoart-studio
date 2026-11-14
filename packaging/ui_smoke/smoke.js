@@ -111,7 +111,7 @@ const CHECK = `
       }
       await page.waitForTimeout(600);
       // Image to image's modes: click each mode button (by its words)
-      const views = t === "i2i" ? ["Change it", "Edit with words", "Remove", "Inpaint", "Replace text", "Relight", "Camera angle", "Combine"] : [null];
+      const views = t === "i2i" ? ["Change it", "Edit with words", "Remove", "Inpaint", "Text & balloons", "Relight", "Camera angle", "Combine"] : [null];
       for (const v of views) {
         if (v) {
           const found = await page.evaluate((v) => {
