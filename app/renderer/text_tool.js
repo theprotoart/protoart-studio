@@ -55,8 +55,16 @@
     skewX: 0, skewY: 0,                                  // slant sideways / up and down, in degrees
     warp: "none", warpAmt: 50,                           // warp the whole text: "bottle" (round a can or bottle), "bulge", "wave", "rise"
     perspH: 0, perspV: 0,                                // perspective: turned away left/right (−/+) and leaning back/forward, −100…100
+    blend: "normal",                                     // blending mode, as in Photoshop (multiply, screen, overlay, …)
     quad: null,                                          // free transform: how far each corner (TL, TR, BR, BL) was dragged, in text sizes
   };
+  // blending modes (Photoshop's names; the browser draws them the same way)
+  const BLENDS = [
+    ["normal", "Normal"], ["multiply", "Multiply"], ["screen", "Screen"], ["overlay", "Overlay"], ["soft-light", "Soft Light"],
+    ["hard-light", "Hard Light"], ["darken", "Darken"], ["lighten", "Lighten"], ["color-dodge", "Color Dodge"],
+    ["color-burn", "Color Burn"], ["difference", "Difference"], ["exclusion", "Exclusion"], ["hue", "Hue"],
+    ["saturation", "Saturation"], ["color", "Color"], ["luminosity", "Luminosity"],
+  ];
   const WARPS = [
     { id: "none", label: "None" },
     { id: "bottle", label: "🍾 Wrap round", tip: "Wrap the words round something round in the picture, like a label on a bottle or can: they narrow towards the sides and the lines curve (only the words bend, not the picture). + seen from above, − from below" },
@@ -155,8 +163,14 @@
         c.textBaseline = "middle";
         c.textAlign = L.align;
       };
+      const blend = L.blend && L.blend !== "normal" && BLENDS.some((b) => b[0] === L.blend) ? L.blend : null;
+      const target = ctx;
+      if (blend) {  // the whole text (fill, outline, shadow…) drawn on its own sheet first, then blended with what's under it once
+        const t = document.createElement("canvas"); t.width = target.canvas.width; t.height = target.canvas.height;
+        ctx = t.getContext("2d"); ctx.setTransform(target.getTransform());
+      }
       ctx.save();
-      ctx.globalAlpha = L.opacity;
+      ctx.globalAlpha = blend ? 1 : L.opacity;
       ctx.translate(L.x * w, L.y * h);
       ctx.rotate(((L.rotate || 0) * Math.PI) / 180);
       const sx = Math.tan(((Math.max(-70, Math.min(70, +L.skewX || 0))) * Math.PI) / 180);
@@ -188,6 +202,15 @@
         }
       } else layerBody(ctx, L, spots, setup, bw, bh, u);
       ctx.restore();
+      if (blend) {
+        target.save();
+        target.setTransform(1, 0, 0, 1, 0, 0);
+        target.globalAlpha = L.opacity;
+        target.globalCompositeOperation = blend;
+        target.drawImage(ctx.canvas, 0, 0);
+        target.restore();
+        ctx = target;
+      }
     }
   }
   // one text with its effects, drawn round (0, 0) of ctx
@@ -468,7 +491,7 @@
     const det = 1 - sx * sy || 1;
     return [(X - sx * Y) / det, (Y - sy * X) / det];
   }
-  const api = { FONTS, PACK, SHAPES, EFFECTS, WARPS, geometry, toLocal, fontCss, stack, layer, withEffects, style, draw, columns, shape, shapePaths, drawShape };
+  const api = { FONTS, PACK, SHAPES, EFFECTS, WARPS, BLENDS, geometry, toLocal, fontCss, stack, layer, withEffects, style, draw, columns, shape, shapePaths, drawShape };
   if (typeof window !== "undefined") window.ProtoText = api;
   if (typeof module !== "undefined") module.exports = api;
 })();

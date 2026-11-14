@@ -1045,12 +1045,13 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.16: 💬 balloons on any picture in one press, ✥ free transform, 🔄 turn, slant, perspective and warp text (wrap it round a bottle), clearer effect buttons", items: [
+            { h: "1.6.16: 💬 balloons on any picture in one press, ✥ free transform, 🎨 blending modes, 🔄 turn, slant, perspective and warp text (wrap it round a bottle), clearer effect buttons", items: [
               "<b>🔄 Turn, slant &amp; warp text</b> (Text &amp; balloons): drag the <b>green dot</b> above a text to turn it, <b>slant</b> it sideways or up and down, put it in <b>📐 perspective</b> like Photoshop (one side nearer, or leaning back like words on a floor), and <b>warp</b> it: <b>🍾 Wrap round</b> bends the words round a bottle, can or cup in the picture (only the words bend, not the picture), plus 🎈 Bulge, 🌊 Wave and 📈 Rise. The effect sections are now proper buttons: <b>Outline &amp; shadow</b>, <b>Bevel, glow &amp; colour</b> and <b>Turn, slant &amp; warp</b>.",
               "<b>🔤 Replace text is now Text &amp; balloons</b> (Tools and Image to image): <b>Add to the picture</b> comes first, with ✏️ Words and every balloon one press away, so you can put a speech or thought balloon on any picture without finding or clearing anything. Replacing words already in the picture (Find, Clear, Type) is still there, below it.",
               "<b>✥ Free transform for text</b>, like Photoshop's: press <b>✥ Free transform (drag corners)</b> and drag the <b>purple corners</b> anywhere on the picture for perspective or any lean (Shift moves a whole edge), the <b>blue bars</b> to slant it and the <b>orange dot</b> to bend a warp. <b>↺ Reset shape</b> straightens it again.",
               "<b>Image to image: the preview stays in view</b> while you scroll the controls on the left (as in Tools), so you can watch your changes as you make them.",
               "<b>Text opacity</b> sits right under the colour now (it was hidden in a fold-out section), and the list of your texts (the chips above the typing box) is easier to read on the light looks.",
+              "<b>🎨 Blending modes for text</b>, as in Photoshop (under Opacity): Multiply, Screen, Overlay, Soft Light, Hard Light, Darken, Lighten, Color Dodge, Color Burn, Difference, Exclusion, Hue, Saturation, Color and Luminosity. <b>Multiply</b> makes words look printed or inked onto the picture, <b>Overlay</b> and <b>Soft Light</b> let its texture and light show through them, <b>Screen</b> makes them glow like light.",
             ] },
             { h: "1.6.15: 💬 comic balloons and a font pack, ✨ text effects (bevel & emboss, glow, gradient, arc), 💡 Relight keeps your background or copies a reference's light, more patchbay modules", items: [
               "<b>🔤 Replace text: comic lettering</b>: three fonts of our own, designed for Protoart Studio: <b>Protoart Speech</b> (dialogue, regular and bold), <b>Protoart Kaboom</b> (chunky sound effects) and <b>Protoart Chatter</b> (bouncy cartoon lettering), plus a built-in pack of 12 free comic fonts (Comic Neue, Shantell Sans, Bangers, Luckiest Guy…), every font installed on your Mac in the Font list, corner handles to resize a text by hand, and <b>💬 Balloons & shapes</b>: speech, thought, shout, whisper, box, caption and burst, with a draggable tail.",
@@ -10421,6 +10422,8 @@ const protoartApp = createApp({
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, cv.width, cv.height);
         ctx.setTransform((W * dpr) / this.tx.nw, 0, 0, (H * dpr) / this.tx.nh, 0, 0);
+        // a blending mode mixes the text with the picture under it, so then the preview draws the picture too
+        if (this.tx.layers.some((L) => L.blend && L.blend !== "normal")) try { ctx.drawImage(im, 0, 0, this.tx.nw, this.tx.nh); } catch {}
         try { window.ProtoText.draw(ctx, this.tx.layers, this.tx.nw, this.tx.nh); } catch (e) { console.warn("text preview", e); }
         // a font that hasn't loaded yet is drawn as a stand-in: load it, then draw again
         if (document.fonts) for (const L of this.tx.layers) {

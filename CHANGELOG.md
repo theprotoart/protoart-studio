@@ -2,6 +2,9 @@
 
 ## 1.6.16
 
+- Text blending modes (`blend`, `ProtoText.BLENDS`, the canvas's `globalCompositeOperation`): a blended text is drawn whole
+  on its own sheet and composited once (so its outline and fill don't blend with each other); the preview draws the
+  picture under the text when any text blends
 - Text: Opacity moved under Colour (always shown); text chips are dark keys (lit when picked), readable on light looks;
   plainer Wrap round hint
 - ✥ Free transform for text (`tx.free`): draggable corner pins (`quad`, offsets in text sizes on top of the slider

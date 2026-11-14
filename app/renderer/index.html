@@ -2701,6 +2701,10 @@
               </div>
               <label title="How solid the text is: lower lets the picture show through it (and its outline, shadow and glow). Double-click for 100%">Opacity <span class="mod-val">{{ Math.round((txLayer().opacity ?? 1) * 100) }}%</span></label>
               <input type="range" min="0.05" max="1" step="0.05" :value="txLayer().opacity ?? 1" @input="txLayer().opacity = +$event.target.value" @dblclick="txLayer().opacity = 1">
+              <label title="How the text mixes with the picture under it, as in Photoshop. Multiply: darkens (like ink or a print on paper); Screen: lightens (like light); Overlay / Soft Light: blends into the picture's own light and texture">Blending mode</label>
+              <select class="tx-blend" :value="txLayer().blend || 'normal'" @change="txLayer().blend = $event.target.value">
+                <option v-for="b in ProtoText.BLENDS" :key="b[0]" :value="b[0]">{{ b[1] }}</option>
+              </select>
               <div class="seg mod-seg">
                 <button :class="{on: txLayer().bold}" @click="txLayer().bold = !txLayer().bold" title="Bold"><b>B</b></button>
                 <button :class="{on: txLayer().italic}" @click="txLayer().italic = !txLayer().italic" title="Italic"><i>I</i></button>
@@ -3526,6 +3530,10 @@
               </div>
               <label title="How solid the text is: lower lets the picture show through it (and its outline, shadow and glow). Double-click for 100%">Opacity <span class="mod-val">{{ Math.round((txLayer().opacity ?? 1) * 100) }}%</span></label>
               <input type="range" min="0.05" max="1" step="0.05" :value="txLayer().opacity ?? 1" @input="txLayer().opacity = +$event.target.value" @dblclick="txLayer().opacity = 1">
+              <label title="How the text mixes with the picture under it, as in Photoshop. Multiply: darkens (like ink or a print on paper); Screen: lightens (like light); Overlay / Soft Light: blends into the picture's own light and texture">Blending mode</label>
+              <select class="tx-blend" :value="txLayer().blend || 'normal'" @change="txLayer().blend = $event.target.value">
+                <option v-for="b in ProtoText.BLENDS" :key="b[0]" :value="b[0]">{{ b[1] }}</option>
+              </select>
               <div class="seg mod-seg">
                 <button :class="{on: txLayer().bold}" @click="txLayer().bold = !txLayer().bold" title="Bold"><b>B</b></button>
                 <button :class="{on: txLayer().italic}" @click="txLayer().italic = !txLayer().italic" title="Italic"><i>I</i></button>
