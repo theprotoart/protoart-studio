@@ -8,6 +8,7 @@
   <link rel="icon" href="assets/favicon.png">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="rack.css">
+  <link rel="stylesheet" href="holiday.css">
   <script src="rack.js"></script>
 </head>
 <body>
@@ -50,7 +51,9 @@
   <div class="splash-note">A standalone app: everything runs on this Mac.<br>No account, no cloud, and your images never leave your computer.</div>
 </div>
 <div id="app" v-cloak>
+  <i class="holiday-corner" aria-hidden="true"></i>
   <header class="topbar rack-head" :class="{'meters-off': ['settings', 'library', 'help', 'models'].includes(tab)}">
+    <div class="holiday-deco" aria-hidden="true"><i class="hd0"></i><i class="hd1"></i><i class="hd2"></i><i class="hd3"></i><i class="hd4"></i></div>
     <div class="rack-ear"><i class="screw s0"></i><i class="slot"></i></div>
     <div class="brand plate" title="Protoart Studio">
       <img src="assets/logo-round-96.png" class="brand-logo" alt="">
@@ -190,8 +193,11 @@
           <button :class="{on: theme === 'dark'}" @click="setTheme('dark')" title="Black anodised faceplate">☾<span class="lbl"> Dark</span></button>
         </div>
         <div class="seg skin-pick" role="radiogroup" aria-label="Theme">
-          <button v-for="k in SKIN_LIST" :key="k.id" :class="{on: skin === k.id}" @click="setSkin(k.id)" :title="k.title" role="radio" :aria-checked="skin === k.id">
+          <button v-for="k in SKIN_LIST.filter((x) => !x.holiday)" :key="k.id" :class="{on: skin === k.id}" @click="setSkin(k.id)" :title="k.title" role="radio" :aria-checked="skin === k.id">
             <i class="skin-swatch" :class="k.id"></i><span class="lbl">{{ k.label }}</span></button>
+        </div>
+        <div class="seg holiday-pick" role="radiogroup" aria-label="Holiday looks">
+          <button v-for="k in SKIN_LIST.filter((x) => x.holiday)" :key="k.id" :class="{on: skin === k.id}" @click="setSkin(k.id)" :title="k.title" role="radio" :aria-checked="skin === k.id">{{ k.icon }}</button>
         </div>
         <button class="ghost tips-btn" :class="{on: opts.tooltips !== false}" @click="setTooltips(opts.tooltips === false)"
                 title="Show a short explanation when you point at a button or control (switch off once you know your way around)">💬<span class="lbl"> Tips {{ opts.tooltips === false ? 'off' : 'on' }}</span></button>

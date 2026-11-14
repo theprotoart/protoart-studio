@@ -777,6 +777,10 @@ const protoartApp = createApp({
         { id: "puig", label: "Slate", title: "Slate: blue-grey steel, cream lettering and soft ivory lamps" },
         { id: "magma", label: "Ember", title: "Ember: black panels with red-orange lamps" },
         { id: "powder", label: "Powder", title: "Powder: a light blue powder-coated faceplate with white lettering and yellow lamps (burnt orange on the Dark faceplate), as in ProtoArt Dandelion" },
+        { id: "halloween", label: "Halloween", icon: "🎃", holiday: true, title: "Halloween: pumpkin orange and witchy purple, jack-o'-lantern lamps whose eyes light up when they're on, and stickers (a grinning pumpkin, a bat, a ghost, a witch's hat)" },
+        { id: "thanksgiving", label: "Thanksgiving", icon: "🦃", holiday: true, title: "Thanksgiving: harvest wheat and chestnut, autumn-leaf lamps, and stickers (a turkey, a maple leaf, pumpkin pie, an acorn, corn)" },
+        { id: "christmas", label: "Christmas", icon: "🎄", holiday: true, title: "Christmas: snowy white and evergreen with candy-cane red, Christmas-bulb lamps, falling snow, and stickers (a tree, a candy cane, a bauble, holly, a present)" },
+        { id: "newyear", label: "New Year's", icon: "🎆", holiday: true, title: "New Year's: midnight blue and champagne gold, star lamps, and stickers (clinking glasses, fireworks, a party hat, a clock at midnight, streamers)" },
       ],
       sys: {},
       models: [],
@@ -1045,7 +1049,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.16: 💬 balloons on any picture in one press, ✥ free transform, 🎨 blending modes, 🔄 turn, slant, perspective and warp text (wrap it round a bottle), clearer effect buttons", items: [
+            { h: "1.6.16: 🎃 holiday looks, 💬 balloons on any picture in one press, ✥ free transform, 🎨 blending modes, 🔄 turn, slant, perspective and warp text (wrap it round a bottle), clearer effect buttons", items: [
+              "<b>🎃🦃🎄🎆 Holiday looks</b> (Settings → Look, the four buttons after the colour swatches), all original art made for Protoart Studio: <b>Halloween</b> (pumpkin orange and witchy purple, jack-o'-lantern lamps whose eyes light up, a flickering pumpkin and a VU meter that's a <b>jack-o'-lantern that lights up</b> while it works), <b>Thanksgiving</b> (harvest wheat and chestnut, autumn-leaf lamps, a turkey, pie and corn), <b>Christmas</b> (snowy white and evergreen, Christmas-bulb lamps, falling snow and a <b>snow globe</b> meter whose cabin lights up and snows while it works) and <b>New Year's</b> (midnight blue and champagne gold, star lamps, fireworks and clinking glasses). The launch screen joins in too. Light and Dark both work with each.",
               "<b>🔄 Turn, slant &amp; warp text</b> (Text &amp; balloons): drag the <b>green dot</b> above a text to turn it, <b>slant</b> it sideways or up and down, put it in <b>📐 perspective</b> like Photoshop (one side nearer, or leaning back like words on a floor), and <b>warp</b> it: <b>🍾 Wrap round</b> bends the words round a bottle, can or cup in the picture (only the words bend, not the picture), plus 🎈 Bulge, 🌊 Wave and 📈 Rise. The effect sections are now proper buttons: <b>Outline &amp; shadow</b>, <b>Bevel, glow &amp; colour</b> and <b>Turn, slant &amp; warp</b>.",
               "<b>🔤 Replace text is now Text &amp; balloons</b> (Tools and Image to image): <b>Add to the picture</b> comes first, with ✏️ Words and every balloon one press away, so you can put a speech or thought balloon on any picture without finding or clearing anything. Replacing words already in the picture (Find, Clear, Type) is still there, below it.",
               "<b>✥ Free transform for text</b>, like Photoshop's: press <b>✥ Free transform (drag corners)</b> and drag the <b>purple corners</b> anywhere on the picture for perspective or any lean (Shift moves a whole edge), the <b>blue bars</b> to slant it and the <b>orange dot</b> to bend a warp. <b>↺ Reset shape</b> straightens it again.",

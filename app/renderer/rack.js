@@ -263,6 +263,11 @@
     magma: { alu: [196, 186, 182], aluDark: [150, 139, 135], black: [26, 21, 21] },
     // Powder (from ProtoArt Dandelion): powder-coated cornflower blue on the Light faceplate, burnt orange on the Dark one
     powder: { alu: [74, 118, 200], aluDark: [62, 102, 182], black: [176, 80, 32] },
+    // holiday looks (their stickers, lamps and colours are in holiday.css, made by packaging/skins/build_holiday_css.py)
+    halloween: { alu: [236, 146, 66], aluDark: [190, 108, 40], black: [34, 22, 44] },
+    thanksgiving: { alu: [222, 188, 136], aluDark: [176, 138, 90], black: [52, 32, 20] },
+    christmas: { alu: [232, 235, 240], aluDark: [184, 190, 198], black: [16, 46, 30] },
+    newyear: { alu: [224, 204, 152], aluDark: [172, 152, 104], black: [18, 20, 44] },
   };
   let skin = "studio";
   try { const v = JSON.parse(localStorage.getItem(SKIN_KEY)); if (SKINS[v]) skin = v; } catch { /* default */ }
@@ -608,10 +613,17 @@
       kids.push(h("g", { class: ["vu-needle", { live: this.live }], style: { transform: `rotate(${this.angle}deg)` } }, [
         h("line", { x1: cx, y1: cy, x2: nx, y2: ny }),
       ]));
-      return h("div", { class: ["rack-vu", { lit: this.lit, live: this.live }] }, [
+      const p = clamp(this.pct || 0, 0, 100);
+      return h("div", { class: ["rack-vu", { lit: this.lit, live: this.live }], style: { "--vu": (p / 100).toFixed(3) } }, [
         h("div", { class: "vu-lamp warm" }),
         h("div", { class: "vu-lamp hot" }),
         h("svg", { viewBox: "0 0 160 98", "aria-hidden": "true" }, kids),
+        // the holiday looks' meters (a jack-o'-lantern, a snow globe): hidden unless holiday.css shows them; they light
+        // up while a job runs, brighter as it gets further, with the progress as a thin line along the bottom
+        h("div", { class: "vu-holiday", "aria-hidden": "true" }, [
+          h("i", { class: "vh-off" }), h("i", { class: "vh-on" }), h("i", { class: "vh-snow" }),
+          h("i", { class: "vh-bar", style: { width: p + "%" } }),
+        ]),
         h("div", { class: "vu-glass" }),
       ]);
     },
