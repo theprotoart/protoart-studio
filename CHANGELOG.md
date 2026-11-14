@@ -2,6 +2,9 @@
 
 ## 1.6.16
 
+- Fix: the text tool's session belongs to the tab it was opened in (`tx.where`, `txIn()`): a text open in Image to image
+  showed over Tools' picture after Library → Send to Tools (Tools showed the Image to image picture). A new picture in a
+  tab closes that tab's text session
 - Fix: pictures dropped from a temporary place (screenshot thumbnail, browser, Photos, Messages) are copied to
   `imports` (`pictures.keep`, `is_temporary`; the renderer sends such PNG/JPEG paths to `image_prepare` too): macOS deleted
   the original and Text & balloons → Clear it failed with "Couldn't open that file". Missing files now get a plain

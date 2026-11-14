@@ -1624,7 +1624,7 @@
           <span class="adjust-badge">{{ pw.original ? 'ORIGINAL' : pw.subject ? 'PUPPET WARP · SUBJECT ONLY' : 'PUPPET WARP' }}</span>
           <span v-if="pw.busy || pw.msg" class="adjust-badge busy">{{ pw.msg || 'Working…' }}</span>
         </div>
-        <div v-else-if="tx.open && tool.source && !tool.healing" class="adjust-canvas-wrap tx-wrap" @click.stop>
+        <div v-else-if="txIn('tools') && tool.source && !tool.healing" class="adjust-canvas-wrap tx-wrap" @click.stop>
           <div class="tx-stage">
             <img ref="txImg" class="adjust-canvas" :class="{picking: tx.pick}" :src="fileUrl(tx.base.path)" @load="txImgLoad" draggable="false" @pointerdown="txStageDown">
             <canvas ref="txCanvas" class="tx-overlay"></canvas>
@@ -2639,7 +2639,7 @@
           <div class="mod-foot"><span class="mod-plate">Detailer · DT-1</span></div>
         </div>
 
-        <div id="rack-text" class="card rack-module tx-module" :class="{active: tx.open}">
+        <div id="rack-text" class="card rack-module tx-module" :class="{active: txIn('tools')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🔤</span>
             <h3>Text &amp; balloons</h3><span class="mod-sub">add words · balloons · replace old words</span></div>
           <p class="mod-desc">Add words, speech and thought balloons, captions and sound effects to any picture, in a real font. To change words that are already in the picture, find and clear them first (optional).</p>
@@ -2656,10 +2656,10 @@
                     title="Selects the writing in the picture (Florence-2 reads it). Add or take away with the brush if it missed a bit.">{{ tx.finding || objFinding ? 'Finding…' : '1 · 🔍 Find the text' }}</button>
             <button class="ghost small" :disabled="!tool.source || !!tool.working || !toolPaintFor('remove')" @click="txClear"
                     title="Fills in the background where the text was (like Remove objects), then opens the Type tool on it">2 · 🧽 Clear it</button>
-            <button class="ghost small" :disabled="!tool.source" @click="tx.open ? txClose() : txOpen()"
-                    :title="tx.open ? 'Close the text tool (the text is kept until you open another picture)' : 'Type on the picture (the cleared one if you just cleared it)'">{{ tx.open ? '✕ Close' : '3 · ✏️ Type' }}</button>
+            <button class="ghost small" :disabled="!tool.source" @click="txIn('tools') ? txClose() : txOpen()"
+                    :title="txIn('tools') ? 'Close the text tool (the text is kept until you open another picture)' : 'Type on the picture (the cleared one if you just cleared it)'">{{ txIn('tools') ? '✕ Close' : '3 · ✏️ Type' }}</button>
           </div>
-          <template v-if="tx.open">
+          <template v-if="txIn('tools')">
             <div v-if="!tx.layers.length" class="hint">Click the picture where the text goes.</div>
             <div v-else class="tx-layers">
               <button v-for="(L, i) in tx.layers" :key="'txl' + i" class="tx-chip" :class="{on: i === tx.sel}" @click="tx.sel = i">
@@ -2807,7 +2807,7 @@
             </template>
           </template>
           <div class="mod-foot">
-            <button class="primary mod-go" :disabled="!tx.open || tx.busy || !tx.layers.length" @click="txSave">{{ tx.busy ? 'Saving…' : '💾 Save' }}</button>
+            <button class="primary mod-go" :disabled="!txIn('tools') || tx.busy || !tx.layers.length" @click="txSave">{{ tx.busy ? 'Saving…' : '💾 Save' }}</button>
             <span class="mod-plate">Typesetter · TX-1</span>
           </div>
         </div>
@@ -3464,10 +3464,10 @@
                     title="Selects the writing in the picture (Florence-2 reads it). Add or take away with the brush if it missed a bit.">{{ objFinding ? 'Finding…' : '1 · 🔍 Find the text' }}</button>
             <button class="ghost small" :disabled="i2iRunning" @click="i2iTxClear"
                     title="Fills in the background where the text was (like 🩹 Remove), then opens the Type tool on it">2 · 🧽 Clear it</button>
-            <button class="ghost small" @click="tx.open ? txClose() : i2iTxOpen()"
-                    :title="tx.open ? 'Close the text tool (the text is kept until you open another picture)' : 'Type on the picture (the cleared one if you just cleared it)'">{{ tx.open ? '✕ Close' : '3 · ✏️ Type' }}</button>
+            <button class="ghost small" @click="txIn('i2i') ? txClose() : i2iTxOpen()"
+                    :title="txIn('i2i') ? 'Close the text tool (the text is kept until you open another picture)' : 'Type on the picture (the cleared one if you just cleared it)'">{{ txIn('i2i') ? '✕ Close' : '3 · ✏️ Type' }}</button>
           </div>
-          <template v-if="!tx.open">
+          <template v-if="!txIn('i2i')">
           <div class="hint">Missed a bit, or picked up too much? Fix the selection with the brush (＋ Add / − Subtract) before 🧽 Clear it.</div>
           <div class="mask-tools">
             <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
@@ -3488,7 +3488,7 @@
             <span class="hint">{{ mask.size }}</span>
           </div>
           </template>
-          <template v-if="tx.open">
+          <template v-if="txIn('i2i')">
             <div v-if="!tx.layers.length" class="hint">Click the picture on the right where the text goes.</div>
             <div v-else class="tx-layers">
               <button v-for="(L, i) in tx.layers" :key="'txl' + i" class="tx-chip" :class="{on: i === tx.sel}" @click="tx.sel = i">
@@ -3635,7 +3635,7 @@
               </details>
             </template>
           </template>
-          <button v-if="tx.open" class="primary" :disabled="tx.busy || !tx.layers.length" @click="txSave">{{ tx.busy ? 'Saving…' : '💾 Save the picture with the text' }}</button>
+          <button v-if="txIn('i2i')" class="primary" :disabled="tx.busy || !tx.layers.length" @click="txSave">{{ tx.busy ? 'Saving…' : '💾 Save the picture with the text' }}</button>
         </template>
         <template v-else-if="form.i2i_mode === 'remove'">
           <div class="hint">Paint over what you want gone (cover it fully, a little past its edges), then press <b>🩹 Remove</b>.
@@ -4026,7 +4026,7 @@
       </div>
 
       <div class="actions" :class="{busy}">
-        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'camera' ? (form.cam.turnaround ? '📷 Make 8 views' : '📷 New angle') + (busy ? ' (queue)' : '') : form.i2i_mode === 'combine' ? '🧩 Combine' + (busy ? ' (queue)' : '') : form.i2i_mode === 'peel' ? '🧅 Peel off' : form.i2i_mode === 'faceswap' ? '🔁 Swap face' + (busy ? ' (queue)' : '') : form.i2i_mode === 'text' ? (tx.open ? '💾 Save the text' : '🧽 Clear the text' + (busy ? ' (queue)' : '')) : form.i2i_mode === 'relight' ? '💡 Relight' + (busy ? ' (queue)' : '') : form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model' ? '↔ Expand' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
+        <button class="primary" @click="generateI2I" :disabled="backendDead">{{ form.i2i_mode === 'camera' ? (form.cam.turnaround ? '📷 Make 8 views' : '📷 New angle') + (busy ? ' (queue)' : '') : form.i2i_mode === 'combine' ? '🧩 Combine' + (busy ? ' (queue)' : '') : form.i2i_mode === 'peel' ? '🧅 Peel off' : form.i2i_mode === 'faceswap' ? '🔁 Swap face' + (busy ? ' (queue)' : '') : form.i2i_mode === 'text' ? (txIn('i2i') ? '💾 Save the text' : '🧽 Clear the text' + (busy ? ' (queue)' : '')) : form.i2i_mode === 'relight' ? '💡 Relight' + (busy ? ' (queue)' : '') : form.i2i_mode === 'remove' ? '🩹 Remove' + (busy ? ' (queue)' : '') : form.i2i_mode === 'edit' ? '✨ Edit' + (busy ? ' (queue)' : '') : form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model' ? '↔ Expand' + (busy ? ' (queue)' : '') : busy ? 'Add to queue' : 'Generate' }}</button>
         <div v-if="busy" class="stop-group">
           <button v-if="runningJob || queue.length" class="ghost pause-btn" :class="{on: paused}" @click="togglePause"
                   :title="paused ? 'Carry on from exactly where it stopped' : 'Pause: the image being made waits at its next step and the queue holds; nothing is lost'">{{ paused ? '▶ Resume' : '❚❚ Pause' }}</button>
@@ -4122,7 +4122,7 @@
             <button @click="zoomReset('i2i')" :disabled="zoom.i2i.z === 1" title="Fit the whole picture">Fit</button>
             <button @click="zoomTo('i2i', zoomOneToOne('i2i'))" title="Actual pixels">1:1</button>
           </div>
-          <div v-if="tx.open && form.i2i_mode === 'text' && !i2iRunning" class="tx-wrap i2i-tx" @click.stop>
+          <div v-if="txIn('i2i') && form.i2i_mode === 'text' && !i2iRunning" class="tx-wrap i2i-tx" @click.stop>
             <div class="tx-stage">
               <img ref="txImg" class="adjust-canvas" :class="{picking: tx.pick}" :src="fileUrl(tx.base.path)" @load="txImgLoad" draggable="false" @pointerdown.stop="txStageDown">
             <canvas ref="txCanvas" class="tx-overlay"></canvas>

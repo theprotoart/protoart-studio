@@ -1005,7 +1005,7 @@ const protoartApp = createApp({
       zoom: { tools: { z: 1, x: 0, y: 0 }, i2i: { z: 1, x: 0, y: 0 }, i2iSrc: { z: 1, x: 0, y: 0 } },
       zoomSpace: false,      // Space held: drag to move around (like Photoshop)
       toolMasks: { remove: null, enhArea: null },  // Tools: each painting kept apart ({data, for}): Remove's, Enhance's area
-      tx: { open: false, free: false, base: null, layers: [], sel: -1, scale: 1, nw: 0, nh: 0, pick: false, busy: false, msg: "", drag: null, finding: false, fonts: null, fontsAsked: false },  // 🔤 Replace text
+      tx: { open: false, where: "", free: false, base: null, layers: [], sel: -1, scale: 1, nw: 0, nh: 0, pick: false, busy: false, msg: "", drag: null, finding: false, fonts: null, fontsAsked: false },  // 🔤 Replace text
       pw: { open: false, rec: null, pins: [], sel: -1, density: 48, busy: false, msg: "", error: "", original: false,
             ovl: null, size: null, mode: "rigid", expand: 0, feather: 3, showMesh: true, showBg: true, whole: false,
             hist: [], fut: [],
@@ -1057,7 +1057,7 @@ const protoartApp = createApp({
               "<b>Image to image: the preview stays in view</b> while you scroll the controls on the left (as in Tools), so you can watch your changes as you make them.",
               "<b>Text opacity</b> sits right under the colour now (it was hidden in a fold-out section), and the list of your texts (the chips above the typing box) is easier to read on the light looks.",
               "<b>🎨 Blending modes for text</b>, as in Photoshop (under Opacity): Multiply, Screen, Overlay, Soft Light, Hard Light, Darken, Lighten, Color Dodge, Color Burn, Difference, Exclusion, Hue, Saturation, Color and Luminosity. <b>Multiply</b> makes words look printed or inked onto the picture, <b>Overlay</b> and <b>Soft Light</b> let its texture and light show through them, <b>Screen</b> makes them glow like light.",
-              "<b>Fixes</b>: a picture dropped straight from a screenshot's floating thumbnail, a browser, Photos or Messages is now kept by the app (macOS deleted its temporary copy, so <b>Clear it</b> and other steps said \"Couldn't open that file\"); if a picture's file is moved or deleted, the message now says so and which file. Tools' <b>Split</b> view no longer stays black after you switch tabs and come back. Copy diagnostics shows the right version.",
+              "<b>Fixes</b>: a picture dropped straight from a screenshot's floating thumbnail, a browser, Photos or Messages is now kept by the app (macOS deleted its temporary copy, so <b>Clear it</b> and other steps said \"Couldn't open that file\"); if a picture's file is moved or deleted, the message now says so and which file. Tools' <b>Split</b> view no longer stays black after you switch tabs and come back. <b>Send to Tools</b> from the Library now shows that picture in Tools: a text you were placing in Image to image showed over it (and stays waiting in Image to image). Copy diagnostics shows the right version.",
             ] },
             { h: "1.6.15: 💬 comic balloons and a font pack, ✨ text effects (bevel & emboss, glow, gradient, arc), 💡 Relight keeps your background or copies a reference's light, more patchbay modules", items: [
               "<b>🔤 Replace text: comic lettering</b>: three fonts of our own, designed for Protoart Studio: <b>Protoart Speech</b> (dialogue, regular and bold), <b>Protoart Kaboom</b> (chunky sound effects) and <b>Protoart Chatter</b> (bouncy cartoon lettering), plus a built-in pack of 12 free comic fonts (Comic Neue, Shantell Sans, Bangers, Luckiest Guy…), every font installed on your Mac in the Font list, corner handles to resize a text by hand, and <b>💬 Balloons & shapes</b>: speech, thought, shout, whisper, box, caption and burst, with a draggable tail.",
@@ -3573,7 +3573,8 @@ const protoartApp = createApp({
     loraRand: { deep: true, handler(v) { saveJSON("protoart.loraRand", v); } },
     "form.init_image": {
       immediate: true,
-      handler(v) {  // the picture's real size, for Expand's sizes and presets (also when the paint area isn't shown)
+      handler(v, old) {  // the picture's real size, for Expand's sizes and presets (also when the paint area isn't shown)
+        if (old !== undefined && v !== old && this.txIn("i2i")) this.txClose();  // its text was for the picture before
         this.initDims = null;
         if (!v) return;
         const im = new Image();
@@ -3582,7 +3583,9 @@ const protoartApp = createApp({
         this.zoomReset("i2iSrc"); this.zoomReset("i2i");  // a new picture: stop painting on the old one
       },
     },
-    "tool.source"() { this.tool.healing = false; this.zoomReset("tools"); if (this.cut.open) this.closeCutout(); this.$nextTick(() => this.cmpDraw()); },
+    "tool.source"() {
+      if (this.txIn("tools")) this.txClose();  // its text was placed on the picture that was here before
+      this.tool.healing = false; this.zoomReset("tools"); if (this.cut.open) this.closeCutout(); this.$nextTick(() => this.cmpDraw()); },
     "train.kind"() { if (this.train.preset === "recommended") this.applyTrainPreset(this.trainRecommended); },
     "train.model"() { if (this.train.preset === "recommended") this.applyTrainPreset(this.trainRecommended); },
     train: { deep: true, handler(v) {
@@ -6328,7 +6331,7 @@ const protoartApp = createApp({
 
     // -------------------------------------------------------------- inpaint mask painting
     setI2iMode(m) {
-      if (m !== "text" && this.tx.open && this.tab === "i2i") this.txClose();
+      if (m !== "text" && this.txIn("i2i")) this.txClose();
       this.form.i2i_mode = m;
       if (m !== "change") this.controlMap = null;
     },
@@ -6666,7 +6669,7 @@ const protoartApp = createApp({
     },
     // -------------------------------------------------------------- Image to image → 🔤 Replace text (same as Tools')
     async i2iTxFind() {  // 1 · select the writing on the picture (the painting layer on the left)
-      if (this.tx.open) this.txClose();
+      if (this.txIn("i2i")) this.txClose();
       await this.$nextTick();
       for (let i = 0; i < 40 && !(this.$refs.maskCanvas && this.$refs.maskCanvas.width); i++) await new Promise((r) => setTimeout(r, 50));
       await this.selAutoText(false);
@@ -6683,7 +6686,7 @@ const protoartApp = createApp({
       const last = this.i2iLatest;
       const base = rec || (last && last.kind === "healed" ? last : null) || { path: this.form.init_image, id: null };
       if (!base.path) return (this.error = "Add a picture first.");
-      Object.assign(this.tx, { open: true, base: { path: base.path, id: base.id ?? null }, sel: -1, pick: false, msg: "" });
+      Object.assign(this.tx, { open: true, where: "i2i", base: { path: base.path, id: base.id ?? null }, sel: -1, pick: false, msg: "" });
       this.txLoadFonts();
       if (!this.tx.keep) this.tx.layers = [];
       this.tx.keep = false;
@@ -6998,7 +7001,7 @@ const protoartApp = createApp({
       if (this.adj.open) this.closeAdjust();
       if (this.pw.open && kind !== "pw") this.closePuppet();
       if (this.cut.open) this.closeCutout();
-      if (this.tx.open) this.txClose();
+      if (this.txIn("tools")) this.txClose();
       if (this.tool.healing && this.tool.paintFor !== kind) this.toolPaintKeep();
       const slot = this.toolPaintSlot(kind);
       if (this.tool.paintFor !== kind || !this.tool.healing) {
@@ -9026,7 +9029,7 @@ const protoartApp = createApp({
                                         restore: sw.restore !== false, consent: true, ...extra });
         return;
       }
-      if (f.i2i_mode === "text") return this.tx.open ? this.txSave() : this.i2iTxClear();  // 🔤 Replace text
+      if (f.i2i_mode === "text") return this.txIn("i2i") ? this.txSave() : this.i2iTxClear();  // 🔤 Replace text
       if (f.i2i_mode === "relight") {  // 💡 IC-Light, with Tools' Relight settings
         const o = this.post.relight, m = this.relightModel();
         if (!f.init_image) return (this.error = "Add a picture first.");
@@ -10373,7 +10376,7 @@ const protoartApp = createApp({
     // -------------------------------------------------------------- Tools → 🔤 Replace text
     async txFindText() {  // 1 · select the writing (Florence-2), on the painting layer, ready to clear
       if (!this.tool.source || this.tx.finding) return;
-      if (this.tx.open) this.txClose();
+      if (this.txIn("tools")) this.txClose();
       this.toolPaintRemove(true);
       this.tx.finding = true;
       try {
@@ -10394,7 +10397,7 @@ const protoartApp = createApp({
       if (this.pw.open) this.closePuppet();
       if (this.cut.open) this.closeCutout();
       this.tool.healing = false;
-      Object.assign(this.tx, { open: true, base: { path: base.path, id: base.id ?? null }, sel: -1, pick: false, msg: "" });
+      Object.assign(this.tx, { open: true, where: "tools", base: { path: base.path, id: base.id ?? null }, sel: -1, pick: false, msg: "" });
       this.txLoadFonts();
       if (!this.tx.keep) this.tx.layers = [];
       this.tx.keep = false;
@@ -10402,11 +10405,12 @@ const protoartApp = createApp({
     },
     txClose() { this.tx.open = false; this.tx.drag = null; this.tx.pick = false; },
     async txQuick(kind, i2i) {  // ✏️ words or 💬 a balloon straight onto the picture: nothing has to be found or cleared first
-      if (!this.tx.open) {
+      const where = i2i ? "i2i" : "tools";
+      if (!this.txIn(where)) {  // (a session open in the other tab is for another picture: this one starts its own)
         if (i2i) this.i2iTxOpen();
         else if (this.tool.source) this.txOpen();
         else return (this.error = "Add a picture first.");
-        if (!this.tx.open) return;
+        if (!this.txIn(where)) return;
         this.tx.nw = 0;  // measured again from this picture
         for (let k = 0; k < 60 && !this.tx.nw; k++) await new Promise((r) => setTimeout(r, 50));
       }
@@ -10591,6 +10595,9 @@ const protoartApp = createApp({
       const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
+    },
+    txIn(where) {  // the text tool is open in this tab (Tools or Image to image): one session, shown only where it was opened
+      return this.tx.open && (this.tx.where || "tools") === where;
     },
     txGeo() {  // the selected text's corners and edge middles on the picture, for the free-transform handles
       const L = this.txLayer();
