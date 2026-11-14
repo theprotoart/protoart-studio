@@ -2,6 +2,8 @@
 
 ## 1.6.16
 
+- Text: Opacity moved under Colour (always shown); text chips are dark keys (lit when picked), readable on light looks;
+  plainer Wrap round hint
 - ✥ Free transform for text (`tx.free`): draggable corner pins (`quad`, offsets in text sizes on top of the slider
   perspective, `quadOf`), slant bars and a warp handle on the picture; `ProtoText.geometry` / `toLocal` place them and turn
   the pointer back into the text's frame; ↺ Reset shape

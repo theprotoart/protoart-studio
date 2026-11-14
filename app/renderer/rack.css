@@ -2520,8 +2520,8 @@ input[type=range]:disabled { opacity: .35; }
 .tx-layer.sel { outline: 1px dashed #ffb52e; }
 .tx-steps { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 8px; }
 .tx-layers { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 6px; }
-.tx-chip { font-size: 11px; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,.15); background: transparent; color: inherit; cursor: pointer; }
-.tx-chip.on { border-color: #ffb52e; color: #ffcf7a; }
+.tx-chip { font-size: 12px; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(0,0,0,.45); background: #2b2b30; color: #f2efe6; cursor: pointer; text-shadow: none; }
+.tx-chip.on { border-color: var(--lit-edge); color: var(--lit-ink); background: radial-gradient(ellipse at 50% 30%, var(--lit-hi) 0%, var(--lit-mid) 55%, var(--lit-lo) 100%); }
 .tx-chip b { margin-left: 5px; opacity: .6; font-weight: 400; }
 .tx-text { width: 100%; resize: vertical; font-size: 13px; }
 .tx-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
@@ -2569,7 +2569,7 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
    always show scroll bars, a column just at its height limit grew a scroll bar, which narrowed the picture, which made
    the column short enough to lose the bar again: the picture jumped between two sizes many times a second. */
 .tools > .tool-source, .tools, .i2i, .train, .controls, .output, .library, .models-tab, .settings { scrollbar-gutter: stable; }
-.tx-chip.tx-add { border-style: dashed; color: #ffcf7a; }
+.tx-chip.tx-add { border-style: dashed; border-color: rgba(255,255,255,.35); color: #ffd98a; }
 /* ✨ Edit with words → two-picture recipes */
 .edit-recipes { margin: 4px 0; }
 .recipe-card { border: 1px solid rgba(255,255,255,.12); border-radius: 6px; padding: 8px 10px; margin: 6px 0; display: grid; gap: 6px; }

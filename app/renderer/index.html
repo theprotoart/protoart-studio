@@ -2699,6 +2699,8 @@
                 <label class="tx-col" title="The text's colour">Colour <input type="color" v-model="txLayer().colour"></label>
                 <button class="ghost small" :class="{on: tx.pick}" @click="tx.pick = !tx.pick" title="Click the old text on the picture to use its colour">🎯 from picture</button>
               </div>
+              <label title="How solid the text is: lower lets the picture show through it (and its outline, shadow and glow). Double-click for 100%">Opacity <span class="mod-val">{{ Math.round((txLayer().opacity ?? 1) * 100) }}%</span></label>
+              <input type="range" min="0.05" max="1" step="0.05" :value="txLayer().opacity ?? 1" @input="txLayer().opacity = +$event.target.value" @dblclick="txLayer().opacity = 1">
               <div class="seg mod-seg">
                 <button :class="{on: txLayer().bold}" @click="txLayer().bold = !txLayer().bold" title="Bold"><b>B</b></button>
                 <button :class="{on: txLayer().italic}" @click="txLayer().italic = !txLayer().italic" title="Italic"><i>I</i></button>
@@ -2730,8 +2732,6 @@
                 <input type="range" min="-10" max="60" step="1" v-model.number="txLayer().spacing">
                 <label>Line height <span class="mod-val">{{ txLayer().lineHeight }}</span></label>
                 <input type="range" min="0.7" max="2" step="0.05" v-model.number="txLayer().lineHeight">
-                <label>Opacity <span class="mod-val">{{ Math.round(txLayer().opacity * 100) }}%</span></label>
-                <input type="range" min="0.1" max="1" step="0.05" v-model.number="txLayer().opacity">
               </details>
               <details class="mod-more">
                 <summary>Bevel, glow &amp; colour <span class="more-hint">bevel &amp; emboss, glow, gradient, looks</span></summary>
@@ -2789,7 +2789,7 @@
                 <template v-if="txLayer().warp && txLayer().warp !== 'none'">
                   <label :title="txLayer().warp === 'bottle' ? '+ curves like a label seen from a little above, − from below; more = further round' : 'How strong; − the other way. Double-click for 0'">Warp amount <span class="mod-val">{{ txLayer().warpAmt }}</span></label>
                   <input type="range" min="-100" max="100" step="1" v-model.number="txLayer().warpAmt" @dblclick="txLayer().warpAmt = 0">
-                  <div class="hint" v-if="txLayer().warp === 'bottle'">Only the words bend, the picture stays as it is. Make the text about as wide as the bottle, then turn up the amount until the letters follow its curve.</div>
+                  <div class="hint" v-if="txLayer().warp === 'bottle'">🍾 Makes the words look printed on something round, like a bottle, can or cup in your picture. Place the text on it, then raise <b>Warp amount</b> until the letters curve the same way it does (use minus if they curve the wrong way).</div>
                 </template>
                 <label title="Bend the line(s) into an arc: up (+) or down (−). Double-click to straighten. Not with vertical text">Arc <span class="mod-val">{{ txLayer().curve }}°</span></label>
                 <input type="range" min="-180" max="180" step="5" v-model.number="txLayer().curve" @dblclick="txLayer().curve = 0" :disabled="txLayer().vertical">
@@ -3524,6 +3524,8 @@
                 <label class="tx-col" title="The text's colour">Colour <input type="color" v-model="txLayer().colour"></label>
                 <button class="ghost small" :class="{on: tx.pick}" @click="tx.pick = !tx.pick" title="Click the old text on the picture to use its colour">🎯 from picture</button>
               </div>
+              <label title="How solid the text is: lower lets the picture show through it (and its outline, shadow and glow). Double-click for 100%">Opacity <span class="mod-val">{{ Math.round((txLayer().opacity ?? 1) * 100) }}%</span></label>
+              <input type="range" min="0.05" max="1" step="0.05" :value="txLayer().opacity ?? 1" @input="txLayer().opacity = +$event.target.value" @dblclick="txLayer().opacity = 1">
               <div class="seg mod-seg">
                 <button :class="{on: txLayer().bold}" @click="txLayer().bold = !txLayer().bold" title="Bold"><b>B</b></button>
                 <button :class="{on: txLayer().italic}" @click="txLayer().italic = !txLayer().italic" title="Italic"><i>I</i></button>
@@ -3555,8 +3557,6 @@
                 <input type="range" min="-10" max="60" step="1" v-model.number="txLayer().spacing">
                 <label>Line height <span class="mod-val">{{ txLayer().lineHeight }}</span></label>
                 <input type="range" min="0.7" max="2" step="0.05" v-model.number="txLayer().lineHeight">
-                <label>Opacity <span class="mod-val">{{ Math.round(txLayer().opacity * 100) }}%</span></label>
-                <input type="range" min="0.1" max="1" step="0.05" v-model.number="txLayer().opacity">
               </details>
               <details class="mod-more">
                 <summary>Bevel, glow &amp; colour <span class="more-hint">bevel &amp; emboss, glow, gradient, looks</span></summary>
@@ -3614,7 +3614,7 @@
                 <template v-if="txLayer().warp && txLayer().warp !== 'none'">
                   <label :title="txLayer().warp === 'bottle' ? '+ curves like a label seen from a little above, − from below; more = further round' : 'How strong; − the other way. Double-click for 0'">Warp amount <span class="mod-val">{{ txLayer().warpAmt }}</span></label>
                   <input type="range" min="-100" max="100" step="1" v-model.number="txLayer().warpAmt" @dblclick="txLayer().warpAmt = 0">
-                  <div class="hint" v-if="txLayer().warp === 'bottle'">Only the words bend, the picture stays as it is. Make the text about as wide as the bottle, then turn up the amount until the letters follow its curve.</div>
+                  <div class="hint" v-if="txLayer().warp === 'bottle'">🍾 Makes the words look printed on something round, like a bottle, can or cup in your picture. Place the text on it, then raise <b>Warp amount</b> until the letters curve the same way it does (use minus if they curve the wrong way).</div>
                 </template>
                 <label title="Bend the line(s) into an arc: up (+) or down (−). Double-click to straighten. Not with vertical text">Arc <span class="mod-val">{{ txLayer().curve }}°</span></label>
                 <input type="range" min="-180" max="180" step="5" v-model.number="txLayer().curve" @dblclick="txLayer().curve = 0" :disabled="txLayer().vertical">
