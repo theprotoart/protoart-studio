@@ -62,6 +62,9 @@ class Library:
     def __init__(self, db_path):
         self._lock = threading.Lock()
         self._db = sqlite3.connect(str(db_path), check_same_thread=False)
+        import paths as _paths
+        for suffix in ("", "-wal", "-shm"):  # the database holds your saved keys: readable by your account only
+            _paths.private(str(db_path) + suffix, 0o600)
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA foreign_keys = ON")
         self._db.executescript(SCHEMA)

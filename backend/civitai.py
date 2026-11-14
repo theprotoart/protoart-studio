@@ -276,6 +276,16 @@ def download_vae(info, dest_dir, token=None, progress=None, cancelled=lambda: Fa
     return download(sub, dest_dir, token, progress, cancelled)
 
 
+KEY_HOSTS = ("civitai.com", "civitai.red")  # Civitai's own sites (and their sub-domains)
+
+
+def key_goes_to(url):
+    """Is url one of Civitai's own (https) addresses, the only place your API key may be sent?"""
+    u = urllib.parse.urlsplit(str(url or ""))
+    host = (u.hostname or "").lower()
+    return u.scheme == "https" and any(host == h or host.endswith("." + h) for h in KEY_HOSTS)
+
+
 def download(info, dest_dir, token=None, progress=None, cancelled=lambda: False, stall_s=120):
     """Download info['file'] into dest_dir (resumes a .part left by an earlier try). Never overwrites a file.
     Writes <name>.civitai.info beside it. Returns the saved path."""
@@ -289,6 +299,8 @@ def download(info, dest_dir, token=None, progress=None, cancelled=lambda: False,
     part = final + ".part"
     have = os.path.getsize(part) if os.path.exists(part) else 0
     url = f["url"]
+    if not key_goes_to(url):
+        token = None  # your API key only ever goes to Civitai itself, never to a link that points elsewhere
     if token:  # as a parameter: Civitai redirects to a storage server that rejects extra Authorization headers
         url += ("&" if "?" in url else "?") + urllib.parse.urlencode({"token": token})
     req = urllib.request.Request(url, headers={"User-Agent": UA})

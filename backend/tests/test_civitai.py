@@ -154,6 +154,8 @@ class DownloadTests(unittest.TestCase):
 
     def test_needs_key_and_key_stays_on_civitai(self):
         _Handler.need_key = "goodkey1234567890"
+        self.addCleanup(setattr, civitai, "key_goes_to", civitai.key_goes_to)
+        civitai.key_goes_to = lambda url: True  # the stand-in server is on this computer, not civitai.com
         with self.assertRaises(ValueError) as cm:
             civitai.download(self.info(), self.tmp.name)
         self.assertIn("signed-in accounts", str(cm.exception))

@@ -52,12 +52,27 @@ def apply_store(root):
             pass
 
 
+def private(p, mode=0o700):
+    """Only your own Mac account may open the app's data folder (and its database, where saved Hugging Face / Civitai
+    keys, prompts and picture paths are kept): other accounts on this Mac can't read it. Only changes a folder or file
+    you own, and never a link (security audit)."""
+    try:
+        st = os.lstat(p)
+        if os.path.islink(p) or st.st_uid != os.getuid():
+            return
+        if (st.st_mode & 0o777) != mode:
+            os.chmod(p, mode)
+    except (OSError, AttributeError):
+        pass
+
+
 def ensure_dirs():
     """Make the app's folders. One that can't be made (a Finder alias or a file in its place, a link to a drive that
     isn't plugged in) no longer stops the app from starting: the images go to "images (Protoart)" next to it instead,
     and the other folders are skipped and reported. (To keep images elsewhere, use Settings → Image folder.)"""
     global IMAGES_DIR
     HOME.mkdir(parents=True, exist_ok=True)
+    private(HOME)
     for d in (IMAGES_DIR, LORAS_DIR, MODELS_DIR, WEIGHTS_DIR, QUANT_DIR, VAE_DIR, CONTROLNET_DIR):  # (embeddings, converted: made when used)
         try:
             d.mkdir(parents=True, exist_ok=True)

@@ -41,6 +41,8 @@ class ZengError(Exception):
 def folder(mid):
     """Kept with the downloaded models (Settings → Model folders → Downloaded models folder), so it goes to an
     external drive when that folder is on one; a copy made before, in the data folder, is still found."""
+    if mid not in MODELS:  # only the known helper models: an id is never a path (security audit, path traversal)
+        raise ValueError("Unknown prompt helper model.")
     old = paths.HOME / "llm" / f"{mid}-mlx-4bit"
     if (old / "config.json").exists():
         return old
