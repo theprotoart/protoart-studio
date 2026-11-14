@@ -53,8 +53,9 @@
     shadowColour: "#000000", shadowAngle: 53, shadowSoft: 1.2,  // drop shadow: colour, direction (degrees, 90 = straight down), softness
     curve: 0,                                            // arc: bend the line(s) up (+) or down (−), in degrees of the circle
     skewX: 0, skewY: 0,                                  // slant sideways / up and down, in degrees
-    warp: "none", warpAmt: 50,
-    perspH: 0, perspV: 0,                                // perspective: turned away left/right (−/+) and leaning back/forward, −100…100                           // warp the whole text: "bottle" (round a can or bottle), "bulge", "wave", "rise"
+    warp: "none", warpAmt: 50,                           // warp the whole text: "bottle" (round a can or bottle), "bulge", "wave", "rise"
+    perspH: 0, perspV: 0,                                // perspective: turned away left/right (−/+) and leaning back/forward, −100…100
+    quad: null,                                          // free transform: how far each corner (TL, TR, BR, BL) was dragged, in text sizes
   };
   const WARPS = [
     { id: "none", label: "None" },
@@ -166,8 +167,8 @@
       const u = px / 100;  // effect sizes are in hundredths of the text size, so they scale with it
       const amt = Math.max(-100, Math.min(100, +L.warpAmt || 0));
       const warp = L.warp && L.warp !== "none" && amt;
-      const ph = Math.max(-100, Math.min(100, +L.perspH || 0)) / 100, pv = Math.max(-100, Math.min(100, +L.perspV || 0)) / 100;
-      if (warp || ph || pv) {
+      const Q = quadOf(L, bw / 2, bh / 2), distort = !!Q;
+      if (warp || distort) {
         // drawn flat on its own canvas first (with every effect), then bent and/or put in perspective onto the picture
         const pad = Math.ceil(((L.stroke || 0) + (L.stroke2 || 0)) * u * 2 + (L.glow || 0) * u * 3 + (L.shadow || 0) * u * 2.5 + px * 0.3 + 6);
         const HW = Math.ceil(bw / 2 + pad), HH = Math.ceil(bh / 2 + pad);
@@ -175,7 +176,7 @@
         const [c, cx] = canvas(HW, HH);
         setup(cx);
         layerBody(cx, L, spots, setup, bw, bh, u);
-        if (!ph && !pv) warpOnto(ctx, c, HW, HH, bw / 2, bh / 2, L.warp, amt / 100);
+        if (!distort) warpOnto(ctx, c, HW, HH, bw / 2, bh / 2, L.warp, amt / 100);
         else {
           let src = c, sw = HW, shh = HH;
           if (warp) {  // bend first, on a taller canvas (a wave or a bulge reaches above and below), then the perspective
@@ -183,7 +184,7 @@
             warpOnto(x2, c, HW, HH, bw / 2, bh / 2, L.warp, amt / 100);
             src = c2; shh = HH * 2;
           }
-          perspOnto(ctx, src, sw, shh, ph, pv);
+          perspOnto(ctx, src, sw, shh, Q, bw / 2, bh / 2);
         }
       } else layerBody(ctx, L, spots, setup, bw, bh, u);
       ctx.restore();
@@ -222,21 +223,43 @@
     each(ctx, spots, (t, x, y) => ctx.fillText(t, x, y));
     if (L.bevel > 0 || L.inner > 0) insideEffects(ctx, L, spots, setup, bw, bh, u);
   }
-  // 📐 perspective (like Photoshop's Transform → Perspective): the flat picture src (its middle at HW, HH) mapped onto a
-  // four-sided shape round (0, 0) of ctx, with true foreshortening. ph: + the right side comes nearer (bigger), the left
-  // goes away; pv: + the bottom comes nearer, the top leans back. Drawn as a grid of small triangles
-  function perspOnto(ctx, src, HW, HH, ph, pv) {
-    const a = ph * 0.6, b = pv * 0.6;
-    const corner = (sx, sy) => [sx * HW * (1 + sy * b), sy * HH * (1 + sx * a)];  // the far side shrinks, the near grows
-    const Q = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)];
+  // the four corners (TL, TR, BR, BL) of the text's box (half sizes hw, hh) after 📐 perspective and ✥ free transform, in
+  // the layer's own frame (before slant and turn); null when the box is a plain rectangle
+  function quadOf(L, hw, hh) {
+    const ph = Math.max(-100, Math.min(100, +L.perspH || 0)) / 100, pv = Math.max(-100, Math.min(100, +L.perspV || 0)) / 100;
+    const q = Array.isArray(L.quad) && L.quad.length === 4 ? L.quad : null;
+    const moved = q && q.some((d) => d && (Math.abs(+d[0] || 0) > 1e-4 || Math.abs(+d[1] || 0) > 1e-4));
+    if (!ph && !pv && !moved) return null;
+    const a = ph * 0.6, b = pv * 0.6, size = +L.size || 40;
+    // the perspective of the sliders is set on a frame a little bigger than the words (so it stays gentle), then the box's
+    // corners are taken from it; the dragged corners are added on top
+    const ew = hw + size * 0.5, eh = hh + size * 0.5;
+    const E = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy]) => [sx * ew * (1 + sy * b), sy * eh * (1 + sx * a)]);  // far side smaller
+    const H = squareToQuad(E);
+    const at = (x, y) => { const u = (x + ew) / (2 * ew), v = (y + eh) / (2 * eh), d = H[6] * u + H[7] * v + 1;
+      return [(H[0] * u + H[1] * v + H[2]) / d, (H[3] * u + H[4] * v + H[5]) / d]; };
+    return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy], i) => {
+      const p = at(sx * hw, sy * hh), d = moved ? q[i] || [0, 0] : [0, 0];
+      return [p[0] + (+d[0] || 0) * size, p[1] + (+d[1] || 0) * size];
+    });
+  }
+  // 📐 perspective / ✥ free transform (like Photoshop's Transform → Perspective and Distort): the flat picture src (its
+  // middle at HW, HH) drawn so the text's box (half sizes hw, hh) lands on the four corners Q round (0, 0) of ctx, with
+  // true foreshortening
+  function perspOnto(ctx, src, HW, HH, Q, hw, hh) {
     const H = squareToQuad(Q);
-    const map = (u, v) => { const d = H[6] * u + H[7] * v + 1; return [(H[0] * u + H[1] * v + H[2]) / d, (H[3] * u + H[4] * v + H[5]) / d]; };
+    const map = (x, y) => {  // a point of src (its pixels) -> ctx; the box is the unit square, the margin round it extends it
+      const u = (x - HW + hw) / (2 * hw), v = (y - HH + hh) / (2 * hh);
+      const d = H[6] * u + H[7] * v + 1;
+      return d > 0.05 ? [(H[0] * u + H[1] * v + H[2]) / d, (H[3] * u + H[4] * v + H[5]) / d] : null;  // past the horizon: skipped
+    };
     // a grid of small cells, each drawn as a straight (affine) piece and overlapping its neighbours by a pixel: with
     // cells this small the error is invisible, and nothing is clipped, so no hairline seams
     const W = HW * 2, Hh = HH * 2, N = Math.max(8, Math.min(48, Math.ceil(Math.max(W, Hh) / 24)));
     const cw = W / N, chh = Hh / N;
     for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-      const d00 = map(i / N, j / N), d10 = map((i + 1) / N, j / N), d01 = map(i / N, (j + 1) / N);
+      const d00 = map(i * cw, j * chh), d10 = map((i + 1) * cw, j * chh), d01 = map(i * cw, (j + 1) * chh);
+      if (!d00 || !d10 || !d01) continue;
       ctx.save();
       ctx.transform((d10[0] - d00[0]) / cw, (d10[1] - d00[1]) / cw, (d01[0] - d00[0]) / chh, (d01[1] - d00[1]) / chh, d00[0], d00[1]);
       const sx = i * cw, sy = j * chh;
@@ -417,7 +440,35 @@
   }
   // the HTML preview's columns for vertical text: [[letters of line 1], …] and each column's width (px on screen)
   function columns(L, scale) { return { cols: String(L.text || " ").split("\n").map((t) => [...t]), w: L.size * scale * L.lineHeight }; }
-  const api = { FONTS, PACK, SHAPES, EFFECTS, WARPS, fontCss, stack, layer, withEffects, style, draw, columns, shape, shapePaths, drawShape };
+  // where a text's corners and edge middles are on the picture (picture pixels), for the handles you drag: its box after
+  // perspective / free transform, slant and turn (warps are left out). Also the box's half sizes and the slant factors.
+  let _measure = null;
+  function geometry(L0, w, h) {
+    const L = withEffects({ ...L0 });
+    if (!_measure) _measure = document.createElement("canvas").getContext("2d");
+    const px = L.size, lines = layerText(L).split("\n"), lh = px * L.lineHeight, c = _measure;
+    c.font = fontCss(L, px);
+    if ("letterSpacing" in c) c.letterSpacing = (L.spacing || 0) * px / 100 + "px";
+    c.textAlign = L.align; c.textBaseline = "middle";
+    const { bw, bh } = spotsOf(c, L, px, lines, lh);
+    const hw = Math.max(4, bw / 2), hh = Math.max(4, bh / 2);
+    const Q = quadOf(L, hw, hh) || [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+    const sx = Math.tan(((Math.max(-70, Math.min(70, +L.skewX || 0))) * Math.PI) / 180);
+    const sy = Math.tan(((Math.max(-70, Math.min(70, +L.skewY || 0))) * Math.PI) / 180);
+    const r = ((L.rotate || 0) * Math.PI) / 180, cs = Math.cos(r), sn = Math.sin(r), cx = L.x * w, cy = L.y * h;
+    const out = ([x, y]) => { const X = x + sx * y, Y = sy * x + y; return [cx + X * cs - Y * sn, cy + X * sn + Y * cs]; };
+    const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    return { corners: Q.map(out), top: out(mid(Q[0], Q[1])), right: out(mid(Q[1], Q[2])), bottom: out(mid(Q[2], Q[3])),
+             left: out(mid(Q[3], Q[0])), hw, hh, sx, sy, Q, base: quadOf({ ...L, quad: null }, hw, hh) || [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]] };
+  }
+  // a point on the picture (pixels) in the text's own frame (before slant and turn): for dragging its handles
+  function toLocal(L, w, h, px, py, sx, sy) {
+    const r = (-(L.rotate || 0) * Math.PI) / 180, dx = px - L.x * w, dy = py - L.y * h;
+    const X = dx * Math.cos(r) - dy * Math.sin(r), Y = dx * Math.sin(r) + dy * Math.cos(r);
+    const det = 1 - sx * sy || 1;
+    return [(X - sx * Y) / det, (Y - sy * X) / det];
+  }
+  const api = { FONTS, PACK, SHAPES, EFFECTS, WARPS, geometry, toLocal, fontCss, stack, layer, withEffects, style, draw, columns, shape, shapePaths, drawShape };
   if (typeof window !== "undefined") window.ProtoText = api;
   if (typeof module !== "undefined") module.exports = api;
 })();

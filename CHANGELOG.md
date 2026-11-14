@@ -2,6 +2,10 @@
 
 ## 1.6.16
 
+- ✥ Free transform for text (`tx.free`): draggable corner pins (`quad`, offsets in text sizes on top of the slider
+  perspective, `quadOf`), slant bars and a warp handle on the picture; `ProtoText.geometry` / `toLocal` place them and turn
+  the pointer back into the text's frame; ↺ Reset shape
+- Image to image: the right side (preview) is sticky with its own scroll, like the Tools picture
 - 📐 Text perspective (`perspH`, `perspV`): a projective map from the flat text to a four-sided shape
   (`squareToQuad`, Heckbert), drawn as a grid of small affine cells overlapping by a pixel (no clipping, so no seams);
   combines with a warp (warp first, on a taller canvas)

@@ -1636,7 +1636,7 @@
             <div v-for="(L, i) in tx.layers" :key="'tx' + i" v-show="L.type !== 'shape'" class="tx-layer" :class="{sel: i === tx.sel}" :style="txStyle(L)"
                  @pointerdown.stop="txLayerDown($event, i)" title="Drag to move · edit it in 🔤 Text &amp; balloons"><template v-if="L.type === 'shape'"></template><template v-else-if="L.vertical"><span
                    v-for="(col, ci) in ProtoText.columns(L, tx.scale || 1).cols" :key="'tc' + ci" class="tx-vcol"
-                   :style="{width: ProtoText.columns(L, tx.scale || 1).w + 'px'}"><span v-for="(ch, j) in col" :key="j">{{ ch === ' ' ? '\u00a0' : ch }}</span></span></template><template v-else>{{ L.text || ' ' }}</template><template v-if="i === tx.sel && L.type !== 'shape'"><i v-for="c in ['nw', 'ne', 'sw', 'se']" :key="'th' + c"
+                   :style="{width: ProtoText.columns(L, tx.scale || 1).w + 'px'}"><span v-for="(ch, j) in col" :key="j">{{ ch === ' ' ? '\u00a0' : ch }}</span></span></template><template v-else>{{ L.text || ' ' }}</template><template v-if="i === tx.sel && L.type !== 'shape' && !tx.free"><i v-for="c in ['nw', 'ne', 'sw', 'se']" :key="'th' + c"
                    class="tx-handle tx-in" :class="'h-' + c" @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize the text"></i><i
                    class="tx-handle tx-rot tx-rot-in" @pointerdown.stop="txRotDown($event)" @dblclick.stop="txLayer().rotate = 0"
                    title="Drag to turn the text (Shift: in 15° steps) · double-click to straighten it"></i></template></div>
@@ -1647,9 +1647,21 @@
                    @pointerdown.stop="txTailDown($event)" title="Drag to point the tail at the speaker"></div>
               <div v-if="txLayer().type === 'shape'" class="tx-handle tx-rot" :style="txRotStyle()"
                    @pointerdown.stop="txRotDown($event)" @dblclick.stop="txLayer().rot = 0" title="Drag to turn the shape (Shift: in 15° steps) · double-click to straighten it"></div>
+              <template v-if="tx.free && txLayer().type !== 'shape' && txGeo()">
+                <svg class="tx-frame" :viewBox="'0 0 ' + tx.nw + ' ' + tx.nh" preserveAspectRatio="none"><polygon :points="txGeo().corners.map((p) => p.join(',')).join(' ')"
+                  fill="none" stroke="#b58cff" :stroke-width="2 / (tx.scale || 1)" :stroke-dasharray="(6 / (tx.scale || 1)) + ' ' + (4 / (tx.scale || 1))"></polygon></svg>
+                <div v-for="(p, ci) in txGeo().corners" :key="'fd' + ci" class="tx-handle tx-dist" :style="txAt(p)" @pointerdown.stop="txDistortDown($event, ci)"
+                     @dblclick.stop="txResetCorner(ci)" title="Drag this corner anywhere: perspective and distort, like Photoshop (Shift: move the corners on this side together) · double-click to put it back"></div>
+                <div class="tx-handle tx-skew h" :style="txAt(txGeo().top)" @pointerdown.stop="txSkewDown($event, 'x')" @dblclick.stop="txLayer().skewX = 0"
+                     title="Drag sideways to slant the text (like italics) · double-click to straighten"></div>
+                <div class="tx-handle tx-skew v" :style="txAt(txGeo().right)" @pointerdown.stop="txSkewDown($event, 'y')" @dblclick.stop="txLayer().skewY = 0"
+                     title="Drag up or down to slant the text up or down · double-click to straighten"></div>
+                <div v-if="txLayer().warp && txLayer().warp !== 'none'" class="tx-handle tx-warp" :style="txAt(txGeo().bottom)" @pointerdown.stop="txWarpDown($event)"
+                     @dblclick.stop="txLayer().warpAmt = 0" title="Drag up or down to bend the warp more or less (or the other way) · double-click for none"></div>
+              </template>
             </template>
           </div>
-          <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE · CORNERS RESIZE · GREEN DOT TURNS' }}</span>
+          <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : (tx.free ? 'FREE TRANSFORM · DRAG THE PURPLE CORNERS · BLUE BARS SLANT · ORANGE DOT BENDS' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE · CORNERS RESIZE · GREEN DOT TURNS') }}</span>
           <span v-if="tx.busy || tx.msg" class="adjust-badge busy">{{ tx.msg || 'Working…' }}</span>
         </div>
         <div v-else-if="cut.open && !tool.healing" class="adjust-canvas-wrap cut-wrap" @click.stop>
@@ -2698,6 +2710,10 @@
                 <button :class="{on: txLayer().vertical}" @click="txLayer().vertical = true" title="Vertical: the letters stacked top to bottom (each line is its own column, the first on the right). For text lying on its side, use Angle under outline, shadow, angle">A↓ Vertical</button>
                 <button @click="txLayer().rotate = txLayer().rotate === -90 ? 0 : -90" :class="{on: txLayer().rotate === -90}" title="Turn the text on its side (reads bottom to top), like a book's spine">⟲ 90°</button>
               </div>
+              <div class="tx-free-row" v-if="!txLayer().vertical">
+                <button class="ghost small" :class="{on: tx.free}" @click="tx.free = !tx.free" title="Like Photoshop's Free Transform: drag the purple corners anywhere (perspective, distort), the blue bars to slant, the orange dot to bend a warp. Press again for the normal handles">✥ {{ tx.free ? 'Done shaping' : 'Free transform (drag corners)' }}</button>
+                <button class="ghost small" @click="txResetShape()" title="Back to a straight, flat text: no perspective, slant, warp or moved corners">↺ Reset shape</button>
+              </div>
               <details class="mod-more">
                 <summary>Outline &amp; shadow <span class="more-hint">outline, 2nd outline, drop shadow, spacing</span></summary>
                 <label>Outline <span class="mod-val">{{ txLayer().stroke }}</span></label>
@@ -3519,6 +3535,10 @@
                 <button :class="{on: txLayer().vertical}" @click="txLayer().vertical = true" title="Vertical: the letters stacked top to bottom (each line is its own column, the first on the right). For text lying on its side, use Angle under outline, shadow, angle">A↓ Vertical</button>
                 <button @click="txLayer().rotate = txLayer().rotate === -90 ? 0 : -90" :class="{on: txLayer().rotate === -90}" title="Turn the text on its side (reads bottom to top), like a book's spine">⟲ 90°</button>
               </div>
+              <div class="tx-free-row" v-if="!txLayer().vertical">
+                <button class="ghost small" :class="{on: tx.free}" @click="tx.free = !tx.free" title="Like Photoshop's Free Transform: drag the purple corners anywhere (perspective, distort), the blue bars to slant, the orange dot to bend a warp. Press again for the normal handles">✥ {{ tx.free ? 'Done shaping' : 'Free transform (drag corners)' }}</button>
+                <button class="ghost small" @click="txResetShape()" title="Back to a straight, flat text: no perspective, slant, warp or moved corners">↺ Reset shape</button>
+              </div>
               <details class="mod-more">
                 <summary>Outline &amp; shadow <span class="more-hint">outline, 2nd outline, drop shadow, spacing</span></summary>
                 <label>Outline <span class="mod-val">{{ txLayer().stroke }}</span></label>
@@ -4106,7 +4126,7 @@
               <div v-for="(L, i) in tx.layers" :key="'tx' + i" v-show="L.type !== 'shape'" class="tx-layer" :class="{sel: i === tx.sel}" :style="txStyle(L)"
                    @pointerdown.stop="txLayerDown($event, i)" title="Drag to move"><template v-if="L.type === 'shape'"></template><template v-else-if="L.vertical"><span
                      v-for="(col, ci) in ProtoText.columns(L, tx.scale || 1).cols" :key="'tc' + ci" class="tx-vcol"
-                     :style="{width: ProtoText.columns(L, tx.scale || 1).w + 'px'}"><span v-for="(ch, j) in col" :key="j">{{ ch === ' ' ? '\u00a0' : ch }}</span></span></template><template v-else>{{ L.text || ' ' }}</template><template v-if="i === tx.sel && L.type !== 'shape'"><i v-for="c in ['nw', 'ne', 'sw', 'se']" :key="'th' + c"
+                     :style="{width: ProtoText.columns(L, tx.scale || 1).w + 'px'}"><span v-for="(ch, j) in col" :key="j">{{ ch === ' ' ? '\u00a0' : ch }}</span></span></template><template v-else>{{ L.text || ' ' }}</template><template v-if="i === tx.sel && L.type !== 'shape' && !tx.free"><i v-for="c in ['nw', 'ne', 'sw', 'se']" :key="'th' + c"
                    class="tx-handle tx-in" :class="'h-' + c" @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize the text"></i><i
                    class="tx-handle tx-rot tx-rot-in" @pointerdown.stop="txRotDown($event)" @dblclick.stop="txLayer().rotate = 0"
                    title="Drag to turn the text (Shift: in 15° steps) · double-click to straighten it"></i></template></div>
@@ -4117,9 +4137,21 @@
                    @pointerdown.stop="txTailDown($event)" title="Drag to point the tail at the speaker"></div>
               <div v-if="txLayer().type === 'shape'" class="tx-handle tx-rot" :style="txRotStyle()"
                    @pointerdown.stop="txRotDown($event)" @dblclick.stop="txLayer().rot = 0" title="Drag to turn the shape (Shift: in 15° steps) · double-click to straighten it"></div>
+              <template v-if="tx.free && txLayer().type !== 'shape' && txGeo()">
+                <svg class="tx-frame" :viewBox="'0 0 ' + tx.nw + ' ' + tx.nh" preserveAspectRatio="none"><polygon :points="txGeo().corners.map((p) => p.join(',')).join(' ')"
+                  fill="none" stroke="#b58cff" :stroke-width="2 / (tx.scale || 1)" :stroke-dasharray="(6 / (tx.scale || 1)) + ' ' + (4 / (tx.scale || 1))"></polygon></svg>
+                <div v-for="(p, ci) in txGeo().corners" :key="'fd' + ci" class="tx-handle tx-dist" :style="txAt(p)" @pointerdown.stop="txDistortDown($event, ci)"
+                     @dblclick.stop="txResetCorner(ci)" title="Drag this corner anywhere: perspective and distort, like Photoshop (Shift: move the corners on this side together) · double-click to put it back"></div>
+                <div class="tx-handle tx-skew h" :style="txAt(txGeo().top)" @pointerdown.stop="txSkewDown($event, 'x')" @dblclick.stop="txLayer().skewX = 0"
+                     title="Drag sideways to slant the text (like italics) · double-click to straighten"></div>
+                <div class="tx-handle tx-skew v" :style="txAt(txGeo().right)" @pointerdown.stop="txSkewDown($event, 'y')" @dblclick.stop="txLayer().skewY = 0"
+                     title="Drag up or down to slant the text up or down · double-click to straighten"></div>
+                <div v-if="txLayer().warp && txLayer().warp !== 'none'" class="tx-handle tx-warp" :style="txAt(txGeo().bottom)" @pointerdown.stop="txWarpDown($event)"
+                     @dblclick.stop="txLayer().warpAmt = 0" title="Drag up or down to bend the warp more or less (or the other way) · double-click for none"></div>
+              </template>
             </template>
             </div>
-            <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE · CORNERS RESIZE · GREEN DOT TURNS' }}</span>
+            <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : (tx.free ? 'FREE TRANSFORM · DRAG THE PURPLE CORNERS · BLUE BARS SLANT · ORANGE DOT BENDS' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE · CORNERS RESIZE · GREEN DOT TURNS') }}</span>
             <span v-if="tx.busy || tx.msg" class="adjust-badge busy">{{ tx.msg || 'Working…' }}</span>
           </div>
           <template v-else-if="i2iRunning">

@@ -1001,7 +1001,7 @@ const protoartApp = createApp({
       zoom: { tools: { z: 1, x: 0, y: 0 }, i2i: { z: 1, x: 0, y: 0 }, i2iSrc: { z: 1, x: 0, y: 0 } },
       zoomSpace: false,      // Space held: drag to move around (like Photoshop)
       toolMasks: { remove: null, enhArea: null },  // Tools: each painting kept apart ({data, for}): Remove's, Enhance's area
-      tx: { open: false, base: null, layers: [], sel: -1, scale: 1, nw: 0, nh: 0, pick: false, busy: false, msg: "", drag: null, finding: false, fonts: null, fontsAsked: false },  // 🔤 Replace text
+      tx: { open: false, free: false, base: null, layers: [], sel: -1, scale: 1, nw: 0, nh: 0, pick: false, busy: false, msg: "", drag: null, finding: false, fonts: null, fontsAsked: false },  // 🔤 Replace text
       pw: { open: false, rec: null, pins: [], sel: -1, density: 48, busy: false, msg: "", error: "", original: false,
             ovl: null, size: null, mode: "rigid", expand: 0, feather: 3, showMesh: true, showBg: true, whole: false,
             hist: [], fut: [],
@@ -1045,9 +1045,11 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.16: 💬 balloons on any picture in one press, 🔄 turn, slant, perspective and warp text (wrap it round a bottle), clearer effect buttons", items: [
+            { h: "1.6.16: 💬 balloons on any picture in one press, ✥ free transform, 🔄 turn, slant, perspective and warp text (wrap it round a bottle), clearer effect buttons", items: [
               "<b>🔄 Turn, slant &amp; warp text</b> (Text &amp; balloons): drag the <b>green dot</b> above a text to turn it, <b>slant</b> it sideways or up and down, put it in <b>📐 perspective</b> like Photoshop (one side nearer, or leaning back like words on a floor), and <b>warp</b> it: <b>🍾 Wrap round</b> bends the words round a bottle, can or cup in the picture (only the words bend, not the picture), plus 🎈 Bulge, 🌊 Wave and 📈 Rise. The effect sections are now proper buttons: <b>Outline &amp; shadow</b>, <b>Bevel, glow &amp; colour</b> and <b>Turn, slant &amp; warp</b>.",
               "<b>🔤 Replace text is now Text &amp; balloons</b> (Tools and Image to image): <b>Add to the picture</b> comes first, with ✏️ Words and every balloon one press away, so you can put a speech or thought balloon on any picture without finding or clearing anything. Replacing words already in the picture (Find, Clear, Type) is still there, below it.",
+              "<b>✥ Free transform for text</b>, like Photoshop's: press <b>✥ Free transform (drag corners)</b> and drag the <b>purple corners</b> anywhere on the picture for perspective or any lean (Shift moves a whole edge), the <b>blue bars</b> to slant it and the <b>orange dot</b> to bend a warp. <b>↺ Reset shape</b> straightens it again.",
+              "<b>Image to image: the preview stays in view</b> while you scroll the controls on the left (as in Tools), so you can watch your changes as you make them.",
             ] },
             { h: "1.6.15: 💬 comic balloons and a font pack, ✨ text effects (bevel & emboss, glow, gradient, arc), 💡 Relight keeps your background or copies a reference's light, more patchbay modules", items: [
               "<b>🔤 Replace text: comic lettering</b>: three fonts of our own, designed for Protoart Studio: <b>Protoart Speech</b> (dialogue, regular and bold), <b>Protoart Kaboom</b> (chunky sound effects) and <b>Protoart Chatter</b> (bouncy cartoon lettering), plus a built-in pack of 12 free comic fonts (Comic Neue, Shantell Sans, Bangers, Luckiest Guy…), every font installed on your Mac in the Font list, corner handles to resize a text by hand, and <b>💬 Balloons & shapes</b>: speech, thought, shout, whisper, box, caption and burst, with a draggable tail.",
@@ -1668,6 +1670,7 @@ const protoartApp = createApp({
               "<b>Several texts</b>: <b>＋ Add text</b> (or a click on an empty spot of the picture) adds another one with its own words, font, size and colour. Its name appears above the box: click a name (or the text on the picture) to change that one, ✕ deletes it. A new text you didn't type in is dropped when you add the next.",
               "<b>Fonts</b>: the Font list starts with <b>Protoart's own fonts</b>: <b>Protoart Speech</b> for dialogue (B for its bold), <b>Protoart Kaboom</b> for sound effects and <b>Protoart Chatter</b> for bouncy cartoon lettering (all in capitals, like comic lettering; lowercase keys give slightly smaller capitals). Then the built-in <b>comic lettering pack</b> (Comic Neue, Shantell Sans, Patrick Hand and Architects Daughter for dialogue and captions; Bangers, Luckiest Guy, Bowlby One SC and Titan One for sound effects and titles; Chewy, Boogaloo, Bubblegum Sans, Permanent Marker), then the Mac favourites, then <b>every font installed on this Mac</b> (including ones you added in Font Book; the list fills in after a few seconds the first time).",
               "<b>Resize by hand</b>: the selected text has four corner handles: drag one to make the text bigger or smaller. Or <b>double-click the size number</b> (the amber box) and type it, even beyond the slider's end.",
+              "<b>✥ Shape text by hand</b> (like Photoshop's Free Transform): select the text and press <b>✥ Free transform (drag corners)</b>. Drag a <b>purple corner</b> to wherever that corner of the words should be: line all four up with the corners of a sign, a screen or a box and the text follows it in perspective. Hold <b>Shift</b> to move the top (or bottom) edge as one. The <b>blue bar</b> on top slants it sideways, the one on the right slants it up or down, and with a warp picked the <b>orange dot</b> bends it more or less. Double-click a handle to put it back, <b>↺ Reset shape</b> for all of it, and <b>✥ Done shaping</b> for the normal handles again.",
               "<b>📐 Text in perspective</b> (a wall, a sign seen from the side, a floor or a road): open <b>Turn, slant &amp; warp</b>. <b>Perspective ↔</b> makes one side nearer and bigger (+ the right, − the left); <b>Perspective ↕</b> leans it back (+) like words lying on the ground, or forward (−). Use both together for a corner, and the green dot to line it up. Double-click a slider to reset it.",
               "<b>🍾 Text on a bottle or can</b>: type the text, make it about as wide as the bottle and put it where the label goes. Open <b>Turn, slant &amp; warp</b>, pick <b>🍾 Wrap round</b> and raise <b>Warp amount</b> until the letters follow the bottle's curve (− if you see the bottle from below). Drag the <b>green dot</b> to tilt it with the bottle; <b>Slant</b> helps for a box or sign seen from the side.",
               "<b>✨ Text effects</b>: pick a text, then open <b>outline, shadow, angle</b> (outline, a second outline, drop shadow colour, direction and softness) and <b>bevel &amp; emboss, glow, gradient, arc</b>. Bevel &amp; emboss makes letters look raised (or pressed in with <b>Pressed</b>); <b>Light from</b> sets which side catches the light. <b>Arc</b> bends the words up or down (double-click it to straighten). <b>AA</b> next to Bold and Italic shows the text in capitals. Not sure where to start? Try a ready-made look (💥 Comic SFX, 🪙 Chrome, 💡 Neon, 🔨 Pressed) and adjust from there; ✕ No effects takes them all off.",
@@ -10573,6 +10576,64 @@ const protoartApp = createApp({
       const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
+    },
+    txGeo() {  // the selected text's corners and edge middles on the picture, for the free-transform handles
+      const L = this.txLayer();
+      if (!L || L.type === "shape" || !this.tx.nw) return null;
+      try { return window.ProtoText.geometry(L, this.tx.nw, this.tx.nh); } catch { return null; }
+    },
+    txAt(p) { return { left: (p[0] / (this.tx.nw || 1)) * 100 + "%", top: (p[1] / (this.tx.nh || 1)) * 100 + "%" }; },
+    txPx(ev) {  // the pointer on the picture, in picture pixels (not limited to the picture: corners can go past its edge)
+      const r = this.$refs.txImg.getBoundingClientRect();
+      return [((ev.clientX - r.left) / r.width) * this.tx.nw, ((ev.clientY - r.top) / r.height) * this.tx.nh];
+    },
+    txDrag(onMove) {
+      const up = () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", up); };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", up);
+    },
+    txDistortDown(e, i) {  // ✥ drag a corner anywhere (perspective / distort); Shift moves the corners on that side together
+      const L = this.txLayer(), g = this.txGeo();
+      if (!L || !g) return;
+      const q0 = Array.isArray(L.quad) && L.quad.length === 4 ? L.quad.map((d) => [+d[0] || 0, +d[1] || 0]) : [[0, 0], [0, 0], [0, 0], [0, 0]];
+      const start = window.ProtoText.toLocal(L, this.tx.nw, this.tx.nh, ...this.txPx(e), g.sx, g.sy);
+      this.txDrag((ev) => {
+        const p = window.ProtoText.toLocal(L, this.tx.nw, this.tx.nh, ...this.txPx(ev), g.sx, g.sy);
+        const dx = (p[0] - start[0]) / L.size, dy = (p[1] - start[1]) / L.size;
+        const q = q0.map((d) => d.slice());
+        const which = ev.shiftKey ? (i < 2 ? [0, 1] : [2, 3]) : [i];  // Shift: the whole top (or bottom) edge
+        for (const k of which) q[k] = [q0[k][0] + dx, q0[k][1] + dy];
+        L.quad = q;
+      });
+    },
+    txResetCorner(i) {
+      const L = this.txLayer();
+      if (!L || !Array.isArray(L.quad)) return;
+      const q = L.quad.map((d) => d.slice()); q[i] = [0, 0]; L.quad = q;
+    },
+    txResetShape() {
+      const L = this.txLayer();
+      if (!L) return;
+      Object.assign(L, { quad: null, skewX: 0, skewY: 0, perspH: 0, perspV: 0, warp: "none", curve: 0 });
+    },
+    txSkewDown(e, axis) {  // drag the blue bar: slant sideways (top bar) or up and down (right bar)
+      const L = this.txLayer(), g = this.txGeo();
+      if (!L || !g) return;
+      this.txDrag((ev) => {
+        const [x, y] = window.ProtoText.toLocal(L, this.tx.nw, this.tx.nh, ...this.txPx(ev), 0, 0);  // turned back, not un-slanted
+        const deg = axis === "x" ? (Math.atan2(-x, g.hh) * 180) / Math.PI : (Math.atan2(y, g.hw) * 180) / Math.PI;
+        const v = Math.round(Math.max(axis === "x" ? -60 : -45, Math.min(axis === "x" ? 60 : 45, deg)));
+        if (axis === "x") L.skewX = Math.abs(v) < 2 ? 0 : v; else L.skewY = Math.abs(v) < 2 ? 0 : v;
+      });
+    },
+    txWarpDown(e) {  // drag the orange dot: more or less warp (or the other way)
+      const L = this.txLayer(), g = this.txGeo();
+      if (!L || !g) return;
+      const y0 = this.txPx(e)[1], a0 = +L.warpAmt || 0;
+      this.txDrag((ev) => {
+        const dy = this.txPx(ev)[1] - y0;
+        L.warpAmt = Math.round(Math.max(-100, Math.min(100, a0 + (dy / Math.max(10, g.hh * 2)) * 100)));
+      });
     },
     txTailDown(e) {  // drag the tail's tip
       const S = this.txLayer();

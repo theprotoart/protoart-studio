@@ -2439,6 +2439,8 @@ button:disabled { cursor: not-allowed; }
 /* Tools: the picture stays in view while you scroll down through the modules, so changes can be seen as you make them */
 @media (min-width: 901px) {
   .tools > .tool-source { position: sticky; top: -16px; max-height: calc(100vh - 160px); overflow-y: auto; overscroll-behavior: contain; z-index: 5; }
+  /* Image to image: the preview (and the text you're placing on it) stays in view while you scroll the controls on the left */
+  .i2i > .i2i-right { position: sticky; top: -16px; max-height: calc(100vh - 160px); overflow-y: auto; overscroll-behavior: contain; z-index: 5; }
 }
 /* each module's ↺ never covers its title: the title wraps before it */
 .rack-module .mod-head:has(.mod-reset) h3, .rack-module .mod-head:has(.mod-reset) .mod-sub { padding-right: 46px; box-sizing: border-box; max-width: 100%; }
@@ -2743,3 +2745,15 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .tx-quick > label { margin-top: 0; }
 .tx-quick .tx-quick-words { font-weight: 700; }
 .tx-replace-head { margin-top: 4px; }
+
+/* ✥ free transform: purple corner diamonds (distort / perspective), slant bars on the edges, an orange warp handle */
+.tx-stage .tx-handle.tx-dist { width: 13px; height: 13px; margin: -7px 0 0 -7px; border-radius: 2px; transform: rotate(45deg);
+  background: #b58cff; border: 2px solid #3c1f7a; cursor: move; box-shadow: 0 0 0 1px rgba(255, 255, 255, .7); z-index: 6; }
+.tx-stage .tx-handle.tx-skew { width: 18px; height: 8px; margin: -4px 0 0 -9px; border-radius: 4px; background: #6fd0ff; border: 2px solid #0f3c57; z-index: 6; }
+.tx-stage .tx-handle.tx-skew.v { width: 8px; height: 18px; margin: -9px 0 0 -4px; }
+.tx-stage .tx-handle.tx-skew.h { cursor: ew-resize; }
+.tx-stage .tx-handle.tx-skew.v { cursor: ns-resize; }
+.tx-stage .tx-handle.tx-warp { width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #ff9b2e; border: 2px solid #5a2a00; cursor: ns-resize; z-index: 6; }
+.tx-stage svg.tx-frame { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 4; overflow: visible; }
+.tx-free-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 2px; }
+.tx-free-row button { flex: 1 1 auto; }
