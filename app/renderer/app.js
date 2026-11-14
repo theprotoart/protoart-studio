@@ -1057,7 +1057,7 @@ const protoartApp = createApp({
               "<b>Image to image: the preview stays in view</b> while you scroll the controls on the left (as in Tools), so you can watch your changes as you make them.",
               "<b>Text opacity</b> sits right under the colour now (it was hidden in a fold-out section), and the list of your texts (the chips above the typing box) is easier to read on the light looks.",
               "<b>🎨 Blending modes for text</b>, as in Photoshop (under Opacity): Multiply, Screen, Overlay, Soft Light, Hard Light, Darken, Lighten, Color Dodge, Color Burn, Difference, Exclusion, Hue, Saturation, Color and Luminosity. <b>Multiply</b> makes words look printed or inked onto the picture, <b>Overlay</b> and <b>Soft Light</b> let its texture and light show through them, <b>Screen</b> makes them glow like light.",
-              "<b>Fixes</b>: a picture dropped straight from a screenshot's floating thumbnail, a browser, Photos or Messages is now kept by the app (macOS deleted its temporary copy, so <b>Clear it</b> and other steps said \"Couldn't open that file\"); if a picture's file is moved or deleted, the message now says so and which file. Tools' <b>Split</b> view no longer stays black after you switch tabs and come back. <b>Send to Tools</b> from the Library now shows that picture in Tools: a text you were placing in Image to image showed over it (and stays waiting in Image to image). Copy diagnostics shows the right version.",
+              "<b>Fixes</b>: a picture dropped straight from a screenshot's floating thumbnail, a browser, Photos or Messages is now kept by the app (macOS deleted its temporary copy, so <b>Clear it</b> and other steps said \"Couldn't open that file\"); if a picture's file is moved or deleted, the message now says so and which file. Tools' <b>Split</b> view no longer stays black after you switch tabs and come back. <b>Send to Tools</b> from the Library now shows that picture in Tools: a text you were placing in Image to image showed over it (and stays waiting in Image to image). A picture opened from Tools' <b>Results</b> has the ‹ › arrows (and the ← → keys) to step through the others. Copy diagnostics shows the right version.",
             ] },
             { h: "1.6.15: 💬 comic balloons and a font pack, ✨ text effects (bevel & emboss, glow, gradient, arc), 💡 Relight keeps your background or copies a reference's light, more patchbay modules", items: [
               "<b>🔤 Replace text: comic lettering</b>: three fonts of our own, designed for Protoart Studio: <b>Protoart Speech</b> (dialogue, regular and bold), <b>Protoart Kaboom</b> (chunky sound effects) and <b>Protoart Chatter</b> (bouncy cartoon lettering), plus a built-in pack of 12 free comic fonts (Comic Neue, Shantell Sans, Bangers, Luckiest Guy…), every font installed on your Mac in the Font list, corner handles to resize a text by hand, and <b>💬 Balloons & shapes</b>: speech, thought, shout, whisper, box, caption and burst, with a draggable tail.",
@@ -2501,6 +2501,11 @@ const protoartApp = createApp({
       if (!this.detail) return [];
       if (this.tab === "library") return this.libShown;
       if (this.tab === "i2i") return this.i2iResults;
+      if (this.tab === "tools") {  // Tools' results (the latest first, as listed under Results)
+        const list = (this.tool.results || []).filter(Boolean);
+        const last = this.tool.latest;
+        return last && last.id != null && !list.some((r) => r.id === last.id) ? [last, ...list] : list;
+      }
       return this.createSession;
     },
     detailIndex() {

@@ -2,6 +2,7 @@
 
 ## 1.6.16
 
+- Fix: the picture viewer opened from Tools' Results has ‹ › (and ← →): `detailList` had no Tools list
 - Fix: the text tool's session belongs to the tab it was opened in (`tx.where`, `txIn()`): a text open in Image to image
   showed over Tools' picture after Library → Send to Tools (Tools showed the Image to image picture). A new picture in a
   tab closes that tab's text session
