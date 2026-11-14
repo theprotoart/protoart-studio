@@ -2,6 +2,13 @@
 
 ## 1.6.16
 
+- Fix: pictures dropped from a temporary place (screenshot thumbnail, browser, Photos, Messages) are copied to
+  `imports` (`pictures.keep`, `is_temporary`; the renderer sends such PNG/JPEG paths to `image_prepare` too): macOS deleted
+  the original and Text & balloons → Clear it failed with "Couldn't open that file". Missing files now get a plain
+  message naming the file (`pictures.gone_message`)
+- Fix: Tools' Split view redraws when its canvas is made again (`@vue:mounted`, and on returning to Tools); it was
+  black until the line was dragged
+- Fix: `APP_VERSION` 1.6.16 (diagnostics showed 1.6.15); `test_version.py` keeps it in step with package.json
 - Security audit (SECURITY.md has the full table): `zengineer.folder` only takes known ids (an id with `../` could
   reach a folder outside); the Civitai key only goes to https civitai.com / civitai.red (`civitai.key_goes_to`); the data
   folder is made owner-only (0700) and its database 0600 (`paths.private`). Tests: `test_security_audit.py`

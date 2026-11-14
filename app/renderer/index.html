@@ -1697,7 +1697,7 @@
             <img v-if="tool.view !== 'split'" :src="fileUrl(tool.latest.path)" alt="" draggable="false">
             <!-- Split: both pictures drawn into one canvas, the same size (an overlaid, clipped <img> flickered on busy Macs
                  and didn't line up when the result's shape differed by a few pixels) -->
-            <canvas v-else ref="cmpCanvas" class="cmp-canvas"></canvas>
+            <canvas v-else ref="cmpCanvas" class="cmp-canvas" @vue:mounted="$nextTick(() => cmpDraw())"></canvas>
             <template v-if="tool.view === 'split'">
               <i class="cmp-line" :style="{left: (tool.split * 100) + '%'}"><b></b></i>
               <span class="cmp-tag left">Original</span><span class="cmp-tag right">{{ kindLabel(tool.latest.kind) }}</span>

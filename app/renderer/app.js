@@ -723,7 +723,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.15";  // keep in step with app/package.json
+const APP_VERSION = "1.6.16";  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -1057,6 +1057,7 @@ const protoartApp = createApp({
               "<b>Image to image: the preview stays in view</b> while you scroll the controls on the left (as in Tools), so you can watch your changes as you make them.",
               "<b>Text opacity</b> sits right under the colour now (it was hidden in a fold-out section), and the list of your texts (the chips above the typing box) is easier to read on the light looks.",
               "<b>🎨 Blending modes for text</b>, as in Photoshop (under Opacity): Multiply, Screen, Overlay, Soft Light, Hard Light, Darken, Lighten, Color Dodge, Color Burn, Difference, Exclusion, Hue, Saturation, Color and Luminosity. <b>Multiply</b> makes words look printed or inked onto the picture, <b>Overlay</b> and <b>Soft Light</b> let its texture and light show through them, <b>Screen</b> makes them glow like light.",
+              "<b>Fixes</b>: a picture dropped straight from a screenshot's floating thumbnail, a browser, Photos or Messages is now kept by the app (macOS deleted its temporary copy, so <b>Clear it</b> and other steps said \"Couldn't open that file\"); if a picture's file is moved or deleted, the message now says so and which file. Tools' <b>Split</b> view no longer stays black after you switch tabs and come back. Copy diagnostics shows the right version.",
             ] },
             { h: "1.6.15: 💬 comic balloons and a font pack, ✨ text effects (bevel & emboss, glow, gradient, arc), 💡 Relight keeps your background or copies a reference's light, more patchbay modules", items: [
               "<b>🔤 Replace text: comic lettering</b>: three fonts of our own, designed for Protoart Studio: <b>Protoart Speech</b> (dialogue, regular and bold), <b>Protoart Kaboom</b> (chunky sound effects) and <b>Protoart Chatter</b> (bouncy cartoon lettering), plus a built-in pack of 12 free comic fonts (Comic Neue, Shantell Sans, Bangers, Luckiest Guy…), every font installed on your Mac in the Font list, corner handles to resize a text by hand, and <b>💬 Balloons & shapes</b>: speech, thought, shout, whisper, box, caption and burst, with a draggable tail.",
@@ -3544,6 +3545,8 @@ const protoartApp = createApp({
       currentTab = v;
       this.swapPrompts(v === "i2i" ? "i2i" : "create");
       if (v === "settings") { this.loadFolders(false); this.loadStore(); this.$nextTick(() => this.applySettingsFolds()); }
+      // the split view's canvas is made again when you come back to Tools: it stayed black until you dragged its line
+      if (v === "tools") this.$nextTick(() => { this._cmpTries = 0; this.cmpDraw(); });
       // leaving Tools drops Adjust's GPU preview; coming back reloads it with the same settings
       if (old === "tools" && this.adj.open && adjEngine) { adjEngine.destroy(); adjEngine = null; }
       if (v === "tools" && this.adj.open && !adjEngine && this.adj.rec && !this.adj.busy)
@@ -5125,7 +5128,10 @@ const protoartApp = createApp({
     // HEIC (iPhone), TIFF, camera RAW, PSD… : macOS converts them to a PNG once (cached); PNG / JPEG / WebP open as they are
     async preparePicture(path) {
       if (!path) return path;
-      if (DIRECT_EXT.includes(extOf(path))) return path;
+      // a PNG / JPEG… is used where it is, unless it's in a temporary place macOS empties soon after a drop (a
+      // screenshot's floating thumbnail, a picture dragged from a browser, Photos or Messages): the app keeps a copy
+      const temporary = /\/(private\/)?(var\/folders|tmp)\/|\/TemporaryItems\/|\/Library\/Caches\/|\/NSIRD_|com\.apple\.Photos/.test(path);
+      if (DIRECT_EXT.includes(extOf(path)) && !temporary) return path;
       if (!PICTURE_EXT.includes(extOf(path))) {
         this.error = "That isn't a picture this app can open (PNG, JPEG, WebP, HEIC, TIFF, AVIF, PSD, GIF, BMP or camera RAW).";
         return null;

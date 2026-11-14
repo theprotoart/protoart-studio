@@ -3369,11 +3369,11 @@ class Engine:
         describe: Qwen3.5 4B (a modern vision model, Apple GPU) writes a detailed prompt; quick: Florence-2;
         tags: the WD tagger (Danbooru tags)."""
         from PIL import Image
+        import pictures
         p = Path(str(args.get("path") or ""))
         if not p.is_file():
-            raise UserError("Couldn't open that file.")
+            raise UserError(pictures.gone_message(p))
         try:
-            import pictures
             p = Path(pictures.prepare(p))  # HEIC, TIFF, RAW… are converted by macOS first
         except Exception as e:
             raise UserError(str(e) or "Couldn't open that file.")
@@ -3655,11 +3655,11 @@ class Engine:
     @staticmethod
     def _external_source(path):
         """Treat any image file (e.g. dropped on the Tools tab) like a library record."""
+        import pictures
         p = Path(str(path or ""))
         if not p.is_file():
-            raise UserError("Couldn't open that file.")
+            raise UserError(pictures.gone_message(p))  # e.g. a screenshot thumbnail macOS has since deleted
         try:
-            import pictures
             p = Path(pictures.prepare(p))  # HEIC, TIFF, RAW… are converted by macOS first
         except Exception as e:
             raise UserError(str(e) or "Couldn't open that file.")
@@ -3691,9 +3691,9 @@ class Engine:
                 raise UserError("Image not found in the library.")
         else:
             src = self._external_source(args.get("path") or args.get("init_image"))
-        if not Path(src["path"]).exists():
-            raise UserError(f"The image file is missing: {src['path']}")
         import pictures
+        if not Path(src["path"]).exists():
+            raise UserError(pictures.gone_message(src["path"]))
         try:
             image = ImageOps.exif_transpose(Image.open(pictures.prepare(src["path"])))
         except Exception:

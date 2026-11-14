@@ -15,7 +15,7 @@ import pictures  # noqa: E402
 
 class PictureTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
+        self.tmp = tempfile.TemporaryDirectory(dir=str(Path.home()))  # not /tmp: that counts as a temporary place
         self.old = (paths.HOME, pictures.SIPS)
         paths.HOME = Path(self.tmp.name) / "home"
         self.png = os.path.join(self.tmp.name, "a.png")

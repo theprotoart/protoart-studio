@@ -27,10 +27,46 @@ class PictureError(ValueError):
     pass
 
 
+def gone_message(p):
+    name = Path(str(p or "")).name
+    if not name:
+        return "That picture wasn't found."
+    return (f"The picture's file ({name}) isn't there any more, so it can't be worked on. It was probably a temporary "
+            "copy that macOS removes (a screenshot's floating thumbnail, or a picture dragged from a browser, Photos or "
+            "Messages), or it was moved, renamed or deleted. Add the picture again (saving it to a folder first is "
+            "safest).")
+
+
 def imports_dir():
     d = paths.HOME / "imports"
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+# where macOS puts a picture only for a moment: a screenshot's floating thumbnail, a picture dragged from a browser,
+# Photos or Messages. The file is deleted soon after the drop, so the app keeps its own copy (in imports).
+TEMP_MARKERS = ("/private/var/folders/", "/var/folders/", "/private/tmp/", "/tmp/", "/TemporaryItems/",
+                "/Library/Caches/", "/.Trash/", "/NSIRD_", "/com.apple.Photos")
+
+
+def is_temporary(path):
+    s = str(path or "")
+    return any(m in s for m in TEMP_MARKERS) and not s.startswith(str(paths.HOME))
+
+
+def keep(p):
+    """A picture in a temporary place -> a copy in the app's imports folder (named by its content, so dropping the same
+    picture again reuses it); any other path is returned as it is."""
+    p = Path(str(p))
+    if not is_temporary(p):
+        return str(p)
+    data = p.read_bytes()
+    out = imports_dir() / f"{p.stem[:40]}_{hashlib.sha256(data).hexdigest()[:16]}{p.suffix.lower()}"
+    if not (out.is_file() and out.stat().st_size == len(data)):
+        part = out.with_name(out.name + ".part")
+        part.write_bytes(data)
+        os.replace(part, out)
+    return str(out)
 
 
 def is_supported(path):
@@ -41,10 +77,10 @@ def prepare(path):
     """-> a path PNG/JPEG/WebP/GIF/BMP readers can open: the file itself, or a converted PNG copy."""
     p = Path(str(path or ""))
     if not p.is_absolute() or not p.is_file():
-        raise PictureError("That picture wasn't found.")
+        raise PictureError(gone_message(p))
     ext = p.suffix.lower()
     if ext in DIRECT:
-        return str(p)
+        return keep(p)
     if ext == ".procreate":  # Procreate: its own flattened picture, read from inside the file
         return _from_procreate(p)
     if ext not in VIA_MACOS:
