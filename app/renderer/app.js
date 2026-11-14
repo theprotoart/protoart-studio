@@ -1045,6 +1045,9 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.6.16: 🔄 turn, slant and warp text (wrap it round a bottle), clearer effect buttons", items: [
+              "<b>🔄 Turn, slant &amp; warp text</b> (Replace text): drag the <b>green dot</b> above a text to turn it, <b>slant</b> it sideways or up and down, and <b>warp</b> it: <b>🍾 Wrap round</b> bends the words round a bottle, can or cup in the picture (only the words bend, not the picture), plus 🎈 Bulge, 🌊 Wave and 📈 Rise. The effect sections are now proper buttons: <b>Outline &amp; shadow</b>, <b>Bevel, glow &amp; colour</b> and <b>Turn, slant &amp; warp</b>.",
+            ] },
             { h: "1.6.15: 💬 comic balloons and a font pack, ✨ text effects (bevel & emboss, glow, gradient, arc), 💡 Relight keeps your background or copies a reference's light, more patchbay modules", items: [
               "<b>🔤 Replace text: comic lettering</b>: three fonts of our own, designed for Protoart Studio: <b>Protoart Speech</b> (dialogue, regular and bold), <b>Protoart Kaboom</b> (chunky sound effects) and <b>Protoart Chatter</b> (bouncy cartoon lettering), plus a built-in pack of 12 free comic fonts (Comic Neue, Shantell Sans, Bangers, Luckiest Guy…), every font installed on your Mac in the Font list, corner handles to resize a text by hand, and <b>💬 Balloons & shapes</b>: speech, thought, shout, whisper, box, caption and burst, with a draggable tail.",
               "<b>Type exact numbers</b>: double-click a slider's number (the amber box) in Tools to type the value: steps, LoRA weight, change strength, text size… Return keeps it, Esc cancels.",
@@ -1662,6 +1665,7 @@ const protoartApp = createApp({
               "<b>Several texts</b>: <b>＋ Add text</b> (or a click on an empty spot of the picture) adds another one with its own words, font, size and colour. Its name appears above the box: click a name (or the text on the picture) to change that one, ✕ deletes it. A new text you didn't type in is dropped when you add the next.",
               "<b>Fonts</b>: the Font list starts with <b>Protoart's own fonts</b>: <b>Protoart Speech</b> for dialogue (B for its bold), <b>Protoart Kaboom</b> for sound effects and <b>Protoart Chatter</b> for bouncy cartoon lettering (all in capitals, like comic lettering; lowercase keys give slightly smaller capitals). Then the built-in <b>comic lettering pack</b> (Comic Neue, Shantell Sans, Patrick Hand and Architects Daughter for dialogue and captions; Bangers, Luckiest Guy, Bowlby One SC and Titan One for sound effects and titles; Chewy, Boogaloo, Bubblegum Sans, Permanent Marker), then the Mac favourites, then <b>every font installed on this Mac</b> (including ones you added in Font Book; the list fills in after a few seconds the first time).",
               "<b>Resize by hand</b>: the selected text has four corner handles: drag one to make the text bigger or smaller. Or <b>double-click the size number</b> (the amber box) and type it, even beyond the slider's end.",
+              "<b>🍾 Text on a bottle or can</b>: type the text, make it about as wide as the bottle and put it where the label goes. Open <b>Turn, slant &amp; warp</b>, pick <b>🍾 Wrap round</b> and raise <b>Warp amount</b> until the letters follow the bottle's curve (− if you see the bottle from below). Drag the <b>green dot</b> to tilt it with the bottle; <b>Slant</b> helps for a box or sign seen from the side.",
               "<b>✨ Text effects</b>: pick a text, then open <b>outline, shadow, angle</b> (outline, a second outline, drop shadow colour, direction and softness) and <b>bevel &amp; emboss, glow, gradient, arc</b>. Bevel &amp; emboss makes letters look raised (or pressed in with <b>Pressed</b>); <b>Light from</b> sets which side catches the light. <b>Arc</b> bends the words up or down (double-click it to straighten). <b>AA</b> next to Bold and Italic shows the text in capitals. Not sure where to start? Try a ready-made look (💥 Comic SFX, 🪙 Chrome, 💡 Neon, 🔨 Pressed) and adjust from there; ✕ No effects takes them all off.",
               "<b>💬 Balloons & shapes</b>: Speech, Thought, Shout, Whisper, Box, Caption and Burst (for sound effects). Each comes with a text inside it in a matching comic font. Drag the balloon to move it (its tail comes along), its corners to resize it, the round green handle above it to turn it (Shift: 15° steps; double-click: straight again; or the <b>Angle</b> slider), and the blue dot to point the tail at the speaker. Pick its fill, outline colour and width; balloons are always drawn under the text.",
               "<b>💾 Save</b> draws the text into the picture at full size and saves it as a new picture in the Library (the original stays). You can also use ✏️ Type on any picture without clearing anything first." ] },
@@ -10540,15 +10544,16 @@ const protoartApp = createApp({
       const up = S.h / 2 + 0.05 / Math.max(0.3, k);  // a little above the top edge (in picture heights)
       return { left: (S.x + Math.sin(a) * up * k) * 100 + "%", top: (S.y - Math.cos(a) * up) * 100 + "%" };
     },
-    txRotDown(e) {  // drag the turn handle round the shape's middle
+    txRotDown(e) {  // drag the turn handle round the middle of the shape or text
       const S = this.txLayer();
       if (!S) return;
+      const key = S.type === "shape" ? "rot" : "rotate";
       const r = this.$refs.txImg.getBoundingClientRect(), cx = r.left + S.x * r.width, cy = r.top + S.y * r.height;
       const move = (ev) => {
         let deg = (Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180) / Math.PI + 90;
         if (deg > 180) deg -= 360;
         deg = ev.shiftKey ? Math.round(deg / 15) * 15 : Math.abs(deg) < 3 ? 0 : Math.round(deg);
-        S.rot = deg;
+        S[key] = deg;
       };
       const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
       window.addEventListener("pointermove", move);

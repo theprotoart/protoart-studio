@@ -1637,7 +1637,9 @@
                  @pointerdown.stop="txLayerDown($event, i)" title="Drag to move · edit it in 🔤 Replace text"><template v-if="L.type === 'shape'"></template><template v-else-if="L.vertical"><span
                    v-for="(col, ci) in ProtoText.columns(L, tx.scale || 1).cols" :key="'tc' + ci" class="tx-vcol"
                    :style="{width: ProtoText.columns(L, tx.scale || 1).w + 'px'}"><span v-for="(ch, j) in col" :key="j">{{ ch === ' ' ? '\u00a0' : ch }}</span></span></template><template v-else>{{ L.text || ' ' }}</template><template v-if="i === tx.sel && L.type !== 'shape'"><i v-for="c in ['nw', 'ne', 'sw', 'se']" :key="'th' + c"
-                   class="tx-handle tx-in" :class="'h-' + c" @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize the text"></i></template></div>
+                   class="tx-handle tx-in" :class="'h-' + c" @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize the text"></i><i
+                   class="tx-handle tx-rot tx-rot-in" @pointerdown.stop="txRotDown($event)" @dblclick.stop="txLayer().rotate = 0"
+                   title="Drag to turn the text (Shift: in 15° steps) · double-click to straighten it"></i></template></div>
             <template v-if="txLayer() && tx.nw">
               <div v-for="c in (txLayer().type === 'shape' ? ['nw', 'ne', 'sw', 'se'] : [])" :key="'h' + c" class="tx-handle" :class="'h-' + c" :style="txHandleStyle(c)"
                    @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize"></div>
@@ -1647,7 +1649,7 @@
                    @pointerdown.stop="txRotDown($event)" @dblclick.stop="txLayer().rot = 0" title="Drag to turn the shape (Shift: in 15° steps) · double-click to straighten it"></div>
             </template>
           </div>
-          <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE · CORNERS RESIZE' }}</span>
+          <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE · CORNERS RESIZE · GREEN DOT TURNS' }}</span>
           <span v-if="tx.busy || tx.msg" class="adjust-badge busy">{{ tx.msg || 'Working…' }}</span>
         </div>
         <div v-else-if="cut.open && !tool.healing" class="adjust-canvas-wrap cut-wrap" @click.stop>
@@ -2693,7 +2695,7 @@
                 <button @click="txLayer().rotate = txLayer().rotate === -90 ? 0 : -90" :class="{on: txLayer().rotate === -90}" title="Turn the text on its side (reads bottom to top), like a book's spine">⟲ 90°</button>
               </div>
               <details class="mod-more">
-                <summary>outline, shadow, angle</summary>
+                <summary>Outline &amp; shadow <span class="more-hint">outline, 2nd outline, drop shadow, spacing</span></summary>
                 <label>Outline <span class="mod-val">{{ txLayer().stroke }}</span></label>
                 <div class="tx-row"><input type="range" min="0" max="20" step="1" v-model.number="txLayer().stroke"><input type="color" v-model="txLayer().strokeColour" title="Outline colour"></div>
                 <label title="A second outline around the first, like comic sound effects (white inside black, or the other way round)">Second outline <span class="mod-val">{{ txLayer().stroke2 }}</span></label>
@@ -2704,8 +2706,6 @@
                 <input type="range" min="0" max="360" step="1" v-model.number="txLayer().shadowAngle">
                 <label title="0 = a hard shadow, higher = softer">Shadow softness <span class="mod-val">{{ txLayer().shadowSoft }}</span></label>
                 <input type="range" min="0" max="3" step="0.1" v-model.number="txLayer().shadowSoft">
-                <label>Angle <span class="mod-val">{{ txLayer().rotate }}°</span></label>
-                <input type="range" min="-180" max="180" step="1" v-model.number="txLayer().rotate" @dblclick="txLayer().rotate = 0">
                 <label>Letter spacing <span class="mod-val">{{ txLayer().spacing }}</span></label>
                 <input type="range" min="-10" max="60" step="1" v-model.number="txLayer().spacing">
                 <label>Line height <span class="mod-val">{{ txLayer().lineHeight }}</span></label>
@@ -2714,7 +2714,7 @@
                 <input type="range" min="0.1" max="1" step="0.05" v-model.number="txLayer().opacity">
               </details>
               <details class="mod-more">
-                <summary>bevel &amp; emboss, glow, gradient, arc</summary>
+                <summary>Bevel, glow &amp; colour <span class="more-hint">bevel &amp; emboss, glow, gradient, looks</span></summary>
                 <label title="Makes the letters look raised (or pressed in): light catches one side of each letter and the other falls into shade">Bevel &amp; emboss <span class="mod-val">{{ txLayer().bevel }}</span></label>
                 <input type="range" min="0" max="20" step="1" v-model.number="txLayer().bevel">
                 <div class="seg mod-seg">
@@ -2741,8 +2741,6 @@
                   <label title="90 = top to bottom, 0 = left to right">Gradient direction <span class="mod-val">{{ txLayer().gradAngle }}°</span></label>
                   <input type="range" min="0" max="360" step="5" v-model.number="txLayer().gradAngle">
                 </template>
-                <label title="Bend the line(s) into an arc: up (+) or down (−). Double-click to straighten. Not with vertical text">Arc <span class="mod-val">{{ txLayer().curve }}°</span></label>
-                <input type="range" min="-180" max="180" step="5" v-model.number="txLayer().curve" @dblclick="txLayer().curve = 0" :disabled="txLayer().vertical">
                 <label>Ready-made looks</label>
                 <div class="tx-presets">
                   <button class="ghost small" @click="txPreset('sfx')" title="Yellow to orange, a red second outline, a black outline and a hard shadow">💥 Comic SFX</button>
@@ -2751,6 +2749,26 @@
                   <button class="ghost small" @click="txPreset('stamp')" title="Pressed into the surface">🔨 Pressed</button>
                   <button class="ghost small" @click="txPreset('plain')" title="Take every effect off (keeps the words, font, size and colour)">✕ No effects</button>
                 </div>
+              </details>
+              <details class="mod-more">
+                <summary>Turn, slant &amp; warp <span class="more-hint">angle, skew, arc, wrap round a bottle</span></summary>
+                <label title="Or drag the round green handle above the text">Angle <span class="mod-val">{{ txLayer().rotate }}°</span></label>
+                <input type="range" min="-180" max="180" step="1" v-model.number="txLayer().rotate" @dblclick="txLayer().rotate = 0">
+                <label title="Slant the letters sideways (like italics, either way). Double-click to straighten">Slant sideways <span class="mod-val">{{ txLayer().skewX }}°</span></label>
+                <input type="range" min="-60" max="60" step="1" v-model.number="txLayer().skewX" @dblclick="txLayer().skewX = 0">
+                <label title="Slant the text up or down, for a side or a surface seen at an angle. Double-click to straighten">Slant up / down <span class="mod-val">{{ txLayer().skewY }}°</span></label>
+                <input type="range" min="-45" max="45" step="1" v-model.number="txLayer().skewY" @dblclick="txLayer().skewY = 0">
+                <label title="Bend only the words to fit something in the picture; the picture itself is not changed">Warp</label>
+                <div class="seg mod-seg tx-warps">
+                  <button v-for="W in ProtoText.WARPS" :key="W.id" :class="{on: (txLayer().warp || 'none') === W.id}" @click="txLayer().warp = W.id" :title="W.tip || 'No warp'">{{ W.label }}</button>
+                </div>
+                <template v-if="txLayer().warp && txLayer().warp !== 'none'">
+                  <label :title="txLayer().warp === 'bottle' ? '+ curves like a label seen from a little above, − from below; more = further round' : 'How strong; − the other way. Double-click for 0'">Warp amount <span class="mod-val">{{ txLayer().warpAmt }}</span></label>
+                  <input type="range" min="-100" max="100" step="1" v-model.number="txLayer().warpAmt" @dblclick="txLayer().warpAmt = 0">
+                  <div class="hint" v-if="txLayer().warp === 'bottle'">Only the words bend, the picture stays as it is. Make the text about as wide as the bottle, then turn up the amount until the letters follow its curve.</div>
+                </template>
+                <label title="Bend the line(s) into an arc: up (+) or down (−). Double-click to straighten. Not with vertical text">Arc <span class="mod-val">{{ txLayer().curve }}°</span></label>
+                <input type="range" min="-180" max="180" step="5" v-model.number="txLayer().curve" @dblclick="txLayer().curve = 0" :disabled="txLayer().vertical">
               </details>
             </template>
           </template>
@@ -3490,7 +3508,7 @@
                 <button @click="txLayer().rotate = txLayer().rotate === -90 ? 0 : -90" :class="{on: txLayer().rotate === -90}" title="Turn the text on its side (reads bottom to top), like a book's spine">⟲ 90°</button>
               </div>
               <details class="mod-more">
-                <summary>outline, shadow, angle</summary>
+                <summary>Outline &amp; shadow <span class="more-hint">outline, 2nd outline, drop shadow, spacing</span></summary>
                 <label>Outline <span class="mod-val">{{ txLayer().stroke }}</span></label>
                 <div class="tx-row"><input type="range" min="0" max="20" step="1" v-model.number="txLayer().stroke"><input type="color" v-model="txLayer().strokeColour" title="Outline colour"></div>
                 <label title="A second outline around the first, like comic sound effects (white inside black, or the other way round)">Second outline <span class="mod-val">{{ txLayer().stroke2 }}</span></label>
@@ -3501,8 +3519,6 @@
                 <input type="range" min="0" max="360" step="1" v-model.number="txLayer().shadowAngle">
                 <label title="0 = a hard shadow, higher = softer">Shadow softness <span class="mod-val">{{ txLayer().shadowSoft }}</span></label>
                 <input type="range" min="0" max="3" step="0.1" v-model.number="txLayer().shadowSoft">
-                <label>Angle <span class="mod-val">{{ txLayer().rotate }}°</span></label>
-                <input type="range" min="-180" max="180" step="1" v-model.number="txLayer().rotate" @dblclick="txLayer().rotate = 0">
                 <label>Letter spacing <span class="mod-val">{{ txLayer().spacing }}</span></label>
                 <input type="range" min="-10" max="60" step="1" v-model.number="txLayer().spacing">
                 <label>Line height <span class="mod-val">{{ txLayer().lineHeight }}</span></label>
@@ -3511,7 +3527,7 @@
                 <input type="range" min="0.1" max="1" step="0.05" v-model.number="txLayer().opacity">
               </details>
               <details class="mod-more">
-                <summary>bevel &amp; emboss, glow, gradient, arc</summary>
+                <summary>Bevel, glow &amp; colour <span class="more-hint">bevel &amp; emboss, glow, gradient, looks</span></summary>
                 <label title="Makes the letters look raised (or pressed in): light catches one side of each letter and the other falls into shade">Bevel &amp; emboss <span class="mod-val">{{ txLayer().bevel }}</span></label>
                 <input type="range" min="0" max="20" step="1" v-model.number="txLayer().bevel">
                 <div class="seg mod-seg">
@@ -3538,8 +3554,6 @@
                   <label title="90 = top to bottom, 0 = left to right">Gradient direction <span class="mod-val">{{ txLayer().gradAngle }}°</span></label>
                   <input type="range" min="0" max="360" step="5" v-model.number="txLayer().gradAngle">
                 </template>
-                <label title="Bend the line(s) into an arc: up (+) or down (−). Double-click to straighten. Not with vertical text">Arc <span class="mod-val">{{ txLayer().curve }}°</span></label>
-                <input type="range" min="-180" max="180" step="5" v-model.number="txLayer().curve" @dblclick="txLayer().curve = 0" :disabled="txLayer().vertical">
                 <label>Ready-made looks</label>
                 <div class="tx-presets">
                   <button class="ghost small" @click="txPreset('sfx')" title="Yellow to orange, a red second outline, a black outline and a hard shadow">💥 Comic SFX</button>
@@ -3548,6 +3562,26 @@
                   <button class="ghost small" @click="txPreset('stamp')" title="Pressed into the surface">🔨 Pressed</button>
                   <button class="ghost small" @click="txPreset('plain')" title="Take every effect off (keeps the words, font, size and colour)">✕ No effects</button>
                 </div>
+              </details>
+              <details class="mod-more">
+                <summary>Turn, slant &amp; warp <span class="more-hint">angle, skew, arc, wrap round a bottle</span></summary>
+                <label title="Or drag the round green handle above the text">Angle <span class="mod-val">{{ txLayer().rotate }}°</span></label>
+                <input type="range" min="-180" max="180" step="1" v-model.number="txLayer().rotate" @dblclick="txLayer().rotate = 0">
+                <label title="Slant the letters sideways (like italics, either way). Double-click to straighten">Slant sideways <span class="mod-val">{{ txLayer().skewX }}°</span></label>
+                <input type="range" min="-60" max="60" step="1" v-model.number="txLayer().skewX" @dblclick="txLayer().skewX = 0">
+                <label title="Slant the text up or down, for a side or a surface seen at an angle. Double-click to straighten">Slant up / down <span class="mod-val">{{ txLayer().skewY }}°</span></label>
+                <input type="range" min="-45" max="45" step="1" v-model.number="txLayer().skewY" @dblclick="txLayer().skewY = 0">
+                <label title="Bend only the words to fit something in the picture; the picture itself is not changed">Warp</label>
+                <div class="seg mod-seg tx-warps">
+                  <button v-for="W in ProtoText.WARPS" :key="W.id" :class="{on: (txLayer().warp || 'none') === W.id}" @click="txLayer().warp = W.id" :title="W.tip || 'No warp'">{{ W.label }}</button>
+                </div>
+                <template v-if="txLayer().warp && txLayer().warp !== 'none'">
+                  <label :title="txLayer().warp === 'bottle' ? '+ curves like a label seen from a little above, − from below; more = further round' : 'How strong; − the other way. Double-click for 0'">Warp amount <span class="mod-val">{{ txLayer().warpAmt }}</span></label>
+                  <input type="range" min="-100" max="100" step="1" v-model.number="txLayer().warpAmt" @dblclick="txLayer().warpAmt = 0">
+                  <div class="hint" v-if="txLayer().warp === 'bottle'">Only the words bend, the picture stays as it is. Make the text about as wide as the bottle, then turn up the amount until the letters follow its curve.</div>
+                </template>
+                <label title="Bend the line(s) into an arc: up (+) or down (−). Double-click to straighten. Not with vertical text">Arc <span class="mod-val">{{ txLayer().curve }}°</span></label>
+                <input type="range" min="-180" max="180" step="5" v-model.number="txLayer().curve" @dblclick="txLayer().curve = 0" :disabled="txLayer().vertical">
               </details>
             </template>
           </template>
@@ -4057,7 +4091,9 @@
                    @pointerdown.stop="txLayerDown($event, i)" title="Drag to move"><template v-if="L.type === 'shape'"></template><template v-else-if="L.vertical"><span
                      v-for="(col, ci) in ProtoText.columns(L, tx.scale || 1).cols" :key="'tc' + ci" class="tx-vcol"
                      :style="{width: ProtoText.columns(L, tx.scale || 1).w + 'px'}"><span v-for="(ch, j) in col" :key="j">{{ ch === ' ' ? '\u00a0' : ch }}</span></span></template><template v-else>{{ L.text || ' ' }}</template><template v-if="i === tx.sel && L.type !== 'shape'"><i v-for="c in ['nw', 'ne', 'sw', 'se']" :key="'th' + c"
-                   class="tx-handle tx-in" :class="'h-' + c" @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize the text"></i></template></div>
+                   class="tx-handle tx-in" :class="'h-' + c" @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize the text"></i><i
+                   class="tx-handle tx-rot tx-rot-in" @pointerdown.stop="txRotDown($event)" @dblclick.stop="txLayer().rotate = 0"
+                   title="Drag to turn the text (Shift: in 15° steps) · double-click to straighten it"></i></template></div>
             <template v-if="txLayer() && tx.nw">
               <div v-for="c in (txLayer().type === 'shape' ? ['nw', 'ne', 'sw', 'se'] : [])" :key="'h' + c" class="tx-handle" :class="'h-' + c" :style="txHandleStyle(c)"
                    @pointerdown.stop="txHandleDown($event, c)" title="Drag to resize"></div>
@@ -4067,7 +4103,7 @@
                    @pointerdown.stop="txRotDown($event)" @dblclick.stop="txLayer().rot = 0" title="Drag to turn the shape (Shift: in 15° steps) · double-click to straighten it"></div>
             </template>
             </div>
-            <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE · CORNERS RESIZE' }}</span>
+            <span class="adjust-badge">{{ tx.pick ? 'TYPE · CLICK THE OLD TEXT TO TAKE ITS COLOUR' : 'TYPE · CLICK TO ADD TEXT · DRAG TO MOVE · CORNERS RESIZE · GREEN DOT TURNS' }}</span>
             <span v-if="tx.busy || tx.msg" class="adjust-badge busy">{{ tx.msg || 'Working…' }}</span>
           </div>
           <template v-else-if="i2iRunning">

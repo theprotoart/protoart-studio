@@ -52,7 +52,16 @@
     inner: 0, innerColour: "#000000",                    // inner shadow
     shadowColour: "#000000", shadowAngle: 53, shadowSoft: 1.2,  // drop shadow: colour, direction (degrees, 90 = straight down), softness
     curve: 0,                                            // arc: bend the line(s) up (+) or down (−), in degrees of the circle
+    skewX: 0, skewY: 0,                                  // slant sideways / up and down, in degrees
+    warp: "none", warpAmt: 50,                           // warp the whole text: "bottle" (round a can or bottle), "bulge", "wave", "rise"
   };
+  const WARPS = [
+    { id: "none", label: "None" },
+    { id: "bottle", label: "🍾 Wrap round", tip: "Wrap the words round something round in the picture, like a label on a bottle or can: they narrow towards the sides and the lines curve (only the words bend, not the picture). + seen from above, − from below" },
+    { id: "bulge", label: "🎈 Bulge", tip: "Swell the middle (+) or pinch it (−)" },
+    { id: "wave", label: "🌊 Wave", tip: "Ripple the text up and down" },
+    { id: "rise", label: "📈 Rise", tip: "Lift one end: + rises to the right, − to the left (the letters stay upright)" },
+  ];
   function withEffects(L) { for (const k in EFFECTS) if (L[k] === undefined) L[k] = EFFECTS[k]; return L; }
   function layerText(L) { return L.caps ? String(L.text || "").toUpperCase() : String(L.text || ""); }
   function hexA(hex, a) {  // #rrggbb -> rgba()
@@ -69,7 +78,7 @@
     const st = {
       left: L.x * 100 + "%", top: L.y * 100 + "%", font: fontCss(L, px), color: "transparent", textAlign: L.align,
       lineHeight: String(L.lineHeight), letterSpacing: (L.spacing || 0) * px / 100 + "px",
-      transform: `translate(-50%, -50%) rotate(${L.rotate || 0}deg)`, textTransform: L.caps ? "uppercase" : "none",
+      transform: `translate(-50%, -50%) rotate(${L.rotate || 0}deg) skew(${L.skewX || 0}deg, ${L.skewY || 0}deg)`, textTransform: L.caps ? "uppercase" : "none",
     };
     if (L.vertical) {  // letters stacked top to bottom: columns (the first on the right), one letter per row, as draw() does
       Object.assign(st, { display: "flex", flexDirection: "row-reverse", alignItems: { left: "flex-start", right: "flex-end" }[L.align] || "center",
@@ -148,40 +157,82 @@
       ctx.globalAlpha = L.opacity;
       ctx.translate(L.x * w, L.y * h);
       ctx.rotate(((L.rotate || 0) * Math.PI) / 180);
+      const sx = Math.tan(((Math.max(-70, Math.min(70, +L.skewX || 0))) * Math.PI) / 180);
+      const sy = Math.tan(((Math.max(-70, Math.min(70, +L.skewY || 0))) * Math.PI) / 180);
+      if (sx || sy) ctx.transform(1, sy, sx, 1, 0, 0);  // the same as CSS skew(skewX, skewY)
       setup(ctx);
       const { spots, bw, bh } = spotsOf(ctx, L, px, lines, lh);
       const u = px / 100;  // effect sizes are in hundredths of the text size, so they scale with it
-      const fill = fillStyleOf(ctx, L, bw, bh);
-      const outer = (L.stroke > 0 ? L.stroke * u * 2 : 0) + (L.stroke2 > 0 ? L.stroke2 * u * 2 : 0);
-      if (L.glow > 0) {  // ✨ outer glow
-        ctx.save();
-        ctx.shadowColor = L.glowColour; ctx.shadowBlur = L.glow * u * 2;
-        ctx.fillStyle = L.glowColour; ctx.strokeStyle = L.glowColour; ctx.lineJoin = "round"; ctx.lineWidth = Math.max(1, outer);
-        for (let k = 0; k < 2; k++) each(ctx, spots, (t, x, y) => { if (outer) ctx.strokeText(t, x, y); ctx.fillText(t, x, y); });
-        ctx.restore();
-      }
-      if (L.shadow > 0) {  // drop shadow: its colour, direction and softness
-        ctx.save();
-        const d = L.shadow * u, a = ((+L.shadowAngle || 53) * Math.PI) / 180;
-        ctx.shadowColor = hexA(L.shadowColour, 0.75); ctx.shadowOffsetX = Math.cos(a) * d; ctx.shadowOffsetY = Math.sin(a) * d;
-        ctx.shadowBlur = d * (L.shadowSoft ?? 1.2);
-        ctx.fillStyle = L.colour; ctx.strokeStyle = L.colour; ctx.lineJoin = "round"; ctx.lineWidth = Math.max(1, outer);
-        each(ctx, spots, (t, x, y) => { if (outer) ctx.strokeText(t, x, y); ctx.fillText(t, x, y); });
-        ctx.restore();
-      }
-      ctx.lineJoin = "round";
-      if (L.stroke2 > 0) {  // the second (outer) outline
-        ctx.lineWidth = outer; ctx.strokeStyle = L.stroke2Colour;
-        each(ctx, spots, (t, x, y) => ctx.strokeText(t, x, y));
-      }
-      if (L.stroke > 0) {
-        ctx.lineWidth = L.stroke * u * 2; ctx.strokeStyle = L.strokeColour;  // half sits under the fill
-        each(ctx, spots, (t, x, y) => ctx.strokeText(t, x, y));
-      }
-      ctx.fillStyle = fill;
-      each(ctx, spots, (t, x, y) => ctx.fillText(t, x, y));
-      if (L.bevel > 0 || L.inner > 0) insideEffects(ctx, L, spots, setup, bw, bh, u);
+      const amt = Math.max(-100, Math.min(100, +L.warpAmt || 0));
+      if (L.warp && L.warp !== "none" && amt) {
+        // drawn flat on its own canvas first (with every effect), then bent onto the picture slice by slice
+        const pad = Math.ceil(((L.stroke || 0) + (L.stroke2 || 0)) * u * 2 + (L.glow || 0) * u * 3 + (L.shadow || 0) * u * 2.5 + px * 0.3 + 6);
+        const HW = Math.ceil(bw / 2 + pad), HH = Math.ceil(bh / 2 + pad);
+        const c = document.createElement("canvas"); c.width = HW * 2; c.height = HH * 2;
+        const cx = c.getContext("2d");
+        cx.translate(HW, HH); setup(cx);
+        layerBody(cx, L, spots, setup, bw, bh, u);
+        warpOnto(ctx, c, HW, HH, bw / 2, bh / 2, L.warp, amt / 100);
+      } else layerBody(ctx, L, spots, setup, bw, bh, u);
       ctx.restore();
+    }
+  }
+  // one text with its effects, drawn round (0, 0) of ctx
+  function layerBody(ctx, L, spots, setup, bw, bh, u) {
+    const fill = fillStyleOf(ctx, L, bw, bh);
+    const outer = (L.stroke > 0 ? L.stroke * u * 2 : 0) + (L.stroke2 > 0 ? L.stroke2 * u * 2 : 0);
+    if (L.glow > 0) {  // ✨ outer glow
+      ctx.save();
+      ctx.shadowColor = L.glowColour; ctx.shadowBlur = L.glow * u * 2;
+      ctx.fillStyle = L.glowColour; ctx.strokeStyle = L.glowColour; ctx.lineJoin = "round"; ctx.lineWidth = Math.max(1, outer);
+      for (let k = 0; k < 2; k++) each(ctx, spots, (t, x, y) => { if (outer) ctx.strokeText(t, x, y); ctx.fillText(t, x, y); });
+      ctx.restore();
+    }
+    if (L.shadow > 0) {  // drop shadow: its colour, direction and softness
+      ctx.save();
+      const d = L.shadow * u, a = ((+L.shadowAngle || 53) * Math.PI) / 180;
+      ctx.shadowColor = hexA(L.shadowColour, 0.75); ctx.shadowOffsetX = Math.cos(a) * d; ctx.shadowOffsetY = Math.sin(a) * d;
+      ctx.shadowBlur = d * (L.shadowSoft ?? 1.2);
+      ctx.fillStyle = L.colour; ctx.strokeStyle = L.colour; ctx.lineJoin = "round"; ctx.lineWidth = Math.max(1, outer);
+      each(ctx, spots, (t, x, y) => { if (outer) ctx.strokeText(t, x, y); ctx.fillText(t, x, y); });
+      ctx.restore();
+    }
+    ctx.lineJoin = "round";
+    if (L.stroke2 > 0) {  // the second (outer) outline
+      ctx.lineWidth = outer; ctx.strokeStyle = L.stroke2Colour;
+      each(ctx, spots, (t, x, y) => ctx.strokeText(t, x, y));
+    }
+    if (L.stroke > 0) {
+      ctx.lineWidth = L.stroke * u * 2; ctx.strokeStyle = L.strokeColour;  // half sits under the fill
+      each(ctx, spots, (t, x, y) => ctx.strokeText(t, x, y));
+    }
+    ctx.fillStyle = fill;
+    each(ctx, spots, (t, x, y) => ctx.fillText(t, x, y));
+    if (L.bevel > 0 || L.inner > 0) insideEffects(ctx, L, spots, setup, bw, bh, u);
+  }
+  // bend the flat text (canvas src, its middle at HW, HH; the words reach ±tw, ±th from it) onto ctx round (0, 0),
+  // one thin column at a time. k = −1…1
+  function warpOnto(ctx, src, HW, HH, tw, th, kind, k) {
+    const step = 2, H = HH * 2;
+    for (let x0 = 0; x0 < HW * 2; x0 += step) {
+      const u = x0 + step / 2 - HW;          // the column's middle, from the text's middle
+      const t = Math.max(-1, Math.min(1, u / Math.max(1, tw)));  // −1 … 1 across the words
+      let dx = u, dw = step, dy = 0, sh = 1;
+      if (kind === "bottle") {  // round a cylinder: the sides turn away (narrower) and the lines curve with the view
+        const span = Math.max(0.1, (Math.abs(k) * 160 * Math.PI) / 180);  // how far round the words reach (both sides)
+        const R = Math.max(1, tw) / (span / 2);                              // the label's distance along = R × angle
+        const ang = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, u / R));
+        dx = R * Math.sin(ang); dw = step * Math.cos(ang);
+        dy = -Math.sign(k) * R * (1 - Math.cos(ang)) * 0.35;                // seen a little from above (+) or below (−)
+      } else if (kind === "bulge") {  // the middle taller (+) or shorter (−)
+        sh = 1 + k * 0.85 * Math.cos((Math.min(1, Math.abs(t)) * Math.PI) / 2);
+      } else if (kind === "wave") {
+        dy = k * th * 0.9 * Math.sin(t * Math.PI);
+      } else if (kind === "rise") {
+        dy = -k * th * 1.2 * t;
+      }
+      if (dw <= 0.05) continue;
+      ctx.drawImage(src, x0, 0, step, H, dx - dw / 2 - 0.25, dy - HH * sh, dw + 0.5, H * sh);
     }
   }
   // 🔆 bevel & emboss and inner shadow: worked out on a small canvas around the layer from the letters' own shape, then
@@ -323,7 +374,7 @@
   }
   // the HTML preview's columns for vertical text: [[letters of line 1], …] and each column's width (px on screen)
   function columns(L, scale) { return { cols: String(L.text || " ").split("\n").map((t) => [...t]), w: L.size * scale * L.lineHeight }; }
-  const api = { FONTS, PACK, SHAPES, EFFECTS, fontCss, stack, layer, withEffects, style, draw, columns, shape, shapePaths, drawShape };
+  const api = { FONTS, PACK, SHAPES, EFFECTS, WARPS, fontCss, stack, layer, withEffects, style, draw, columns, shape, shapePaths, drawShape };
   if (typeof window !== "undefined") window.ProtoText = api;
   if (typeof module !== "undefined") module.exports = api;
 })();

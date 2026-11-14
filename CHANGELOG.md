@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.16
+
+- Replace text: turn a text with a handle (the green dot, like balloons), slant (`skewX` / `skewY`, CSS `skew` in the
+  pick box, `ctx.transform` when drawing) and warp (`warp`: bottle / bulge / wave / rise, `warpAmt`): the text and its
+  effects are drawn flat on their own canvas (`layerBody`) and bent onto the picture in 2 px columns (`warpOnto`); only
+  the words bend. The effect sections are three button-style headers (Outline & shadow · Bevel, glow & colour ·
+  Turn, slant & warp); `.mod-more > summary` styled as a button everywhere (it was plain text in Image to image)
+
 ## 1.6.15
 
 - Powder (Light) easier to read: a deeper cornflower (`alu` [74,118,200], plate #4a76c8: white text 4.5 : 1, was 2.8 : 1),

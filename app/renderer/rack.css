@@ -1366,13 +1366,23 @@ label:has(> input[type=checkbox]:checked), [data-theme="dark"] label:has(> input
   background: radial-gradient(circle at 35% 30%, #6b5a40, #2a2116); box-shadow: 0 0 0 1px #000, inset 0 1px 1px rgba(0, 0, 0, .6);
 }
 .rack-module .mod-switch.on i { background: radial-gradient(circle at 35% 30%, var(--lit-hi), var(--lit-lo)); box-shadow: 0 0 0 1px #000, 0 0 7px rgba(var(--glow-rgb), .9); }
-.rack-module .mod-more { margin-top: 10px; border-top: 1px solid rgba(0, 0, 0, .3); box-shadow: var(--groove); padding-top: 6px; }
-.rack-module .mod-more > summary {
-  cursor: pointer; font-family: var(--f-eng); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; opacity: .8; list-style: none; text-align: center;
+.rack-module .mod-more, .i2i-panel .mod-more, .mod-more { margin-top: 10px; border-top: 1px solid rgba(0, 0, 0, .3); box-shadow: var(--groove); padding-top: 8px; }
+/* the header of a fold-out section is a button (it used to be plain words, easy to miss) */
+.mod-more > summary {
+  cursor: pointer; font-family: var(--f-eng); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; list-style: none;
+  text-align: left; padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(0, 0, 0, .55); color: #f2efe6;
+  background: linear-gradient(180deg, #4a4a50, #2c2c31); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 2px 3px rgba(0, 0, 0, .45);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .6); user-select: none; transition: filter .12s;
 }
-.rack-module .mod-more > summary::before { content: "▸ "; }
-.rack-module .mod-more[open] > summary::before { content: "▾ "; }
-.rack-module .mod-more > label { display: flex; justify-content: space-between; margin: 8px 0 3px; font-family: var(--f-eng); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; }
+.mod-more > summary::-webkit-details-marker { display: none; }
+.mod-more > summary:hover { filter: brightness(1.2); }
+.mod-more > summary::before { content: "▸"; display: inline-block; width: 1.3em; color: var(--accent); }
+.mod-more[open] > summary::before { content: "▾"; }
+.mod-more[open] > summary { color: var(--lit-ink); text-shadow: 0 1px 0 rgba(255, 255, 255, .4); border-color: var(--lit-edge);
+  background: radial-gradient(ellipse at 50% 30%, var(--lit-hi) 0%, var(--lit-mid) 55%, var(--lit-lo) 100%); }
+.mod-more[open] > summary::before { color: var(--lit-ink); }
+.mod-more > summary .more-hint { text-transform: none; letter-spacing: normal; font-family: var(--f-body); opacity: .75; margin-left: 6px; }
+.mod-more > label { display: flex; justify-content: space-between; margin: 8px 0 3px; font-family: var(--f-eng); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; }
 .rack-module .mod-icon { font-size: 21px; }
 .module-rack { grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); }
 /* an even grid: 4 modules a row (2 when the window is narrow), all the same width, rows the same height */
@@ -2722,3 +2732,8 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .tx-stage .tx-handle { z-index: 5; }
 .tx-presets { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
 .tx-presets button { flex: 1 1 auto; white-space: nowrap; }
+
+/* the turn handle on a text: above its top middle, turning with it */
+.tx-stage .tx-layer .tx-handle.tx-rot-in { left: 50%; top: -26px; right: auto; bottom: auto; margin: 0 0 0 -7px; }
+.tx-stage .tx-layer .tx-handle.tx-rot-in::after { content: ""; position: absolute; left: 5px; top: 13px; width: 2px; height: 12px; background: #3d9a4b; }
+.tx-warps button { flex: 1 1 auto; white-space: nowrap; }
