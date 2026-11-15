@@ -1809,11 +1809,13 @@ class Engine:
                                         **({"ernie_change": float(args.get("pose_ernie_change") or 0.55)} if fam == "ernie" else {})}
                 if face_info:
                     settings["face_restore"] = face_info
+                if mlx_init and not pose:  # Image to image → Change it on the fast engine
+                    settings.update(init_image=str(args["init_image"]), strength=float(args.get("strength", 0.6)))
                 if args.get("_raw"):  # a step of a bigger job (regions on the fast engine): not saved on its own
                     results.append({"image": image, "seed": img_seed, "seconds": round(secs, 1), "settings": settings})
                     continue
                 path = self._save(image, settings)
-                record = self.library.add_image(path, settings, kind="generated")
+                record = self.library.add_image(path, settings, kind="img2img" if mlx_init and not pose else "generated")
                 record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
                 record = self._people_check(self._content_check(record, image), image)
                 results.append(record)

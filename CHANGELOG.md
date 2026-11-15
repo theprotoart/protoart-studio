@@ -2,6 +2,8 @@
 
 ## 1.6.16
 
+- Fixes for Change it on the fast engine: opening Image to image no longer swaps Z-Image/ERNIE… for an SD model
+  (`openI2I`), and their pictures are saved as image to image (kind `img2img`, with the source and strength)
 - Image to image → Change it offers fast-engine models that start from a picture (`FAST_I2I`: Z-Image, ERNIE, FLUX.1,
   Qwen-Image 2.1, Krea 2); the backend already took `init_image` on the fast engine, the list only showed SD 1.5/SDXL
 - Fast engine on Macs under 14 GB: a model kept on an external drive is copied to the Mac's own drive once

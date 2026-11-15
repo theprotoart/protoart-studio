@@ -8980,7 +8980,8 @@ const protoartApp = createApp({
     },
     async openI2I() {
       this.tab = "i2i";
-      if (!["sd15", "sdxl"].includes(this.family)) {
+      const fastChange = this.currentModel?.engine === "mlx" && FAST_I2I.includes(this.family);  // ⚡ kept for Change it
+      if (!["sd15", "sdxl"].includes(this.family) && !fastChange) {
         // ERNIE / other models can't do image to image: switch to an SD model
         const sd = this.models.find((m) => m.family === "sd15" && m.cached) || this.models.find((m) => m.family === "sd15")
           || this.models.find((m) => m.family === "sdxl" && m.engine !== "mlx");
@@ -9141,6 +9142,8 @@ const protoartApp = createApp({
       const fastChange = f.i2i_mode === "change" && this.currentModel?.engine === "mlx" && FAST_I2I.includes(this.family);
       if (fastChange && (f.control.type || !f.i2i_use_init))
         return (this.error = `${this.currentModel.label} changes your picture with Change it only: tick “Start from this picture” and take the ControlNet off, or pick an SD 1.5 / SDXL model.`);
+      if (fastChange && /^\s*(replace|make|turn|change|add|remove|give|put|swap)\b/i.test(f.prompt || ""))
+        this.status = `Tip: ${this.currentModel.label} draws what the prompt describes, it doesn't follow instructions: write the result (“Santa Claus in a red suit lifting a barbell in a gym”), use a change strength of 0.65 or more for big changes, or use ✨ Edit with words for instructions.`;
       if (!fastChange && !["sd15", "sdxl"].includes(this.family)) return (this.error = "Image to image works with SD 1.5 and SDXL models (and ⚡ Z-Image, ERNIE… for Change it): pick one at the top.");
       const cnFam = f.i2i_mode === "change" && f.control.type ? (this.controlTypeInfo?.family || "sd15") : null;
       if (cnFam && cnFam !== this.family) return (this.error = `This ControlNet is made for ${cnFam === "sdxl" ? "SDXL (Pony, Illustrious, NoobAI)" : "SD 1.5"} models: pick one in the model list at the top, or another ControlNet.`);
