@@ -403,7 +403,58 @@ const H3_QUICK = [
   { label: "🎨 Style of picture 2", prompt: "Redraw <Picture 1> in the art style of <Picture 2>: its medium, brushwork or line, colour palette and lighting. Keep the composition, the people and the objects of <Picture 1>." },
   { label: "🧍 Turnaround sheet", prompt: "Make a character model sheet of the character in <Picture 1> on a plain white background: full body front view, three-quarter view, side view and back view at the same height, the same face, hair, outfit and colours in every view, flat even lighting." },
   { label: "📖 Comic panel", prompt: "Make one comic book panel in a clean inked, full-colour style with the character from <Picture 1> as the hero, in a dramatic action pose on a city rooftop at night. A speech balloon reads \"Not on my watch!\". Keep the character's face, hair and outfit as in <Picture 1>." },
+  { label: "🔩 Exploded view", prompt: "Take apart the object in <Picture 1> into a detailed isometric exploded-view diagram: keep its exact shape, colours and materials, separate every part along its assembly direction, thin leader lines to ALL-CAPS part labels, two round magnified insets of key parts, on a dark grey grid background." },
+  { label: "📐 Blueprint", prompt: "Turn the object in <Picture 1> into an engineering blueprint poster on deep blue paper: white line work, a side view, a top view and a cross-section with dimension lines, a parts list box, and its name as a bold title at the top." },
+  { label: "🛠 CAD views", prompt: "Turn the object in <Picture 1> into a standard CAD engineering drawing with front, side, top and rear views and an isometric wireframe view, dimension lines, short part labels and a title block, black lines on white." },
+  { label: "🎞 Render → film still", prompt: "Turn the grey untextured 3D render in <Picture 1> into a photorealistic film still: real materials and textures, cinematic lighting with atmosphere and depth, film grain and a 2.39:1 movie look. Keep the exact layout, shapes and camera angle of <Picture 1>." },
+  { label: "🗺 Map → game view", prompt: "Turn the illustrated map in <Picture 1> into a first-person 3D video game screenshot standing inside that world, with realistic game graphics and lighting, and the map itself shown as a small minimap in the top right corner." },
   { label: "🛍 Product shot", prompt: "Make a clean studio product photo of the product in <Picture 1> on a seamless soft gradient background with soft shadows and a gentle reflection. Keep its exact shape, colours, labels and any text." },
+];
+// 🧩 Compose with pictures (MiniMax-H3-Image): what each picture brings. "who": a person / character; the rest are parts
+const H3_ROLES = [
+  { id: "person", label: "🙂 Person", who: true }, { id: "character", label: "🧚 Character", who: true },
+  { id: "outfit", label: "👗 Whole outfit" }, { id: "top", label: "👚 Top" }, { id: "bottom", label: "👖 Skirt / trousers" },
+  { id: "shoes", label: "👟 Shoes" }, { id: "accessory", label: "👜 Bag / hat / jewellery" }, { id: "hair", label: "💇 Hairstyle" },
+  { id: "pose", label: "🤸 Pose" }, { id: "scene", label: "🏞 Place / background" }, { id: "object", label: "📦 Object / product" },
+  { id: "style", label: "🎨 Art style" }, { id: "light", label: "💡 Lighting" }, { id: "free", label: "✏️ I'll say in the prompt" },
+];
+// one-click starting points: picture 1's role, then the More pictures' roles in order (more pictures repeat the last)
+const H3_COMPOSE = [
+  { id: "fashion", label: "👗 Fashion try-on", main: "person", roles: ["top", "bottom", "shoes", "accessory"],
+    tip: "Picture 1: the person. Then the clothes, one per picture (a top, a skirt, shoes, a bag…), in any order: set what each one is." },
+  { id: "together", label: "👥 People together", main: "person", roles: ["person", "person", "scene"],
+    tip: "Picture 1 and the next pictures: the people. Add a place as the last picture (or describe it). Say what they're doing in the prompt." },
+  { id: "characters", label: "🎎 Characters in a scene", main: "character", roles: ["character", "character", "scene"],
+    tip: "Character sheets or pictures of each character, then describe the moment: “she proposes to him with a blue rose in a moonlit chapel”." },
+  { id: "place", label: "🏞 Person into a place", main: "scene", roles: ["person"],
+    tip: "Picture 1: the place. Picture 2: the person (or product) to put there." },
+  { id: "room", label: "🛋 Furnish a room", main: "scene", roles: ["object"],
+    tip: "Picture 1: the empty room. Then one picture per piece of furniture or decor (a sofa, a lamp, a rug…): they're all placed in the room." },
+  { id: "style", label: "🎨 Style & light", main: "free", roles: ["style", "light"],
+    tip: "Picture 1 is kept; picture 2 gives the art style, picture 3 the lighting." },
+];
+// 🧠 Create presets for MiniMax-H3-Image: layouts it follows well ({s} = your subject)
+const H3_PRESETS = [
+  { label: "🔩 Exploded view", text: "An isometric exploded-view technical illustration of {s}: every part separated along its assembly direction and floating in order, true colours and materials, thin leader lines to neat ALL-CAPS part labels, two round magnified detail insets, on a dark grey engineering grid background." },
+  { label: "📐 Blueprint poster", text: "An engineering blueprint poster of {s} on deep blue paper with white line work: a large side view, a top view and a cross-section with dimension lines and numbers, a parts list in a box at the right, and a centred title in bold capitals at the top." },
+  { label: "🛠 CAD sheet", text: "A standard CAD engineering drawing of {s} with front, side, top and rear views and an isometric wireframe view, solid and dashed line types, dimension lines, short part labels and a title block in the bottom right corner, black lines on white." },
+  { label: "📊 Infographic", text: "A clean portrait infographic poster about {s}: a bold title bar at the top, a large central illustration, and eight labelled boxes around it with short facts, small flat vector icons and arrows, a calm three-colour palette, easy-to-read lettering." },
+  { label: "📰 Magazine cover", text: "A glossy magazine cover featuring {s}: a big masthead at the top, a striking cover photo, three short cover lines on the left, a barcode at the bottom corner, professional fashion-magazine layout and lighting." },
+  { label: "🎬 Movie poster", text: "A cinematic movie poster for a film about {s}: dramatic key art with strong rim light, the title in large custom lettering near the bottom, a tagline above it and a credits block in small condensed type." },
+  { label: "📖 Comic page", text: "A full-colour comic book page about {s}: four panels in a 2 by 2 grid with white gutters, a clear story from panel to panel, speech balloons with short lines in quotes, consistent characters in every panel, clean modern inking." },
+  { label: "🧍 Character sheet", text: "A character model sheet of {s} on a plain white background: full body front, three-quarter, side and back views at the same height, three head close-ups with different expressions, colour swatches, flat even lighting, clean line art with soft shading." },
+  { label: "🛍 Product ad", text: "A premium product advertisement for {s}: the product as the hero on a sculpted pedestal, soft studio light with a gentle reflection, a short headline and a one-line slogan in elegant type, generous empty space, high-end commercial photography." },
+  { label: "🏠 Isometric diorama", text: "A cute isometric 3D diorama of {s} on a small square base, tiny detailed props and characters, soft global illumination, pastel colours, tilt-shift look, clean neutral background." },
+  { label: "🏷 Sticker sheet", text: "A sticker sheet of {s}: nine die-cut stickers in different poses and expressions with thick white borders and soft shadows, bold flat colours, arranged neatly on a light grey background." },
+  { label: "✏️ Design sketch sheet", text: "A pure line-art concept design sheet of {s}: one large drawing and four smaller detail sketches, curved arrows pointing to parts with short handwritten notes, light grey construction lines, restrained greyscale with one accent colour." },
+  { label: "🍲 Recipe card", text: "A beautifully designed recipe card for {s}: a mouth-watering top-down photo at the top, the title in warm lettering, an ingredients list on the left and numbered steps on the right, small hand-drawn icons, cream paper texture." },
+  { label: "🌀 Surreal editorial", text: "A surreal editorial fashion photograph: {s}, staged as if completely ordinary, shot on medium format film, soft natural light, muted elegant colours, precise styling, calm deadpan mood, magazine double-page composition." },
+  { label: "🏛 Environment concept", text: "An environment concept art painting of {s}: a wide establishing shot with a clear foreground, middle ground and distant background, atmospheric perspective, dramatic light breaking through, a tiny figure for scale, and the caption \"ENVIRONMENT CONCEPT\" in small capitals in a corner." },
+  { label: "🃏 Tarot card", text: "An ornate tarot card of {s}: a tall card with a decorative gold border, a symbolic central illustration in a vintage engraved style with flat colours, a roman numeral at the top and the card's name in capitals in a banner at the bottom." },
+  { label: "🖼 Oil painting", text: "A classical oil painting of {s}: rich impasto brushwork, glowing warm glazes, deep shadows, visible canvas texture, museum lighting, in the manner of an old master." },
+  { label: "💧 Watercolour", text: "A light, airy watercolour painting of {s}: soft wet-into-wet washes, delicate ink outlines, lots of white paper showing, gentle granulation, a calm pastel palette." },
+  { label: "🪶 Gongbi painting", text: "A traditional Chinese gongbi painting of {s}: meticulous fine ink lines, flat layered mineral colours on aged silk, elegant empty space, a small red seal stamp in a corner." },
+  { label: "📸 Studio portrait", text: "A photorealistic studio portrait of {s}: 85 mm lens, soft key light from the left with a gentle rim light, natural skin texture, shallow depth of field, a neutral grey backdrop, magazine-quality colour grading." },
 ];
 const EDIT_QUICK = [
   { label: "🧽 Repair & colourize", prompt: "Repair and colourize this old photo: fix the cracks, scratches, stains and torn or missing areas, and give it natural, realistic colours. Keep the person's face, expression, hair, clothes and the composition exactly the same." },
@@ -897,7 +948,7 @@ const protoartApp = createApp({
       objFinding: false,   // object selection is working out the outline
       soundsOn: window.ProtoSound ? window.ProtoSound.enabled : true,
       TAG_DICT: window.TAG_DICT || {}, ideas: { cat: Object.keys(window.TAG_DICT || {})[0] || "", q: "" },
-      LICENCES, TILED_PRESETS, EXAMPLE_PROMPTS, EXAMPLE_GROUPS, FILM_LOOKS, FILM_GROUPS, APP_VERSION, CAM_VIEWS, CAM_ELEV, CAM_DIST,
+      LICENCES, TILED_PRESETS, EXAMPLE_PROMPTS, H3_ROLES, H3_COMPOSE, H3_PRESETS, EXAMPLE_GROUPS, FILM_LOOKS, FILM_GROUPS, APP_VERSION, CAM_VIEWS, CAM_ELEV, CAM_DIST,
       loraSort: loadJSON("protoart.loraSort", "az"),   // LoRA list order
       modelKind: loadJSON("protoart.modelKind", ""),  // Create's model list filter ('' = all kinds)
       loraKind: "",                                      // LoRA list filter ('' = all)   // the brush-size ring that follows the pointer while painting
@@ -1109,6 +1160,8 @@ const protoartApp = createApp({
               "<b>MiniMax-H3-Image</b> (a 33B model by MiniMax) in Create and in Image to image → <b>✨ Edit with words</b> and <b>📷 Camera angle</b>. On this Mac it's shrunk to <b>4-bit</b> once and read from the drive a piece at a time, so it needs under 2 GB of memory: about <b>4 minutes</b> for 1024 × 1024 on an 8 GB M1, about 15 for 2048 × 2048. It spells quoted words right (signs, posters, covers).",
               "<b>Editing</b>: your picture is <code>&lt;Picture 1&gt;</code>, More pictures are <code>&lt;Picture 2&gt;</code>…: relight, change the season, put a hat from another picture on someone, or draw a turnaround sheet of a character (📷 Camera angle's sheets use it when it's picked). <b>💡 Relight</b> has a <b>🧠 H3</b> button in its Speed row: the whole picture relit from your words or a reference picture's light, no SD 1.5 model needed. On an 8 GB Mac an edit works at 768 (about 5–6 minutes); tick 🧠 Full size for 1024 (about 12).",
               "<b>Many pictures at once</b>: with MiniMax-H3-Image picked in ✨ Edit with words, <b>More pictures</b> takes up to <b>15</b> (16 with yours; each adds about 2–3 minutes), and <b>Quick edits</b> has its own recipes: 👥 Put them together, 🏞 Into this scene, 👗 Outfit from picture 2, 🎨 Style of picture 2, 🧍 Turnaround sheet, 📖 Comic panel and 🛍 Product shot.",
+              "<b>🧩 Compose with pictures</b> (Image to image → ✨ Edit with words, with MiniMax-H3-Image picked): pick a starting point (👗 Fashion try-on, 👥 People together, 🎎 Characters in a scene, 🏞 Person into a place, 🛋 Furnish a room, 🎨 Style &amp; light), add the pictures, set what each one brings under it (a person, a top, shoes, a pose, the place, the art style…), then <b>✍ Write the prompt from the pictures</b> and add what they're doing. More pictures now go in at 512, so each adds about a minute instead of several; <b>🧠 Work size</b> 768 / 896 / 1024 sets how sharp the result is.",
+              "<b>🧠 Presets in Create</b> for MiniMax-H3-Image: type a subject, then one press lays it out as an exploded view, a blueprint, a CAD sheet, an infographic, a magazine cover, a movie poster, a comic page, a character sheet, a product ad, a sticker sheet, a tarot card, an oil painting, a watercolour and more. Image to image's Quick edits add exploded view, blueprint, CAD views, render → film still and map → game view of your picture.",
               "<b>🧠 Best quality</b> (Create, under the size): it's made for big pictures, so it draws at about 2048 × 2048 and shrinks to your size: far more detail than drawing at 1024 (a quick, softer draft), about 13 minutes on an 8 GB Mac.",
               "<b>One time</b>: a ~49 GB download (to your downloaded-models folder) and a ~27 GB 4-bit copy on this Mac's own drive (about half an hour). <b>Licence first</b>: the MiniMax-H3-Image Community License doesn't allow use in the US, EU, UK or Korea, and its pictures can't train other AI models; a card asks you to accept it before anything downloads.",
             ] },
@@ -7380,7 +7433,7 @@ const protoartApp = createApp({
       if (!o.ref_on && !o.prompt.trim()) return (this.error = "Describe the light first, or pick one of the light ideas.");
       this.error = "";
       return this.runJob("edit_words", { ...extra, edit_model: "h3_image", init_image: src, prompt: this.relightH3Prompt(o),
-                                         refs: o.ref_on && o.ref ? [o.ref] : [], h3_full: !!this.form.h3_full, relight: true });
+                                         refs: o.ref_on && o.ref ? [o.ref] : [], ...this.h3EditArgs(), relight: true });
     },
     async m3dStatus() { try { this.m3d.status = await call("mesh3d_status"); } catch {} },
     m3dAccept(on) { this.m3d.accepted = !!on; saveJSON("protoart.mesh3d.accepted", this.m3d.accepted); },
@@ -7851,6 +7904,70 @@ const protoartApp = createApp({
     EDIT_RECIPES() { return EDIT_RECIPES; },
     EDIT_QUICK() { return this.editModelId() === "h3_image" ? [...H3_QUICK, ...EDIT_QUICK] : EDIT_QUICK; },
     editRefMax() { return this.editModelId() === "h3_image" ? 15 : 3; },  // H3 takes up to 16 pictures in all
+    h3EditArgs() {  // MiniMax-H3-Image's edit size (768 / 896 / 1024) and how big the extra pictures go in
+      return { h3_side: this.form.h3_side || "", h3_ref_detail: !!this.form.h3_ref_detail };
+    },
+    h3RoleOf(i) {  // 🧩 the role of picture i (0 = your picture, 1… = More pictures)
+      const r = this.form.h3_roles || [];
+      return r[i] || (i === 0 ? "person" : "free");
+    },
+    h3SetRole(i, role) {
+      const r = [...(this.form.h3_roles || [])];
+      while (r.length <= i) r.push(r.length === 0 ? "person" : "free");
+      r[i] = role;
+      this.form.h3_roles = r;
+    },
+    h3ComposePick(c) {  // a starting point: the roles in order (your picture first)
+      const n = (this.form.edit_refs || []).length;
+      this.form.h3_roles = [c.main, ...Array.from({ length: Math.max(n, c.roles.length) }, (_, i) => c.roles[Math.min(i, c.roles.length - 1)])];
+      this.form.h3_compose = c.id;
+      this.status = `${c.label}: ${c.tip}`;
+    },
+    h3ComposePrompt() {  // ✍ the instruction from the pictures' roles plus what's already in the prompt (kept as details)
+      const refs = this.form.edit_refs || [];
+      const pics = [0, ...refs.map((_, i) => i + 1)].map((i) => ({ n: i + 1, role: this.h3RoleOf(i) }));
+      const P = (n) => `<Picture ${n}>`;
+      const of = (role) => pics.filter((p) => p.role === role).map((p) => P(p.n));
+      const list = (a) => a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
+      const who = [...pics.filter((p) => p.role === "person").map((p) => `the person from ${P(p.n)}`),
+                   ...pics.filter((p) => p.role === "character").map((p) => `the character from ${P(p.n)}`)];
+      const wear = [];
+      if (of("outfit").length) wear.push(`the outfit from ${list(of("outfit"))}`);
+      if (of("top").length) wear.push(`the top from ${list(of("top"))}`);
+      if (of("bottom").length) wear.push(`the skirt or trousers from ${list(of("bottom"))}`);
+      if (of("shoes").length) wear.push(`the shoes from ${list(of("shoes"))}`);
+      if (of("accessory").length) wear.push(`the accessories from ${list(of("accessory"))}`);
+      const parts = [];
+      parts.push(who.length ? `Make one picture of ${list(who)}` : `Edit ${P(1)}`);
+      if (wear.length) parts.push(`${who.length > 1 ? "with the first one " : ""}wearing ${list(wear)}`);
+      if (of("hair").length) parts.push(`with the hairstyle and hair colour from ${list(of("hair"))}`);
+      if (of("pose").length) parts.push(`in the pose of the person in ${list(of("pose"))}`);
+      if (of("object").length) parts.push(`with ${list(of("object").map((x) => "the object from " + x))}`);
+      if (of("scene").length) parts.push(`in the place shown in ${list(of("scene"))}`);
+      if (of("style").length) parts.push(`in the art style of ${list(of("style"))}`);
+      if (of("light").length) parts.push(`lit like ${list(of("light"))}`);
+      let text = parts.join(", ") + ".";
+      const mine = (this.form.prompt || "").trim();
+      const old = this.form.h3_last_compose;
+      if (mine && mine !== old) text += " " + mine.replace(/\s*$/, "");
+      const keep = [];
+      if (who.length) keep.push("each person's face, hair, skin tone and body exactly as in their own picture");
+      if (wear.length) keep.push("every garment's colour, pattern, fabric and cut exactly as in its picture");
+      if (of("object").length) keep.push("each object's shape, colours and any text exactly");
+      if (keep.length) text += ` Keep ${list(keep)}. Natural light and shadows that match.`;
+      if (mine && mine !== old) this.undoPrompt = mine;
+      this.form.prompt = text;
+      this.form.h3_last_compose = text;
+      this.status = "🧩 Prompt written from the pictures' roles: add details (what they do, the mood, the camera) and press ✨ Edit";
+    },
+    h3Preset(pr) {  // 🧠 Create preset: the layout, around your subject (what's in the prompt, if short)
+      const mine = (this.form.prompt || "").trim();
+      const subject = mine && mine.length <= 120 && !H3_PRESETS.some((x) => mine === x.text) ? mine.replace(/[.\s]+$/, "") : "your subject here";
+      if (mine) this.undoPrompt = mine;
+      this.form.prompt = pr.text.replace("{s}", subject);
+      if (subject === "your subject here") this.status = `${pr.label}: replace “your subject here” with what to show`;
+      else this.status = `${pr.label}: written around “${subject}”; tick 🧠 Best quality for crisp lettering`;
+    },
     useEditQuick(q) {  // a ready-made instruction into the prompt (↩ undo puts yours back)
       if (this.form.prompt && this.form.prompt !== q.prompt) this.undoPrompt = this.form.prompt;
       this.form.prompt = q.prompt;
@@ -9236,7 +9353,7 @@ const protoartApp = createApp({
         const placed = c.where === "place";
         if (placed) this.combineBoxesFill();
         this.error = "";
-        await this.runJob("edit_words", { edit_model: this.editModelId(), h3_full: !!f.h3_full, init_image: f.init_image, prompt: f.prompt || "", refs, seed: f.seed,
+        await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: f.init_image, prompt: f.prompt || "", refs, seed: f.seed,
           combine: { cutout: c.cutout !== false, match_light: c.match_light !== false, light_strength: c.light_strength ?? 0.7,
                      keep_scene: c.keep_scene !== false, place: placed ? refs.map((_, i) => ({ ...c.boxes[i] })) : null } });
         return;
@@ -9247,7 +9364,7 @@ const protoartApp = createApp({
         // the 8 views share one seed (a new random one each time if the seed is −1), so they stay alike
         const seed = c.turnaround && (f.seed == null || +f.seed < 0) ? Math.floor(Math.random() * 2 ** 31) : f.seed;
         for (const v of list) {
-          this.runJob("edit_words", { edit_model: this.editModelId(), h3_full: !!f.h3_full, init_image: f.init_image, prompt: camPrompt(v.az, v.el, v.zoom, f.prompt, c.turnaround ? "single" : c.layout, c.expressions), seed,
+          this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: f.init_image, prompt: camPrompt(v.az, v.el, v.zoom, f.prompt, c.turnaround ? "single" : c.layout, c.expressions), seed,
                                       camera: { az: Math.round(v.az), el: Math.round(v.el), zoom: v.zoom, layout: c.turnaround ? "single" : (c.layout || "single"),
                                                 view: c.turnaround || (c.layout || "single") === "single" ? camWords(v.az, v.el, v.zoom).label : c.layout === "comic" ? "comic panels"
                                                   : c.layout === "expressions" ? "expression sheet" : c.layout === "turn_expr" ? "turnaround + expressions"
@@ -9269,7 +9386,7 @@ const protoartApp = createApp({
           if (!(f.edit_refs || []).length) return (this.error = `${rec.label} needs a second picture: add it under “More pictures”.`);
           if (!this.editRecipeLora(rec)) return (this.error = `${rec.label} needs its LoRA first: press ⤓ Download under the recipe.`);
         }
-        await this.runJob("edit_words", { edit_model: this.editModelId(), h3_full: !!f.h3_full, init_image: f.init_image, prompt: f.prompt, mask: painted,
+        await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: f.init_image, prompt: f.prompt, mask: painted,
                                           keep_faces: !painted && f.keep_faces !== false && !rec,
                                           refs: (f.edit_refs || []).slice(0, this.editRefMax()), seed: f.seed, ...this.recipeEditArgs() });
         return;

@@ -273,8 +273,9 @@ def _cache_key(prompt, refs):
 
 
 def picture(python, prompt, out, width=1024, height=1024, seed=42, refs=(), on_event=lambda ev: None,
-            cancel_event=None):
-    """One picture -> out (PNG). refs: reference pictures (Edit: "<Picture 1>" is the first). Returns the timings."""
+            cancel_event=None, ref_sides=None):
+    """One picture -> out (PNG). refs: reference pictures (Edit: "<Picture 1>" is the first); ref_sides: the short side
+    each goes in at (each costs as much work as the picture drawn: (side/32)² tokens). Returns the timings."""
     if not ready():
         raise H3Error("MiniMax-H3-Image isn't on this Mac yet.")
     if not (256 <= width <= 4096 and 256 <= height <= 4096 and width % 32 == 0 and height % 32 == 0):
@@ -282,12 +283,13 @@ def picture(python, prompt, out, width=1024, height=1024, seed=42, refs=(), on_e
     refs = [str(r) for r in refs][:16]
     cache_dir = paths.HOME / "h3-prompts"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    cached = cache_dir / f"{_cache_key(prompt, refs)}.safetensors"
+    sides = list(ref_sides or [])[:len(refs)]
+    cached = cache_dir / f"{_cache_key(prompt + json.dumps(sides), refs)}.safetensors"
     timings = {}
     with tempfile.TemporaryDirectory(prefix="h3-", dir=str(paths.HOME / "tmp") if (paths.HOME / "tmp").exists() else None) as tmp:
         work = Path(tmp)
         (work / "request.json").write_text(json.dumps({
-            "prompt": prompt, "width": width, "height": height, "seed": int(seed) % 2**31, "refs": refs,
+            "prompt": prompt, "width": width, "height": height, "seed": int(seed) % 2**31, "refs": refs, "ref_sides": sides,
             "paths": {k: str(v) for k, v in files().items()}}))
         stages = ["text", *(["refs"] if refs else []), "dit", "vae"]
         if cached.exists():

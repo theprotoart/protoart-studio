@@ -506,3 +506,11 @@ details.fine summary { cursor: pointer; }
 @font-face { font-family: "Protoart Speech"; src: url("assets/fonts/protoart/ProtoartSpeech-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
 @font-face { font-family: "Protoart Kaboom"; src: url("assets/fonts/protoart/ProtoartKaboom-Regular.ttf") format("truetype"); font-weight: 400 900; font-style: normal; font-display: swap; }
 @font-face { font-family: "Protoart Chatter"; src: url("assets/fonts/protoart/ProtoartChatter-Regular.ttf") format("truetype"); font-weight: 400 900; font-style: normal; font-display: swap; }
+
+/* 🧩 Compose with pictures (MiniMax-H3-Image): a number and a role under each More picture */
+.edit-ref.h3-slot { position: relative; display: inline-flex; flex-direction: column; gap: 4px; }
+.edit-ref .h3-num { position: absolute; top: 4px; left: 4px; background: rgba(20, 20, 22, 0.8); color: #ffd36b; font-weight: 700;
+  border-radius: 10px; min-width: 20px; text-align: center; padding: 1px 6px; font-size: 12px; }
+.edit-ref select.h3-role { max-width: 150px; font-size: 12px; }
+.h3-role-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 6px; }
+.h3-write { margin: 8px 0 4px; }

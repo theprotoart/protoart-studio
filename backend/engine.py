@@ -1986,7 +1986,7 @@ class Engine:
         except h3_engine.H3Error as e:
             raise UserError(str(e))
 
-    def _h3_picture(self, prompt, out, width, height, seed, refs=(), image=1, images=1, extra_steps=0):
+    def _h3_picture(self, prompt, out, width, height, seed, refs=(), image=1, images=1, extra_steps=0, ref_sides=None):
         """One MiniMax-H3-Image picture into out, with one progress bar for its stages. -> timings"""
         import h3_engine
         py = self._h3_python()
@@ -2011,7 +2011,7 @@ class Engine:
                            "step": state["base"] + min(6, ev["step"]), "steps": total})
 
         try:
-            return h3_engine.picture(py, prompt, out, width, height, seed, refs, on_event, self.cancel_event)
+            return h3_engine.picture(py, prompt, out, width, height, seed, refs, on_event, self.cancel_event, ref_sides)
         except h3_engine.Cancelled:
             raise Cancelled()
         except h3_engine.H3Error as e:
@@ -2055,7 +2055,8 @@ class Engine:
                 # draws smaller) in the same shape, then shrunk to the size asked for
                 k = (2048 * 2048 / (width * height)) ** 0.5
                 draw_w, draw_h = min(4096, int(width * k) // 32 * 32), min(4096, int(height * k) // 32 * 32)
-            timings = self._h3_picture(p_run, out, draw_w, draw_h, img_seed, refs, i + 1, n)
+            timings = self._h3_picture(p_run, out, draw_w, draw_h, img_seed, refs, i + 1, n,
+                                       ref_sides=[min(draw_w, draw_h)] + [512] * (len(refs) - 1) if refs else None)
             image = Image.open(out).convert("RGB")
             if image.size != (width, height):
                 image = image.resize((width, height), Image.LANCZOS)
@@ -4856,7 +4857,8 @@ class Engine:
             self._h3_prepare(spec)
             # each picture it's given costs as much as the one it draws: on smaller Macs edits work at 768 (~5-6 min)
             # unless Full size is ticked (1024, ~12 min on an 8 GB M1)
-            side = 1024 if args.get("h3_full") or not 0 < ram < 12 else 768
+            sizes = {"768": 768, "896": 896, "1024": 1024}
+            side = sizes.get(str(args.get("h3_side") or ""), 1024 if args.get("h3_full") or not 0 < ram < 12 else 768)
             scale = side / max(1.0, (image.width * image.height) ** 0.5)
             width = max(256, min(2048, int(image.width * scale) // 32 * 32))
             height = max(256, min(2048, int(image.height * scale) // 32 * 32))
@@ -4871,7 +4873,11 @@ class Engine:
             out = tmp / f"h3edit_out_{os.getpid()}.png"
             prompt = h3_engine.edit_prompt(prompt, len(ref_files))
             try:
-                self._h3_picture(prompt, out, width, height, seed, ref_files)
+                # picture 1 goes in at the size drawn; the extras at 512 (a quarter of the work each; enough for a face,
+                # an outfit or a style) unless "Extra pictures in detail" is ticked
+                extra = 768 if args.get("h3_ref_detail") else 512
+                self._h3_picture(prompt, out, width, height, seed, ref_files,
+                                 ref_sides=[side] + [extra] * (len(ref_files) - 1))
                 result = Image.open(out).convert("RGB")
             finally:
                 for f in [out, *ref_files]:

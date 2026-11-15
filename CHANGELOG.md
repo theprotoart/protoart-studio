@@ -26,6 +26,19 @@
 - H3 edits take up to 15 More pictures (16 in all; Klein stays at 3; `editRefMax`), and Quick edits gain H3's
   multi-picture recipes (`H3_QUICK`): put people together, into this scene, outfit / style from picture 2, turnaround
   sheet, comic panel, product shot
+- H3 reference pictures go in at the size asked for (`h3_worker.size_refs`; h3-image-mlx enlarged each to ≥1024:
+  6 pictures = ~6,000 tokens a step, 44 min measured): picture 1 at the work size, More pictures at 512 (768 with
+  "More pictures in more detail"). Edit work size 768 / 896 / 1024 (`h3_side`, replaces `h3_full`)
+- 🧩 Compose with pictures (H3 in Edit with words): starting points (`H3_COMPOSE`: fashion try-on, people together,
+  characters in a scene, person into a place, furnish a room, style & light), a role per picture (`H3_ROLES`: person,
+  character, outfit, top, skirt / trousers, shoes, accessory, hairstyle, pose, place, object, style, lighting) and
+  ✍ Write the prompt (`h3ComposePrompt`): "Make one picture of the person from <Picture 1>, wearing the top from
+  <Picture 2>…", your own words kept after it, and what to keep the same
+- 🧠 MiniMax-H3-Image presets in Create (`H3_PRESETS`, 20 layouts around your subject: exploded view, blueprint, CAD
+  sheet, infographic, magazine cover, movie poster, comic page, character sheet, product ad, isometric diorama,
+  sticker sheet, design sketch sheet, recipe card, surreal editorial, environment concept, tarot card, oil painting,
+  watercolour, gongbi, studio portrait) and more H3 quick edits (exploded view, blueprint, CAD views, render → film
+  still, map → game view), after MiniMax's showcase
 - Example prompts: a new "Comics & lettering" group (a 4-panel comic page and a character turnaround sheet for H3)
 - Tests: `test_h3.py` (4-bit file layout with metadata kept, licence gate, edit prompts, catalog)
 

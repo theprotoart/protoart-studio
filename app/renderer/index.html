@@ -1091,6 +1091,13 @@
         <label class="check"><input type="checkbox" v-model="h3Tick"> I accept this licence, and I'm not in one of the places it excludes</label>
         <button class="primary small" :disabled="!h3Tick" @click="h3Accept">Accept</button>
       </div>
+      <div v-if="tab === 'create' && family === 'h3'" class="card cn-guide model-guide h3-presets">
+        <div class="cn-guide-head"><h3>🧠 MiniMax-H3-Image presets <span class="hint">· type a subject in the prompt (“an electric motorcycle”, “my cat”), then pick a layout</span></h3></div>
+        <div class="seg seg-wrap edit-recipes">
+          <button v-for="pr in H3_PRESETS" :key="pr.label" @click="h3Preset(pr)" :title="pr.text">{{ pr.label }}</button>
+        </div>
+        <p class="hint">Lettering and small labels come out right at bigger sizes: tick 🧠 Best quality (under the size) for the final picture. Words to show go in "double quotes".</p>
+      </div>
       <div v-if="modelGuide()" class="card cn-guide model-guide">
         <div class="cn-guide-head"><h3>💡 {{ modelGuide().title }} <span class="hint">· suggested settings</span></h3><span class="grow"></span>
           <button class="primary small" @click="applyModelGuide" title="Set the steps, guidance, strength and size this model works best with">Use these settings</button>
@@ -3189,15 +3196,33 @@
             <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
             <span class="hint">{{ mask.size }}</span>
           </div>
-          <label v-if="editModelId() === 'h3_image'" class="check" title="MiniMax-H3-Image works on your picture at 768 on Macs under 12 GB (about 5–6 minutes). Full size works at 1024 for more detail (about 12 minutes on an 8 GB M1)">
-            <input type="checkbox" v-model="form.h3_full"> 🧠 Full size (1024) <span class="hint">(sharper, about twice as long)</span></label>
+          <template v-if="editModelId() === 'h3_image'">
+            <label title="The size MiniMax-H3-Image works at (the longer it is, the sharper faces and lettering come out). On an 8 GB Mac with one picture: 768 about 5–6 minutes, 896 about 8, 1024 about 12">🧠 Work size</label>
+            <div class="seg mod-seg">
+              <button v-for="z in ['768', '896', '1024']" :key="z" :class="{on: (form.h3_side || (sys.ram_gb && sys.ram_gb < 12 ? '768' : '1024')) === z}" @click="form.h3_side = z">{{ z }}</button>
+            </div>
+            <label class="check" title="More pictures go in at 512 (a quarter of the work of 1024 each: enough for a face, an outfit or a style). Tick this for 768 when small details matter (lettering on a label, a pattern), about twice as long per picture"><input type="checkbox" v-model="form.h3_ref_detail"> More pictures in more detail <span class="hint">(slower)</span></label>
+          </template>
           <label v-if="editModelId() !== 'h3_image'" class="check" title="After the edit, each face (up to 3) is edited again on its own, close up, with the original face beside it, and blended in: the person stays recognisable (restoring or colouring old photos, changing clothes or the background). Adds about one more edit per face. Not used when you paint an area (the rest stays exactly the same then)">
             <input type="checkbox" :checked="form.keep_faces !== false" @change="form.keep_faces = $event.target.checked"> 🙂 Keep faces close to the original <span class="hint">(+1 full edit per face: switch it off when only the background changes)</span></label>
-          <label>More pictures <span class="hint">optional · up to {{ editRefMax() }} · a style, an object, an outfit or a person to use<template v-if="editRefMax() > 3"> · each adds about 2–3 minutes</template></span></label>
+          <template v-if="editModelId() === 'h3_image'">
+            <label>🧩 Compose with pictures <span class="hint">pick a starting point, add the pictures, set what each one brings, then ✍ Write the prompt</span></label>
+            <div class="seg seg-wrap edit-recipes">
+              <button v-for="c in H3_COMPOSE" :key="c.id" :class="{on: form.h3_compose === c.id}" @click="h3ComposePick(c)" :title="c.tip">{{ c.label }}</button>
+            </div>
+            <div class="h3-role-row"><span class="hint">Your picture (&lt;Picture 1&gt;) is</span>
+              <select :value="h3RoleOf(0)" @change="h3SetRole(0, $event.target.value)"><option v-for="r in H3_ROLES" :key="r.id" :value="r.id">{{ r.label }}</option></select></div>
+          </template>
+          <label>More pictures <span class="hint">optional · up to {{ editRefMax() }} · a style, an object, an outfit or a person to use<template v-if="editRefMax() > 3"> · each adds about a minute at 512</template></span></label>
           <div class="edit-refs">
-            <div v-for="(r, i) in form.edit_refs" :key="r" class="edit-ref">
+            <div v-for="(r, i) in form.edit_refs" :key="r" class="edit-ref" :class="{'h3-slot': editModelId() === 'h3_image'}">
               <img :src="fileUrl(r)" alt="">
-              <button class="ghost small" @click="form.edit_refs.splice(i, 1)" title="Don't use this picture">✕</button>
+              <button class="ghost small" @click="form.edit_refs.splice(i, 1); (form.h3_roles || []).splice(i + 1, 1)" title="Don't use this picture">✕</button>
+              <template v-if="editModelId() === 'h3_image'">
+                <span class="h3-num">{{ i + 2 }}</span>
+                <select class="h3-role" :value="h3RoleOf(i + 1)" @change="h3SetRole(i + 1, $event.target.value)" :title="'What <Picture ' + (i + 2) + '> brings'">
+                  <option v-for="ro in H3_ROLES" :key="ro.id" :value="ro.id">{{ ro.label }}</option></select>
+              </template>
             </div>
             <div v-if="(form.edit_refs || []).length < editRefMax()" class="start-drop edit-ref-drop" :class="{over: editRefOver}"
                  @dragover.prevent="editRefOver = true" @dragleave="editRefOver = false" @drop.prevent="onEditRefDrop"
@@ -3205,6 +3230,7 @@
             <input ref="editRefPick" type="file" multiple accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="onEditRefPicked">
           </div>
           <div v-if="(form.edit_refs || []).length && !editRecipe()" class="hint"><template v-if="editModelId() === 'h3_image'">Your picture is &lt;Picture 1&gt;; these are &lt;Picture 2&gt;, &lt;Picture 3&gt;… in the order shown: name them in the prompt.</template><template v-else>Refer to them in the prompt as “the second picture”, “the third picture”.</template></div>
+          <button v-if="editModelId() === 'h3_image'" class="primary small h3-write" @click="h3ComposePrompt" title="Writes the instruction from what each picture brings; anything already in the prompt is kept after it as details">✍ Write the prompt from the pictures</button>
           <label>Quick edits <span class="hint">a ready-made instruction in the prompt; edit it if you like</span></label>
           <div class="seg seg-wrap edit-recipes">
             <button v-for="q in EDIT_QUICK()" :key="q.label" @click="useEditQuick(q)" :title="q.prompt">{{ q.label }}</button>

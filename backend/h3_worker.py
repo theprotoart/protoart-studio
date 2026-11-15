@@ -156,6 +156,29 @@ def patch():
     return core
 
 
+def size_refs(sides):
+    """Reference pictures go in at the size asked for (h3-image-mlx enlarges each to at least 1024 on its short side:
+    six pictures then cost ~6,000 tokens a step, 44 minutes on an 8 GB M1). sides: {path: short side}."""
+    if not sides:
+        return
+    from PIL import Image, ImageOps
+    from h3_image_mlx import ref_vae, vision
+    plain = vision.reference_image
+
+    def reference_image(path, max_short_edge):
+        cap = sides.get(str(path))
+        if not cap:
+            return plain(path, max_short_edge)
+        with Image.open(path) as im:
+            im = ImageOps.exif_transpose(im).convert("RGB")
+            scale = min(int(cap), max_short_edge) / min(im.size)
+            size = tuple(max(32, round(v * scale / 32) * 32) for v in im.size)
+            return np.asarray(im.resize(size, Image.Resampling.LANCZOS), dtype=np.float32) / 255
+
+    vision.reference_image = reference_image
+    ref_vae.reference_image = reference_image
+
+
 def stage(name, work):
     import mlx.core as mx
     core = patch()
@@ -165,6 +188,7 @@ def stage(name, work):
     req = json.loads((work / "request.json").read_text())
     p = {k: Path(v) for k, v in req["paths"].items()}
     refs = [Path(r) for r in req.get("refs") or []]
+    size_refs({str(r): s for r, s in zip(refs, req.get("ref_sides") or []) if s})
     t = time.time()
     if name == "text":
         from h3_image_mlx.text import encode
