@@ -19,6 +19,10 @@
 - 💡 Relight → Speed → 🧠 H3: the whole picture relit by one H3 edit from the light words (direction, subject) or a
   reference picture's light (`relightH3Prompt`: "Relight <Picture 1> … keep everything else"); no SD 1.5 model needed.
   📷 Camera angle sheets (turnarounds, expression sheets, development boards) use H3 when it's the picked edit model
+- 🧠 Best quality (`h3_best`, Create): drawn at ~4 MP in the same shape and shrunk to the size asked for (MiniMax's
+  pipeline never draws under 2048²; at 768-1024 the model looks soft and waxy). `drawn_at` saved in the settings
+- Fix: a picture made without a starting picture went to Image to image's results when that tab was open; the
+  waiting status under the spinner was unreadable on light looks (now on a dark backing)
 - Example prompts: a new "Comics & lettering" group (a 4-panel comic page and a character turnaround sheet for H3)
 - Tests: `test_h3.py` (4-bit file layout with metadata kept, licence gate, edit prompts, catalog)
 

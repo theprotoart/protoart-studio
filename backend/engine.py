@@ -2049,8 +2049,16 @@ class Engine:
             p_run = h3_engine.edit_prompt(p_i, len(refs)) if refs else p_i
             out = out_dir / f"h3_{os.getpid()}_{i}.png"
             started = time.time()
-            timings = self._h3_picture(p_run, out, width, height, img_seed, refs, i + 1, n)
+            draw_w, draw_h = width, height
+            if args.get("h3_best") and width * height < 2048 * 2048 * 0.9:
+                # 🧠 Best quality: drawn at about 4 megapixels (what the model is made for; MiniMax's own pipeline never
+                # draws smaller) in the same shape, then shrunk to the size asked for
+                k = (2048 * 2048 / (width * height)) ** 0.5
+                draw_w, draw_h = min(4096, int(width * k) // 32 * 32), min(4096, int(height * k) // 32 * 32)
+            timings = self._h3_picture(p_run, out, draw_w, draw_h, img_seed, refs, i + 1, n)
             image = Image.open(out).convert("RGB")
+            if image.size != (width, height):
+                image = image.resize((width, height), Image.LANCZOS)
             try:
                 out.unlink()
             except OSError:
@@ -2059,8 +2067,10 @@ class Engine:
             print(f"[timing] MiniMax-H3-Image {i + 1}/{n}: {secs:.1f}s at {width}x{height}, {len(refs)} pictures, "
                   f"stages {timings}", flush=True)
             settings = {"model": model_id, "prompt": p_run, "negative_prompt": "", "width": image.width,
-                        "height": image.height, "steps": 6, "cfg": 1.0, "sampler": "flow · 6 steps", "seed": img_seed,
+                        "height": image.height, "steps": 6, "cfg": 1.0, "sampler": "flow", "seed": img_seed,
                         "engine": "h3", "loras": [], "seconds": round(secs, 1)}
+            if (draw_w, draw_h) != (width, height):
+                settings["drawn_at"] = f"{draw_w}x{draw_h}"
             if refs and args.get("init_image"):
                 settings.update(init_image=str(args["init_image"]))
             if o_i and o_i != p_run:

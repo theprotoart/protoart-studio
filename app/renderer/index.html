@@ -826,6 +826,7 @@
           <button class="ghost link-btn" @click="swapSize" title="Swap width and height (portrait ⇄ landscape)">⇄</button>
           <datalist id="dims-list"><option v-for="v in dims" :key="v" :value="v"></option></datalist>
           <div class="hint size-hint">{{ form.width }} × {{ form.height }} · {{ aspectText }}<template v-if="form.size_link"> · linked</template></div>
+          <label v-if="family === 'h3'" class="check" title="MiniMax-H3-Image is made for big pictures: it draws at about 2048 × 2048 (the same shape as your size) and the result is shrunk to your size. Much more detail and fewer odd faces, about 3 times as long (about 13 minutes on an 8 GB Mac)"><input type="checkbox" v-model="form.h3_best"> 🧠 Best quality (draws at 2048, ~13 min)</label>
         </div>
         <div v-if="sizeWarning()" class="span2 size-warn">⚠ {{ sizeWarning() }}</div>
         <div v-if="currentModel?.fast_mode" class="span2 fast-row" :class="{on: form.fast}">

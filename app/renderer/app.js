@@ -750,7 +750,7 @@ const MODEL_GUIDES = {
       tips: ["Write full sentences: the subject, the place, the light, the style, the camera. ✨ Enhance writes it that way.",
              "Words the picture should show go in double quotes: a sign that reads \"OPEN\". It spells them right.",
              "Steps and guidance are fixed (6 and 1); there's no negative prompt. Change the seed for another take.",
-             "On an 8 GB Mac: 1024 × 1024 takes about 4 minutes; 2048 × 2048 (its best) about 15. A new prompt adds ~20 s once.",
+             "It's made for big pictures: 1024 is a quick draft (about 4 minutes on an 8 GB Mac) and looks soft; tick 🧠 Best quality (under the size) to draw at 2048 and shrink to your size (about 13 minutes). Below 1024 it falls apart.",
              "Licence: not for use in the US, EU, UK or Korea; its pictures can't be used to train other AI models."] },
     edit: { title: "MiniMax-H3-Image · ✨ Edit with words", what: "Changes your picture as described, and can take things from up to 3 more pictures.",
       set: {},
@@ -1098,6 +1098,7 @@ const protoartApp = createApp({
             { h: "1.6.18: 🧠 MiniMax-H3-Image on 8 GB Macs: creates and edits", items: [
               "<b>MiniMax-H3-Image</b> (a 33B model by MiniMax) in Create and in Image to image → <b>✨ Edit with words</b> and <b>📷 Camera angle</b>. On this Mac it's shrunk to <b>4-bit</b> once and read from the drive a piece at a time, so it needs under 2 GB of memory: about <b>4 minutes</b> for 1024 × 1024 on an 8 GB M1, about 15 for 2048 × 2048. It spells quoted words right (signs, posters, covers).",
               "<b>Editing</b>: your picture is <code>&lt;Picture 1&gt;</code>, More pictures are <code>&lt;Picture 2&gt;</code>…: relight, change the season, put a hat from another picture on someone, or draw a turnaround sheet of a character (📷 Camera angle's sheets use it when it's picked). <b>💡 Relight</b> has a <b>🧠 H3</b> button in its Speed row: the whole picture relit from your words or a reference picture's light, no SD 1.5 model needed. On an 8 GB Mac an edit works at 768 (about 5–6 minutes); tick 🧠 Full size for 1024 (about 12).",
+              "<b>🧠 Best quality</b> (Create, under the size): it's made for big pictures, so it draws at about 2048 × 2048 and shrinks to your size: far more detail than drawing at 1024 (a quick, softer draft), about 13 minutes on an 8 GB Mac.",
               "<b>One time</b>: a ~49 GB download (to your downloaded-models folder) and a ~27 GB 4-bit copy on this Mac's own drive (about half an hour). <b>Licence first</b>: the MiniMax-H3-Image Community License doesn't allow use in the US, EU, UK or Korea, and its pictures can't train other AI models; a card asks you to accept it before anything downloads.",
             ] },
             { h: "1.6.17: ✨ faster Enhance with Z-Image Turbo, MOSS-Image's 8 GB version ready-made", items: [
@@ -3437,7 +3438,7 @@ const protoartApp = createApp({
     i2iRunning() {
       // the running job is an Image to image one (started from that tab)
       const j = this.runningJob;
-      return !!(j && jobTabOf(j) === "i2i" && ["generate", "edit_words", "heal", "peel"].includes(j.cmd));
+      return !!(j && jobTabOf(j) === "i2i" && ["generate", "edit_words", "heal", "peel"].includes(j.cmd) && (j.cmd !== "generate" || j.i2i));
     },
     recSettings() {
       // ★ Recommended for the picked sampler: ⚡ fastest ones at the low end of their step range, ★ best-quality ones
@@ -3834,7 +3835,9 @@ const protoartApp = createApp({
         const startedIn = jobTab.get(m.job);
         const fromTools = startedIn === "tools" || (cmd ? (toolCmds.includes(cmd) || !!(sent && sent.args.from_tools))
           : toolKinds.includes(m.record.kind));
-        if (!fromTools) this.session.unshift({ ...m.record, _tab: startedIn === "i2i" ? "i2i" : startedIn === "create" ? "create" : undefined });
+        // a picture made without a starting picture belongs to Create, whichever tab was open when it was started
+        const madeFresh = m.record.kind === "generated" && !(m.record.settings || {}).init_image;
+        if (!fromTools) this.session.unshift({ ...m.record, _tab: madeFresh ? "create" : startedIn === "i2i" ? "i2i" : startedIn === "create" ? "create" : undefined });
         if (m.record.model && m.record.kind === "generated") this.readyModel = m.record.model;
         if (m.record.nsfw && this.hideNsfw) this.status = "A new picture is covered by the NSFW filter (click it to look)";
         this.livePreview = null;
