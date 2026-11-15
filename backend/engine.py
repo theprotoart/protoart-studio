@@ -4844,7 +4844,10 @@ class Engine:
             self.enhancer = None
             self.drop_helpers()
             self._h3_prepare(spec)
-            scale = 1024 / max(1.0, (image.width * image.height) ** 0.5)
+            # each picture it's given costs as much as the one it draws: on smaller Macs edits work at 768 (~5-6 min)
+            # unless Full size is ticked (1024, ~12 min on an 8 GB M1)
+            side = 1024 if args.get("h3_full") or not 0 < ram < 12 else 768
+            scale = side / max(1.0, (image.width * image.height) ** 0.5)
             width = max(256, min(2048, int(image.width * scale) // 32 * 32))
             height = max(256, min(2048, int(image.height * scale) // 32 * 32))
             steps = 6

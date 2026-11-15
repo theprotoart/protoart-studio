@@ -14,6 +14,12 @@
   `h3_engine.edit_prompt` adds "Edit <Picture 1>." when the prompt doesn't name them; painted areas composite as before
 - Licence gate: nothing downloads or runs before `h3_licence {accept: true}` (card in Create / Image to image);
   MiniMax-H3-Image Community License: not in the US, EU, UK or Republic of Korea; outputs can't improve other models
+- H3 edits work at 768 on Macs under 12 GB (measured 1024 edit: 12 min on an 8 GB M1; each reference picture costs as
+  much as the drawn one); 🧠 Full size (`h3_full`) keeps 1024
+- 💡 Relight → Speed → 🧠 H3: the whole picture relit by one H3 edit from the light words (direction, subject) or a
+  reference picture's light (`relightH3Prompt`: "Relight <Picture 1> … keep everything else"); no SD 1.5 model needed.
+  📷 Camera angle sheets (turnarounds, expression sheets, development boards) use H3 when it's the picked edit model
+- Example prompts: a new "Comics & lettering" group (a 4-panel comic page and a character turnaround sheet for H3)
 - Tests: `test_h3.py` (4-bit file layout with metadata kept, licence gate, edit prompts, catalog)
 
 ## 1.6.17

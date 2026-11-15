@@ -97,7 +97,7 @@
             <option value="flux2_klein_mlx_q4" :disabled="form.i2i_mode === 'inpaint'">FLUX.2 Klein 4B · {{ form.i2i_mode === 'inpaint' ? '— not an inpainting model' : form.i2i_mode === 'outpaint' ? '↔ Expand with the outpaint LoRA' : '✨ Edit with words' }}{{ editModel().cached ? '' : ' · ' + Math.round(editModel().download_gb) + ' GB download' }}</option>
             <option v-if="editModel9() && form.i2i_mode !== 'outpaint'" value="flux2_klein9b_mlx_q4" :disabled="form.i2i_mode === 'inpaint' || ramBlocked(editModel9())">FLUX.2 Klein 9B · ✨ Edit with words (sharper){{ ramBlocked(editModel9()) ? ' — needs ' + editModel9().min_ram_gb + ' GB memory' : editModel9().cached ? '' : ' · ' + Math.round(editModel9().download_gb) + ' GB download' }}</option>
           </optgroup>
-          <optgroup v-if="editModelH3()" label="MiniMax-H3-Image · ✨ Edit with words, 📷 Camera angle (slower: ~8 min on 8 GB)">
+          <optgroup v-if="editModelH3()" label="MiniMax-H3-Image · ✨ Edit with words, 📷 Camera angle (~6 min on 8 GB)">
             <option value="h3_image" :disabled="!['edit', 'camera', 'change'].includes(form.i2i_mode)">MiniMax-H3-Image · ✨ Edit with words{{ editModelH3().cached ? '' : ' · ' + Math.round(editModelH3().download_gb) + ' GB download' }}</option>
           </optgroup>
           <optgroup v-for="g in i2iModelGroups" :key="g.name" :label="g.name">
@@ -2574,6 +2574,7 @@
             <button :class="{on: (post.relight.speed || 'standard') === 'fast'}" @click="post.relight.speed = 'fast'" title="12 steps, no detail pass: about 6× quicker, a little softer">⚡ Fast</button>
             <button :class="{on: (post.relight.speed || 'standard') === 'standard'}" @click="post.relight.speed = 'standard'" title="20 steps, plus the detail pass if Add detail is on">Standard</button>
             <button :class="{on: post.relight.speed === 'best'}" @click="post.relight.speed = 'best'" title="30 steps, plus the detail pass: slowest, finest">★ Best</button>
+            <button v-if="editModelH3()" :class="{on: post.relight.speed === 'h3'}" @click="post.relight.speed = 'h3'" title="MiniMax-H3-Image relights the whole picture from your words (or a reference picture's light) in one edit, keeping people and composition: no SD 1.5 model needed. Slower: about 6 minutes on an 8 GB Mac">🧠 H3</button>
           </div>
           <label class="check" title="IC-Light's second pass: 1.5× larger with more detail (the slow part: about twice as long). Off with ⚡ Fast"><input type="checkbox" v-model="post.relight.hires" :disabled="post.relight.speed === 'fast'"> Add detail (1.5× larger)</label>
           <label title="IC-Light draws a new background to match the light. Keep mine puts the relit subject back on your picture's own background">Background</label>
@@ -3187,7 +3188,9 @@
             <span class="brush-well" :title="'Brush size: ' + mask.size + ' px across on the picture (the ring on the picture shows it at full size)'"><i :class="{erase: mask.erase}" :style="{width: brushWellPx + 'px', height: brushWellPx + 'px'}"></i></span>
             <span class="hint">{{ mask.size }}</span>
           </div>
-          <label class="check" title="After the edit, each face (up to 3) is edited again on its own, close up, with the original face beside it, and blended in: the person stays recognisable (restoring or colouring old photos, changing clothes or the background). Adds about one more edit per face. Not used when you paint an area (the rest stays exactly the same then)">
+          <label v-if="editModelId() === 'h3_image'" class="check" title="MiniMax-H3-Image works on your picture at 768 on Macs under 12 GB (about 5–6 minutes). Full size works at 1024 for more detail (about 12 minutes on an 8 GB M1)">
+            <input type="checkbox" v-model="form.h3_full"> 🧠 Full size (1024) <span class="hint">(sharper, about twice as long)</span></label>
+          <label v-if="editModelId() !== 'h3_image'" class="check" title="After the edit, each face (up to 3) is edited again on its own, close up, with the original face beside it, and blended in: the person stays recognisable (restoring or colouring old photos, changing clothes or the background). Adds about one more edit per face. Not used when you paint an area (the rest stays exactly the same then)">
             <input type="checkbox" :checked="form.keep_faces !== false" @change="form.keep_faces = $event.target.checked"> 🙂 Keep faces close to the original <span class="hint">(+1 full edit per face: switch it off when only the background changes)</span></label>
           <label>More pictures <span class="hint">optional · up to 3 · a style, an object, an outfit or a person to use</span></label>
           <div class="edit-refs">
@@ -3473,6 +3476,7 @@
             <button :class="{on: (post.relight.speed || 'standard') === 'fast'}" @click="post.relight.speed = 'fast'" title="12 steps, no detail pass: about 6× quicker, a little softer">⚡ Fast</button>
             <button :class="{on: (post.relight.speed || 'standard') === 'standard'}" @click="post.relight.speed = 'standard'" title="20 steps, plus the detail pass if Add detail is on">Standard</button>
             <button :class="{on: post.relight.speed === 'best'}" @click="post.relight.speed = 'best'" title="30 steps, plus the detail pass: slowest, finest">★ Best</button>
+            <button v-if="editModelH3()" :class="{on: post.relight.speed === 'h3'}" @click="post.relight.speed = 'h3'" title="MiniMax-H3-Image relights the whole picture from your words (or a reference picture's light) in one edit, keeping people and composition: no SD 1.5 model needed. Slower: about 6 minutes on an 8 GB Mac">🧠 H3</button>
           </div>
           <div class="row small">
             <label class="check" title="The slow part (about twice as long). Off with ⚡ Fast"><input type="checkbox" v-model="post.relight.hires" :disabled="post.relight.speed === 'fast'"> Add detail</label>

@@ -407,6 +407,8 @@ const I2I_KINDS = ["img2img", "healed", "word_edit", "combined", "camera_angle",
 // Tools → Tiled upscale presets (size, how much new detail, steps)
 // 📒 Saved → Example prompts: ready-made prompts to start from (also used as ✨ Enhance's examples, in prompt_enhance.py)
 const EXAMPLE_PROMPTS = [
+  { group: "Comics & lettering", name: "📖 Comic page, 4 panels (MiniMax-H3-Image)", text: "A full-colour comic book page in a clean modern inking style, four panels in a 2 by 2 grid with white gutters and black panel borders. Panel 1: a young woman with short red hair and a green bomber jacket stands on a rainy rooftop at night, neon city behind her; a speech balloon at the top reads \"Where did it go?\". Panel 2: close-up of her face lit by a blue glow, eyes wide. Panel 3: a small glowing robot peeks out from behind a water tank; a speech balloon reads \"Beep... friend?\". Panel 4: she kneels and holds out her hand to the robot, smiling; a caption box at the bottom reads \"Some nights, the city sends you a sign.\" Clear, readable lettering in every balloon, consistent character design in every panel." },
+  { group: "Comics & lettering", name: "🧍 Character turnaround sheet (MiniMax-H3-Image)", text: "A character model sheet on a plain white background: the same young knight shown full body four times at the same height, front view, three-quarter view, side view and back view, standing in a relaxed neutral pose. She has a short silver bob, a blue cape and dented steel armour with a sun emblem on the chest. Flat even studio lighting, clean line art with soft cel shading, the title \"SIR ELLA\" in bold letters at the top." },
   { group: "Portraits & people", name: "🖼 Classical chiaroscuro portrait", text: "A woman with long, wavy hair cascading over her shoulders. She has sharp, defined features, almond-shaped blue eyes with dramatic winged eyeliner, and full, subtly glossed lips. Her expression is alluring and slightly melancholic. She is draped in flowing sheer fabrics, one in a deep teal and the other in a rich crimson, revealing her bare shoulders and upper back. A single pearl earring dangles from her left ear.\nA dark, textured, painterly backdrop with variations in dark grey and muted brown tones, resembling an antique studio canvas. No other environmental elements are present.\nA hyperrealistic digital painting with strong chiaroscuro influences, evoking a classical portraiture style. The color palette is rich and deep, with a focus on contrasting dark tones and the vibrant jewel tones of the fabrics.\nDramatic studio lighting that emphasizes the contours of the subject's face and back. A key light source appears to be coming from the upper left, casting soft shadows and highlighting the textures of her skin and hair. The fabric also catches the light, creating luminous folds.\nA medium close-up shot, slightly over-the-shoulder, with the subject turned to her right and looking back towards the viewer. The composition is asymmetrical, with the fabrics creating a dynamic flow that frames the subject's form. The background is out of focus, keeping the viewer's attention solely on the subject." },
   { group: "Scenes", name: "☔ Rainy Paris café", text: "A lone woman sits at a small Parisian cafe table, rain slicking the cobblestone street outside, misty street lights casting a soft cinematic glow. She lifts a brass fork gracefully toward the fragrant Indian thali before her, curries and rice shimmering under the cafe's ambient light. Her flowing ball gown in vivid yellow and blue finch hues ripples like sunrise feathers as she gazes contentedly, a gentle smile on her lips, while distant Eiffel Tower silhouettes and a chalkboard menu frame the scene in a harmonious, rain-drizzled tableau." },
   { group: "Portraits & people", name: "🤖 Anime cyberpunk portrait (Anima's example)", text: "Anime monochrome cyberpunk front portrait, male figure, sleek skin with delicate mechanical lines, piercing glowing eyes, partial exposed metallic mecha components and light cables, sharp domineering cool style, textured anime brushwork, faint circuit background, high contrast chiaroscuro lighting, immersive cinematic shadows, ultra fine details, 8K high-def render, futuristic dystopian mood" },
@@ -467,7 +469,7 @@ const FILM_LOOKS = [
   { group: "Damaged film", id: "expired", name: "Expired film", look: "expired film", traits: "shifted colours, fogged shadows, uneven density and heavy grain", neg: "clean, accurate colour" },
 ];
 const FILM_GROUPS = [...new Set(FILM_LOOKS.map((x) => x.group))];
-const EXAMPLE_GROUPS = ["Portraits & people", "Characters", "Creatures", "Vehicles", "Scenes", "Art styles"];
+const EXAMPLE_GROUPS = ["Portraits & people", "Characters", "Creatures", "Vehicles", "Scenes", "Art styles", "Comics & lettering"];
 const TILED_PRESETS = [
   { id: "gentle", label: "Gentle", tip: "Sharper and bigger, almost no change: photos and faces", set: { scale: 2, strength: 0.2, steps: 24 } },
   { id: "detail", label: "Detail", tip: "Adds texture (skin, fabric, foliage) and keeps the picture", set: { scale: 2, strength: 0.25, steps: 24 } },
@@ -755,7 +757,7 @@ const MODEL_GUIDES = {
       tips: ["Say what to change and what to keep: “make it a snowy night; keep her face, pose and clothes”.",
              "Your picture is <Picture 1>, the extra pictures are <Picture 2>, <Picture 3>…: “put the hat from <Picture 2> on her”.",
              "Relight: “relight the scene with warm sunset light from the left”. Turnarounds: “front, side and back views of the character on a white background”.",
-             "About 8 minutes on an 8 GB Mac with one picture, a few minutes more for each extra picture. No painted areas or LoRAs."] },
+             "About 5–6 minutes on an 8 GB Mac with one picture (12 with 🧠 Full size), a few minutes more for each extra picture. Painting an area keeps the rest exactly as it was."] },
   },
   moss: {
     create: { title: "MOSS-Image", what: "Made for lettering and layouts: signs, posters, book covers, labels, infographics.",
@@ -1095,7 +1097,7 @@ const protoartApp = createApp({
           sections: [
             { h: "1.6.18: 🧠 MiniMax-H3-Image on 8 GB Macs: creates and edits", items: [
               "<b>MiniMax-H3-Image</b> (a 33B model by MiniMax) in Create and in Image to image → <b>✨ Edit with words</b> and <b>📷 Camera angle</b>. On this Mac it's shrunk to <b>4-bit</b> once and read from the drive a piece at a time, so it needs under 2 GB of memory: about <b>4 minutes</b> for 1024 × 1024 on an 8 GB M1, about 15 for 2048 × 2048. It spells quoted words right (signs, posters, covers).",
-              "<b>Editing</b>: your picture is <code>&lt;Picture 1&gt;</code>, More pictures are <code>&lt;Picture 2&gt;</code>…: relight, change the season, put a hat from another picture on someone, or draw a turnaround sheet of a character. One picture takes about 8 minutes on an 8 GB Mac.",
+              "<b>Editing</b>: your picture is <code>&lt;Picture 1&gt;</code>, More pictures are <code>&lt;Picture 2&gt;</code>…: relight, change the season, put a hat from another picture on someone, or draw a turnaround sheet of a character (📷 Camera angle's sheets use it when it's picked). <b>💡 Relight</b> has a <b>🧠 H3</b> button in its Speed row: the whole picture relit from your words or a reference picture's light, no SD 1.5 model needed. On an 8 GB Mac an edit works at 768 (about 5–6 minutes); tick 🧠 Full size for 1024 (about 12).",
               "<b>One time</b>: a ~49 GB download (to your downloaded-models folder) and a ~27 GB 4-bit copy on this Mac's own drive (about half an hour). <b>Licence first</b>: the MiniMax-H3-Image Community License doesn't allow use in the US, EU, UK or Korea, and its pictures can't train other AI models; a card asks you to accept it before anything downloads.",
             ] },
             { h: "1.6.17: ✨ faster Enhance with Z-Image Turbo, MOSS-Image's 8 GB version ready-made", items: [
@@ -1948,7 +1950,7 @@ const protoartApp = createApp({
               "Filter by type (ERNIE, SDXL, SD 1.5) or search. <b>+ Add from your Mac</b> and <b>+ Add from Hugging Face</b> bring in models from elsewhere. In Create, the link under the model list opens this tab.",
               "<b>Keep everything big on an external drive</b>: Settings → <b>Downloaded models folder</b> (models the app downloads), <b>Image folder</b> (your pictures) and <b>📦 Model files the app keeps</b> (LoRAs, embeddings, checkpoints, VAEs, ControlNets, 8-bit copies, converted models: <i>Move to another drive…</i>). Each can move what you already have. <b>Main folder</b> is different: it only reads models you already keep somewhere, where they are. Keep the drive plugged in while you use the app.",
               "<b>Bigger fast-engine models</b> (greyed out when this Mac has too little memory): <b>FLUX.2 Klein 9B</b> (16 GB+, 9.5 GB download, FLUX non-commercial licence), <b>Z-Image Turbo</b> (now on 8 GB Macs too, 5.9 GB, Apache-2.0, 9 steps), <b>Qwen-Image 2.1 Turbo</b> (24 GB+, 10 GB, 8 steps) and <b>Qwen-Image 2.1</b> (24 GB+, 40 steps; both Qwen research licence, non-commercial) and <b>Krea 2 Turbo</b> (32 GB+, 15.8 GB, Krea 2 Community licence). Write sentences; Z-Image, Qwen-Image and Krea 2 can also start from a picture (Image to image → Change it).",
-              "<b>MiniMax-H3-Image</b> (works on 8 GB Macs): a large model shrunk to 4-bit on your Mac. <b>Create</b>: write sentences (✨ Enhance does), put words in double quotes; steps (6) and guidance (1) are fixed and it has no negative prompt. 1024 × 1024 takes about 4 minutes on an 8 GB M1; 2048 × 2048 looks best (~15 min). <b>Image to image</b>: pick it in the model list for ✨ Edit with words or 📷 Camera angle; say what to change and what to keep (“relight with warm sunset light from the left; keep her face and clothes”); More pictures become &lt;Picture 2&gt;, &lt;Picture 3&gt;… One edit takes about 8 minutes. Before the first use: accept its licence in the card (not for use in the US, EU, UK or Korea; its pictures can't train other AI models). It then downloads ~49 GB once and makes a ~27 GB 4-bit copy on this Mac's drive (half an hour); after that it works offline. No LoRAs or painted areas yet.",
+              "<b>MiniMax-H3-Image</b> (works on 8 GB Macs): a large model shrunk to 4-bit on your Mac. <b>Create</b>: write sentences (✨ Enhance does), put words in double quotes; steps (6) and guidance (1) are fixed and it has no negative prompt. 1024 × 1024 takes about 4 minutes on an 8 GB M1; 2048 × 2048 looks best (~15 min). <b>Image to image</b>: pick it in the model list for ✨ Edit with words or 📷 Camera angle; say what to change and what to keep (“relight with warm sunset light from the left; keep her face and clothes”); More pictures become &lt;Picture 2&gt;, &lt;Picture 3&gt;… One edit takes about 5–6 minutes at 768 (🧠 Full size: 1024, about 12). 💡 Relight → Speed → <b>🧠 H3</b> relights the whole picture with it. Before the first use: accept its licence in the card (not for use in the US, EU, UK or Korea; its pictures can't train other AI models). It then downloads ~49 GB once and makes a ~27 GB 4-bit copy on this Mac's drive (half an hour); after that it works offline. No LoRAs; painting an area keeps the rest exactly as it was.",
               "<b>FIBO 2.0</b> (Bria, 24 GB Macs and up): <b>Edit Turbo</b> makes a picture in 4 steps; <b>Dev</b> takes 30 steps (each a double pass) for the most detail. It was trained on long structured captions: a short sentence works, a JSON caption (short_description, objects, background_setting, lighting, aesthetics, photographic_characteristics…) gives the most control, and <code>{\"short_description\": \"…\", \"text_render\": [{\"text\": \"OPEN\"}]}</code> writes text in the picture. Non-commercial only (CC BY-NC 4.0). Before the first download: accept the licence on its Hugging Face page and save a Hugging Face token in Settings → Models. It can't start from a picture here (no image to image).",
               "<b>Add new base models (future ones too)</b>: Models → Add from Hugging Face takes a diffusers model id, a single SD 1.5 / SDXL file, or a <b>⚡ fast-engine (MLX) version</b> of a kind of model the fast engine knows (FLUX.2 Klein, Z-Image, Qwen-Image 2.1, Krea 2; e.g. <code>mflux-community/qwen-image-2-1-turbo-mflux-q4</code>). It's recognised by its name and pinned to the version you checked.",
               "<b>A brand-new kind of fast-engine model</b> (one this app doesn't know yet, once the fast engine supports it): make a file named <code>fast_models.json</code> in Protoart's data folder (<code>~/.protoartstudio</code>) with a list like <code>[{\"repo\": \"owner/model-mflux-q4\", \"mlx_base\": \"the fast engine's name for it\", \"mlx_class\": \"mflux.models.….:ClassName\", \"min_ram_gb\": 16, \"steps\": 8, \"cfg\": 1.0}]</code>, then ↻ Refresh. <code>mlx_class</code> is only needed for kinds this app doesn't know, and must be one of the fast engine's own classes. Bad entries are skipped (the backend log says why)." ] },
@@ -7328,6 +7330,12 @@ const protoartApp = createApp({
       if (!s || this.relightJob) return;
       if (o.ref_on && !o.ref) return (this.error = "Drop or pick the reference picture whose light to copy (or switch Light like to ✏️ Words).");
       if (!o.ref_on && !o.prompt.trim()) return (this.error = "Describe the light first, or pick one of the light ideas.");
+      if (o.speed === "h3") {
+        this.relightJob = true;
+        try { const rec = await this.relightH3(null, this.toolArgs()); if (rec) { this.tool.latest = rec; this.afterPost(rec); } }
+        finally { this.relightJob = false; }
+        return;
+      }
       const m = this.relightModel();
       if (!m) return (this.error = "Relight runs on a Stable Diffusion 1.5 model and none is on this Mac yet: download Stable Diffusion 1.5 (or a realistic SD 1.5 model) in Models.");
       this.relightJob = true;
@@ -7341,6 +7349,25 @@ const protoartApp = createApp({
       } finally { this.tool.working = null; this.relightJob = false; }
     },
     relightIdea(x) { this.post.relight.prompt = x; },
+    relightH3Prompt(o) {  // 💡 Relight with MiniMax-H3-Image: one edit of the whole picture (an instruction, not IC-Light's mask)
+      const keep = " Keep everything else exactly the same: the people, their faces, poses, expressions and clothes, the objects, " +
+        "the composition and the camera. Only the lighting, shadows, reflections and colour of the light change.";
+      const dir = { left: " The main light comes from the left.", right: " The main light comes from the right.", top: " The main light comes from above.",
+                    bottom: " The main light comes from below." }[o.direction] || "";
+      const who = o.subject && o.subject.trim() ? ` (${o.subject.trim()})` : "";
+      if (o.ref_on && o.ref) return `Relight <Picture 1>${who} so its lighting matches <Picture 2>: the same direction, colour, softness and mood of light as in <Picture 2>.${dir}${keep}`;
+      return `Relight <Picture 1>${who}: ${o.prompt.trim().replace(/\.$/, "")}.${dir}${keep}`;
+    },
+    async relightH3(src, extra = {}) {  // 🧠 H3 in Relight's Speed row
+      const o = this.post.relight;
+      if (!this.editModelH3()) return (this.error = "MiniMax-H3-Image isn't in this version.");
+      if (this.editModelH3().licence_needed) return (this.error = "MiniMax-H3-Image: accept its licence first (pick it in Create to see the card).");
+      if (o.ref_on && !o.ref) return (this.error = "Drop or pick the reference picture whose light to copy (or switch to ✏️ Words).");
+      if (!o.ref_on && !o.prompt.trim()) return (this.error = "Describe the light first, or pick one of the light ideas.");
+      this.error = "";
+      return this.runJob("edit_words", { ...extra, edit_model: "h3_image", init_image: src, prompt: this.relightH3Prompt(o),
+                                         refs: o.ref_on && o.ref ? [o.ref] : [], h3_full: !!this.form.h3_full, relight: true });
+    },
     async m3dStatus() { try { this.m3d.status = await call("mesh3d_status"); } catch {} },
     m3dAccept(on) { this.m3d.accepted = !!on; saveJSON("protoart.mesh3d.accepted", this.m3d.accepted); },
     async toolMake3d() {  // 🧊 the subject as a 3D model (.glb + .obj) with Hunyuan3D 2 mini
@@ -9171,6 +9198,7 @@ const protoartApp = createApp({
       if (f.i2i_mode === "relight") {  // 💡 IC-Light, with Tools' Relight settings
         const o = this.post.relight, m = this.relightModel();
         if (!f.init_image) return (this.error = "Add a picture first.");
+        if (o.speed === "h3") return this.relightH3(f.init_image);
         if (!m) return (this.error = "Relight runs on a Stable Diffusion 1.5 model: download one in Models first.");
         if (o.ref_on && !o.ref) return (this.error = "Drop or pick the reference picture whose light to copy (or switch to ✏️ Words).");
         if (!o.ref_on && !o.prompt.trim()) return (this.error = "Describe the light first, or pick one of the light ideas.");
@@ -9193,7 +9221,7 @@ const protoartApp = createApp({
         const placed = c.where === "place";
         if (placed) this.combineBoxesFill();
         this.error = "";
-        await this.runJob("edit_words", { edit_model: this.editModelId(), init_image: f.init_image, prompt: f.prompt || "", refs, seed: f.seed,
+        await this.runJob("edit_words", { edit_model: this.editModelId(), h3_full: !!f.h3_full, init_image: f.init_image, prompt: f.prompt || "", refs, seed: f.seed,
           combine: { cutout: c.cutout !== false, match_light: c.match_light !== false, light_strength: c.light_strength ?? 0.7,
                      keep_scene: c.keep_scene !== false, place: placed ? refs.map((_, i) => ({ ...c.boxes[i] })) : null } });
         return;
@@ -9204,7 +9232,7 @@ const protoartApp = createApp({
         // the 8 views share one seed (a new random one each time if the seed is −1), so they stay alike
         const seed = c.turnaround && (f.seed == null || +f.seed < 0) ? Math.floor(Math.random() * 2 ** 31) : f.seed;
         for (const v of list) {
-          this.runJob("edit_words", { edit_model: this.editModelId(), init_image: f.init_image, prompt: camPrompt(v.az, v.el, v.zoom, f.prompt, c.turnaround ? "single" : c.layout, c.expressions), seed,
+          this.runJob("edit_words", { edit_model: this.editModelId(), h3_full: !!f.h3_full, init_image: f.init_image, prompt: camPrompt(v.az, v.el, v.zoom, f.prompt, c.turnaround ? "single" : c.layout, c.expressions), seed,
                                       camera: { az: Math.round(v.az), el: Math.round(v.el), zoom: v.zoom, layout: c.turnaround ? "single" : (c.layout || "single"),
                                                 view: c.turnaround || (c.layout || "single") === "single" ? camWords(v.az, v.el, v.zoom).label : c.layout === "comic" ? "comic panels"
                                                   : c.layout === "expressions" ? "expression sheet" : c.layout === "turn_expr" ? "turnaround + expressions"
@@ -9226,7 +9254,7 @@ const protoartApp = createApp({
           if (!(f.edit_refs || []).length) return (this.error = `${rec.label} needs a second picture: add it under “More pictures”.`);
           if (!this.editRecipeLora(rec)) return (this.error = `${rec.label} needs its LoRA first: press ⤓ Download under the recipe.`);
         }
-        await this.runJob("edit_words", { edit_model: this.editModelId(), init_image: f.init_image, prompt: f.prompt, mask: painted,
+        await this.runJob("edit_words", { edit_model: this.editModelId(), h3_full: !!f.h3_full, init_image: f.init_image, prompt: f.prompt, mask: painted,
                                           keep_faces: !painted && f.keep_faces !== false && !rec,
                                           refs: (f.edit_refs || []).slice(0, 3), seed: f.seed, ...this.recipeEditArgs() });
         return;
