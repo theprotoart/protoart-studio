@@ -41,6 +41,9 @@
   still, map → game view), after MiniMax's showcase
 - 🎲 Random prompt with H3 in Create: the picked preset (or any, with 🎲 any layout) around a subject that suits it
   (`H3_SUBJECTS` by kind: machines for exploded views, places for dioramas, characters for sheets…)
+- Create's Max size switch for H3: Draft 1024 / Medium 1280 / Large 1536 / Best 2048
+- Fix: going to Image to image with H3 in Create switched Create's model to SD 1.5 (it stayed after coming back):
+  H3 now stays (Edit with words uses it), and any model Image to image swaps in is swapped back on return to Create
 - Example prompts: a new "Comics & lettering" group (a 4-panel comic page and a character turnaround sheet for H3)
 - Tests: `test_h3.py` (4-bit file layout with metadata kept, licence gate, edit prompts, catalog)
 
