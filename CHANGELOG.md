@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (1.6.18)
+## 1.6.18
 
 - MiniMax-H3-Image (`h3_image`, family `h3`, engine `h3`): MiniMax's 33B create-and-edit model on 8 GB Macs.
   `h3_engine.py` downloads Comfy-Org's pruned INT8 ConvRot files (pinned, resumable, Hugging Face then ModelScope) to
