@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Fix: ✨ Enhance was much slower with Z-Image Turbo than with Klein on 8 GB Macs: the fast-engine worker (~6 GB) stayed
+  in memory next to the 4B prompt writer and the Mac swapped. Below 12 GB any loaded image model (PyTorch, fast engine
+  or MOSS-Image worker) is put away first (`Engine._holds_model`); the next picture loads it again
+
 ## 1.6.16
 
 - Fast-engine training ends by itself when the app goes away (`mlx_train._TRAIN_WRAPPER` watches its parent); a

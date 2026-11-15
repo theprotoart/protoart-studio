@@ -2532,6 +2532,11 @@ class Engine:
             self.prompt_enhancer = pe
         return self.prompt_enhancer
 
+    def _holds_model(self):
+        """An image model is in memory: the PyTorch pipeline, or the fast engine / MOSS-Image worker process."""
+        busy = lambda e: e is not None and getattr(e, "proc", None) is not None and e.proc.poll() is None
+        return self.pipe is not None or busy(self.mlx) or busy(self.moss)
+
     def enhance_prompt(self, args):
         """Rewrite a short prompt into a detailed one. Returns {"prompt": ...}."""
         prompt = (args.get("prompt") or "").strip()
@@ -2558,7 +2563,7 @@ class Engine:
             import zengineer
             if zengineer.ready(writer):
                 try:
-                    if self.pipe is not None and 0 < ram < 12:
+                    if 0 < ram < 12 and self._holds_model():
                         self.unload()
                     label = zengineer.MODELS[writer]["label"]
                     self.emit({"type": "status", "msg": f"Enhancing the prompt with {label}…"})
@@ -2575,8 +2580,8 @@ class Engine:
             # the bigger model (Qwen3.5 4B, already on this Mac as the picture reader) is far more inventive
             # than the 0.5B / 1.5B enhancer, which tends to repeat the prompt's own words
             try:
-                if self.pipe is not None and 0 < ram < 12:
-                    self.unload()
+                if 0 < ram < 12 and self._holds_model():
+                    self.unload()  # incl. the fast engine (Z-Image ~6 GB): next to the 4B writer it swapped for minutes
                 self.emit({"type": "status", "msg": f"Enhancing the prompt with {vlm.LABEL}…"})
                 raw = vlm.chat(pe.vlm_question(prompt, style, shape, angle), emit=self.emit,
                                cancel_event=self.cancel_event, max_tokens=260, temperature=0.9)

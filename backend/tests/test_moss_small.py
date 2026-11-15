@@ -65,3 +65,26 @@ def test_ready_made_pinned():
     import moss_engine
     assert moss_engine.SMALL_REPO == "brushpenbob/moss-image-sft-mlx-8gb"
     assert len(moss_engine.SMALL_REVISION) == 40
+
+
+def test_enhance_frees_the_fast_engine_on_small_macs():
+    """Z-Image's fast-engine worker (~6 GB) must count as a loaded model, or Enhance's 4B writer swaps next to it."""
+    from types import SimpleNamespace
+    import engine
+
+    class P:
+        def __init__(self, code):
+            self.code = code
+
+        def poll(self):
+            return self.code
+
+    held = engine.Engine._holds_model
+    e = SimpleNamespace(pipe=None, mlx=None, moss=None)
+    assert not held(e)
+    e.mlx = SimpleNamespace(proc=P(None))  # running
+    assert held(e)
+    e.mlx = SimpleNamespace(proc=P(0))  # exited
+    assert not held(e)
+    e.moss = SimpleNamespace(proc=P(None))
+    assert held(e)
