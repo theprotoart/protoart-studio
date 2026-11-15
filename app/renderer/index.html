@@ -642,48 +642,6 @@
         </div>
       </section>
 
-      <section v-if="family === 'moss' && mossPage" class="moss-page cfold" :class="{shut: cfShut('moss_page')}">
-        <label @click="cfToggle('moss_page', $event)">📰 Comic page &amp; poster <span class="hint">MOSS-Image places every word where you put it</span><span class="cfold-chev" aria-hidden="true"></span></label>
-        <label class="check"><input type="checkbox" v-model="form.moss_page.on"> Make a page from this layout <span class="hint">(the prompt above becomes the page's overall description)</span></label>
-        <template v-if="form.moss_page.on">
-          <div class="seg moss-tpl">
-            <button v-for="t in mossPage.P.PAGE_TEMPLATES" :key="t.id" :class="{on: form.moss_page.template === t.id}" @click="form.moss_page.template = t.id" :title="t.hint">{{ t.label }}</button>
-          </div>
-          <div class="moss-page-row">
-            <svg class="moss-preview" v-bind="{ viewBox: '0 0 ' + mossPage.w + ' ' + mossPage.h, width: 120, height: Math.round(120 * mossPage.h / mossPage.w) }" aria-label="page layout preview">
-              <rect x="0" y="0" :width="mossPage.w" :height="mossPage.h" fill="#f3f0e8"/>
-              <g v-for="(b, i) in mossPage.boxes" :key="i">
-                <rect :x="b.x0" :y="b.y0" :width="b.x1 - b.x0" :height="b.y1 - b.y0" :fill="b.kind === 'text' ? '#fffbe6' : '#dfe6f3'" :stroke="b.kind === 'text' ? '#c08a10' : '#2b3a55'" stroke-width="4"/>
-                <text :x="b.x0 + 10" :y="b.y0 + 34" font-size="26" :fill="b.kind === 'text' ? '#8a5a00' : '#2b3a55'">{{ (b.text || '').slice(0, 24) }}</text>
-              </g>
-            </svg>
-            <div class="moss-page-opts">
-              <label>{{ mossPage.poster ? 'Title' : 'Page title' }} <span class="hint">optional</span></label>
-              <input v-model="form.moss_page.title" :placeholder="mossPage.poster ? 'FRESH BREAD DAILY' : 'THE GYM SANTA'">
-              <template v-if="mossPage.poster"><label>Subtitle <span class="hint">optional</span></label><input v-model="form.moss_page.subtitle" placeholder="Open every day from 7 am"></template>
-              <label>Style</label>
-              <input v-model="form.moss_page.style" list="moss-styles" :placeholder="mossPage.poster ? 'clean modern poster design' : mossPage.P.PAGE_STYLES[0]">
-              <datalist id="moss-styles"><option v-for="s in mossPage.P.PAGE_STYLES" :key="s" :value="s"></option></datalist>
-              <label>Page size</label>
-              <div class="seg"><button v-for="z in mossPage.P.PAGE_SIZES" :key="z.id" :class="{on: form.moss_page.size === z.id}" @click="form.moss_page.size = z.id" :title="z.hint">{{ z.label }}</button></div>
-            </div>
-          </div>
-          <div v-for="i in mossPage.n" :key="i" class="moss-panel">
-            <b>{{ mossPage.poster ? 'The picture' : 'Panel ' + i }}</b>
-            <input v-model="form.moss_page.panels[i - 1].scene" :placeholder="mossPage.poster ? 'a cosy bakery at dawn, loaves in the window' : 'what happens: Santa walks into a gym'">
-            <template v-if="!mossPage.poster">
-              <div class="moss-panel-line">
-                <input v-model="form.moss_page.panels[i - 1].bubble" placeholder="speech bubble words (optional)">
-                <select v-model="form.moss_page.panels[i - 1].bubble_kind" title="Speech or thought bubble"><option value="speech">💬 speech</option><option value="thought">💭 thought</option></select>
-                <select v-model="form.moss_page.panels[i - 1].bubble_side" title="Which side the bubble sits on"><option value="left">left</option><option value="right">right</option></select>
-              </div>
-              <input v-model="form.moss_page.panels[i - 1].caption" placeholder="narration box words (optional): Later that night…">
-            </template>
-          </div>
-          <p class="hint">Keep bubbles short (a few words each): small boxes fit only a few letters. Same characters in every panel? Describe them the same way each time.
-            One page takes about {{ form.moss_page.size === 'full' ? '12' : '8' }} minutes with Turbo on an 8 GB Mac.</p>
-        </template>
-      </section>
       <section v-if="['anima', 'moss'].includes(family) || (['sd15', 'sdxl'].includes(family) && currentModel?.engine === 'mlx')" class="regions cfold" :class="{shut: cfShut('regions')}">
         <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">not with this model</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <p class="hint">Regional prompts work with SD 1.5, SDXL, FLUX.1, FLUX.2 Klein and ERNIE. {{ familyLabel }} understands positions in plain words, though:
@@ -5600,7 +5558,6 @@
 <script src="tag_dictionary.js"></script>
 <script src="gender_swap.js"></script>
 <script src="text_tool.js"></script>
-<script src="moss_page.js"></script>
 <script src="prompt_generator.js"></script>
 <script src="natural_prompt.js"></script>
 <script src="negative_prompt.js"></script>

@@ -2,9 +2,6 @@
 
 ## 1.6.16
 
-- 📰 MOSS-Image comic page & poster (Create): `moss_page.js` builds MOSS-Image's JSON layout prompt (3 / 4 / 6 panels,
-  splash + 2, poster; title, speech / thought bubbles, narration boxes, style, page size) with a box preview; sent as
-  `moss_layout` (no wildcards or Enhance), checked by `moss_layout_check.py`, stored in the picture's settings
 - Fast-engine training ends by itself when the app goes away (`mlx_train._TRAIN_WRAPPER` watches its parent); a
   stuck trainer kept running after Stop
 - Train: Z-Image Turbo on a Mac under 14 GB asks first (`trainSmallAsk`): tested on 8 GB it never got past step 1 in
