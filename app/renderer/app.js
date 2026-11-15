@@ -723,7 +723,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.16";
+const APP_VERSION = "1.6.17";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1077,6 +1077,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.6.17: ✨ faster Enhance with Z-Image Turbo, MOSS-Image's 8 GB version ready-made", items: [
+              "<b>✨ Enhance with Z-Image Turbo</b> on 8 GB Macs is as quick as with Klein: Z-Image is put away while the prompt is written (before, both stayed in memory and the Mac slowed to a crawl). Your next picture loads Z-Image again, which adds a few seconds to its start.",
+              "<b>🧩 MOSS-Image's 8 GB version</b> now downloads ready-made (~10.5 GB, first time only) instead of the 12 GB original plus a few minutes of making it on your Mac. Kept on an external drive, it's copied to the Mac's own drive once.",
+            ] },
             { h: "1.6.16: 🎃 holiday looks, 💬 balloons on any picture in one press, ✥ free transform, 🎨 blending modes, 🔄 turn, slant, perspective and warp text (wrap it round a bottle), clearer effect buttons", items: [
               "<b>🎃🦃🎄🎆 Holiday looks</b> (Settings → Look, the four buttons after the colour swatches), all original art made for Protoart Studio: <b>Halloween</b> (pumpkin orange and witchy purple, jack-o'-lantern lamps whose eyes light up, a flickering pumpkin and a VU meter that's a <b>jack-o'-lantern that lights up</b> while it works), <b>Thanksgiving</b> (harvest wheat and chestnut, autumn-leaf lamps, a turkey, pie and corn), <b>Christmas</b> (snowy white and evergreen, Christmas-bulb lamps, still snowflakes and a <b>snow globe</b> meter whose cabin lights up and snows while it works) and <b>New Year's</b> (midnight blue and champagne gold, star lamps, fireworks and clinking glasses). The launch screen joins in too. Light and Dark both work with each.",
               "<b>💡 Suggested settings for Z-Image Turbo and MOSS-Image</b>: a card in Create (and in Image to image → Change it for Z-Image) says what the model is good at, how to write for it, and sets its best steps, guidance, strength and size with one press of <b>Use these settings</b> (✕ hides it). <b>✨ Enhance writes for the model you picked</b>: tags for SD 1.5 / SDXL, sentences for Z-Image, Klein and ERNIE, and for <b>MOSS-Image</b> a designer's description that keeps your quoted words exactly and says where the lettering goes and how it looks. Words in quotes are never lost by Enhance any more. In Image to image the models you can use for the mode you're in are listed first.",

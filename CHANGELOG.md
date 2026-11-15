@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.17
 
 - Fix: ✨ Enhance was much slower with Z-Image Turbo than with Klein on 8 GB Macs: the fast-engine worker (~6 GB) stayed
   in memory next to the 4B prompt writer and the Mac swapped. Below 12 GB any loaded image model (PyTorch, fast engine
