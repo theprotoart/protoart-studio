@@ -2,6 +2,7 @@
 
 ## 1.6.16
 
+- MOSS-Image cards on Macs under 14 GB say "8 GB version (4/8-bit)" instead of the original's "8-bit MLX"
 - MOSS-Image 8 GB version: parts linked from an external drive are copied to the Mac's own drive once
   (`moss_engine.slow_parts`/`localize`): the encoder streams weights while the GPU waits, and at 37 MB/s (measured, an
   external drive) one layer took over 5 s, so macOS's GPU watchdog stopped every run ("GPU Timeout Error")

@@ -259,6 +259,12 @@ def total_ram_gb():
         return 0.0
 
 
+def _moss_small(ram):
+    """True when this Mac runs MOSS-Image's 8 GB version (its own smaller copy; see moss_small.py)."""
+    import moss_engine
+    return bool(ram) and ram < moss_engine.SMALL_RAM_GB
+
+
 def _moss_sizes():
     import moss_engine
     return moss_engine.SIZES
@@ -807,7 +813,8 @@ class Engine:
         ram = total_ram_gb()
         return [
             {"id": k, "label": v["label"], "family": v["family"], "defaults": v["defaults"],
-             "quant": v.get("quant"), "download_gb": v["download_gb"], "pe_gb": v.get("pe_gb"),
+             "quant": "8 GB version (4/8-bit)" if v.get("moss") and _moss_small(ram) else v.get("quant"),
+             "download_gb": v["download_gb"], "pe_gb": v.get("pe_gb"),
              "min_ram_gb": v["min_ram_gb"], "low_memory_min_ram_gb": v.get("low_memory_min_ram_gb"),
              "cached": self.spec_cached(v), "disk_gb": v.get("disk_gb"),
              "has_original": bool(v.get("local_name") and self.local_copy(v) and v.get("repo")
