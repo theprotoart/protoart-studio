@@ -4485,6 +4485,17 @@
         <button class="primary" :disabled="!trainReady" @click="startTraining()">Start training</button>
         <span class="hint">{{ trainEstimate }}</span>
       </div>
+      <div v-if="trainSmallAsk" class="card warn-card train-long">
+        <b>⚠ Z-Image Turbo is too big to train on this Mac ({{ sys.ram_gb }} GB).</b>
+        <p class="hint">Training needs the 6B model and its training memory at once: on an 8 GB Mac it stays on the first step
+          (tested: no progress after 15 minutes). It needs 16 GB or more. For characters and styles on this Mac, train
+          <b>FLUX.2 Klein 4B</b> (smaller, good for characters) or an <b>SD 1.5</b> model (lightest and fastest), then use
+          that LoRA with the model you trained it on.</p>
+        <div class="row">
+          <button class="primary" @click="trainSmallAsk = false" title="Go back and pick another base model">Pick another model</button>
+          <button class="ghost" @click="startTraining('small')" title="Start anyway (for a Mac with more memory free than usual)">Try anyway</button>
+        </div>
+      </div>
       <div v-if="trainLongAsk" class="card warn-card train-long">
         <b>⏳ This would take about {{ formatDuration(trainSeconds.secs) }} on this Mac{{ trainSeconds.measured ? '' : ' (a rough guess)' }}.</b>
         <p class="hint">The Mac can't be used for much else meanwhile. Ways to make it shorter:

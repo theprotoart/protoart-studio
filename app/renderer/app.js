@@ -943,6 +943,7 @@ const protoartApp = createApp({
       relightRefOver: false,
       diagCopied: false,
       procreateJob: false,   // 🗂 reading a Procreate file's layers
+      trainSmallAsk: false,  // Train: Z-Image on a Mac under 14 GB (it doesn't fit): say so before starting
       trainLongAsk: false,   // Train: "this will take many hours" shown before starting // a picture dragged over Tools → Image → prompt    // Image to image → Inpaint: the inpainting model you picked ('' = the first that fits)
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
       cvt: { to: "copy", model: "", base: "", rank: 32, te: true, name: "", msg: "", extra: [], kind: "", found: null },  // found: {model, ranked} from 🔍 Find it  // extra: DiffusionBee files dropped or sent from the list  // Tools → Convert into (LoRA…)
@@ -7753,6 +7754,12 @@ const protoartApp = createApp({
     },
     async startTraining(sure) {
       const est = this.trainSeconds;
+      const tm = this.models.find((x) => x.id === this.train.model);
+      if (sure !== "small" && tm && tm.family === "zimage" && this.sys.ram_gb && this.sys.ram_gb < 14) {
+        this.trainSmallAsk = true;  // tested: on 8 GB it never got past the first step
+        return;
+      }
+      this.trainSmallAsk = false;
       if (!sure && est.secs > 4 * 3600) { this.trainLongAsk = true; return; }  // many hours: say so first
       this.trainLongAsk = false;
       if (this.train.dirty) await this.trainSaveCaptions();
