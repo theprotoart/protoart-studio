@@ -259,6 +259,32 @@ def total_ram_gb():
         return 0.0
 
 
+_FLAKY = ("consistency check failed", "incompleteread", "connection broken", "connection reset", "read timed out",
+          "remote end closed", "chunkedencodingerror", "connectionerror", "temporarily unavailable")
+
+
+def _retry_download(job, repos, status=lambda m: None, tries=3):
+    """Run one download, trying again after a network hiccup. A file that arrived cut short ("Consistency check
+    failed: file should be of size …") leaves a partial copy that would be resumed wrongly, so this model's partial
+    files (*.incomplete, only in its own folder of the download cache) are removed before the next try."""
+    for attempt in range(1, tries + 1):
+        try:
+            return job()
+        except Exception as e:
+            msg = str(e).lower()
+            if attempt == tries or not any(k in msg for k in _FLAKY):
+                raise
+            for repo in repos:
+                folder = _hub_dir() / ("models--" + repo.replace("/", "--")) / "blobs"
+                for part in folder.glob("*.incomplete") if folder.is_dir() else []:
+                    try:
+                        part.unlink()
+                    except OSError:
+                        pass
+            status(f"The download was interrupted; trying again ({attempt + 1} of {tries})…")
+            time.sleep(3)
+
+
 def _moss_small(ram):
     """True when this Mac runs MOSS-Image's 8 GB version (its own smaller copy; see moss_small.py)."""
     import moss_engine
@@ -901,10 +927,12 @@ class Engine:
         err = []
         done = _th.Event()
 
+        repos = [r for r in (spec.get("mlx_repo"), spec.get("repo"), spec.get("gguf_repo")) if r]
+
         def run():
             try:
                 for j in jobs:
-                    j()
+                    _retry_download(j, repos, lambda m: self.emit({"type": "status", "msg": m}))
             except Exception as e:  # reported below
                 err.append(e)
             finally:

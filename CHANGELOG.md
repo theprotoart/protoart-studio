@@ -2,6 +2,8 @@
 
 ## 1.6.16
 
+- Downloads try again (3 times) after a network hiccup, e.g. "Consistency check failed: file should be of size …"
+  (a file cut short); that model's partial files are cleared first (`_retry_download`)
 - MOSS-Image cards on Macs under 14 GB say "8 GB version (4/8-bit)" instead of the original's "8-bit MLX"
 - MOSS-Image 8 GB version: parts linked from an external drive are copied to the Mac's own drive once
   (`moss_engine.slow_parts`/`localize`): the encoder streams weights while the GPU waits, and at 37 MB/s (measured, an
