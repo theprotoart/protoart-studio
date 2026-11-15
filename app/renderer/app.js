@@ -1035,7 +1035,9 @@ const protoartApp = createApp({
       relightRefOver: false,
       diagCopied: false,
       procreateJob: false,   // 🗂 reading a Procreate file's layers
-      h3Tick: false,  // MiniMax-H3-Image's licence card: the "I accept" box
+      h3Tick: false,
+      h3SlotOver: "",    // 🧩 the labelled slot a picture is being dragged over
+      h3SlotRole: "",    // 🧩 the slot whose “pick a file” is open  // MiniMax-H3-Image's licence card: the "I accept" box
       trainSmallAsk: false,  // Train: Z-Image on a Mac under 14 GB (it doesn't fit): say so before starting
       trainLongAsk: false,   // Train: "this will take many hours" shown before starting // a picture dragged over Tools → Image → prompt    // Image to image → Inpaint: the inpainting model you picked ('' = the first that fits)
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
@@ -1174,7 +1176,7 @@ const protoartApp = createApp({
               "<b>MiniMax-H3-Image</b> (a 33B model by MiniMax) in Create and in Image to image → <b>✨ Edit with words</b> and <b>📷 Camera angle</b>. On this Mac it's shrunk to <b>4-bit</b> once and read from the drive a piece at a time, so it needs under 2 GB of memory: about <b>4 minutes</b> for 1024 × 1024 on an 8 GB M1, about 15 for 2048 × 2048. It spells quoted words right (signs, posters, covers).",
               "<b>Editing</b>: your picture is <code>&lt;Picture 1&gt;</code>, More pictures are <code>&lt;Picture 2&gt;</code>…: relight, change the season, put a hat from another picture on someone, or draw a turnaround sheet of a character (📷 Camera angle's sheets use it when it's picked). <b>💡 Relight</b> has a <b>🧠 H3</b> button in its Speed row: the whole picture relit from your words or a reference picture's light, no SD 1.5 model needed. On an 8 GB Mac an edit works at 768 (about 5–6 minutes); tick 🧠 Full size for 1024 (about 12).",
               "<b>Many pictures at once</b>: with MiniMax-H3-Image picked in ✨ Edit with words, <b>More pictures</b> takes up to <b>15</b> (16 with yours; each adds about 2–3 minutes), and <b>Quick edits</b> has its own recipes: 👥 Put them together, 🏞 Into this scene, 👗 Outfit from picture 2, 🎨 Style of picture 2, 🧍 Turnaround sheet, 📖 Comic panel and 🛍 Product shot.",
-              "<b>🧩 Compose with pictures</b> (Image to image → ✨ Edit with words, with MiniMax-H3-Image picked): pick a starting point (👗 Fashion try-on, 👥 People together, 🎎 Characters in a scene, 🏞 Person into a place, 🛋 Furnish a room, 🎨 Style &amp; light), add the pictures, set what each one brings under it (a person, a top, shoes, a pose, the place, the art style…), then <b>✍ Write the prompt from the pictures</b> and add what they're doing. More pictures now go in at 512, so each adds about a minute instead of several; <b>🧠 Work size</b> 768 / 896 / 1024 sets how sharp the result is.",
+              "<b>🧩 Compose with pictures</b> (Image to image → ✨ Edit with words, with MiniMax-H3-Image picked): pick a starting point (👗 Fashion try-on, 👥 People together, 🎎 Characters in a scene, 🏞 Person into a place, 🛋 Furnish a room, 🎨 Style &amp; light), add the pictures, set what each one brings under it (a person, a top, shoes, a pose, the place, the art style…), then <b>✍ Write the prompt from the pictures</b> and add what they're doing. Each starting point shows its own labelled boxes (for 👗 Fashion try-on: your picture, then 👚 Top, 👖 Skirt / trousers, 👟 Shoes, 👜 Bag): drop each picture on its box. More pictures now go in at 512, so each adds about a minute instead of several; <b>🧠 Work size</b> 768 / 896 / 1024 sets how sharp the result is.",
               "<b>🧠 Presets in Create</b> for MiniMax-H3-Image: type a subject, then one press lays it out as an exploded view, a blueprint, a CAD sheet, an infographic, a magazine cover, a movie poster, a comic page, a character sheet, a product ad, a sticker sheet, a tarot card, an oil painting, a watercolour and more. Image to image's Quick edits add exploded view, blueprint, CAD views, render → film still and map → game view of your picture. <b>🎲 Random prompt</b> follows the picked layout with a fitting subject (an engine for an exploded view, a place for a diorama…), or any layout.",
               "<b>Bigger sizes</b> for MiniMax-H3-Image on Create's <b>Max size</b> switch: Draft 1024, Medium 1280, Large 1536 and Best 2048 (about 4, 6, 9 and 13 minutes on an 8 GB Mac). Going to Image to image no longer swaps Create's model for an SD one. <b>↔ Expand</b> can fill the new area with MiniMax-H3-Image too (Fill the new area with → 🧠 MiniMax-H3-Image), and with <b>⚡ Z-Image Turbo</b> (or another fast model that starts from a picture) when it's the model at the top: describe the whole scene, and your picture is put back exactly.",
               "<b>🧠 Best quality</b> (Create, under the size): it's made for big pictures, so it draws at about 2048 × 2048 and shrinks to your size: far more detail than drawing at 1024 (a quick, softer draft), about 13 minutes on an 8 GB Mac.",
@@ -7944,9 +7946,42 @@ const protoartApp = createApp({
       r[i] = role;
       this.form.h3_roles = r;
     },
+    h3EmptySlots() {  // 🧩 the starting point's slots that have no picture yet (each a labelled drop box)
+      const c = H3_COMPOSE.find((x) => x.id === this.form.h3_compose);
+      if (!c || this.editModelId() !== "h3_image") return [];
+      const have = (this.form.edit_refs || []).map((_, i) => this.h3RoleOf(i + 1));
+      const out = [];
+      for (const role of c.roles) {
+        const k = have.indexOf(role);
+        if (k >= 0) have.splice(k, 1);
+        else out.push({ role, label: (H3_ROLES.find((r) => r.id === role) || {}).label || role });
+      }
+      return out.slice(0, Math.max(0, this.editRefMax() - (this.form.edit_refs || []).length));
+    },
+    async h3FillSlot(role, files) {  // a picture dropped on (or picked for) a labelled slot: added with that role
+      for (const file of files) {
+        if ((this.form.edit_refs || []).length >= this.editRefMax()) break;
+        const p = await this.preparePicture(window.bee.pathForFile(file));
+        if (!p) continue;
+        this.form.edit_refs = [...(this.form.edit_refs || []), p];
+        this.h3SetRole(this.form.edit_refs.length, role);
+        role = "free";  // more than one picture dropped: the rest are yours to set
+      }
+    },
+    h3SlotDrop(e, role) { this.h3SlotOver = ""; this.h3FillSlot(role, [...(e.dataTransfer?.files || [])].filter(isPicture)); },
+    h3SlotPick(role) { this.h3SlotRole = role; this.$refs.h3SlotPick.click(); },
+    h3SlotPicked(e) { const f = [...(e.target.files || [])]; e.target.value = ""; this.h3FillSlot(this.h3SlotRole || "free", f); },
     h3ComposePick(c) {  // a starting point: the roles in order (your picture first)
       const n = (this.form.edit_refs || []).length;
-      this.form.h3_roles = [c.main, ...Array.from({ length: Math.max(n, c.roles.length) }, (_, i) => c.roles[Math.min(i, c.roles.length - 1)])];
+      if (this.form.h3_compose === c.id) {  // pressed again: no starting point (the pictures and their roles stay)
+        this.form.h3_compose = "";
+        return (this.status = "No starting point: add pictures under More pictures and set what each one brings");
+      }
+      // pictures already added keep their roles where set; the starting point's slots show for the rest
+      const r = [...(this.form.h3_roles || [])];
+      r[0] = c.main;
+      for (let i = 0; i < n; i++) if (!r[i + 1] || r[i + 1] === "free") r[i + 1] = c.roles[Math.min(i, c.roles.length - 1)];
+      this.form.h3_roles = r;
       this.form.h3_compose = c.id;
       this.status = `${c.label}: ${c.tip}`;
     },

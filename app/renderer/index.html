@@ -3217,11 +3217,16 @@
             <div class="seg seg-wrap edit-recipes">
               <button v-for="c in H3_COMPOSE" :key="c.id" :class="{on: form.h3_compose === c.id}" @click="h3ComposePick(c)" :title="c.tip">{{ c.label }}</button>
             </div>
-            <div class="h3-role-row"><span class="hint">Your picture (&lt;Picture 1&gt;) is</span>
-              <select :value="h3RoleOf(0)" @change="h3SetRole(0, $event.target.value)"><option v-for="r in H3_ROLES" :key="r.id" :value="r.id">{{ r.label }}</option></select></div>
+
           </template>
           <label>More pictures <span class="hint">optional · up to {{ editRefMax() }} · a style, an object, an outfit or a person to use<template v-if="editRefMax() > 3"> · each adds about a minute at 512</template></span></label>
           <div class="edit-refs">
+            <div v-if="editModelId() === 'h3_image'" class="edit-ref h3-slot h3-main" title="Your picture (the one on the right): <Picture 1>">
+              <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt=""><div v-else class="h3-empty">your picture</div>
+              <span class="h3-num">1</span>
+              <select class="h3-role" :value="h3RoleOf(0)" @change="h3SetRole(0, $event.target.value)" title="What <Picture 1> (your picture) brings">
+                <option v-for="ro in H3_ROLES" :key="ro.id" :value="ro.id">{{ ro.label }}</option></select>
+            </div>
             <div v-for="(r, i) in form.edit_refs" :key="r" class="edit-ref" :class="{'h3-slot': editModelId() === 'h3_image'}">
               <img :src="fileUrl(r)" alt="">
               <button class="ghost small" @click="form.edit_refs.splice(i, 1); (form.h3_roles || []).splice(i + 1, 1)" title="Don't use this picture">✕</button>
@@ -3231,6 +3236,13 @@
                   <option v-for="ro in H3_ROLES" :key="ro.id" :value="ro.id">{{ ro.label }}</option></select>
               </template>
             </div>
+            <div v-for="(sl, k) in h3EmptySlots()" :key="'slot' + k + sl.role" class="edit-ref h3-slot h3-empty-slot" :class="{over: h3SlotOver === k + sl.role}"
+                 @dragover.prevent="h3SlotOver = k + sl.role" @dragleave="h3SlotOver = ''" @drop.prevent="h3SlotDrop($event, sl.role)" @click="h3SlotPick(sl.role)"
+                 :title="'Drop or click to add the picture for: ' + sl.label">
+              <div class="h3-empty"><b>{{ sl.label }}</b><span>drop or click</span></div>
+              <span class="h3-num">{{ (form.edit_refs || []).length + k + 2 }}</span>
+            </div>
+            <input ref="h3SlotPick" type="file" multiple accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="h3SlotPicked">
             <div v-if="(form.edit_refs || []).length < editRefMax()" class="start-drop edit-ref-drop" :class="{over: editRefOver}"
                  @dragover.prevent="editRefOver = true" @dragleave="editRefOver = false" @drop.prevent="onEditRefDrop"
                  @click="$refs.editRefPick.click()" title="Then say how to use it, e.g. “paint it in the style of the second picture”">+ add</div>

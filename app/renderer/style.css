@@ -514,3 +514,15 @@ details.fine summary { cursor: pointer; }
 .edit-ref select.h3-role { max-width: 150px; font-size: 12px; }
 .h3-role-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 6px; }
 .h3-write { margin: 8px 0 4px; }
+
+.edit-ref.h3-main img, .edit-ref.h3-empty-slot .h3-empty, .edit-ref.h3-main .h3-empty { width: 96px; height: 96px; object-fit: cover; border-radius: 6px; }
+.edit-ref .h3-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center;
+  border: 2px dashed rgba(255, 211, 107, 0.55); color: var(--muted, #aaa); font-size: 12px; padding: 4px; box-sizing: border-box; cursor: pointer; }
+.edit-ref .h3-empty b { color: #ffd36b; font-weight: 600; }
+.edit-ref.h3-empty-slot.over .h3-empty { border-color: #ffd36b; background: rgba(255, 211, 107, 0.12); }
+.edit-ref.h3-main { outline: 2px solid rgba(255, 211, 107, 0.6); border-radius: 8px; }
+/* the rack look makes More pictures fixed 84 px squares: H3's slots need room for their role menu */
+.edit-refs .edit-ref.h3-slot { width: 112px; height: auto; overflow: visible; box-shadow: none; }
+.edit-refs .edit-ref.h3-slot img, .edit-refs .edit-ref.h3-slot .h3-empty { width: 112px; height: 100px; object-fit: cover; border-radius: 6px; display: flex; }
+.edit-refs .edit-ref.h3-slot select.h3-role { width: 112px; max-width: 112px; }
+.edit-refs .edit-ref.h3-slot > button { position: absolute; top: 2px; right: 2px; }

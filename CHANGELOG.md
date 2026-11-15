@@ -52,6 +52,9 @@
 - ↔ Expand → Fill with ⚡ the fast-engine model at the top (Z-Image Turbo, ERNIE, FLUX.1, Qwen-Image, Krea 2): the
   smudged-edge canvas (`detailer.outpaint_canvas`) redrawn at image strength 0.3 from the prompt, lined up and the
   original put back. MOSS-Image can't start from a picture, so it stays Create-only
+- 🧩 Compose: your picture shows as slot 1 with its role, and the starting point's parts show as labelled drop boxes
+  (👚 Top, 👖 Skirt / trousers, 👟 Shoes…; `h3EmptySlots`): a picture dropped on one gets that role. Pressing the
+  starting point again turns it off. Fix: the rack look's fixed 84 px squares hid the role menus
 - Example prompts: a new "Comics & lettering" group (a 4-panel comic page and a character turnaround sheet for H3)
 - Tests: `test_h3.py` (4-bit file layout with metadata kept, licence gate, edit prompts, catalog)
 
