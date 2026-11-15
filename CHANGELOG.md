@@ -2,6 +2,9 @@
 
 ## 1.6.16
 
+- Fix: fast-engine and MOSS-Image workers kept running after the app closed when they were mid-step (a 7 GB MOSS
+  worker left behind starved an 8 GB Mac: GPU timeouts even for Klein). Workers now exit as soon as the app's pipe
+  closes, and a quit they can't reach in 3 s ends them
 - MOSS-Image on 8 GB Macs: the text encoder is streamed (`cpu_encode` → `_EvalEach`): its lazily loaded layers run on
   the GPU one at a time and are dropped after (~1 GB resident instead of ~7). Held whole it swapped and hit macOS's GPU
   watchdog ("GPU Timeout Error"); on the CPU it thrashed for 15+ minutes. Embeddings are cached: once per prompt

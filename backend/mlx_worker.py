@@ -379,12 +379,20 @@ def main():
             if msg.get("cmd") == "cancel":
                 cancel.set()
                 continue
+            if msg.get("cmd") == "quit":
+                _exit_soon()
             with jobs_cv:
                 jobs.append(msg)
                 jobs_cv.notify()
-        with jobs_cv:
-            jobs.append({"cmd": "quit"})
-            jobs_cv.notify()
+        # The app closed (or crashed): stop now, even in the middle of a long step. A worker left running on its own
+        # keeps gigabytes of memory, and on 8 GB Macs that starved everything after it ("GPU Timeout Error").
+        os._exit(0)
+
+    def _exit_soon():
+        cancel.set()
+        t = threading.Timer(3.0, lambda: os._exit(0))  # a quit the busy main loop can't get to in time
+        t.daemon = True
+        t.start()
 
     threading.Thread(target=reader, daemon=True).start()
     send({"type": "ready"})
