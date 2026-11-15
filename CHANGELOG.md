@@ -55,6 +55,7 @@
 - 🧩 Compose: your picture shows as slot 1 with its role, and the starting point's parts show as labelled drop boxes
   (👚 Top, 👖 Skirt / trousers, 👟 Shoes…; `h3EmptySlots`): a picture dropped on one gets that role. Pressing the
   starting point again turns it off. Fix: the rack look's fixed 84 px squares hid the role menus
+- Quick edits (Klein and H3): 🚶 Remove people, 🧍 Remove one person (say which, or paint them), 🧹 Tidy the background
 - Example prompts: a new "Comics & lettering" group (a 4-panel comic page and a character turnaround sheet for H3)
 - Tests: `test_h3.py` (4-bit file layout with metadata kept, licence gate, edit prompts, catalog)
 

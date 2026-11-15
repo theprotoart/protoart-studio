@@ -3213,7 +3213,7 @@
           <label v-if="editModelId() !== 'h3_image'" class="check" title="After the edit, each face (up to 3) is edited again on its own, close up, with the original face beside it, and blended in: the person stays recognisable (restoring or colouring old photos, changing clothes or the background). Adds about one more edit per face. Not used when you paint an area (the rest stays exactly the same then)">
             <input type="checkbox" :checked="form.keep_faces !== false" @change="form.keep_faces = $event.target.checked"> 🙂 Keep faces close to the original <span class="hint">(+1 full edit per face: switch it off when only the background changes)</span></label>
           <template v-if="editModelId() === 'h3_image'">
-            <label>🧩 Compose with pictures <span class="hint">pick a starting point, add the pictures, set what each one brings, then ✍ Write the prompt</span></label>
+            <label>🧩 Compose with pictures <span class="hint">optional · pick a starting point, add the pictures, set what each one brings, then ✍ Write the prompt. Without one, just describe the change in the prompt (or use a Quick edit, like 🚶 Remove people) and press ✨ Edit</span></label>
             <div class="seg seg-wrap edit-recipes">
               <button v-for="c in H3_COMPOSE" :key="c.id" :class="{on: form.h3_compose === c.id}" @click="h3ComposePick(c)" :title="c.tip">{{ c.label }}</button>
             </div>

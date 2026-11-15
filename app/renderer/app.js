@@ -471,6 +471,9 @@ const H3_SUBJECTS = {
   nature: ["a pelican looking into a mirror", "a pair of cranes among pine trees", "a koi fish under lotus leaves", "a white tiger beside a waterfall", "a magpie on a plum blossom branch"],
 };
 const EDIT_QUICK = [
+  { label: "🚶 Remove people", prompt: "Remove all the people from this picture and fill in what was behind them naturally (the floor, walls, scenery, shadows and reflections), as if they were never there. Keep everything else exactly the same: the place, the light, the colours and the framing." },
+  { label: "🧍 Remove one person", prompt: "Remove the person on the left from this picture and fill in what was behind them naturally, with matching light and shadows. Keep everyone and everything else exactly the same." },
+  { label: "🧹 Tidy the background", prompt: "Remove the clutter, stray objects, wires, signs and passers-by from the background and fill those areas in naturally. Keep the main subject, the light and the framing exactly the same." },
   { label: "🧽 Repair & colourize", prompt: "Repair and colourize this old photo: fix the cracks, scratches, stains and torn or missing areas, and give it natural, realistic colours. Keep the person's face, expression, hair, clothes and the composition exactly the same." },
   { label: "🧹 Repair, keep black & white", prompt: "Repair this old photo: remove the cracks, scratches, dust, stains and fold lines and fill in torn or missing areas. Keep it black and white, and keep the faces, clothes and composition exactly the same." },
   { label: "🎨 Colourize", prompt: "Colourize this black and white photo with natural, realistic colours for the time it was taken. Change nothing else." },
