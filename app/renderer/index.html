@@ -1091,13 +1091,17 @@
         <label class="check"><input type="checkbox" v-model="h3Tick"> I accept this licence, and I'm not in one of the places it excludes</label>
         <button class="primary small" :disabled="!h3Tick" @click="h3Accept">Accept</button>
       </div>
-      <div v-if="tab === 'create' && family === 'h3'" class="card cn-guide model-guide h3-presets">
-        <div class="cn-guide-head"><h3>🧠 MiniMax-H3-Image presets <span class="hint">· type a subject in the prompt (“an electric motorcycle”, “my cat”), then pick a layout</span></h3></div>
+      <button v-if="tab === 'create' && family === 'h3' && (opts.hidden_guides || []).includes('h3:presets')" class="ghost small h3-presets-show"
+              @click="opts.hidden_guides = opts.hidden_guides.filter((k) => k !== 'h3:presets'); saveOpts()" title="Show MiniMax-H3-Image's layout presets again">🧠 Show H3 presets</button>
+      <div v-if="tab === 'create' && family === 'h3' && !(opts.hidden_guides || []).includes('h3:presets')" class="card cn-guide model-guide h3-presets">
+        <div class="cn-guide-head"><h3>🧠 MiniMax-H3-Image presets <span class="hint">· type a subject in the prompt (“an electric motorcycle”, “my cat”), then pick a layout · press it again to stop using it</span></h3><span class="grow"></span>
+          <button class="ghost small" @click="hideModelGuide('h3:presets')" title="Fold the presets away (a small button brings them back)">✕</button></div>
         <div class="seg seg-wrap edit-recipes">
           <button v-for="pr in H3_PRESETS" :key="pr.label" :class="{on: form.h3_preset === pr.label}" @click="h3Preset(pr)" :title="pr.text">{{ pr.label }}</button>
-          <button :class="{on: !form.h3_preset}" @click="h3Preset(null)" title="🎲 Random picks a layout and a subject that suits it">🎲 any layout</button>
+          <button :class="{on: form.h3_preset === 'any'}" @click="h3Preset('any')" title="🎲 Random picks a layout and a subject that suits it">🎲 any layout</button>
+          <button :class="{on: !form.h3_preset}" @click="h3Preset(null)" title="No preset: your prompt is used as written, and 🎲 Random writes ordinary prompts">✕ None</button>
         </div>
-        <p class="hint">🎲 Random prompt fills the picked layout with a new subject that suits it (or any layout).</p>
+        <p class="hint">🎲 Random prompt fills the picked layout with a new subject that suits it (🎲 any layout: any of them; ✕ None: ordinary prompts).</p>
         <p class="hint">Lettering and small labels come out right at bigger sizes: tick 🧠 Best quality (under the size) for the final picture. Words to show go in "double quotes".</p>
       </div>
       <div v-if="modelGuide()" class="card cn-guide model-guide">

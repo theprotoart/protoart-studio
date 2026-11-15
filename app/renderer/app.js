@@ -7984,8 +7984,15 @@ const protoartApp = createApp({
       this.status = "🧩 Prompt written from the pictures' roles: add details (what they do, the mood, the camera) and press ✨ Edit";
     },
     h3Preset(pr) {  // 🧠 Create preset: the layout, around your subject (what's in the prompt, if short)
-      this.form.h3_preset = pr ? pr.label : "";  // 🎲 Random keeps to this layout
-      if (!pr) return (this.status = "🎲 Random now picks any MiniMax-H3-Image layout");
+      if (pr === "any") {  // 🎲 any layout: Random picks a layout too
+        this.form.h3_preset = this.form.h3_preset === "any" ? "" : "any";
+        return (this.status = this.form.h3_preset ? "🎲 Random now picks any MiniMax-H3-Image layout" : "No preset: 🎲 Random writes ordinary prompts");
+      }
+      if (!pr || this.form.h3_preset === pr.label) {  // pressed again (or ✕ None): no preset, your prompt stays as it is
+        this.form.h3_preset = "";
+        return (this.status = "No preset: your prompt is used as written, and 🎲 Random writes ordinary prompts");
+      }
+      this.form.h3_preset = pr.label;  // 🎲 Random keeps to this layout
       const mine = (this.form.prompt || "").trim();
       const subject = mine && mine.length <= 120 && !H3_PRESETS.some((x) => mine === x.text) ? mine.replace(/[.\s]+$/, "") : "your subject here";
       if (mine) this.undoPrompt = mine;
@@ -10060,13 +10067,13 @@ const protoartApp = createApp({
       return out;
     },
     randomPrompt() {
-      if (this.family === "h3" && this.tab === "create") {  // 🧠 a preset's layout around a subject that suits it
+      if (this.family === "h3" && this.tab === "create" && this.form.h3_preset) {  // 🧠 a preset's layout around a fitting subject
         const pick = (a) => a[Math.floor(Math.random() * a.length)];
-        const pr = H3_PRESETS.find((x) => x.label === this.form.h3_preset) || pick(H3_PRESETS);
+        const pr = H3_PRESETS.find((x) => x.label === this.form.h3_preset) || pick(H3_PRESETS);  // "any": any layout
         const subject = pick(H3_SUBJECTS[pr.kind] || H3_SUBJECTS.scene);
         if (this.form.prompt) this.undoPrompt = this.form.prompt;
         this.form.prompt = pr.text.replace("{s}", subject);
-        this.status = `🎲 ${pr.label}: ${subject}` + (this.form.h3_preset ? " (the preset you picked; pick another, or 🎲 any layout)" : "");
+        this.status = `🎲 ${pr.label}: ${subject}` + (this.form.h3_preset !== "any" ? " (the preset you picked; press it again to stop using it)" : "");
         return;
       }
       if (this.naturalPrompts()) {

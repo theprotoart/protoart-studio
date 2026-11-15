@@ -44,6 +44,8 @@
 - Create's Max size switch for H3: Draft 1024 / Medium 1280 / Large 1536 / Best 2048
 - Fix: going to Image to image with H3 in Create switched Create's model to SD 1.5 (it stayed after coming back):
   H3 now stays (Edit with words uses it), and any model Image to image swaps in is swapped back on return to Create
+- H3 presets: press the picked one again (or ✕ None) to stop using it; 🎲 any layout is its own choice; ✕ folds the
+  card away (🧠 Show H3 presets brings it back)
 - Example prompts: a new "Comics & lettering" group (a 4-panel comic page and a character turnaround sheet for H3)
 - Tests: `test_h3.py` (4-bit file layout with metadata kept, licence gate, edit prompts, catalog)
 
