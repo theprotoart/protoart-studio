@@ -82,8 +82,12 @@ def main():
         sys.exit("Stopped: nothing uploaded.")
     api = HfApi(token=token)
     api.create_repo(REPO, repo_type="model", exist_ok=True)
-    print("Uploading (this takes a while; if it stops, run this again and it picks up where it left off)…")
-    api.upload_large_folder(repo_id=REPO, repo_type="model", folder_path=str(stage))
+    print("Uploading (this takes a while; if it stops, run this again: files already sent are skipped)…")
+    if hasattr(api, "upload_large_folder"):
+        api.upload_large_folder(repo_id=REPO, repo_type="model", folder_path=str(stage))
+    else:  # newer huggingface_hub: upload_folder sends in chunks and skips what the Hub already has
+        api.upload_folder(repo_id=REPO, repo_type="model", folder_path=str(stage),
+                          commit_message="MOSS-Image SFT 8 GB version (Protoart Studio)")
     sha = api.model_info(REPO).sha
     shutil.rmtree(stage, ignore_errors=True)
     print(f"\nDone. Commit: {sha}\nSend this commit to Claude to switch the app to the ready-made copy.")
