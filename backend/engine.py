@@ -4819,7 +4819,7 @@ class Engine:
                 raise UserError("Couldn't read the painted area.")
             if not mask.getbbox():
                 mask = None
-        refs = [r for r in (args.get("refs") or []) if isinstance(r, str) and r][:3]
+        refs = [r for r in (args.get("refs") or []) if isinstance(r, str) and r][:15 if h3 else 3]  # H3: 16 pictures in all
         combine = args.get("combine") if isinstance(args.get("combine"), dict) else None
         ref_imgs = []
         import pictures

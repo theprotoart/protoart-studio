@@ -3193,18 +3193,18 @@
             <input type="checkbox" v-model="form.h3_full"> 🧠 Full size (1024) <span class="hint">(sharper, about twice as long)</span></label>
           <label v-if="editModelId() !== 'h3_image'" class="check" title="After the edit, each face (up to 3) is edited again on its own, close up, with the original face beside it, and blended in: the person stays recognisable (restoring or colouring old photos, changing clothes or the background). Adds about one more edit per face. Not used when you paint an area (the rest stays exactly the same then)">
             <input type="checkbox" :checked="form.keep_faces !== false" @change="form.keep_faces = $event.target.checked"> 🙂 Keep faces close to the original <span class="hint">(+1 full edit per face: switch it off when only the background changes)</span></label>
-          <label>More pictures <span class="hint">optional · up to 3 · a style, an object, an outfit or a person to use</span></label>
+          <label>More pictures <span class="hint">optional · up to {{ editRefMax() }} · a style, an object, an outfit or a person to use<template v-if="editRefMax() > 3"> · each adds about 2–3 minutes</template></span></label>
           <div class="edit-refs">
             <div v-for="(r, i) in form.edit_refs" :key="r" class="edit-ref">
               <img :src="fileUrl(r)" alt="">
               <button class="ghost small" @click="form.edit_refs.splice(i, 1)" title="Don't use this picture">✕</button>
             </div>
-            <div v-if="(form.edit_refs || []).length < 3" class="start-drop edit-ref-drop" :class="{over: editRefOver}"
+            <div v-if="(form.edit_refs || []).length < editRefMax()" class="start-drop edit-ref-drop" :class="{over: editRefOver}"
                  @dragover.prevent="editRefOver = true" @dragleave="editRefOver = false" @drop.prevent="onEditRefDrop"
                  @click="$refs.editRefPick.click()" title="Then say how to use it, e.g. “paint it in the style of the second picture”">+ add</div>
             <input ref="editRefPick" type="file" multiple accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="onEditRefPicked">
           </div>
-          <div v-if="(form.edit_refs || []).length && !editRecipe()" class="hint">Refer to them in the prompt as “the second picture”, “the third picture”.</div>
+          <div v-if="(form.edit_refs || []).length && !editRecipe()" class="hint"><template v-if="editModelId() === 'h3_image'">Your picture is &lt;Picture 1&gt;; these are &lt;Picture 2&gt;, &lt;Picture 3&gt;… in the order shown: name them in the prompt.</template><template v-else>Refer to them in the prompt as “the second picture”, “the third picture”.</template></div>
           <label>Quick edits <span class="hint">a ready-made instruction in the prompt; edit it if you like</span></label>
           <div class="seg seg-wrap edit-recipes">
             <button v-for="q in EDIT_QUICK()" :key="q.label" @click="useEditQuick(q)" :title="q.prompt">{{ q.label }}</button>

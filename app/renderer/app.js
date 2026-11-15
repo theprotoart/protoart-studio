@@ -395,6 +395,16 @@ const EDIT_RECIPES = [
              "9b": { hf: { repo: "Alissonerdx/BFS-Best-Face-Swap", file: "bfs_head_v1_flux-klein_9b_step3750_rank64.safetensors" }, name: "bfs_head_v1_flux-klein_9b_step3750_rank64", mb: 0 } } },
 ];
 // ✨ Edit with words: ready-made instructions (no download), e.g. old photo repair
+// 🧠 MiniMax-H3-Image's multi-picture edits (shown when it's the edit model): your picture is <Picture 1>, More pictures are <Picture 2>…
+const H3_QUICK = [
+  { label: "👥 Put them together", prompt: "Make one natural photo with the people from <Picture 1> and <Picture 2> standing together side by side, smiling at the camera, in the setting of <Picture 1>. Keep each person's face, hair, body and clothes exactly as in their own picture, with matching light and shadows." },
+  { label: "🏞 Into this scene", prompt: "Put the person (or character) from <Picture 2> into the scene of <Picture 1>, standing naturally in the middle. Keep their face, outfit and proportions as in <Picture 2>; match the light, colours, perspective and shadows of <Picture 1>." },
+  { label: "👗 Outfit from picture 2", prompt: "Dress the person in <Picture 1> in the outfit from <Picture 2> (the clothes, shoes and accessories). Keep their face, hair, pose, body and the background of <Picture 1> exactly the same." },
+  { label: "🎨 Style of picture 2", prompt: "Redraw <Picture 1> in the art style of <Picture 2>: its medium, brushwork or line, colour palette and lighting. Keep the composition, the people and the objects of <Picture 1>." },
+  { label: "🧍 Turnaround sheet", prompt: "Make a character model sheet of the character in <Picture 1> on a plain white background: full body front view, three-quarter view, side view and back view at the same height, the same face, hair, outfit and colours in every view, flat even lighting." },
+  { label: "📖 Comic panel", prompt: "Make one comic book panel in a clean inked, full-colour style with the character from <Picture 1> as the hero, in a dramatic action pose on a city rooftop at night. A speech balloon reads \"Not on my watch!\". Keep the character's face, hair and outfit as in <Picture 1>." },
+  { label: "🛍 Product shot", prompt: "Make a clean studio product photo of the product in <Picture 1> on a seamless soft gradient background with soft shadows and a gentle reflection. Keep its exact shape, colours, labels and any text." },
+];
 const EDIT_QUICK = [
   { label: "🧽 Repair & colourize", prompt: "Repair and colourize this old photo: fix the cracks, scratches, stains and torn or missing areas, and give it natural, realistic colours. Keep the person's face, expression, hair, clothes and the composition exactly the same." },
   { label: "🧹 Repair, keep black & white", prompt: "Repair this old photo: remove the cracks, scratches, dust, stains and fold lines and fill in torn or missing areas. Keep it black and white, and keep the faces, clothes and composition exactly the same." },
@@ -1098,6 +1108,7 @@ const protoartApp = createApp({
             { h: "1.6.18: 🧠 MiniMax-H3-Image on 8 GB Macs: creates and edits", items: [
               "<b>MiniMax-H3-Image</b> (a 33B model by MiniMax) in Create and in Image to image → <b>✨ Edit with words</b> and <b>📷 Camera angle</b>. On this Mac it's shrunk to <b>4-bit</b> once and read from the drive a piece at a time, so it needs under 2 GB of memory: about <b>4 minutes</b> for 1024 × 1024 on an 8 GB M1, about 15 for 2048 × 2048. It spells quoted words right (signs, posters, covers).",
               "<b>Editing</b>: your picture is <code>&lt;Picture 1&gt;</code>, More pictures are <code>&lt;Picture 2&gt;</code>…: relight, change the season, put a hat from another picture on someone, or draw a turnaround sheet of a character (📷 Camera angle's sheets use it when it's picked). <b>💡 Relight</b> has a <b>🧠 H3</b> button in its Speed row: the whole picture relit from your words or a reference picture's light, no SD 1.5 model needed. On an 8 GB Mac an edit works at 768 (about 5–6 minutes); tick 🧠 Full size for 1024 (about 12).",
+              "<b>Many pictures at once</b>: with MiniMax-H3-Image picked in ✨ Edit with words, <b>More pictures</b> takes up to <b>15</b> (16 with yours; each adds about 2–3 minutes), and <b>Quick edits</b> has its own recipes: 👥 Put them together, 🏞 Into this scene, 👗 Outfit from picture 2, 🎨 Style of picture 2, 🧍 Turnaround sheet, 📖 Comic panel and 🛍 Product shot.",
               "<b>🧠 Best quality</b> (Create, under the size): it's made for big pictures, so it draws at about 2048 × 2048 and shrinks to your size: far more detail than drawing at 1024 (a quick, softer draft), about 13 minutes on an 8 GB Mac.",
               "<b>One time</b>: a ~49 GB download (to your downloaded-models folder) and a ~27 GB 4-bit copy on this Mac's own drive (about half an hour). <b>Licence first</b>: the MiniMax-H3-Image Community License doesn't allow use in the US, EU, UK or Korea, and its pictures can't train other AI models; a card asks you to accept it before anything downloads.",
             ] },
@@ -7838,7 +7849,8 @@ const protoartApp = createApp({
       }
     },
     EDIT_RECIPES() { return EDIT_RECIPES; },
-    EDIT_QUICK() { return EDIT_QUICK; },
+    EDIT_QUICK() { return this.editModelId() === "h3_image" ? [...H3_QUICK, ...EDIT_QUICK] : EDIT_QUICK; },
+    editRefMax() { return this.editModelId() === "h3_image" ? 15 : 3; },  // H3 takes up to 16 pictures in all
     useEditQuick(q) {  // a ready-made instruction into the prompt (↩ undo puts yours back)
       if (this.form.prompt && this.form.prompt !== q.prompt) this.undoPrompt = this.form.prompt;
       this.form.prompt = q.prompt;
@@ -9259,7 +9271,7 @@ const protoartApp = createApp({
         }
         await this.runJob("edit_words", { edit_model: this.editModelId(), h3_full: !!f.h3_full, init_image: f.init_image, prompt: f.prompt, mask: painted,
                                           keep_faces: !painted && f.keep_faces !== false && !rec,
-                                          refs: (f.edit_refs || []).slice(0, 3), seed: f.seed, ...this.recipeEditArgs() });
+                                          refs: (f.edit_refs || []).slice(0, this.editRefMax()), seed: f.seed, ...this.recipeEditArgs() });
         return;
       }
       if (f.i2i_mode === "outpaint" && f.outpaint_engine !== "model") {  // ↔ Expand with FLUX.2 Klein + outpaint LoRA
@@ -9544,7 +9556,7 @@ const protoartApp = createApp({
     },
     async addEditRefs(files) {
       for (const file of files) {
-        if ((this.form.edit_refs || []).length >= 3) break;
+        if ((this.form.edit_refs || []).length >= this.editRefMax()) break;
         const p = await this.preparePicture(window.bee.pathForFile(file));
         if (p) this.form.edit_refs = [...(this.form.edit_refs || []), p];
       }

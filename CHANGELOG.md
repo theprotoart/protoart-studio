@@ -23,6 +23,9 @@
   pipeline never draws under 2048²; at 768-1024 the model looks soft and waxy). `drawn_at` saved in the settings
 - Fix: a picture made without a starting picture went to Image to image's results when that tab was open; the
   waiting status under the spinner was unreadable on light looks (now on a dark backing)
+- H3 edits take up to 15 More pictures (16 in all; Klein stays at 3; `editRefMax`), and Quick edits gain H3's
+  multi-picture recipes (`H3_QUICK`): put people together, into this scene, outfit / style from picture 2, turnaround
+  sheet, comic panel, product shot
 - Example prompts: a new "Comics & lettering" group (a 4-panel comic page and a character turnaround sheet for H3)
 - Tests: `test_h3.py` (4-bit file layout with metadata kept, licence gate, edit prompts, catalog)
 
