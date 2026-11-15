@@ -962,7 +962,7 @@ const protoartApp = createApp({
       objFinding: false,   // object selection is working out the outline
       soundsOn: window.ProtoSound ? window.ProtoSound.enabled : true,
       TAG_DICT: window.TAG_DICT || {}, ideas: { cat: Object.keys(window.TAG_DICT || {})[0] || "", q: "" },
-      LICENCES, TILED_PRESETS, EXAMPLE_PROMPTS, H3_ROLES, H3_COMPOSE, H3_PRESETS, EXAMPLE_GROUPS, FILM_LOOKS, FILM_GROUPS, APP_VERSION, CAM_VIEWS, CAM_ELEV, CAM_DIST,
+      FAMILY_LABEL, LICENCES, TILED_PRESETS, EXAMPLE_PROMPTS, H3_ROLES, H3_COMPOSE, H3_PRESETS, EXAMPLE_GROUPS, FILM_LOOKS, FILM_GROUPS, APP_VERSION, CAM_VIEWS, CAM_ELEV, CAM_DIST,
       loraSort: loadJSON("protoart.loraSort", "az"),   // LoRA list order
       modelKind: loadJSON("protoart.modelKind", ""),  // Create's model list filter ('' = all kinds)
       loraKind: "",                                      // LoRA list filter ('' = all)   // the brush-size ring that follows the pointer while painting
@@ -1176,7 +1176,7 @@ const protoartApp = createApp({
               "<b>Many pictures at once</b>: with MiniMax-H3-Image picked in ✨ Edit with words, <b>More pictures</b> takes up to <b>15</b> (16 with yours; each adds about 2–3 minutes), and <b>Quick edits</b> has its own recipes: 👥 Put them together, 🏞 Into this scene, 👗 Outfit from picture 2, 🎨 Style of picture 2, 🧍 Turnaround sheet, 📖 Comic panel and 🛍 Product shot.",
               "<b>🧩 Compose with pictures</b> (Image to image → ✨ Edit with words, with MiniMax-H3-Image picked): pick a starting point (👗 Fashion try-on, 👥 People together, 🎎 Characters in a scene, 🏞 Person into a place, 🛋 Furnish a room, 🎨 Style &amp; light), add the pictures, set what each one brings under it (a person, a top, shoes, a pose, the place, the art style…), then <b>✍ Write the prompt from the pictures</b> and add what they're doing. More pictures now go in at 512, so each adds about a minute instead of several; <b>🧠 Work size</b> 768 / 896 / 1024 sets how sharp the result is.",
               "<b>🧠 Presets in Create</b> for MiniMax-H3-Image: type a subject, then one press lays it out as an exploded view, a blueprint, a CAD sheet, an infographic, a magazine cover, a movie poster, a comic page, a character sheet, a product ad, a sticker sheet, a tarot card, an oil painting, a watercolour and more. Image to image's Quick edits add exploded view, blueprint, CAD views, render → film still and map → game view of your picture. <b>🎲 Random prompt</b> follows the picked layout with a fitting subject (an engine for an exploded view, a place for a diorama…), or any layout.",
-              "<b>Bigger sizes</b> for MiniMax-H3-Image on Create's <b>Max size</b> switch: Draft 1024, Medium 1280, Large 1536 and Best 2048 (about 4, 6, 9 and 13 minutes on an 8 GB Mac). Going to Image to image no longer swaps Create's model for an SD one.",
+              "<b>Bigger sizes</b> for MiniMax-H3-Image on Create's <b>Max size</b> switch: Draft 1024, Medium 1280, Large 1536 and Best 2048 (about 4, 6, 9 and 13 minutes on an 8 GB Mac). Going to Image to image no longer swaps Create's model for an SD one. <b>↔ Expand</b> can fill the new area with MiniMax-H3-Image too (Fill the new area with → 🧠 MiniMax-H3-Image), and with <b>⚡ Z-Image Turbo</b> (or another fast model that starts from a picture) when it's the model at the top: describe the whole scene, and your picture is put back exactly.",
               "<b>🧠 Best quality</b> (Create, under the size): it's made for big pictures, so it draws at about 2048 × 2048 and shrinks to your size: far more detail than drawing at 1024 (a quick, softer draft), about 13 minutes on an 8 GB Mac.",
               "<b>One time</b>: a ~49 GB download (to your downloaded-models folder) and a ~27 GB 4-bit copy on this Mac's own drive (about half an hour). <b>Licence first</b>: the MiniMax-H3-Image Community License doesn't allow use in the US, EU, UK or Korea, and its pictures can't train other AI models; a card asks you to accept it before anything downloads.",
             ] },
@@ -3415,7 +3415,7 @@ const protoartApp = createApp({
       return { level: "ok", text: "One direction at a time, a moderate amount: this gives the cleanest results." };
     },
     i2iUsesKlein() {  // Image to image runs on FLUX.2 Klein: Edit with words, or Expand with the outpaint LoRA
-      return ["edit", "combine", "camera"].includes(this.form.i2i_mode) || (this.form.i2i_mode === "outpaint" && this.form.outpaint_engine !== "model");
+      return ["edit", "combine", "camera"].includes(this.form.i2i_mode) || (this.form.i2i_mode === "outpaint" && !["model", "fast"].includes(this.form.outpaint_engine));
     },
     i2iResults() {
       return this.session.filter((r) => isI2iRecord(r));
@@ -7927,6 +7927,10 @@ const protoartApp = createApp({
     EDIT_RECIPES() { return EDIT_RECIPES; },
     EDIT_QUICK() { return this.editModelId() === "h3_image" ? [...H3_QUICK, ...EDIT_QUICK] : EDIT_QUICK; },
     editRefMax() { return this.editModelId() === "h3_image" ? 15 : 3; },  // H3 takes up to 16 pictures in all
+    expandFastModel() {  // ↔ Expand with the ⚡ fast-engine model at the top (Z-Image Turbo…): ones that start from a picture
+      const m = this.currentModel;
+      return m && m.engine === "mlx" && FAST_I2I.includes(m.family) && m.cached !== false ? m : null;
+    },
     h3EditArgs() {  // MiniMax-H3-Image's edit size (768 / 896 / 1024) and how big the extra pictures go in
       return { h3_side: this.form.h3_side || "", h3_ref_detail: !!this.form.h3_ref_detail };
     },
@@ -9435,6 +9439,8 @@ const protoartApp = createApp({
         if (!(o.left || o.right || o.top || o.bottom)) return (this.error = "Choose how far to expand on at least one side.");
         this.error = "";
         await this.runJob("edit_words", { init_image: f.init_image, prompt: f.prompt || "", seed: f.seed,
+                                          ...(f.outpaint_engine === "h3" ? { edit_model: "h3_image", ...this.h3EditArgs() }
+                                            : f.outpaint_engine === "fast" && this.expandFastModel() ? { edit_model: this.expandFastModel().id } : {}),
                                           outpaint: { left: o.left || 0, right: o.right || 0, top: o.top || 0, bottom: o.bottom || 0 } });
         return;
       }

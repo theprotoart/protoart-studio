@@ -47,6 +47,11 @@
 - H3 presets: press the picked one again (or ✕ None) to stop using it; 🎲 any layout is its own choice; ✕ folds the
   card away (🧠 Show H3 presets brings it back)
 - H3 edit Work size also 1280 / 1536 / 2048 (about 17 / 25 / 45 min with one picture on 8 GB)
+- ↔ Expand → Fill with 🧠 MiniMax-H3-Image: one H3 edit of the green-bordered canvas ("continue the scene"), lined up
+  and your picture put back as with Klein; its own Work size row (768-1536)
+- ↔ Expand → Fill with ⚡ the fast-engine model at the top (Z-Image Turbo, ERNIE, FLUX.1, Qwen-Image, Krea 2): the
+  smudged-edge canvas (`detailer.outpaint_canvas`) redrawn at image strength 0.3 from the prompt, lined up and the
+  original put back. MOSS-Image can't start from a picture, so it stays Create-only
 - Example prompts: a new "Comics & lettering" group (a 4-panel comic page and a character turnaround sheet for H3)
 - Tests: `test_h3.py` (4-bit file layout with metadata kept, licence gate, edit prompts, catalog)
 

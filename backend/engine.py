@@ -713,6 +713,9 @@ FAMILY_NAMES = {"ernie": "ERNIE", "flux": "FLUX", "flux2": "FLUX.2", "zimage": "
                 "h3": "MiniMax-H3-Image", "fast": "fast-engine model"}
 
 
+FAST_I2I_FAMILIES = ("zimage", "ernie", "flux", "qwen21", "krea2")  # fast-engine kinds that start from a picture
+
+
 def all_models():
     m = dict(MODELS)
     m.update(_custom_models())
@@ -4669,33 +4672,67 @@ class Engine:
         started = time.time()
         if self.cancel_event.is_set():
             raise Cancelled()
-        lora = self._outpaint_lora_file()
-        L = self.OUTPAINT_LORA
-        try:
-            self._mlx_load(spec, [], variant="edit", extra_loras=[(lora, L["scale"])])
-            self.loaded_key = None
-            self.family = spec["family"]
+        L = self.OUTPAINT_LORA  # (named in the saved settings)
+        h3x = args.get("edit_model") == "h3_image"
+        fast = all_models().get(args.get("edit_model") or "")
+        if fast and fast.get("engine") == "mlx" and fast.get("family") in FAST_I2I_FAMILIES:
+            # ⚡ Z-Image Turbo (and the other fast models that start from a picture): the new area pre-filled with
+            # smudged edge colours, the whole canvas redrawn from the prompt, then your picture put back below
+            import detailer
+            fill, _m = detailer.outpaint_canvas(image, **pads)
+            k = side / max(1.0, (fill.width * fill.height) ** 0.5)
+            width, height = max(256, int(fill.width * k) // 16 * 16), max(256, int(fill.height * k) // 16 * 16)
+            steps = int(fast["defaults"]["steps"])
+            prompt = extra or "the same scene continues naturally all around, with the same light, colours and style"
             tmp = paths.HOME / "tmp"
             tmp.mkdir(parents=True, exist_ok=True)
-            first = tmp / f"expand_src_{os.getpid()}.png"
-            # the reference at exactly the output size (multiples of 16, under 1 MP): the model's copy of your
-            # picture then lands on the same pixels (mflux would otherwise centre-crop it on its own)
-            canvas.resize((width, height), Image.LANCZOS).save(first)
-            out = tmp / f"expand_out_{os.getpid()}.png"
-            self.emit({"type": "status", "msg": "Expanding with FLUX.2 Klein + outpaint LoRA (fast engine)…"})
-
-            def on_event(ev):
-                if ev.get("type") == "progress":
-                    self.emit({"type": "progress", "image": 1, "images": 1, "step": ev["step"], "steps": ev["steps"]})
-                elif ev.get("type") == "preview":
-                    self.emit({"type": "preview", "image": 1, "src": ev["src"]})
-                elif ev.get("type") == "status":
-                    self.emit(ev)
-
+            first, out = tmp / f"fexpand_src_{os.getpid()}.png", tmp / f"fexpand_out_{os.getpid()}.png"
+            fill.resize((width, height), Image.LANCZOS).save(first)
             try:
+                self._mlx_load(fast, [])
+                self.loaded_key = None
+                self.family = fast["family"]
+                self.emit({"type": "status", "msg": f"Expanding with {fast['label']} (fast engine)…"})
                 self.mlx.request({"cmd": "generate", "prompt": prompt, "negative_prompt": None, "width": width,
-                                  "height": height, "steps": steps, "cfg": 1.0, "seed": seed, "out": str(out),
-                                  "preview": self.previews, "image_paths": [str(first)]}, on_event=on_event)
+                                  "height": height, "steps": steps, "cfg": float(fast["defaults"].get("cfg") or 1.0),
+                                  "seed": seed, "out": str(out), "preview": self.previews, "init_image": str(first),
+                                  "image_strength": 0.3},  # keep 30%: the layout of the smudge, new detail everywhere
+                                 on_event=lambda ev: ev.get("type") == "progress" and self.emit(
+                                     {"type": "progress", "image": 1, "images": 1, "step": ev["step"], "steps": ev["steps"]}))
+                result = Image.open(out).convert("RGB")
+            except mlx_engine.CancelledError:
+                raise Cancelled()
+            except mlx_engine.EngineError as e:
+                raise UserError(str(e))
+            finally:
+                for f in (out, first):
+                    try:
+                        Path(f).unlink()
+                    except OSError:
+                        pass
+        elif args.get("edit_model") == "h3_image":  # 🧠 MiniMax-H3-Image continues the scene into the green border
+            import h3_engine
+            h3spec = all_models().get("h3_image")
+            if not h3spec or not h3_engine.licence_accepted():
+                raise UserError("MiniMax-H3-Image: accept its licence first (the card under the model in Create).")
+            self.unload()
+            self.enhancer = None
+            self.drop_helpers()
+            self._h3_prepare(h3spec)
+            sizes = {"768": 768, "896": 896, "1024": 1024, "1280": 1280, "1536": 1536, "2048": 2048}
+            side = sizes.get(str(args.get("h3_side") or ""), side)
+            k = side / max(1.0, (canvas.width * canvas.height) ** 0.5)
+            width, height = max(256, int(canvas.width * k) // 32 * 32), max(256, int(canvas.height * k) // 32 * 32)
+            steps = 6
+            prompt = ("Expand <Picture 1>: replace every flat bright green area around the picture by continuing the scene "
+                      "naturally outward, with the same light, colours, perspective and style. Keep the picture in the "
+                      "middle exactly as it is. No green, no border, no frame, no seams." + (f" {extra}" if extra else ""))
+            tmp = paths.HOME / "tmp"
+            tmp.mkdir(parents=True, exist_ok=True)
+            first, out = tmp / f"h3expand_src_{os.getpid()}.png", tmp / f"h3expand_out_{os.getpid()}.png"
+            canvas.resize((width, height), Image.LANCZOS).save(first)
+            try:
+                self._h3_picture(prompt, out, width, height, seed, [first], ref_sides=[min(width, height)])
                 result = Image.open(out).convert("RGB")
             finally:
                 for f in (out, first):
@@ -4703,10 +4740,45 @@ class Engine:
                         Path(f).unlink()
                     except OSError:
                         pass
-        except mlx_engine.CancelledError:
-            raise Cancelled()
-        except mlx_engine.EngineError as e:
-            raise UserError(str(e))
+        else:
+            lora = self._outpaint_lora_file()
+            L = self.OUTPAINT_LORA
+            try:
+                self._mlx_load(spec, [], variant="edit", extra_loras=[(lora, L["scale"])])
+                self.loaded_key = None
+                self.family = spec["family"]
+                tmp = paths.HOME / "tmp"
+                tmp.mkdir(parents=True, exist_ok=True)
+                first = tmp / f"expand_src_{os.getpid()}.png"
+                # the reference at exactly the output size (multiples of 16, under 1 MP): the model's copy of your
+                # picture then lands on the same pixels (mflux would otherwise centre-crop it on its own)
+                canvas.resize((width, height), Image.LANCZOS).save(first)
+                out = tmp / f"expand_out_{os.getpid()}.png"
+                self.emit({"type": "status", "msg": "Expanding with FLUX.2 Klein + outpaint LoRA (fast engine)…"})
+
+                def on_event(ev):
+                    if ev.get("type") == "progress":
+                        self.emit({"type": "progress", "image": 1, "images": 1, "step": ev["step"], "steps": ev["steps"]})
+                    elif ev.get("type") == "preview":
+                        self.emit({"type": "preview", "image": 1, "src": ev["src"]})
+                    elif ev.get("type") == "status":
+                        self.emit(ev)
+
+                try:
+                    self.mlx.request({"cmd": "generate", "prompt": prompt, "negative_prompt": None, "width": width,
+                                      "height": height, "steps": steps, "cfg": 1.0, "seed": seed, "out": str(out),
+                                      "preview": self.previews, "image_paths": [str(first)]}, on_event=on_event)
+                    result = Image.open(out).convert("RGB")
+                finally:
+                    for f in (out, first):
+                        try:
+                            Path(f).unlink()
+                        except OSError:
+                            pass
+            except mlx_engine.CancelledError:
+                raise Cancelled()
+            except mlx_engine.EngineError as e:
+                raise UserError(str(e))
         result = result.resize(canvas.size, Image.LANCZOS)
         result, shift, diff = self.align_to_original(result, image, box)
         print(f"[expand] lined up by {shift}, picture area differs {diff:.3f}", flush=True)
@@ -4714,10 +4786,10 @@ class Engine:
             # FLUX.2 redrew your picture rather than keeping it: pasting the original back would leave seams and
             # doubled objects, so its whole picture is kept as it is
             secs = time.time() - started
-            settings = {"model": self.EDIT_MODEL, "prompt": prompt, "negative_prompt": "", "width": result.width,
+            settings = {"model": args.get("edit_model") if args.get("edit_model") in all_models() else self.EDIT_MODEL, "prompt": prompt, "negative_prompt": "", "width": result.width,
                         "height": result.height, "steps": steps, "cfg": 1.0, "sampler": "flow_euler", "seed": seed,
-                        "engine": "mlx", "loras": [{"name": "flux-2-klein-4B-outpaint-lora", "weight": L["scale"]}],
-                        "seconds": round(secs, 1), "inpaint": {"outpaint": pads, "engine": "flux2_outpaint_lora",
+                        "engine": "mlx", "loras": [] if h3x or (fast and fast.get("engine") == "mlx") else [{"name": "flux-2-klein-4B-outpaint-lora", "weight": L["scale"]}],
+                        "seconds": round(secs, 1), "inpaint": {"outpaint": pads, "engine": "h3" if h3x else fast["family"] if fast and fast.get("engine") == "mlx" else "flux2_outpaint_lora",
                                                                "kept_original": False}}
             path = self._save(result, settings, suffix="expanded")
             record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="outpaint")
@@ -4741,10 +4813,10 @@ class Engine:
         result = Image.composite(orig, result, keep)
         secs = time.time() - started
         print(f"[timing] expand (FLUX.2 outpaint LoRA): {secs:.1f}s for {steps} steps at {width}x{height}", flush=True)
-        settings = {"model": self.EDIT_MODEL, "prompt": prompt, "negative_prompt": "", "width": result.width,
+        settings = {"model": args.get("edit_model") if args.get("edit_model") in all_models() else self.EDIT_MODEL, "prompt": prompt, "negative_prompt": "", "width": result.width,
                     "height": result.height, "steps": steps, "cfg": 1.0, "sampler": "flow_euler", "seed": seed,
-                    "engine": "mlx", "loras": [{"name": "flux-2-klein-4B-outpaint-lora", "weight": L["scale"]}],
-                    "seconds": round(secs, 1), "inpaint": {"outpaint": pads, "engine": "flux2_outpaint_lora",
+                    "engine": "mlx", "loras": [] if h3x or (fast and fast.get("engine") == "mlx") else [{"name": "flux-2-klein-4B-outpaint-lora", "weight": L["scale"]}],
+                    "seconds": round(secs, 1), "inpaint": {"outpaint": pads, "engine": "h3" if h3x else fast["family"] if fast and fast.get("engine") == "mlx" else "flux2_outpaint_lora",
                                                            "kept_original": True, "aligned": list(shift)}}
         path = self._save(result, settings, suffix="expanded")
         record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="outpaint")
