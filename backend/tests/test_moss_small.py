@@ -40,7 +40,7 @@ if __name__ == "__main__":
 def test_ready_made_copied_from_external_drive():
     import tempfile
     import moss_engine
-    tmp_path = Path(tempfile.mkdtemp())
+    tmp_path = Path(tempfile.mkdtemp()).resolve()  # macOS: /var → /private/var
     ext = tmp_path / "ext" / "snap"
     (ext / "transformer").mkdir(parents=True)
     blob = tmp_path / "ext" / "blob"
