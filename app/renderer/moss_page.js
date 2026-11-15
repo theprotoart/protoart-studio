@@ -19,8 +19,8 @@ const PAGE_STYLES = [
 ];
 
 const PAGE_SIZES = [
-  { id: "draft", label: "Draft 768 × 1024", w: 768, h: 1024, hint: "about 8 minutes on an 8 GB Mac" },
-  { id: "full", label: "Full 832 × 1216", w: 832, h: 1216, hint: "sharper; slower on 8 GB Macs" },
+  { id: "draft", label: "Draft 768 × 1024", w: 768, h: 1024, hint: "for trying a layout: about 10 minutes on an 8 GB Mac" },
+  { id: "full", label: "Full 832 × 1216", w: 832, h: 1216, hint: "for the final page: sharper, about 14 minutes on an 8 GB Mac" },
 ];
 
 const M = 24, G = 16;  // page margin and gutter (px)
@@ -85,7 +85,10 @@ function buildLayout(page, describe, W, H) {
   cells.forEach((c, i) => {
     const p = panels[i] || {};
     const scene = (p.scene || "").trim() || (t.poster ? describe : `panel ${i + 1} of the story`);
-    add("object", t.poster ? `${scene}, ${style}` : `comic panel ${i + 1} with a black border: ${scene}`, "", c);
+    const words = !t.poster && ((p.bubble || "").trim() || (p.caption || "").trim());
+    // a panel with no words of its own must say so, or MOSS-Image letters the scene description into it
+    add("object", t.poster ? `${scene}, ${style}` : `comic panel ${i + 1} with a black border, a picture only` +
+        `${words ? "" : " with no speech bubble and no writing"}, showing ${scene}`, "", c);
     const [x0, y0, x1, y1] = c, w = x1 - x0, h = y1 - y0;
     const say = (p.bubble || "").trim();
     if (say && !t.poster) {  // a speech bubble in the top part of the panel
