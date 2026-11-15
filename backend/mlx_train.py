@@ -172,6 +172,19 @@ def parse_progress(line):
     return done, total, sps
 
 
+_TRAIN_WRAPPER = (
+    "import os, sys, threading, time, runpy\n"
+    "parent = os.getppid()\n"
+    "def watch():\n"
+    "    while True:\n"
+    "        time.sleep(2)\n"
+    "        if os.getppid() != parent:\n"
+    "            os._exit(0)\n"
+    "threading.Thread(target=watch, daemon=True).start()\n"
+    "sys.argv = ['mflux-train'] + sys.argv[2:]\n"
+    "runpy.run_module('mflux.models.common.cli.train', run_name='__main__', alter_sys=True)\n")
+
+
 def _mflux_cache():
     """mflux's own cache folder for the trainer (its LoRA helpers), kept in the app's data folder."""
     home = Path(os.environ.get("PROTOART_HOME") or (Path.home() / ".protoartstudio"))
@@ -273,7 +286,9 @@ def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, c
           else f"Loading {kind['name']} for training (fast engine)…"})
     env = dict(os.environ, PYTHONUNBUFFERED="1", HF_HUB_OFFLINE="1", MFLUX_CACHE_DIR=str(_mflux_cache()))
     how = ["--resume", str(resume_zip)] if resume_zip else ["--config", str(cfg_path)]
-    proc = subprocess.Popen([str(mlx_engine.PY), "-m", "mflux.models.common.cli.train", *how],
+    # mflux's trainer, wrapped so it ends by itself when the app goes away (a trainer left running on its own kept
+    # an 8 GB Mac's memory full); the marker in the command line lets "stop leftover workers" find it
+    proc = subprocess.Popen([str(mlx_engine.PY), "-c", _TRAIN_WRAPPER, "protoart-mlx-train", *how],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=str(work_dir), env=env)
     total_iters = cfg["training_loop"]["num_epochs"] * n
     started, last_emit, tail, buf = time.time(), 0.0, [], b""
