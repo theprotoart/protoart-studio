@@ -35,3 +35,33 @@ if __name__ == "__main__":
     test_recipe()
     test_catalog()
     print("ok")
+
+
+def test_ready_made_copied_from_external_drive():
+    import tempfile
+    import moss_engine
+    tmp_path = Path(tempfile.mkdtemp())
+    ext = tmp_path / "ext" / "snap"
+    (ext / "transformer").mkdir(parents=True)
+    blob = tmp_path / "ext" / "blob"
+    blob.write_bytes(b"x" * 10)
+    (ext / "transformer" / "model.safetensors").symlink_to(blob)  # HF snapshots are links to blobs
+    old = moss_engine._HOME, moss_engine.SLOW_PREFIX
+    moss_engine._HOME, moss_engine.SLOW_PREFIX = tmp_path / "home", str(tmp_path / "ext")
+    try:
+        out = Path(moss_engine.ready_made_local(ext, free_gb=100))
+        f = out / "transformer" / "model.safetensors"
+        assert out.parent.name == "fast-copies" and f.read_bytes() == b"x" * 10 and not f.is_symlink()
+        assert blob.exists()  # the download itself is left alone
+        assert moss_engine.ready_made_local(ext, free_gb=100) == str(out)  # once
+        assert moss_engine.ready_made_local(ext, free_gb=0) == str(out)
+        moss_engine.SLOW_PREFIX = "/Volumes/"
+        assert moss_engine.ready_made_local(ext) == str(ext)  # on this Mac's drive already: used where it is
+    finally:
+        moss_engine._HOME, moss_engine.SLOW_PREFIX = old
+
+
+def test_ready_made_pinned():
+    import moss_engine
+    assert moss_engine.SMALL_REPO == "brushpenbob/moss-image-sft-mlx-8gb"
+    assert len(moss_engine.SMALL_REVISION) == 40

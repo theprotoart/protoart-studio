@@ -46,11 +46,12 @@ SMALL_TAG = "a8f4-v1"  # change when the recipe changes: a new copy is made
 SMALL_GB = 3.6
 from moss_small import small_spec, bits_for  # noqa: E402,F401  (shared with the worker)
 # The same small copy, ready-made on Protoart Studio's Hugging Face page (Apache-2.0, credits in its model card): 8 GB
-# Macs download it (~10.5 GB) instead of the 12 GB original plus making it. None until it's published; then the
-# upload's commit is pinned here. If it can't be downloaded, the Mac makes its own copy as before.
-SMALL_REPO = None
-SMALL_REVISION = None
+# Macs download it (~10.5 GB) instead of the 12 GB original plus making it. Pinned to the upload's commit. If it
+# can't be downloaded, the Mac makes its own copy as before.
+SMALL_REPO = "brushpenbob/moss-image-sft-mlx-8gb"
+SMALL_REVISION = "06f43b78a19d7a1ebf16fd6f486eb8e647ff5634"
 SMALL_DOWNLOAD_GB = 10.5
+SLOW_PREFIX = "/Volumes/"  # other drives (external, often slow); see slow_parts
 SMALL_PATTERNS = ["*.json", "*.jinja", "*.txt", "*.model", "LICENSE", "NOTICE", "README.md", "transformer/*",
                   "text_encoder/*", "tokenizer/*", "scheduler/*", "vae/*"]
 
@@ -105,6 +106,29 @@ def small_ready_made(download=False):
         if download:
             raise
         return None
+
+
+def ready_made_local(path, emit=lambda m: None, free_gb=None):
+    """The ready-made 8 GB copy downloaded to an external drive (/Volumes/…) is copied to this Mac's own drive once,
+    for the same reason as localize(): reading it from a slow drive makes the graphics chip time out. Returns the
+    folder to use (the original if it's already on this Mac's drive)."""
+    src = Path(path)
+    if not str(src.resolve()).startswith(SLOW_PREFIX):
+        return str(src)
+    dst = _HOME / "fast-copies" / f"moss-8gb-{(SMALL_REVISION or 'x')[:10]}"
+    if (dst / ".protoart-done").exists():
+        return str(dst)
+    need = sum(f.stat().st_size for f in src.rglob("*") if f.is_file()) / 2**30
+    if free_gb is not None and free_gb < need + 2:
+        return str(src)  # not enough room here: use it where it is
+    tmp = dst.with_name(dst.name + ".copying")
+    shutil.rmtree(tmp, ignore_errors=True)
+    emit(f"Copying MOSS-Image's 8 GB version to this Mac's drive (one time, ~{need:.0f} GB)…")
+    shutil.copytree(src, tmp, symlinks=False)
+    (tmp / ".protoart-done").write_text(SMALL_REVISION or "")
+    shutil.rmtree(dst, ignore_errors=True)
+    tmp.rename(dst)
+    return str(dst)
 
 
 def small_dir():

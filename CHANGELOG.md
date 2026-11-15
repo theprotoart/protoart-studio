@@ -33,7 +33,9 @@
 - MOSS-Image on 8 GB Macs: the text encoder is streamed (`cpu_encode` → `_EvalEach`): its lazily loaded layers run on
   the GPU one at a time and are dropped after (~1 GB resident instead of ~7). Held whole it swapped and hit macOS's GPU
   watchdog ("GPU Timeout Error"); on the CPU it thrashed for 15+ minutes. Embeddings are cached: once per prompt
-- MOSS-Image's 8 GB version can come ready-made: `moss_engine.SMALL_REPO`/`SMALL_REVISION` (off until published),
+- MOSS-Image's 8 GB version comes ready-made: `moss_engine.SMALL_REPO` = brushpenbob/moss-image-sft-mlx-8gb pinned
+  to commit 06f43b78 (Apache-2.0); downloaded to an external drive it is copied to `fast-copies/` once
+  (`ready_made_local`, same GPU-timeout reason as `localize`);
   `small_ready_made()`, falling back to making it on the Mac. "Upload MOSS 8GB version.command" →
   `backend/tools/upload_moss_small.py` publishes the Mac's copy (hard-linked real files, model card with the
   Apache-2.0 credits and what was changed, LICENSE and NOTICE required; write token asked each time, never saved)

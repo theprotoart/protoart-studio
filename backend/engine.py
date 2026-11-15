@@ -1941,6 +1941,9 @@ class Engine:
                 except Exception as e:
                     print(f"[moss] ready-made 8 GB version not downloaded ({e}); making one here instead", flush=True)
                     ready = None
+            if ready:  # on an external drive: copied to this Mac's drive once (a slow drive times out the GPU)
+                ready = moss_engine.ready_made_local(ready, lambda m: self.emit({"type": "status", "msg": m}),
+                                                     free_disk_gb(str(moss_engine._HOME)))
             weights = ready or moss_engine.weights_dir() or (str(moss_engine.small_dir()) if small and moss_engine.small_ready() else None)
             adapters = moss_engine.turbo_files() if spec.get("moss_turbo") else []
             if not weights or adapters is None or not moss_engine.installed():

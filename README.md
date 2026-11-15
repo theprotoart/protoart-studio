@@ -24,7 +24,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 ## What it does
 
 - **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), Anima (anime; all-ages by default via its "safe" rating tag), ERNIE-Image, FLUX.1 Schnell, FLUX.2 Klein 4B
-  (made for 8 GB Macs), FLUX.1 Dev (32 GB+) and MOSS-Image (lettering, posters and layouts; best on 16 GB+, an 8 GB version is made on smaller Macs); LoRA stacking with per-LoRA weights (sort A–Z / newest first, filter by kind or ● People, ★ favourites, in Create and Image to image),
+  (made for 8 GB Macs), FLUX.1 Dev (32 GB+) and MOSS-Image (lettering, posters and layouts; best on 16 GB+, smaller Macs download a ready-made 8 GB version); LoRA stacking with per-LoRA weights (sort A–Z / newest first, filter by kind or ● People, ★ favourites, in Create and Image to image),
   embeddings, VAEs (Automatic picks the right one for each model; each model remembers your own pick; one-click recommended VAE), 20+ samplers with the top picks per model,
   presets, 📒 saved prompts, wildcards, a random-prompt generator that writes tags or sentences to suit the model, negative
   prompt ✨ suggest / 🎲 random matched to the model, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop, and
