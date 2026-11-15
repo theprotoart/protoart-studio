@@ -211,7 +211,7 @@ function defaultPost() {  // Tools settings on a fresh install
     cut: { threshold: 0.5, softness: 0.1, grow: 0, bg: "transparent", color: "#ffffff", clean: true, fix_edges: true, crop: false, finder: "birefnet" },
     // 📄 Paper cut-out: border width (% of the shorter side), its paper, torn-ness, shadow, print look, background
     paper: { edge: 2, edge_colour: "white", rough: 0.5, shadow: 0.6, print_as: "photo", background: "transparent" },
-    relight: { prompt: "", subject: "", direction: "none", model: "", size: 640, hires: true, background: "keep", ref_on: false, ref: "",
+    relight: { prompt: "", subject: "", direction: "none", model: "", size: 640, hires: true, speed: "standard", background: "keep", ref_on: false, ref: "",
                shadow: true, blend: true, full_size: true, warmth: 0, colour_on: false, colour: "#ffb066" },
     mesh3d: { steps: 30, octree: 380, faces: 40000 },
   };
@@ -1058,6 +1058,7 @@ const protoartApp = createApp({
               "<b>Text opacity</b> sits right under the colour now (it was hidden in a fold-out section), and the list of your texts (the chips above the typing box) is easier to read on the light looks.",
               "<b>🎨 Blending modes for text</b>, as in Photoshop (under Opacity): Multiply, Screen, Overlay, Soft Light, Hard Light, Darken, Lighten, Color Dodge, Color Burn, Difference, Exclusion, Hue, Saturation, Color and Luminosity. <b>Multiply</b> makes words look printed or inked onto the picture, <b>Overlay</b> and <b>Soft Light</b> let its texture and light show through them, <b>Screen</b> makes them glow like light.",
               "<b>Fixes</b>: a picture dropped straight from a screenshot's floating thumbnail, a browser, Photos or Messages is now kept by the app (macOS deleted its temporary copy, so <b>Clear it</b> and other steps said \"Couldn't open that file\"); if a picture's file is moved or deleted, the message now says so and which file. Tools' <b>Split</b> view no longer stays black after you switch tabs and come back. <b>Send to Tools</b> from the Library now shows that picture in Tools: a text you were placing in Image to image showed over it (and stays waiting in Image to image). A picture opened from Tools' <b>Results</b> has the ‹ › arrows (and the ← → keys) to step through the others. Copy diagnostics shows the right version.",
+              "<b>💡 Relight speed</b>: ⚡ <b>Fast</b> (12 steps, no detail pass, about 6× quicker, good for trying lights), <b>Standard</b> (20 steps, a little quicker than before) and ★ <b>Best</b> (30 steps). The detail pass (Add detail) is the slow part: it redraws the picture 1.5× larger. The painting brush no longer lags with the 🎄 Christmas look: its snow now slides instead of repainting the top panel, and the holiday animations hold still while you paint.",
             ] },
             { h: "1.6.15: 💬 comic balloons and a font pack, ✨ text effects (bevel & emboss, glow, gradient, arc), 💡 Relight keeps your background or copies a reference's light, more patchbay modules", items: [
               "<b>🔤 Replace text: comic lettering</b>: three fonts of our own, designed for Protoart Studio: <b>Protoart Speech</b> (dialogue, regular and bold), <b>Protoart Kaboom</b> (chunky sound effects) and <b>Protoart Chatter</b> (bouncy cartoon lettering), plus a built-in pack of 12 free comic fonts (Comic Neue, Shantell Sans, Bangers, Luckiest Guy…), every font installed on your Mac in the Font list, corner handles to resize a text by hand, and <b>💬 Balloons & shapes</b>: speech, thought, shout, whisper, box, caption and burst, with a draggable tail.",
@@ -3601,6 +3602,10 @@ const protoartApp = createApp({
 
   async mounted() {
     installTypeIn();  // double-click a slider's number (Tools' modules) to type an exact value
+    // while you paint, drag or draw on a picture, the holiday looks' animations hold still (every frame for the brush)
+    const still = (on) => document.documentElement.classList.toggle("hd-still", on);
+    document.addEventListener("pointerdown", (e) => { if (e.target.closest && e.target.closest("canvas, .tx-stage, .mask-wrap, .adj-stage, .pw-stage")) still(true); }, true);
+    for (const t of ["pointerup", "pointercancel"]) document.addEventListener(t, () => still(false), true);
     currentTab = this.tab;  // the tab the app opened on: jobs started before any tab change are filed under it
     window.addEventListener("resize", () => { if (this.adj.open) this.adjPlaceOverlay(); if (this.pw.open) this.pwPlaceOverlay(); if (this.tx.open) this.txMeasure(); });
     // the saved form remembers whose prompt is in the box (Create's or Image to image's): match it to the tab the
@@ -5621,7 +5626,7 @@ const protoartApp = createApp({
           } else if (id === "relight") {
             const o = this.post.relight;
             rec = await this.runJob("relight", { ...cur, prompt: o.prompt, subject: o.subject, direction: o.direction, model: this.relightModel().id,
-                                                 size: this.relightSize(), hires: o.hires, background: o.background || "keep",
+                                                 size: this.relightSize(), hires: o.hires, speed: o.speed || "standard", background: o.background || "keep",
                                                  reference: o.ref_on && o.ref ? o.ref : null, ...this.relightFinish(o), finder: this.post.cut.finder });
           } else if (id === "cutout") {
             const o = this.post.cut;
@@ -7249,7 +7254,7 @@ const protoartApp = createApp({
       this.tool.latest = null;
       try {
         const rec = await this.runJob("relight", { ...this.toolArgs(), prompt: o.prompt, subject: o.subject, direction: o.direction,
-                                                     model: m.id, size: this.relightSize(), hires: o.hires, background: o.background || "keep", reference: o.ref_on && o.ref ? o.ref : null,
+                                                     model: m.id, size: this.relightSize(), hires: o.hires, speed: o.speed || "standard", background: o.background || "keep", reference: o.ref_on && o.ref ? o.ref : null,
                                                      ...this.relightFinish(o), finder: this.post.cut.finder });
         if (rec) { this.tool.latest = rec; this.afterPost(rec); }
       } finally { this.tool.working = null; this.relightJob = false; }
@@ -9043,7 +9048,7 @@ const protoartApp = createApp({
         if (!o.ref_on && !o.prompt.trim()) return (this.error = "Describe the light first, or pick one of the light ideas.");
         this.error = "";
         await this.runJob("relight", { init_image: f.init_image, prompt: o.prompt, subject: o.subject, direction: o.direction, model: m.id,
-                                       size: this.relightSize(), hires: o.hires, background: o.background || "keep",
+                                       size: this.relightSize(), hires: o.hires, speed: o.speed || "standard", background: o.background || "keep",
                                        reference: o.ref_on && o.ref ? o.ref : null, ...this.relightFinish(o), finder: this.post.cut.finder });
         return;
       }

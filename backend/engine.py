@@ -4023,8 +4023,8 @@ class Engine:
         base = base if base in (512, 640, 768) else 640
         if 0 < total_ram_gb() < 12:  # 640 / 768 (960+ px detail pass) run an 8 GB Mac out of memory: it seems to freeze
             base = 512
-        hires = args.get("hires", True) is not False
-        steps = max(10, min(50, int(args.get("steps") or 25)))
+        # ⚡ Fast / Standard / ★ Best (Fast: fewer steps and no detail pass, several times quicker)
+        steps, hires = rl.speed_plan(args.get("speed"), args.get("hires", True) is not False, args.get("steps"))
         cfg = float(args.get("cfg") or 2.0)
         seed = int(args["seed"]) if str(args.get("seed") or "").lstrip("-").isdigit() and int(args["seed"]) >= 0 \
             else int.from_bytes(os.urandom(4), "little") & 0x7FFFFFFF

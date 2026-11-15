@@ -2,6 +2,11 @@
 
 ## 1.6.16
 
+- Relight speed (`speed`: fast 12 steps without the detail pass / standard 20 / best 30, `relight.speed_plan`; it was
+  25 + a 1.5× detail pass of 25 more, ≈ 3× the work of one pass)
+- Fix: brush lag with the Christmas look: its snow animated `background-position` with `mix-blend-mode` over the top
+  panel (a repaint every frame); now one layer moved with `transform`, and holiday animations pause while painting
+  (`html.hd-still`). 6× CPU throttle: 24.6 → 17.5 ms per brush move (plain look 17.1)
 - Fix: the picture viewer opened from Tools' Results has ‹ › (and ← →): `detailList` had no Tools list
 - Fix: the text tool's session belongs to the tab it was opened in (`tx.where`, `txIn()`): a text open in Image to image
   showed over Tools' picture after Library → Send to Tools (Tools showed the Image to image picture). A new picture in a

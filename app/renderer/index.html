@@ -2546,7 +2546,13 @@
                     :title="z > relightMaxSize() ? 'Needs a Mac with 16 GB or more: on this Mac it runs out of memory and seems to freeze' : ''">{{ z }}</button>
           </div>
           <div v-if="relightMaxSize() < 768" class="hint">512 on this Mac ({{ sys.ram_gb }} GB): larger sizes need 16 GB. With Add detail on, the result is still 768 px.</div>
-          <label class="check" title="IC-Light's second pass: 1.5× larger with more detail (about twice as long)"><input type="checkbox" v-model="post.relight.hires"> Add detail (1.5× larger)</label>
+<label title="How long Relight takes. Fast: fewer steps and no detail pass, several times quicker (good for trying lights). Best: more steps for the finished picture">Speed</label>
+          <div class="seg mod-seg">
+            <button :class="{on: (post.relight.speed || 'standard') === 'fast'}" @click="post.relight.speed = 'fast'" title="12 steps, no detail pass: about 6× quicker, a little softer">⚡ Fast</button>
+            <button :class="{on: (post.relight.speed || 'standard') === 'standard'}" @click="post.relight.speed = 'standard'" title="20 steps, plus the detail pass if Add detail is on">Standard</button>
+            <button :class="{on: post.relight.speed === 'best'}" @click="post.relight.speed = 'best'" title="30 steps, plus the detail pass: slowest, finest">★ Best</button>
+          </div>
+          <label class="check" title="IC-Light's second pass: 1.5× larger with more detail (the slow part: about twice as long). Off with ⚡ Fast"><input type="checkbox" v-model="post.relight.hires" :disabled="post.relight.speed === 'fast'"> Add detail (1.5× larger)</label>
           <label title="IC-Light draws a new background to match the light. Keep mine puts the relit subject back on your picture's own background">Background</label>
           <div class="seg mod-seg">
             <button :class="{on: (post.relight.background || 'keep') === 'keep'}" @click="post.relight.background = 'keep'" title="The relit subject on your picture's own background, exactly as it was (cut out and placed back for you)">Mine</button>
@@ -3438,8 +3444,14 @@
             <button :class="{on: post.relight.background === 'keep_relit'}" @click="post.relight.background = 'keep_relit'">Keep mine, relit</button>
             <button :class="{on: post.relight.background === 'new'}" @click="post.relight.background = 'new'">New from Relight</button>
           </div>
+          <label title="How long Relight takes. Fast: fewer steps and no detail pass, several times quicker (good for trying lights). Best: more steps for the finished picture">Speed</label>
+          <div class="seg mod-seg">
+            <button :class="{on: (post.relight.speed || 'standard') === 'fast'}" @click="post.relight.speed = 'fast'" title="12 steps, no detail pass: about 6× quicker, a little softer">⚡ Fast</button>
+            <button :class="{on: (post.relight.speed || 'standard') === 'standard'}" @click="post.relight.speed = 'standard'" title="20 steps, plus the detail pass if Add detail is on">Standard</button>
+            <button :class="{on: post.relight.speed === 'best'}" @click="post.relight.speed = 'best'" title="30 steps, plus the detail pass: slowest, finest">★ Best</button>
+          </div>
           <div class="row small">
-            <label class="check"><input type="checkbox" v-model="post.relight.hires"> Add detail</label>
+            <label class="check" title="The slow part (about twice as long). Off with ⚡ Fast"><input type="checkbox" v-model="post.relight.hires" :disabled="post.relight.speed === 'fast'"> Add detail</label>
             <label class="check"><input type="checkbox" v-model="post.relight.full_size"> Full size</label>
             <label v-if="(post.relight.background || 'keep') !== 'new'" class="check"><input type="checkbox" v-model="post.relight.shadow"> Shadow</label>
             <label v-if="(post.relight.background || 'keep') !== 'new'" class="check"><input type="checkbox" v-model="post.relight.blend"> Blend in</label>

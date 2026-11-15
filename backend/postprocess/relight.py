@@ -6,6 +6,17 @@ layer takes the subject's picture as 4 extra channels. Our own implementation of
 """
 import numpy as np
 
+# ⚡ Relight speed: (steps, keep the 1.5× detail pass?). The detail pass is the slow part (2¼× the pixels for as
+# many steps again), so Fast skips it.
+SPEEDS = {"fast": (12, False), "standard": (20, True), "best": (30, True)}
+
+
+def speed_plan(speed, hires=True, steps=None):
+    """-> (steps, hires) for a Relight. An explicit steps value wins; Fast always skips the detail pass."""
+    base, keep = SPEEDS.get(speed or "standard", SPEEDS["standard"])
+    n = max(8, min(50, int(steps))) if steps else base
+    return n, bool(hires) and keep
+
 REPO = "lllyasviel/ic-light"
 FILE = "iclight_sd15_fc.safetensors"
 FILE_BG = "iclight_sd15_fbc.safetensors"  # lit like a reference picture (IC-Light's background-conditioned model)
