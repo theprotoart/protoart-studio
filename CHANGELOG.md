@@ -2,6 +2,8 @@
 
 ## 1.6.16
 
+- Fix: Z-Image training "Could not find LoRA file 'zimage_turbo_training_adapter_v2.safetensors'": mflux's trainer
+  reads that helper only from its own LoRA folder; the app copies it there (`MFLUX_CACHE_DIR` = `~/.protoartstudio/mflux-cache`)
 - Fix: training on the fast engine said a downloaded Z-Image / Klein / ERNIE "isn't downloaded yet" (it looked the
   model up without the pinned revision); it also uses the model's internal-drive copy (`mlx_train._fast_copy`).
   Training errors show on the Train tab (they appeared in Create)

@@ -172,6 +172,12 @@ def parse_progress(line):
     return done, total, sps
 
 
+def _mflux_cache():
+    """mflux's own cache folder for the trainer (its LoRA helpers), kept in the app's data folder."""
+    home = Path(os.environ.get("PROTOART_HOME") or (Path.home() / ".protoartstudio"))
+    return home / "mflux-cache"
+
+
 def _fast_copy(path):
     """The copy on this Mac's own drive that making a picture puts there for a model kept on a slow external drive
     (mlx_worker._internal_copy), when there is one: training reads the weights at every step."""
@@ -246,11 +252,18 @@ def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, c
         emit({"type": "status", "msg": "Downloading Z-Image's training helper (once, small)…"})
         net.set_online(True)
         try:
-            hf_hub_download(*ZIMAGE_ADAPTER)
+            helper = hf_hub_download(*ZIMAGE_ADAPTER)
         except Exception as e:
             raise TrainError(f"Couldn't download Z-Image's training helper ({e}). Check the internet connection.")
         finally:
             net.set_online(False)
+        # mflux's trainer looks for it only in its own LoRA folder (by file name), never in the download cache: put
+        # a copy there, so it doesn't try (and fail, offline) to fetch it again
+        lora_dir = _mflux_cache() / "loras"
+        lora_dir.mkdir(parents=True, exist_ok=True)
+        dest = lora_dir / ZIMAGE_ADAPTER[1]
+        if not dest.is_file() or dest.stat().st_size != os.path.getsize(helper):
+            shutil.copyfile(os.path.realpath(helper), dest)
     cfg_path = Path(work_dir) / "train.json"
     if not resume_zip:
         cfg_path.write_text(json.dumps(cfg, indent=2))
@@ -258,7 +271,7 @@ def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, c
     # 2. run mflux's trainer in the fast engine's Python
     emit({"type": "status", "msg": f"Loading {kind['name']} to carry on training (fast engine)…" if resume_zip
           else f"Loading {kind['name']} for training (fast engine)…"})
-    env = dict(os.environ, PYTHONUNBUFFERED="1", HF_HUB_OFFLINE="1")
+    env = dict(os.environ, PYTHONUNBUFFERED="1", HF_HUB_OFFLINE="1", MFLUX_CACHE_DIR=str(_mflux_cache()))
     how = ["--resume", str(resume_zip)] if resume_zip else ["--config", str(cfg_path)]
     proc = subprocess.Popen([str(mlx_engine.PY), "-m", "mflux.models.common.cli.train", *how],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=str(work_dir), env=env)
