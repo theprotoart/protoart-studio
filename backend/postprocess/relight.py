@@ -8,7 +8,15 @@ import numpy as np
 
 # ⚡ Relight speed: (steps, keep the 1.5× detail pass?). The detail pass is the slow part (2¼× the pixels for as
 # many steps again), so Fast skips it.
-SPEEDS = {"fast": (12, False), "standard": (20, True), "best": (30, True)}
+SPEEDS = {"turbo": (6, True), "fast": (12, False), "standard": (20, True), "best": (30, True)}
+# ⚡ Turbo: the LCM speed LoRA (the one Create's fast mode uses) on IC-Light: about 6 steps, so the detail pass is
+# cheap enough to keep. Its first-layer (conv_in) weights are dropped: IC-Light widens that layer.
+TURBO_CFG = 1.5
+
+
+def lcm_for_iclight(state):
+    """The LCM LoRA without the parts for the model's first layer (conv_in), which IC-Light has made wider."""
+    return {k: v for k, v in state.items() if "conv_in" not in k}
 
 
 def speed_plan(speed, hires=True, steps=None):

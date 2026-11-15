@@ -1444,6 +1444,33 @@ class Engine:
             print("[engine] preview failed:", e, flush=True)
             self.previews = False  # don't keep failing every step
 
+    def _relight_lcm_file(self, emit):
+        """⚡ Relight Turbo: the SD 1.5 LCM LoRA (Create's fast mode), without its first-layer weights (IC-Light makes
+        that layer wider). Made once next to the other weights; downloads the LoRA (~135 MB) the first time."""
+        import net
+        from postprocess import relight as rl
+        out = paths.HOME / "weights" / "lcm-lora-sdv1-5-for-iclight.safetensors"
+        if out.is_file():
+            return str(out)
+        repo, fname, _gb = FAST_LORAS["sd15"]
+        from huggingface_hub import try_to_load_from_cache
+        src = try_to_load_from_cache(repo, fname)
+        if not isinstance(src, str):
+            if net.strict:
+                raise UserError("Turbo needs a one-time ~135 MB download, and Strict offline mode is on.")
+            net.set_online(True)
+            try:
+                with net.hf_progress(repo, "Turbo (LCM LoRA)", 135, emit):
+                    src = self._fast_lora_file("sd15")
+            finally:
+                net.set_online(False)
+        from safetensors.torch import load_file, save_file
+        out.parent.mkdir(parents=True, exist_ok=True)
+        part = out.with_name(out.name + ".part")
+        save_file(rl.lcm_for_iclight(load_file(src)), str(part))
+        os.replace(part, out)
+        return str(out)
+
     def _fast_lora_file(self, family):
         repo, fname, gb = FAST_LORAS[family]
         from huggingface_hub import hf_hub_download, try_to_load_from_cache
@@ -4064,8 +4091,21 @@ class Engine:
         t = self.torch()
         from diffusers import DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline
         pipe = self.pipe
-        pipe.scheduler = DPMSolverMultistepScheduler.from_config(
-            self.base_scheduler_config, algorithm_type="sde-dpmsolver++", use_karras_sigmas=True)
+        turbo = args.get("speed") == "turbo"
+        if turbo:  # ⚡ Turbo: the LCM speed LoRA and sampler, ~6 steps; if it can't be used, this one runs at Fast
+            try:
+                self.apply_loras([], extra=[(FAST_ADAPTER, self._relight_lcm_file(emit), 1.0, "Turbo (LCM)")])
+                pipe.scheduler, _ = samplers.build_scheduler(self.family, "lcm", self.base_scheduler_config)
+                cfg = min(cfg, rl.TURBO_CFG)
+            except Exception as e:
+                print("[relight] Turbo unavailable, using Fast:", repr(e), flush=True)
+                emit({"type": "status", "msg": f"Turbo isn't available ({str(e)[:120]}): relighting at Fast instead…"})
+                turbo = False
+                steps, hires = rl.speed_plan("fast", hires)
+        if not turbo:
+            self.apply_loras([])  # no speed LoRA left over from a Turbo run
+            pipe.scheduler = DPMSolverMultistepScheduler.from_config(
+                self.base_scheduler_config, algorithm_type="sde-dpmsolver++", use_karras_sigmas=True)
         i2i = StableDiffusionImg2ImgPipeline(**pipe.components)
         i2i.set_progress_bar_config(disable=True)
         vae = pipe.vae

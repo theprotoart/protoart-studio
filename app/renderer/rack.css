@@ -2757,3 +2757,7 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .tx-stage svg.tx-frame { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 4; overflow: visible; }
 .tx-free-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 2px; }
 .tx-free-row button { flex: 1 1 auto; }
+
+/* Relight's four speeds: two by two (they don't fit in one row of a module) */
+.seg.relight-speed { display: grid; grid-template-columns: 1fr 1fr; }
+.seg.relight-speed button { white-space: nowrap; }

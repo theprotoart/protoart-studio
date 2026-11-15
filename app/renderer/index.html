@@ -2546,8 +2546,9 @@
                     :title="z > relightMaxSize() ? 'Needs a Mac with 16 GB or more: on this Mac it runs out of memory and seems to freeze' : ''">{{ z }}</button>
           </div>
           <div v-if="relightMaxSize() < 768" class="hint">512 on this Mac ({{ sys.ram_gb }} GB): larger sizes need 16 GB. With Add detail on, the result is still 768 px.</div>
-<label title="How long Relight takes. Fast: fewer steps and no detail pass, several times quicker (good for trying lights). Best: more steps for the finished picture">Speed</label>
-          <div class="seg mod-seg">
+<label title="How long Relight takes. Turbo / Fast: far fewer steps, several times quicker (good for trying lights). Best: more steps for the finished picture">Speed</label>
+          <div class="seg mod-seg relight-speed">
+            <button :class="{on: post.relight.speed === 'turbo'}" @click="post.relight.speed = 'turbo'" title="About 6 steps with the LCM speed LoRA (a ~135 MB download the first time): the quickest, a little less detailed. Keeps Add detail">🚀 Turbo</button>
             <button :class="{on: (post.relight.speed || 'standard') === 'fast'}" @click="post.relight.speed = 'fast'" title="12 steps, no detail pass: about 6× quicker, a little softer">⚡ Fast</button>
             <button :class="{on: (post.relight.speed || 'standard') === 'standard'}" @click="post.relight.speed = 'standard'" title="20 steps, plus the detail pass if Add detail is on">Standard</button>
             <button :class="{on: post.relight.speed === 'best'}" @click="post.relight.speed = 'best'" title="30 steps, plus the detail pass: slowest, finest">★ Best</button>
@@ -3444,8 +3445,9 @@
             <button :class="{on: post.relight.background === 'keep_relit'}" @click="post.relight.background = 'keep_relit'">Keep mine, relit</button>
             <button :class="{on: post.relight.background === 'new'}" @click="post.relight.background = 'new'">New from Relight</button>
           </div>
-          <label title="How long Relight takes. Fast: fewer steps and no detail pass, several times quicker (good for trying lights). Best: more steps for the finished picture">Speed</label>
-          <div class="seg mod-seg">
+          <label title="How long Relight takes. Turbo / Fast: far fewer steps, several times quicker (good for trying lights). Best: more steps for the finished picture">Speed</label>
+          <div class="seg mod-seg relight-speed">
+            <button :class="{on: post.relight.speed === 'turbo'}" @click="post.relight.speed = 'turbo'" title="About 6 steps with the LCM speed LoRA (a ~135 MB download the first time): the quickest, a little less detailed. Keeps Add detail">🚀 Turbo</button>
             <button :class="{on: (post.relight.speed || 'standard') === 'fast'}" @click="post.relight.speed = 'fast'" title="12 steps, no detail pass: about 6× quicker, a little softer">⚡ Fast</button>
             <button :class="{on: (post.relight.speed || 'standard') === 'standard'}" @click="post.relight.speed = 'standard'" title="20 steps, plus the detail pass if Add detail is on">Standard</button>
             <button :class="{on: post.relight.speed === 'best'}" @click="post.relight.speed = 'best'" title="30 steps, plus the detail pass: slowest, finest">★ Best</button>

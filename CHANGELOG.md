@@ -2,7 +2,9 @@
 
 ## 1.6.16
 
-- Relight speed (`speed`: fast 12 steps without the detail pass / standard 20 / best 30, `relight.speed_plan`; it was
+- Relight speed (`speed`: turbo ≈6 steps with the SD 1.5 LCM LoRA of Create's fast mode, its conv_in weights dropped for
+  IC-Light's wider first layer (`relight.lcm_for_iclight`, `_relight_lcm_file`), LCM sampler, CFG ≤ 1.5, falls back to
+  Fast if it can't load / fast 12 steps without the detail pass / standard 20 / best 30, `relight.speed_plan`; it was
   25 + a 1.5× detail pass of 25 more, ≈ 3× the work of one pass)
 - Fix: brush lag with the Christmas look: its snow animated `background-position` with `mix-blend-mode` over the top
   panel (a repaint every frame); now still snowflakes (an SVG tile) behind the controls, and holiday animations pause while painting
