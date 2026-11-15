@@ -723,7 +723,9 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.16";  // keep in step with app/package.json
+const APP_VERSION = "1.6.16";
+// ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
+const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -1051,6 +1053,7 @@ const protoartApp = createApp({
           sections: [
             { h: "1.6.16: 🎃 holiday looks, 💬 balloons on any picture in one press, ✥ free transform, 🎨 blending modes, 🔄 turn, slant, perspective and warp text (wrap it round a bottle), clearer effect buttons", items: [
               "<b>🎃🦃🎄🎆 Holiday looks</b> (Settings → Look, the four buttons after the colour swatches), all original art made for Protoart Studio: <b>Halloween</b> (pumpkin orange and witchy purple, jack-o'-lantern lamps whose eyes light up, a flickering pumpkin and a VU meter that's a <b>jack-o'-lantern that lights up</b> while it works), <b>Thanksgiving</b> (harvest wheat and chestnut, autumn-leaf lamps, a turkey, pie and corn), <b>Christmas</b> (snowy white and evergreen, Christmas-bulb lamps, still snowflakes and a <b>snow globe</b> meter whose cabin lights up and snows while it works) and <b>New Year's</b> (midnight blue and champagne gold, star lamps, fireworks and clinking glasses). The launch screen joins in too. Light and Dark both work with each.",
+              "<b>🔄 Change it with ⚡ fast-engine models</b> (Image to image): Z-Image Turbo, ERNIE and the other fast-engine models that can start from a picture are now in the model list for <b>Change it</b> (their own group at the bottom). Strength works as usual; ControlNet and inpainting stay with SD 1.5 / SDXL.",
               "<b>🧩 MOSS-Image and Z-Image Turbo on 8 GB Macs</b> (no longer greyed out): MOSS-Image makes a smaller <b>8 GB version</b> of its picture model once, on your Mac, right after the download (attention and the first and last blocks stay 8-bit, the rest becomes 4-bit, ~5.3 → ~3.5 GB; the text reader stays as published so lettering stays right, and is shared, not copied). Z-Image Turbo puts its text reader away while it draws and brings back only that part for a new prompt. Both are slower than on a 16 GB Mac: use Medium (768) sizes for drafts, and close web browsers.",
               "<b>Fix: Create → 🎛 ControlNet after switching models</b>: a pose (or outlines, depth…) picked with an SD 1.5 model now switches to the same kind made for Pony and SDXL when you pick one, instead of stopping with “This ControlNet is made for an SD 1.5 model”. If there's no matching kind, the note under Generate says so.",
               "<b>🔄 Turn, slant &amp; warp text</b> (Text &amp; balloons): drag the <b>green dot</b> above a text to turn it, <b>slant</b> it sideways or up and down, put it in <b>📐 perspective</b> like Photoshop (one side nearer, or leaning back like words on a floor), and <b>warp</b> it: <b>🍾 Wrap round</b> bends the words round a bottle, can or cup in the picture (only the words bend, not the picture), plus 🎈 Bulge, 🌊 Wave and 📈 Rise. The effect sections are now proper buttons: <b>Outline &amp; shadow</b>, <b>Bevel, glow &amp; colour</b> and <b>Turn, slant &amp; warp</b>.",
@@ -3059,9 +3062,14 @@ const protoartApp = createApp({
         ].filter((g) => g.models.length);
       }
       const mark = (list) => list.map((m) => ({ ...m, i2iOk: ok(m) }));
+      // ⚡ fast-engine models that can start from a picture (Change it only: no inpaint, ControlNet or image prompt)
+      const fastOk = this.form.i2i_mode === "change" && !this.form.control.type;
+      const fast = this.sortModels(this.installedModels.filter((m) => m.engine === "mlx" && FAST_I2I.includes(m.family)))
+        .map((m) => ({ ...m, i2iOk: fastOk, why: fastOk ? "" : " — Change it only (no ControlNet)" }));
       return [
         { name: "SD 1.5 · image to image, inpaint, ControlNet (built-in + yours), image prompt (IP-Adapter)", models: mark(this.sortModels(this.installedModels.filter((m) => m.family === "sd15" && !m.inpaint))) },
         { name: "SDXL / Pony · image to image, inpaint, image prompt (IP-Adapter), your SDXL ControlNets", models: mark(this.sortModels(this.installedModels.filter((m) => m.family === "sdxl" && !m.inpaint))) },
+        { name: "⚡ Fast engine · 🔄 Change it (starts from your picture; Z-Image, ERNIE…)", models: fast },
       ].filter((g) => g.models.length);
     },
     convShown() {
@@ -9128,7 +9136,10 @@ const protoartApp = createApp({
         return;
       }
       if (f.i2i_mode === "change" && !f.i2i_use_init && !f.control.type) return (this.error = "Tick “Start from this picture”, pick a ControlNet, or both.");
-      if (!["sd15", "sdxl"].includes(this.family)) return (this.error = "Image to image works with SD 1.5 and SDXL models: pick one at the top.");
+      const fastChange = f.i2i_mode === "change" && this.currentModel?.engine === "mlx" && FAST_I2I.includes(this.family);
+      if (fastChange && (f.control.type || !f.i2i_use_init))
+        return (this.error = `${this.currentModel.label} changes your picture with Change it only: tick “Start from this picture” and take the ControlNet off, or pick an SD 1.5 / SDXL model.`);
+      if (!fastChange && !["sd15", "sdxl"].includes(this.family)) return (this.error = "Image to image works with SD 1.5 and SDXL models (and ⚡ Z-Image, ERNIE… for Change it): pick one at the top.");
       const cnFam = f.i2i_mode === "change" && f.control.type ? (this.controlTypeInfo?.family || "sd15") : null;
       if (cnFam && cnFam !== this.family) return (this.error = `This ControlNet is made for ${cnFam === "sdxl" ? "SDXL (Pony, Illustrious, NoobAI)" : "SD 1.5"} models: pick one in the model list at the top, or another ControlNet.`);
       if (!(await this.slowCheck("i2i"))) return;
