@@ -55,6 +55,44 @@ SMALL_PATTERNS = ["*.json", "*.jinja", "*.txt", "*.model", "LICENSE", "NOTICE", 
                   "text_encoder/*", "tokenizer/*", "scheduler/*", "vae/*"]
 
 
+def slow_parts(d=None):
+    """Parts of the 8 GB version that are links into another drive (/Volumes/…). The model reads them while the
+    graphics chip waits; from a slow external drive (37 MB/s measured) one layer takes over 5 s and macOS's GPU
+    watchdog stops the run ("GPU Timeout Error"). Those parts are copied to this Mac's own drive once."""
+    d = Path(d or small_dir())
+    out = []
+    for f in sorted(d.iterdir()) if d.exists() else []:
+        if f.is_symlink() and str(f.resolve()).startswith("/Volumes/"):
+            out.append(f)
+    return out
+
+
+def localize(d=None, emit=lambda m: None):
+    """Copy the parts that live on another drive into the 8 GB version's own folder (see slow_parts)."""
+    d = Path(d or small_dir())
+    for f in slow_parts(d):
+        src = f.resolve()
+        tmp = f.with_name(f.name + ".copying")
+        shutil.rmtree(tmp, ignore_errors=True)
+        if tmp.exists():
+            tmp.unlink()
+        emit(f"Copying MOSS-Image's {f.name.replace('_', ' ')} to this Mac's drive (one time)…")
+        if src.is_dir():
+            shutil.copytree(src, tmp, symlinks=False)
+        else:
+            shutil.copy2(src, tmp)
+        f.unlink()
+        tmp.rename(f)
+
+
+def slow_parts_gb(d=None):
+    total = 0
+    for f in slow_parts(d):
+        r = f.resolve()
+        total += sum(x.stat().st_size for x in r.rglob("*") if x.is_file()) if r.is_dir() else r.stat().st_size
+    return total / 2**30
+
+
 def small_ready_made(download=False):
     """The ready-made 8 GB copy's folder (None if it isn't published yet, or isn't here and download is False)."""
     if not SMALL_REPO:

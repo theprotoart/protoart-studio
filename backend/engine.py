@@ -1941,6 +1941,14 @@ class Engine:
 
                     self.moss.request({"cmd": "shrink", "src": weights, "out": str(small_dir)}, on_event=on_shrink)
                     self.emit({"type": "status", "msg": "MOSS-Image's 8 GB version is ready"})
+                if moss_engine.slow_parts(small_dir):  # the download is on an external drive: copy what it reads here
+                    need = moss_engine.slow_parts_gb(small_dir)
+                    free = free_disk_gb(str(small_dir))
+                    if free < need + 2:
+                        raise UserError(f"MOSS-Image's files are on an external drive, which is too slow for it to read "
+                                        f"while drawing. Copying them to this Mac needs about {need:.0f} GB free; only "
+                                        f"{free} GB is free.")
+                    moss_engine.localize(small_dir, lambda m: self.emit({"type": "status", "msg": m}))
                 weights = str(small_dir)
             cache = paths.HOME / "moss-prompts"
             cache.mkdir(parents=True, exist_ok=True)

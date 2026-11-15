@@ -2,6 +2,9 @@
 
 ## 1.6.16
 
+- MOSS-Image 8 GB version: parts linked from an external drive are copied to the Mac's own drive once
+  (`moss_engine.slow_parts`/`localize`): the encoder streams weights while the GPU waits, and at 37 MB/s (measured, an
+  external drive) one layer took over 5 s, so macOS's GPU watchdog stopped every run ("GPU Timeout Error")
 - Fix: fast-engine and MOSS-Image workers kept running after the app closed when they were mid-step (a 7 GB MOSS
   worker left behind starved an 8 GB Mac: GPU timeouts even for Klein). Workers now exit as soon as the app's pipe
   closes, and a quit they can't reach in 3 s ends them
