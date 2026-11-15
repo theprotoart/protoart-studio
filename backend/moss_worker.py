@@ -34,10 +34,12 @@ class Cancelled(Exception):
 
 
 class _EvalEach:
-    """Wraps one text-encoder layer: finish its work before the next starts (short GPU jobs, see generate)."""
+    """Wraps one text-encoder layer for streaming (see generate): run it, finish its GPU work, then let its weights go.
+    The encoder's weights are loaded lazily from disk, so only the layer being run is in memory."""
 
     def __init__(self, layer, i, n):
         self._layer, self._i, self._n = layer, i, n
+        self.is_linear = getattr(layer, "is_linear", False)  # read by the model before each layer runs
 
     def __call__(self, *args, **kwargs):
         import mlx.core as mx
@@ -45,12 +47,17 @@ class _EvalEach:
             raise Cancelled()
         out = self._layer(*args, **kwargs)
         mx.eval(out)
+        self._layer = None  # done with this layer: its weights leave memory
+        mx.clear_cache()
         if self._i % 4 == 0:
             send({"type": "progress", "step": self._i + 1, "steps": self._n})
         return out
 
-    def __getattr__(self, name):  # is_linear, self_attn, … read by the model
-        return getattr(self._layer, name)
+    def __getattr__(self, name):
+        layer = self.__dict__.get("_layer")
+        if layer is None:
+            raise AttributeError(name)
+        return getattr(layer, name)
 
 
 class Worker:
@@ -177,22 +184,27 @@ class Worker:
             send({"type": "progress", "step": i + 1, "steps": n, "elapsed": round(time.time() - started, 1)})
 
         if getattr(self, "cpu_encode", False):
-            # 8 GB Macs: the 9B text encoder (~7 GB) doesn't fit beside the system, so its one pass swaps. Run as a
-            # single GPU job that trips macOS's GPU watchdog ("GPU Timeout Error"); on the CPU it thrashes for many
-            # minutes. So it runs on the GPU one layer at a time: every job is short, and each layer's weights are
-            # read once. The result is kept on disk, so this is once per prompt.
+            # 8 GB Macs: the 9B text encoder (~7 GB) doesn't fit beside the system: held whole, it swaps, the GPU
+            # stalls and macOS's GPU watchdog stops it ("GPU Timeout Error"); on the CPU it thrashes for many minutes.
+            # So it's streamed: its weights load lazily from disk, and each layer is run on the GPU and dropped before
+            # the next (~1 GB in memory instead of ~7). The result is kept on disk, so this is once per prompt.
             texts = [req.prompt] + ([req.negative_prompt] if req.uses_cfg() else [])
             cached = self.pipe.cache is not None and all(self.pipe.cache.get(t, req.max_sequence_length) is not None
                                                          for t in texts)
             if not cached:
-                send({"type": "status", "msg": "Reading the prompt (8 GB Macs: once per prompt, a minute or two)…"})
-                self.pipe._load_text_encoder()
-                model = self.pipe.text_encoder.model
-                n = len(model.layers)
-                model.layers = [_EvalEach(layer, i, n) for i, layer in enumerate(model.layers)]
-                self.pipe.encode(texts, req.max_sequence_length)  # saved to the prompt cache, encoder freed
-                if cancel.is_set():
-                    raise Cancelled()
+                send({"type": "status", "msg": "Reading the prompt (8 GB Macs: once per prompt)…"})
+                for t in texts:  # each prompt streams the encoder from disk once (its layers are dropped as they run)
+                    if self.pipe.cache.get(t, req.max_sequence_length) is not None:
+                        continue
+                    self.pipe.text_encoder = None
+                    self.pipe._load_text_encoder()
+                    model = self.pipe.text_encoder.model
+                    n = len(model.layers)
+                    model.layers = [_EvalEach(layer, i, n) for i, layer in enumerate(model.layers)]
+                    self.pipe.encode([t], req.max_sequence_length, keep=True)  # saved to the prompt cache
+                    self.pipe.free_text_encoder()
+                    if cancel.is_set():
+                        raise Cancelled()
         image = self.pipe(req, on_step=on_step)
         if cancel.is_set():
             raise Cancelled()
