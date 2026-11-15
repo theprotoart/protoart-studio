@@ -54,6 +54,7 @@ class Worker:
                      (student, 1.0, mx.bfloat16 if a.get("student_bf16") else mx.float32, "student")]
         self.pipe = MOSSImagePipeline(a["dir"], low_memory=True, cache_dir=a.get("cache") or None, loras=loras)
         self.key = key
+        self.cpu_encode = bool(a.get("cpu_encode"))
 
     def shrink(self, a):
         """Make the small copy for 8 GB Macs: the picture model re-stored with 4-bit feed-forward layers (8-bit
@@ -155,6 +156,24 @@ class Worker:
                 send({"type": "status", "msg": "Drawing the picture…"})
             send({"type": "progress", "step": i + 1, "steps": n, "elapsed": round(time.time() - started, 1)})
 
+        if getattr(self, "cpu_encode", False):
+            # 8 GB Macs: the 9B text encoder (~7 GB) doesn't fit beside the system, and on the GPU a swapping pass
+            # trips macOS's GPU watchdog ("GPU Timeout Error"). On the CPU there's no time limit: slower, but it
+            # runs once per prompt (the result is kept on disk), then the picture model runs on the GPU as usual.
+            import mlx.core as mx
+            texts = [req.prompt] + ([req.negative_prompt] if req.uses_cfg() else [])
+            cached = self.pipe.cache is not None and all(self.pipe.cache.get(t, req.max_sequence_length) is not None
+                                                         for t in texts)
+            if not cached:
+                send({"type": "status", "msg": "Reading the prompt on the CPU (8 GB Macs: once per prompt, a few minutes)…"})
+                previous = mx.default_device()
+                mx.set_default_device(mx.cpu)
+                try:
+                    self.pipe.encode(texts, req.max_sequence_length)  # saved to the prompt cache, encoder freed
+                finally:
+                    mx.set_default_device(previous)
+                if cancel.is_set():
+                    raise Cancelled()
         image = self.pipe(req, on_step=on_step)
         if cancel.is_set():
             raise Cancelled()

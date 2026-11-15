@@ -1945,7 +1945,7 @@ class Engine:
             cache = paths.HOME / "moss-prompts"
             cache.mkdir(parents=True, exist_ok=True)
             self.moss.request({"cmd": "load", "dir": weights, "turbo": bool(spec.get("moss_turbo")),
-                               "adapters": adapters or [], "cache": str(cache), "student_bf16": small},
+                               "adapters": adapters or [], "cache": str(cache), "student_bf16": small, "cpu_encode": small},
                               on_event=lambda ev: ev.get("type") == "status" and self.emit(ev))
             self.loaded_key = None
             self.family = "moss"

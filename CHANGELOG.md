@@ -2,6 +2,8 @@
 
 ## 1.6.16
 
+- MOSS-Image on 8 GB Macs: the text encoder runs on the CPU (`cpu_encode`); on the GPU its swapping pass hit macOS's
+  GPU watchdog ("Command buffer execution failed: GPU Timeout Error"). The embeddings are cached, so it's once per prompt
 - MOSS-Image's 8 GB version can come ready-made: `moss_engine.SMALL_REPO`/`SMALL_REVISION` (off until published),
   `small_ready_made()`, falling back to making it on the Mac. "Upload MOSS 8GB version.command" →
   `backend/tools/upload_moss_small.py` publishes the Mac's copy (hard-linked real files, model card with the
