@@ -2,6 +2,10 @@
 
 ## 1.6.16
 
+- MOSS-Image's 8 GB version can come ready-made: `moss_engine.SMALL_REPO`/`SMALL_REVISION` (off until published),
+  `small_ready_made()`, falling back to making it on the Mac. "Upload MOSS 8GB version.command" →
+  `backend/tools/upload_moss_small.py` publishes the Mac's copy (hard-linked real files, model card with the
+  Apache-2.0 credits and what was changed, LICENSE and NOTICE required; write token asked each time, never saved)
 - MOSS-Image and Z-Image Turbo on 8 GB Macs (`min_ram_gb` 8). MOSS: below `SMALL_RAM_GB` (14) a small copy of the DiT is
   made once by the worker's `shrink` command from the compact download (`moss_small.small_spec`: 4-bit g64 with
   q/k/v/o, the text embedder and the first/last blocks at 8-bit; one layer at a time on the CPU, self-checked; the

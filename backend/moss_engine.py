@@ -45,6 +45,28 @@ SMALL_RAM_GB = 14     # Macs with less memory than this use the small copy
 SMALL_TAG = "a8f4-v1"  # change when the recipe changes: a new copy is made
 SMALL_GB = 3.6
 from moss_small import small_spec, bits_for  # noqa: E402,F401  (shared with the worker)
+# The same small copy, ready-made on Protoart Studio's Hugging Face page (Apache-2.0, credits in its model card): 8 GB
+# Macs download it (~10.5 GB) instead of the 12 GB original plus making it. None until it's published; then the
+# upload's commit is pinned here. If it can't be downloaded, the Mac makes its own copy as before.
+SMALL_REPO = None
+SMALL_REVISION = None
+SMALL_DOWNLOAD_GB = 10.5
+SMALL_PATTERNS = ["*.json", "*.jinja", "*.txt", "*.model", "LICENSE", "NOTICE", "README.md", "transformer/*",
+                  "text_encoder/*", "tokenizer/*", "scheduler/*", "vae/*"]
+
+
+def small_ready_made(download=False):
+    """The ready-made 8 GB copy's folder (None if it isn't published yet, or isn't here and download is False)."""
+    if not SMALL_REPO:
+        return None
+    from huggingface_hub import snapshot_download
+    try:
+        return snapshot_download(SMALL_REPO, revision=SMALL_REVISION, allow_patterns=SMALL_PATTERNS,
+                                 local_files_only=not download)
+    except Exception:
+        if download:
+            raise
+        return None
 
 
 def small_dir():

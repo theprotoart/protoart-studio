@@ -983,7 +983,8 @@ class Engine:
             return True
         if spec.get("moss"):
             import moss_engine
-            return bool(moss_engine.weights_dir()) and (not spec.get("moss_turbo") or bool(moss_engine.turbo_files()))
+            here = bool(moss_engine.weights_dir() or moss_engine.small_ready() or moss_engine.small_ready_made())
+            return here and (not spec.get("moss_turbo") or bool(moss_engine.turbo_files()))
         if spec.get("engine") == "mlx":
             if spec.get("mlx_patterns"):
                 try:
@@ -1890,8 +1891,20 @@ class Engine:
         self.drop_helpers()
         if self.moss is None:
             self.moss = moss_engine.MossEngine(self.emit, self.cancel_event, self.pause_event)
+        small = bool(ram) and ram < moss_engine.SMALL_RAM_GB
         try:
-            weights = moss_engine.weights_dir()
+            ready = moss_engine.small_ready_made() if small else None
+            if small and not ready and not moss_engine.small_ready() and moss_engine.SMALL_REPO \
+                    and not moss_engine.weights_dir() and net.is_online():
+                # 8 GB Macs: the ready-made small copy from Protoart Studio's Hugging Face page (no 12 GB original)
+                try:
+                    self.emit({"type": "status", "msg": f"Downloading MOSS-Image's 8 GB version (first time only, "
+                                                        f"~{moss_engine.SMALL_DOWNLOAD_GB:.0f} GB)…"})
+                    ready = moss_engine.small_ready_made(download=True)
+                except Exception as e:
+                    print(f"[moss] ready-made 8 GB version not downloaded ({e}); making one here instead", flush=True)
+                    ready = None
+            weights = ready or moss_engine.weights_dir() or (str(moss_engine.small_dir()) if small and moss_engine.small_ready() else None)
             adapters = moss_engine.turbo_files() if spec.get("moss_turbo") else []
             if not weights or adapters is None or not moss_engine.installed():
                 if not net.is_online():  # the backend tries again with the connection open (unless Strict offline)
@@ -1909,8 +1922,7 @@ class Engine:
                 self.moss.install()
             if self.cancel_event.is_set():
                 raise Cancelled()
-            small = bool(ram) and ram < moss_engine.SMALL_RAM_GB
-            if small:  # 8 GB Macs: the picture model's small copy (made once from the download; moss_small.py)
+            if small and not ready:  # 8 GB Macs: the picture model's small copy (made once from the download; moss_small.py)
                 small_dir = moss_engine.small_dir()
                 if not moss_engine.small_ready(small_dir):
                     free = free_disk_gb(str(small_dir.parent.parent))
