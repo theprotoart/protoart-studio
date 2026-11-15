@@ -2,6 +2,9 @@
 
 ## 1.6.16
 
+- 💡 Model guide cards (`MODEL_GUIDES`, `modelGuide`/`applyModelGuide`) for Z-Image Turbo (Create, Change it) and MOSS-Image
+  (Create); Enhance: a `lettering` style for MOSS-Image, quoted words kept for every sentence style
+  (`prompt_enhance.keep_quoted`); Image to image lists the fast-engine group first when Change it can use it
 - Fixes for Change it on the fast engine: opening Image to image no longer swaps Z-Image/ERNIE… for an SD model
   (`openI2I`), and their pictures are saved as image to image (kind `img2img`, with the source and strength)
 - Image to image → Change it offers fast-engine models that start from a picture (`FAST_I2I`: Z-Image, ERNIE, FLUX.1,

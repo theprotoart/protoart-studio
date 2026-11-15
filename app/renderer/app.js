@@ -725,7 +725,32 @@ const REGION_TEMPLATES = [
 ];
 const APP_VERSION = "1.6.16";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
-const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];  // keep in step with app/package.json
+const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
+// 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
+// (set: what "Use these settings" applies; small: the size on Macs under 14 GB)
+const MODEL_GUIDES = {
+  zimage: {
+    create: { title: "Z-Image Turbo", what: "Photoreal pictures and clean lettering in 9 steps. It reads plain sentences.",
+      set: { steps: 9, cfg: 1 }, small: 768,
+      tips: ["Describe the picture in full sentences: who, where, the light, the camera. ✨ Enhance writes it that way.",
+             "Put any words the picture should show in double quotes: a sign that reads \"OPEN\".",
+             "Steps 9 and guidance 1 are what it's made for; more steps don't help.",
+             "On an 8 GB Mac: Medium (768) takes about 4 minutes; Large (1024) about twice that."] },
+    change: { title: "Z-Image Turbo · 🔄 Change it", what: "Redraws your whole picture from a description, keeping its layout.",
+      set: { strength: 0.7, steps: 9, cfg: 1 }, small: 768,
+      tips: ["Describe the result, not a change: “Santa Claus in a red suit lifting a barbell in a gym”, not “replace him with Santa”.",
+             "Strength 0.4–0.5 restyles (light, colours, medium); 0.65–0.8 changes people, clothes and objects.",
+             "To change one thing and keep the rest exactly (the same face, the same room), use ✨ Edit with words."] },
+  },
+  moss: {
+    create: { title: "MOSS-Image", what: "Made for lettering and layouts: signs, posters, book covers, labels, infographics.",
+      set: { cfg: 3 }, small: 768,
+      tips: ["Put every word the picture must show in double quotes, exactly as it should be spelled.",
+             "Say where the text goes and how it looks: “at the top in bold red brush letters”. ✨ Enhance adds this for you.",
+             "Turbo: about 6 minutes at Medium (768) on an 8 GB Mac. Best quality is about 7 times slower.",
+             "A new prompt is read once (a few seconds extra); more pictures of the same prompt skip that."] },
+  },
+};  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
 
 function loadJSON(key, fallback) {
@@ -1053,6 +1078,7 @@ const protoartApp = createApp({
           sections: [
             { h: "1.6.16: 🎃 holiday looks, 💬 balloons on any picture in one press, ✥ free transform, 🎨 blending modes, 🔄 turn, slant, perspective and warp text (wrap it round a bottle), clearer effect buttons", items: [
               "<b>🎃🦃🎄🎆 Holiday looks</b> (Settings → Look, the four buttons after the colour swatches), all original art made for Protoart Studio: <b>Halloween</b> (pumpkin orange and witchy purple, jack-o'-lantern lamps whose eyes light up, a flickering pumpkin and a VU meter that's a <b>jack-o'-lantern that lights up</b> while it works), <b>Thanksgiving</b> (harvest wheat and chestnut, autumn-leaf lamps, a turkey, pie and corn), <b>Christmas</b> (snowy white and evergreen, Christmas-bulb lamps, still snowflakes and a <b>snow globe</b> meter whose cabin lights up and snows while it works) and <b>New Year's</b> (midnight blue and champagne gold, star lamps, fireworks and clinking glasses). The launch screen joins in too. Light and Dark both work with each.",
+              "<b>💡 Suggested settings for Z-Image Turbo and MOSS-Image</b>: a card in Create (and in Image to image → Change it for Z-Image) says what the model is good at, how to write for it, and sets its best steps, guidance, strength and size with one press of <b>Use these settings</b> (✕ hides it). <b>✨ Enhance writes for the model you picked</b>: tags for SD 1.5 / SDXL, sentences for Z-Image, Klein and ERNIE, and for <b>MOSS-Image</b> a designer's description that keeps your quoted words exactly and says where the lettering goes and how it looks. Words in quotes are never lost by Enhance any more. In Image to image the models you can use for the mode you're in are listed first.",
               "<b>🔄 Change it with ⚡ fast-engine models</b> (Image to image): Z-Image Turbo, ERNIE and the other fast-engine models that can start from a picture are now in the model list for <b>Change it</b> (their own group at the bottom). Strength works as usual; ControlNet and inpainting stay with SD 1.5 / SDXL.",
               "<b>🧩 MOSS-Image and Z-Image Turbo on 8 GB Macs</b> (no longer greyed out): MOSS-Image makes a smaller <b>8 GB version</b> of its picture model once, on your Mac, right after the download (attention and the first and last blocks stay 8-bit, the rest becomes 4-bit, ~5.3 → ~3.5 GB; the text reader stays as published so lettering stays right, and is shared, not copied). Z-Image Turbo puts its text reader away while it draws and brings back only that part for a new prompt. Both are slower than on a 16 GB Mac: use Medium (768) sizes for drafts, and close web browsers.",
               "<b>Fix: Create → 🎛 ControlNet after switching models</b>: a pose (or outlines, depth…) picked with an SD 1.5 model now switches to the same kind made for Pony and SDXL when you pick one, instead of stopping with “This ControlNet is made for an SD 1.5 model”. If there's no matching kind, the note under Generate says so.",
@@ -3066,11 +3092,13 @@ const protoartApp = createApp({
       const fastOk = this.form.i2i_mode === "change" && !this.form.control.type;
       const fast = this.sortModels(this.installedModels.filter((m) => m.engine === "mlx" && FAST_I2I.includes(m.family)))
         .map((m) => ({ ...m, i2iOk: fastOk, why: fastOk ? "" : " — Change it only (no ControlNet)" }));
-      return [
+      const fastGroup = { name: "⚡ Fast engine · 🔄 Change it only · suggested strength 0.65–0.8, describe the result", models: fast };
+      const groups = [
         { name: "SD 1.5 · image to image, inpaint, ControlNet (built-in + yours), image prompt (IP-Adapter)", models: mark(this.sortModels(this.installedModels.filter((m) => m.family === "sd15" && !m.inpaint))) },
         { name: "SDXL / Pony · image to image, inpaint, image prompt (IP-Adapter), your SDXL ControlNets", models: mark(this.sortModels(this.installedModels.filter((m) => m.family === "sdxl" && !m.inpaint))) },
-        { name: "⚡ Fast engine · 🔄 Change it (starts from your picture; Z-Image, ERNIE…)", models: fast },
-      ].filter((g) => g.models.length);
+      ];
+      // the ones that can be used now come first (right under FLUX.2 Klein); the rest wait at the bottom
+      return (fastOk ? [fastGroup, ...groups] : [...groups, fastGroup]).filter((g) => g.models.length);
     },
     convShown() {
       const q = this.conv.search.trim().toLowerCase();
@@ -8991,6 +9019,29 @@ const protoartApp = createApp({
         }
       }
       if (!this.controlTypes.length) this.controlTypes = await call("control_types").catch(() => []);
+    },
+    modelGuide() {  // 💡 the suggested-settings card for the picked model (Create, or Image to image → Change it)
+      const g = MODEL_GUIDES[this.family];
+      if (!g || this.currentModel?.engine !== "mlx" && !this.currentModel?.moss && this.family !== "moss") return null;
+      const where = this.tab === "i2i" ? (this.form.i2i_mode === "change" ? "change" : null) : this.tab === "create" ? "create" : null;
+      const c = where && g[where];
+      if (!c || (this.opts.hidden_guides || []).includes(this.family + ":" + where)) return null;
+      return { ...c, key: this.family + ":" + where };
+    },
+    applyModelGuide() {
+      const g = this.modelGuide();
+      if (!g) return;
+      const f = this.form, c = g.set || {};
+      if (c.steps) f.steps = c.steps;
+      if (c.cfg) f.cfg = c.cfg;
+      if (c.strength != null) f.strength = c.strength;
+      if (g.small && this.sys.ram_gb && this.sys.ram_gb < 14) { f.width = g.small; f.height = g.small; f.use_init_size = false; }
+      if (this.tab === "i2i") f.i2i_use_init = true;
+      this.status = `${g.title}: suggested settings set`;
+    },
+    hideModelGuide(key) {
+      this.opts.hidden_guides = [...(this.opts.hidden_guides || []), key];
+      this.saveOpts();
     },
     applyCnGuide(auto = false) {  // ControlNet → "Use these settings": the guide's strength, timing and picture settings
       const g = this.cnGuide;

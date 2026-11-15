@@ -1075,6 +1075,13 @@
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
       <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-diag" @click="copyDiagnostics" title="Copy what went wrong (the app's version, this Mac, the message and the end of the backend log, with your user name taken out) to paste into a message">{{ diagCopied ? '✓ Copied' : '📋 Copy diagnostics' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
+      <div v-if="modelGuide()" class="card cn-guide model-guide">
+        <div class="cn-guide-head"><h3>💡 {{ modelGuide().title }} <span class="hint">· suggested settings</span></h3><span class="grow"></span>
+          <button class="primary small" @click="applyModelGuide" title="Set the steps, guidance, strength and size this model works best with">Use these settings</button>
+          <button class="ghost small" @click="hideModelGuide(modelGuide().key)" title="Hide this card for this model">✕</button></div>
+        <p>{{ modelGuide().what }}</p>
+        <ul class="cn-steps"><li v-for="(t, i) in modelGuide().tips" :key="i">{{ t }}</li></ul>
+      </div>
       <div v-if="livePreviewShown" class="live-preview" :class="{covered: previewCovered}">
         <img :src="livePreview.src" alt="live preview"><span v-if="previewCovered" class="nsfw-cover">NSFW prompt · preview hidden</span>
         <div class="live-caption">
@@ -4057,6 +4064,13 @@
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
       <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-diag" @click="copyDiagnostics" title="Copy what went wrong (the app's version, this Mac, the message and the end of the backend log, with your user name taken out) to paste into a message">{{ diagCopied ? '✓ Copied' : '📋 Copy diagnostics' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
+      <div v-if="modelGuide()" class="card cn-guide model-guide">
+        <div class="cn-guide-head"><h3>💡 {{ modelGuide().title }} <span class="hint">· suggested settings</span></h3><span class="grow"></span>
+          <button class="primary small" @click="applyModelGuide" title="Set the steps, guidance, strength and size this model works best with">Use these settings</button>
+          <button class="ghost small" @click="hideModelGuide(modelGuide().key)" title="Hide this card for this model">✕</button></div>
+        <p>{{ modelGuide().what }}</p>
+        <ul class="cn-steps"><li v-for="(t, i) in modelGuide().tips" :key="i">{{ t }}</li></ul>
+      </div>
       <div v-if="form.i2i_mode === 'change' && form.control.type && cnGuide" class="card cn-guide cn-guide-card">
         <div class="cn-guide-head"><h3>🎛 {{ cnGuide.title }} <span class="hint">· ControlNet guide</span></h3><span class="grow"></span>
           <button class="ghost small" @click="applyCnGuide" title="Set the strength, timing and picture settings this ControlNet works best with">Use these settings</button></div>

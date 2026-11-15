@@ -2545,7 +2545,7 @@ class Engine:
         from postprocess import prompt_enhance as pe
         style = pe.style_for(family, bool(args.get("contrast")))
         w, h = int(args.get("width") or 1024), int(args.get("height") or 1024)
-        angle = random.choice(pe.ANGLES) if style in ("natural", "tags") else None  # new ideas on every press
+        angle = random.choice(pe.ANGLES) if style in ("natural", "tags", "lettering") else None  # new ideas each press
         text, by = None, "small"
         import vlm
         shape = "portrait" if h > w * 1.1 else "landscape" if w > h * 1.1 else "square"
@@ -2567,7 +2567,7 @@ class Engine:
                     if self.cancel_event.is_set():
                         raise Cancelled()
                     print("[enhance] Z-Engineer unavailable:", e, flush=True)
-        if text is None and writer != "small" and style in ("natural", "tags", "contrast", "contrast_tags") \
+        if text is None and writer != "small" and style in ("natural", "lettering", "tags", "contrast", "contrast_tags") \
                 and vlm.ready() and not args.get("quick"):
             # the bigger model (Qwen3.5 4B, already on this Mac as the picture reader) is far more inventive
             # than the 0.5B / 1.5B enhancer, which tends to repeat the prompt's own words

@@ -24,8 +24,18 @@ SYSTEM = {
         "colour palette, the camera (lens, angle, distance) and a fitting art style or medium. Every sentence adds new "
         "information: never repeat a word, a phrase or an idea from the user's prompt or an earlier sentence, and "
         "avoid empty words like beautiful, stunning, amazing, detailed, high quality. "
-        "No lists, no captions or text in the image, no explanations. Always write in English. "
-        "Output only the description."),
+        "No lists, no captions or text in the image (unless the idea has words in quotes: keep those exactly), no "
+        "explanations. Always write in English. Output only the description."),
+    # MOSS-Image: made for lettering and layouts (signs, posters, covers, labels, infographics)
+    "lettering": (
+        "You are a graphic designer. Expand a short idea for a poster, sign, cover, label or other picture with "
+        "lettering into one specific description for a text-to-image model that draws text well, in 3 to 5 "
+        "sentences. Keep every word in double quotes exactly as written (same spelling and capitals), still in "
+        "double quotes. Say where each piece of text sits (top, centre, on the sign), how the lettering looks "
+        "(hand-painted, neon, bold serif, brush script, stencil), its colour and material, then the layout, the "
+        "scene or background, the light and the colour palette. If the idea is a poster, cover or label and has no "
+        "quoted text, add one short fitting title in double quotes. No lists, no explanations. Always write in "
+        "English. Output only the description."),
     "tags": (
         "You turn short image ideas into a Stable Diffusion prompt made of short comma-separated tags "
         "(Danbooru-style tags when they fit, e.g. 1girl, long hair, smile). Start with the user's subject, then add "
@@ -81,6 +91,12 @@ EXAMPLES = {
                 "visible in the cold air. Soft golden light filters through frosted branches, casting long blue "
                 "shadows across the fresh snow. Shallow depth of field, crisp detail in the fur, a calm and quiet mood, "
                 "in the style of a wildlife photograph."),
+    "lettering": ("a bakery sign that says FRESH BREAD",
+                  'A narrow brick bakery storefront at dawn, with a hand-painted wooden sign above the door that '
+                  'reads "FRESH BREAD" in cream-coloured serif capitals with a thin gold outline. Below it, chalk on a '
+                  'small blackboard reads "Open 7 am" in loose white handwriting. Warm light spills from the window '
+                  'onto loaves stacked on wooden shelves, and the colour palette is honey, flour white and deep '
+                  'green, photographed straight on with a 35 mm lens.'),
     "tags": ("a girl with a sword",
              "1girl, solo, holding sword, katana, long hair, black hair, red eyes, determined expression, "
              "fighting stance, school uniform, pleated skirt, wind, falling leaves, autumn, sunset, dramatic lighting, "
@@ -208,7 +224,18 @@ def style_for(family, contrast=False):
     tags = family in ("sd15", "sdxl")
     if contrast:  # 🔄 contrast: the same scene turned into its striking opposite
         return "contrast_tags" if tags else "contrast"
+    if family == "moss":  # MOSS-Image: lettering and layouts
+        return "lettering"
     return "tags" if tags else "natural"
+
+
+def keep_quoted(text, original):
+    """Words the user put in quotes are what the picture must say: put back any the rewrite lost or changed."""
+    quoted = re.findall(r'"([^"]{1,120})"|“([^”]{1,120})”', original or "")
+    missing = [a or b for a, b in quoted if (a or b) and (a or b) not in (text or "")]
+    if not missing:
+        return text
+    return (text.rstrip() + " " + " ".join(f'The text reads "{m}".' for m in missing)).strip()
 
 
 class PromptEnhancer:
@@ -231,7 +258,7 @@ class PromptEnhancer:
 
     def enhance(self, prompt, width=1024, height=1024, cancel_event=None, family="sdxl", contrast=False, angle=None):
         style = style_for(family, contrast)
-        creative = style in ("natural", "tags")
+        creative = style in ("natural", "tags", "lettering")
         result = self._enhance_once(prompt, width, height, cancel_event, style, angle if creative else None)
         if creative and repetitive(result, prompt) and not (cancel_event is not None and cancel_event.is_set()):
             # it mostly echoed the prompt or repeated itself: once more, from another angle and a little bolder
@@ -258,7 +285,7 @@ class PromptEnhancer:
         inputs = tok(text, return_tensors="pt").to(self.device)
         start = inputs["input_ids"].shape[1]
         emit = self.emit
-        limit = {"to_tags": 120, "to_natural": 150, "tags": 110, "contrast_tags": 110, "edit": 80, "outpaint": 80, "region": 80, "region_tags": 60}.get(style, 170)
+        limit = {"lettering": 190, "to_tags": 120, "to_natural": 150, "tags": 110, "contrast_tags": 110, "edit": 80, "outpaint": 80, "region": 80, "region_tags": 60}.get(style, 170)
 
         class Watch(StoppingCriteria):
             def __call__(self, input_ids, scores, **kw):
@@ -423,6 +450,8 @@ def clean(text, original, style):
             budget -= tok(tag)
         kept += quality
         return ", ".join(kept)
+    if style in ("natural", "lettering", "contrast"):
+        return keep_quoted(dedupe_sentences(t), original)
     return dedupe_sentences(t)
 
 
