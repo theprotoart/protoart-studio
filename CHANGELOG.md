@@ -2,8 +2,6 @@
 
 ## 1.6.16
 
-- 📰 Comic page: panels without words say "no speech bubble and no writing" (MOSS-Image lettered the scene
-  description into an empty panel); clearer advice for sharper pages (Full size, fewer panels, Enhance & upscale)
 - 📰 MOSS-Image comic page & poster (Create): `moss_page.js` builds MOSS-Image's JSON layout prompt (3 / 4 / 6 panels,
   splash + 2, poster; title, speech / thought bubbles, narration boxes, style, page size) with a box preview; sent as
   `moss_layout` (no wildcards or Enhance), checked by `moss_layout_check.py`, stored in the picture's settings

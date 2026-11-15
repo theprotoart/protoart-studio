@@ -681,9 +681,7 @@
             </template>
           </div>
           <p class="hint">Keep bubbles short (a few words each): small boxes fit only a few letters. Same characters in every panel? Describe them the same way each time.
-            One page takes about {{ form.moss_page.size === 'full' ? '14' : '10' }} minutes with Turbo on an 8 GB Mac.
-            <b>Sharper pages:</b> Draft is for trying a layout; for the final page use <b>Full</b> size, fewer panels (each panel gets more pixels),
-            then <b>Enhance &amp; upscale</b> on the result. Panels left without words are drawn as pictures only.</p>
+            One page takes about {{ form.moss_page.size === 'full' ? '12' : '8' }} minutes with Turbo on an 8 GB Mac.</p>
         </template>
       </section>
       <section v-if="['anima', 'moss'].includes(family) || (['sd15', 'sdxl'].includes(family) && currentModel?.engine === 'mlx')" class="regions cfold" :class="{shut: cfShut('regions')}">
