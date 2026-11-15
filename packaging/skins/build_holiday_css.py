@@ -233,6 +233,20 @@ def globe_meter(lit):
 METERS = {"halloween": (jack_meter(False), jack_meter(True), "255, 170, 40"),
           "christmas": (globe_meter(False), globe_meter(True), "255, 210, 90")}
 
+# ------------------------------------------------------------------ Christmas: a tile of still snowflakes
+def flake(x, y, r, rot=0, op=1.0):
+    """A six-armed snowflake at (x, y), arm length r, with little side branches."""
+    arms = "".join(
+        f"<g transform='rotate({a + rot} {x} {y})'><path d='M{x} {y}v{-r}M{x} {y - r * .55}l{-r * .28} {-r * .26}M{x} {y - r * .55}l{r * .28} {-r * .26}"
+        f"M{x} {y - r * .8}l{-r * .18} {-r * .16}M{x} {y - r * .8}l{r * .18} {-r * .16}'/></g>" for a in range(0, 360, 60))
+    return (f"<g opacity='{op}' stroke='#fff' stroke-width='{max(0.9, r / 7):.1f}' stroke-linecap='round' fill='none'>{arms}"
+            f"<circle cx='{x}' cy='{y}' r='{max(0.8, r / 6):.1f}' fill='#fff' stroke='none'/></g>")
+
+
+SNOWFLAKES = S("".join([flake(30, 32, 9, 0, .9), flake(118, 92, 6, 15, .75), flake(190, 26, 11, 8, .85), flake(262, 110, 7, 22, .7),
+                        flake(330, 46, 5, 0, .65), flake(74, 126, 4.5, 30, .6), flake(232, 68, 3.5, 10, .55),
+                        flake(152, 140, 3, 0, .5), flake(300, 138, 4, 12, .6)]), "0 0 360 150")
+
 # ------------------------------------------------------------------ colours (Light faceplate / Dark faceplate)
 PALETTE = {
     "halloween": dict(
@@ -343,7 +357,8 @@ def main():
 @media (prefers-reduced-motion: reduce) { .vu-holiday * { animation: none !important; } }
 
 /* the stickers: only in the holiday looks, never in the way of a click */
-.holiday-deco { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.holiday-deco { position: absolute; inset: 0; pointer-events: none; }  /* stickers z 3 in front, snowflakes behind */
+.holiday-deco i { z-index: 3; }
 .holiday-deco i, .holiday-corner { display: none; position: absolute; background: center / contain no-repeat; pointer-events: none;
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .45)); }
 .holiday-corner { position: fixed; right: 14px; bottom: 10px; z-index: 40; opacity: .95; }
@@ -355,16 +370,10 @@ def main():
   40% { filter: drop-shadow(0 0 2px rgba(255, 150, 30, .5)) drop-shadow(0 2px 2px rgba(0, 0, 0, .45)); }
   44% { filter: drop-shadow(0 0 9px rgba(255, 190, 60, 1)) drop-shadow(0 2px 2px rgba(0, 0, 0, .45)); } }
 /* Christmas: soft snow over the top panel; New Year's: the stars and firework twinkle */
-:root[data-skin="christmas"] .holiday-deco { overflow: hidden; contain: paint; }
-/* the snow is one tall layer that slides down (moved by the graphics chip, not repainted): the old one repainted the
-   whole top panel every frame and made the brush lag on an 8 GB Mac */
-:root[data-skin="christmas"] .holiday-deco::before { content: ""; position: absolute; left: 0; right: 0; top: -160px; height: calc(100% + 160px);
-  pointer-events: none; opacity: .7; will-change: transform;
-  background-image: radial-gradient(2px 2px at 20px 30px, #fff 50%, transparent 51%), radial-gradient(2.5px 2.5px at 90px 80px, #fff 50%, transparent 51%),
-    radial-gradient(1.6px 1.6px at 150px 20px, #fff 50%, transparent 51%), radial-gradient(2px 2px at 210px 110px, #fff 50%, transparent 51%),
-    radial-gradient(1.8px 1.8px at 260px 60px, #fff 50%, transparent 51%);
-  background-size: 300px 160px; animation: hdSnow 9s linear infinite; }
-@keyframes hdSnow { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, 160px, 0); } }
+:root[data-skin="christmas"] .rack-head { isolation: isolate; }  /* so the snowflakes can sit behind the controls */
+/* still snowflakes over the top panel (no motion: nothing to repaint while you work) */
+:root[data-skin="christmas"] .holiday-deco::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  z-index: -1; opacity: .5; background: SNOWFLAKES_URI 0 0 / 360px 150px repeat; }
 :root[data-skin="newyear"] .holiday-deco .hd1, :root[data-skin="newyear"] .holiday-corner { animation: hdTwinkle 2.4s ease-in-out infinite; }
 @keyframes hdTwinkle { 50% { transform: rotate(-6deg) scale(1.08); filter: drop-shadow(0 0 8px rgba(255, 222, 110, .9)) drop-shadow(0 2px 2px rgba(0, 0, 0, .45)); } }
 /* Thanksgiving: a leaf drifts in the corner */
@@ -376,7 +385,7 @@ html.hd-still .holiday-deco *, html.hd-still .holiday-deco::before, html.hd-stil
 /* the holiday look buttons in Settings */
 .holiday-pick button { padding: 4px 8px; font-size: 15px; line-height: 1; }
 """)
-    OUT.write_text("\n".join(css))
+    OUT.write_text("\n".join(css).replace("SNOWFLAKES_URI", uri(SNOWFLAKES)))
     print(f"wrote {OUT} ({OUT.stat().st_size // 1024} KB)")
 
 
