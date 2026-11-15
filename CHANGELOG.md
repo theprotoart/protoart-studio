@@ -39,6 +39,8 @@
   sticker sheet, design sketch sheet, recipe card, surreal editorial, environment concept, tarot card, oil painting,
   watercolour, gongbi, studio portrait) and more H3 quick edits (exploded view, blueprint, CAD views, render → film
   still, map → game view), after MiniMax's showcase
+- 🎲 Random prompt with H3 in Create: the picked preset (or any, with 🎲 any layout) around a subject that suits it
+  (`H3_SUBJECTS` by kind: machines for exploded views, places for dioramas, characters for sheets…)
 - Example prompts: a new "Comics & lettering" group (a 4-panel comic page and a character turnaround sheet for H3)
 - Tests: `test_h3.py` (4-bit file layout with metadata kept, licence gate, edit prompts, catalog)
 
