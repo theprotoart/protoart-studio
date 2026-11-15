@@ -33,6 +33,26 @@ class Cancelled(Exception):
     pass
 
 
+class _EvalEach:
+    """Wraps one text-encoder layer: finish its work before the next starts (short GPU jobs, see generate)."""
+
+    def __init__(self, layer, i, n):
+        self._layer, self._i, self._n = layer, i, n
+
+    def __call__(self, *args, **kwargs):
+        import mlx.core as mx
+        if cancel.is_set():
+            raise Cancelled()
+        out = self._layer(*args, **kwargs)
+        mx.eval(out)
+        if self._i % 4 == 0:
+            send({"type": "progress", "step": self._i + 1, "steps": self._n})
+        return out
+
+    def __getattr__(self, name):  # is_linear, self_attn, … read by the model
+        return getattr(self._layer, name)
+
+
 class Worker:
     def __init__(self):
         self.pipe = None
@@ -157,21 +177,20 @@ class Worker:
             send({"type": "progress", "step": i + 1, "steps": n, "elapsed": round(time.time() - started, 1)})
 
         if getattr(self, "cpu_encode", False):
-            # 8 GB Macs: the 9B text encoder (~7 GB) doesn't fit beside the system, and on the GPU a swapping pass
-            # trips macOS's GPU watchdog ("GPU Timeout Error"). On the CPU there's no time limit: slower, but it
-            # runs once per prompt (the result is kept on disk), then the picture model runs on the GPU as usual.
-            import mlx.core as mx
+            # 8 GB Macs: the 9B text encoder (~7 GB) doesn't fit beside the system, so its one pass swaps. Run as a
+            # single GPU job that trips macOS's GPU watchdog ("GPU Timeout Error"); on the CPU it thrashes for many
+            # minutes. So it runs on the GPU one layer at a time: every job is short, and each layer's weights are
+            # read once. The result is kept on disk, so this is once per prompt.
             texts = [req.prompt] + ([req.negative_prompt] if req.uses_cfg() else [])
             cached = self.pipe.cache is not None and all(self.pipe.cache.get(t, req.max_sequence_length) is not None
                                                          for t in texts)
             if not cached:
-                send({"type": "status", "msg": "Reading the prompt on the CPU (8 GB Macs: once per prompt, a few minutes)…"})
-                previous = mx.default_device()
-                mx.set_default_device(mx.cpu)
-                try:
-                    self.pipe.encode(texts, req.max_sequence_length)  # saved to the prompt cache, encoder freed
-                finally:
-                    mx.set_default_device(previous)
+                send({"type": "status", "msg": "Reading the prompt (8 GB Macs: once per prompt, a minute or two)…"})
+                self.pipe._load_text_encoder()
+                model = self.pipe.text_encoder.model
+                n = len(model.layers)
+                model.layers = [_EvalEach(layer, i, n) for i, layer in enumerate(model.layers)]
+                self.pipe.encode(texts, req.max_sequence_length)  # saved to the prompt cache, encoder freed
                 if cancel.is_set():
                     raise Cancelled()
         image = self.pipe(req, on_step=on_step)
