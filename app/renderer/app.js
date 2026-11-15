@@ -4389,9 +4389,9 @@ const protoartApp = createApp({
       this.status = `⚥ Swapped ${r.count} word${r.count === 1 ? "" : "s"} (↩ undo puts the prompt back)`;
     },
     errorHere() {  // show the error in its own tab (a Tools job's error stays in Tools), or anywhere if it's not a tab's
-      const t = this.errorTab, here = this.tab;
-      if (!t || !["create", "i2i", "tools"].includes(t)) return true;
-      return t === here || !["create", "i2i", "tools"].includes(here);
+      const t = this.errorTab, here = this.tab, own = ["create", "i2i", "tools", "train"];
+      if (!t || !own.includes(t)) return true;
+      return t === here || !own.includes(here);
     },
     addModelFrom(where) {
       if (where === "mac") this.addLocalModels();

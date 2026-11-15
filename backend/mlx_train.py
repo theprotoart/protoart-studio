@@ -172,6 +172,15 @@ def parse_progress(line):
     return done, total, sps
 
 
+def _fast_copy(path):
+    """The copy on this Mac's own drive that making a picture puts there for a model kept on a slow external drive
+    (mlx_worker._internal_copy), when there is one: training reads the weights at every step."""
+    p = Path(path)
+    home = Path(os.environ.get("PROTOART_HOME") or (Path.home() / ".protoartstudio"))
+    copy = home / "fast-copies" / f"{p.parent.parent.name}--{p.name}"
+    return str(copy) if (copy / ".protoart-done").exists() else path
+
+
 def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, cancel_event, ram_gb, pause_event=None):
     import mlx_engine
     from PIL import Image, ImageOps
@@ -180,9 +189,12 @@ def train(*, spec, items, caption_for, args, name, final_path, work_dir, emit, c
     kind = KINDS[spec["family"]]
     try:
         from huggingface_hub import snapshot_download
-        model_path = snapshot_download(spec["mlx_repo"], local_files_only=True)
+        # the exact version the app downloads (a pinned revision isn't found by the plain name)
+        model_path = snapshot_download(spec["mlx_repo"], revision=spec.get("mlx_revision"),
+                                       allow_patterns=spec.get("mlx_patterns"), local_files_only=True)
     except Exception:
         raise TrainError(f"{spec['label']} isn't downloaded yet: download it in the Models tab (or make one picture with it) first.")
+    model_path = _fast_copy(model_path)
 
     trigger = (args.get("trigger") or "").strip()
     res = int(args.get("resolution") or (512 if 0 < ram_gb < 16 else 768))

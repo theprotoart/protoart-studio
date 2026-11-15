@@ -4546,6 +4546,7 @@
           <template v-else>✓ All {{ trainSizeAdvice.checked }} pictures are big enough.</template>
         </div>
       </div>
+      <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-diag" @click="copyDiagnostics" title="Copy what went wrong (the app's version, this Mac, the message and the end of the backend log, with your user name taken out) to paste into a message">{{ diagCopied ? '✓ Copied' : '📋 Copy diagnostics' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
       <div v-if="trainJob" class="card train-live">
         <h3>Training {{ trainJob.label }}</h3>
         <div class="bar"><div :style="{width: trainPct + '%'}"></div></div>

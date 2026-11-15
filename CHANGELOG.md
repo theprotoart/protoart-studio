@@ -2,6 +2,9 @@
 
 ## 1.6.16
 
+- Fix: training on the fast engine said a downloaded Z-Image / Klein / ERNIE "isn't downloaded yet" (it looked the
+  model up without the pinned revision); it also uses the model's internal-drive copy (`mlx_train._fast_copy`).
+  Training errors show on the Train tab (they appeared in Create)
 - 💡 Model guide cards (`MODEL_GUIDES`, `modelGuide`/`applyModelGuide`) for Z-Image Turbo (Create, Change it) and MOSS-Image
   (Create); Enhance: a `lettering` style for MOSS-Image, quoted words kept for every sentence style
   (`prompt_enhance.keep_quoted`); Image to image lists the fast-engine group first when Change it can use it
