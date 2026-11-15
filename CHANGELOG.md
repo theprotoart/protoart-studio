@@ -2,6 +2,9 @@
 
 ## 1.6.16
 
+- Fix: Create's ControlNet kept an SD 1.5 type after switching to Pony/SDXL and the run failed ("This ControlNet is made for
+  an SD 1.5 model"); `ccTypeNow` maps it to the same kind for the new model type (openpose → union:openpose), a `family`
+  watcher switches the picked button, and `createSkips` explains when there's no match
 - Relight speed (`speed`: turbo ≈6 steps with the SD 1.5 LCM LoRA of Create's fast mode, its conv_in weights dropped for
   IC-Light's wider first layer (`relight.lcm_for_iclight`, `_relight_lcm_file`), LCM sampler, CFG ≤ 1.5, falls back to
   Fast if it can't load / fast 12 steps without the detail pass / standard 20 / best 30, `relight.speed_plan`; it was

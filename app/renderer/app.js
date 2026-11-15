@@ -1051,6 +1051,7 @@ const protoartApp = createApp({
           sections: [
             { h: "1.6.16: 🎃 holiday looks, 💬 balloons on any picture in one press, ✥ free transform, 🎨 blending modes, 🔄 turn, slant, perspective and warp text (wrap it round a bottle), clearer effect buttons", items: [
               "<b>🎃🦃🎄🎆 Holiday looks</b> (Settings → Look, the four buttons after the colour swatches), all original art made for Protoart Studio: <b>Halloween</b> (pumpkin orange and witchy purple, jack-o'-lantern lamps whose eyes light up, a flickering pumpkin and a VU meter that's a <b>jack-o'-lantern that lights up</b> while it works), <b>Thanksgiving</b> (harvest wheat and chestnut, autumn-leaf lamps, a turkey, pie and corn), <b>Christmas</b> (snowy white and evergreen, Christmas-bulb lamps, still snowflakes and a <b>snow globe</b> meter whose cabin lights up and snows while it works) and <b>New Year's</b> (midnight blue and champagne gold, star lamps, fireworks and clinking glasses). The launch screen joins in too. Light and Dark both work with each.",
+              "<b>Fix: Create → 🎛 ControlNet after switching models</b>: a pose (or outlines, depth…) picked with an SD 1.5 model now switches to the same kind made for Pony and SDXL when you pick one, instead of stopping with “This ControlNet is made for an SD 1.5 model”. If there's no matching kind, the note under Generate says so.",
               "<b>🔄 Turn, slant &amp; warp text</b> (Text &amp; balloons): drag the <b>green dot</b> above a text to turn it, <b>slant</b> it sideways or up and down, put it in <b>📐 perspective</b> like Photoshop (one side nearer, or leaning back like words on a floor), and <b>warp</b> it: <b>🍾 Wrap round</b> bends the words round a bottle, can or cup in the picture (only the words bend, not the picture), plus 🎈 Bulge, 🌊 Wave and 📈 Rise. The effect sections are now proper buttons: <b>Outline &amp; shadow</b>, <b>Bevel, glow &amp; colour</b> and <b>Turn, slant &amp; warp</b>.",
               "<b>🔤 Replace text is now Text &amp; balloons</b> (Tools and Image to image): <b>Add to the picture</b> comes first, with ✏️ Words and every balloon one press away, so you can put a speech or thought balloon on any picture without finding or clearing anything. Replacing words already in the picture (Find, Clear, Type) is still there, below it.",
               "<b>✥ Free transform for text</b>, like Photoshop's: press <b>✥ Free transform (drag corners)</b> and drag the <b>purple corners</b> anywhere on the picture for perspective or any lean (Shift moves a whole edge), the <b>blue bars</b> to slant it and the <b>orange dot</b> to bend a warp. <b>↺ Reset shape</b> straightens it again.",
@@ -3141,6 +3142,7 @@ const protoartApp = createApp({
       if (f.ip_adapter && f.ip_adapter.image && !sd) out.push("the image prompt (SD 1.5 and SDXL models only)");
       if (cc && !sd && !this.poseFast) out.push("ControlNet (SD 1.5 and SDXL models only)");
       else if (cc && !this.ccAvailable) out.push("ControlNet (none downloaded for this model type yet)");
+      else if (cc && sd && !this.ccTypeNow) out.push("ControlNet (the one picked is for another model type: pick one again)");
       if ((f.negative_prompt || "").trim() && !sd && Number(f.cfg) <= 1)
         out.push("the negative prompt (this model ignores it at guidance 1)");
       const names = (f.loras || []).filter((x) => {
@@ -3152,6 +3154,15 @@ const protoartApp = createApp({
     },
     poseFast() {  // 🦴 Follow a pose without ControlNet: FLUX.2 Klein on the fast engine, and ERNIE through Klein
       return this.currentModel?.engine === "mlx" && ["flux2", "ernie"].includes(this.family);
+    },
+    ccTypeNow() {  // Create's ControlNet for the current model: the one picked, or the same kind made for this model type
+      const id = this.form.cc && this.form.cc.type;
+      if (!id) return "";
+      if (this.ccTypes.some((t) => t.id === id)) return id;
+      const t = this.controlTypes.find((x) => x.id === id) || {};
+      const map = t.makes_map || String(id).replace(/^union:/, "");  // openpose, canny, depth…
+      const m = this.ccTypes.find((x) => x.id === map || x.id === "union:" + map) || this.ccTypes.find((x) => x.makes_map === map);
+      return m ? m.id : "";
     },
     ccAvailable() {
       return ["sd15", "sdxl"].includes(this.family) && this.currentModel?.engine !== "mlx" && this.ccTypes.length > 0;
@@ -3497,6 +3508,10 @@ const protoartApp = createApp({
   },
 
   watch: {
+    family() {  // Pony ↔ SD 1.5: Create's ControlNet switches to the same kind made for the new model type
+      const cc = this.form.cc;
+      if (cc && cc.type && this.ccTypeNow && this.ccTypeNow !== cc.type) { cc.type = this.ccTypeNow; this.ccMap = null; }
+    },
     "tool.view"() { this.$nextTick(() => this.cmpDraw()); },
     "tx.layers": { deep: true, handler() { this.txRedraw(); } },
     "tx.scale"() { this.txRedraw(); },
@@ -5904,8 +5919,8 @@ const protoartApp = createApp({
       if (cc.image && this.poseFast) {  // 🦴 Follow a pose with FLUX.2 Klein (and ERNIE, redrawing Klein's picture)
         args.pose_image = cc.image;
         if (this.family === "ernie") args.pose_ernie_change = cc.ernie_change ?? 0.55;
-      } else if (cc.image && cc.type && this.ccAvailable) {  // 🦴 Pose & ControlNet: make the picture following a reference
-        args.control = { type: cc.type, scale: cc.scale, start: cc.start, end: cc.end, already_map: !!cc.already_map };
+      } else if (cc.image && this.ccTypeNow && this.ccAvailable) {  // 🦴 Pose & ControlNet: make the picture following a reference
+        args.control = { type: this.ccTypeNow, scale: cc.scale, start: cc.start, end: cc.end, already_map: !!cc.already_map };
         args.control_image = cc.image;
         args.use_init_size = false;  // Create's own size
       }
