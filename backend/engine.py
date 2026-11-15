@@ -75,7 +75,7 @@ MODELS = {
         "mlx_repo": "VisualInference/MOSS-Image-SFT-MLX-compact", "mlx_revision": "310ab44798e3711eb134c1b7d30a73083c91af58",
         "mlx_patterns": ["*.json", "*.jinja", "LICENSE", "NOTICE", "scheduler/*", "text_encoder/*", "tokenizer/*",
                          "transformer/*", "vae/*"],
-        "download_gb": 12.7, "engine_gb": 1.0, "min_ram_gb": 16, "license": "Apache-2.0",
+        "download_gb": 12.7, "engine_gb": 1.0, "min_ram_gb": 8, "license": "Apache-2.0",
         "defaults": {"width": 1024, "height": 1024, "steps": 15, "cfg": 3.0},
     },
     "moss_mlx": {
@@ -84,7 +84,7 @@ MODELS = {
         "mlx_repo": "VisualInference/MOSS-Image-SFT-MLX-compact", "mlx_revision": "310ab44798e3711eb134c1b7d30a73083c91af58",
         "mlx_patterns": ["*.json", "*.jinja", "LICENSE", "NOTICE", "scheduler/*", "text_encoder/*", "tokenizer/*",
                          "transformer/*", "vae/*"],
-        "download_gb": 12.1, "engine_gb": 1.0, "min_ram_gb": 16, "license": "Apache-2.0",
+        "download_gb": 12.1, "engine_gb": 1.0, "min_ram_gb": 8, "license": "Apache-2.0",
         "defaults": {"width": 1024, "height": 1024, "steps": 50, "cfg": 3.0},
     },
     "ernie_turbo_int4": {
@@ -151,12 +151,13 @@ MODELS = {
         "download_gb": 9.5, "engine_gb": 1.5, "min_ram_gb": 16, "license": "FLUX Non-Commercial",
         "defaults": {"width": 1024, "height": 1024, "steps": 4, "cfg": 1.0},
     },
-    # Z-Image Turbo ("ZIT", Tongyi-MAI / Alibaba, 6B, Apache-2.0): photoreal pictures and text in 9 steps. Needs 16 GB+.
+    # Z-Image Turbo ("ZIT", Tongyi-MAI / Alibaba, 6B, Apache-2.0): photoreal pictures and text in 9 steps. On 8 GB Macs
+    # its text encoder is dropped while the picture is made (encoded prompts are kept), like FLUX.2 Klein's.
     "zimage_turbo_mlx_q4": {
-        "label": "Z-Image Turbo · 4-bit · ⚡ fast engine (16 GB+)", "family": "zimage",
+        "label": "Z-Image Turbo · 4-bit · ⚡ fast engine", "family": "zimage",
         "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "mflux-community/z-image-turbo-mflux-q4",
         "mlx_revision": "f427e257d8e6ffa03edd4d9ac554a05809da456c", "mlx_base": "z-image-turbo",
-        "download_gb": 5.9, "engine_gb": 1.5, "min_ram_gb": 16, "license": "Apache-2.0",
+        "download_gb": 5.9, "engine_gb": 1.5, "min_ram_gb": 8, "license": "Apache-2.0",
         "defaults": {"width": 1024, "height": 1024, "steps": 9, "cfg": 1.0},
     },
     # Qwen-Image 2.1 (Alibaba Qwen, 7B; Qwen research licence: non-commercial) and its 8-step Turbo. 24 GB+.
@@ -1908,10 +1909,31 @@ class Engine:
                 self.moss.install()
             if self.cancel_event.is_set():
                 raise Cancelled()
+            small = bool(ram) and ram < moss_engine.SMALL_RAM_GB
+            if small:  # 8 GB Macs: the picture model's small copy (made once from the download; moss_small.py)
+                small_dir = moss_engine.small_dir()
+                if not moss_engine.small_ready(small_dir):
+                    free = free_disk_gb(str(small_dir.parent.parent))
+                    if free < moss_engine.SMALL_GB + 2:
+                        raise UserError(f"Making MOSS-Image's 8 GB version needs about {moss_engine.SMALL_GB:.0f} GB "
+                                        f"free; only {free} GB is free.")
+                    small_dir.parent.mkdir(parents=True, exist_ok=True)
+                    self.emit({"type": "status", "msg": "Making MOSS-Image's 8 GB version (one time, a few minutes)…"})
+
+                    def on_shrink(ev):
+                        if ev.get("type") == "progress":
+                            self.emit({"type": "progress", "image": 1, "images": 1, "step": ev["step"],
+                                       "steps": ev["steps"]})
+                        elif ev.get("type") == "status":
+                            self.emit(ev)
+
+                    self.moss.request({"cmd": "shrink", "src": weights, "out": str(small_dir)}, on_event=on_shrink)
+                    self.emit({"type": "status", "msg": "MOSS-Image's 8 GB version is ready"})
+                weights = str(small_dir)
             cache = paths.HOME / "moss-prompts"
             cache.mkdir(parents=True, exist_ok=True)
             self.moss.request({"cmd": "load", "dir": weights, "turbo": bool(spec.get("moss_turbo")),
-                               "adapters": adapters or [], "cache": str(cache)},
+                               "adapters": adapters or [], "cache": str(cache), "student_bf16": small},
                               on_event=lambda ev: ev.get("type") == "status" and self.emit(ev))
             self.loaded_key = None
             self.family = "moss"

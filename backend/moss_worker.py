@@ -1,7 +1,9 @@
 """MOSS-Image worker: runs in its own Python (~/.protoartstudio/venv-moss) with moss-image-mlx. JSON lines in and out,
 like the fast engine's worker:
 
-  in : {"cmd": "load", "dir": <weights folder>, "turbo": bool, "adapters": [student, destripe], "cache": <folder>}
+  in : {"cmd": "load", "dir": <weights folder>, "turbo": bool, "adapters": [student, destripe], "cache": <folder>,
+        "student_bf16": bool}
+       {"cmd": "shrink", "src": <weights folder>, "out": <folder>}   (8 GB Macs, once: see moss_small.py)
        {"cmd": "generate", "prompt", "negative_prompt", "width", "height", "steps", "cfg", "seed", "out": "/tmp/x.png"}
        {"cmd": "cancel"}  {"cmd": "quit"}
   out: {"type": "ready"|"status"|"progress"|"done"|"loaded"|"error", ...}
@@ -37,7 +39,7 @@ class Worker:
         self.key = None
 
     def load(self, a):
-        key = (a["dir"], bool(a.get("turbo")), tuple(a.get("adapters") or ()))
+        key = (a["dir"], bool(a.get("turbo")), tuple(a.get("adapters") or ()), bool(a.get("student_bf16")))
         if self.pipe is not None and self.key == key:
             return
         import mlx.core as mx
@@ -47,10 +49,92 @@ class Worker:
         if a.get("turbo"):
             student, destripe = a["adapters"]
             # destripe first (always on), then the student wrapped around it (switched per step), as the port does
+            # the student is kept in float32 for precision; on small Macs bf16 halves its ~0.5 GB
             loras = [(destripe, float(a.get("destripe_strength", 1.5)), mx.bfloat16, "destripe"),
-                     (student, 1.0, mx.float32, "student")]
+                     (student, 1.0, mx.bfloat16 if a.get("student_bf16") else mx.float32, "student")]
         self.pipe = MOSSImagePipeline(a["dir"], low_memory=True, cache_dir=a.get("cache") or None, loras=loras)
         self.key = key
+
+    def shrink(self, a):
+        """Make the small copy for 8 GB Macs: the picture model re-stored with 4-bit feed-forward layers (8-bit
+        attention and end blocks, see moss_small.py). One layer at a time on the CPU, so the 8-bit original is never
+        in memory whole; the text encoder, tokenizer, scheduler and picture decoder are linked, not copied."""
+        import gc
+        import shutil
+        from pathlib import Path
+
+        import mlx.core as mx
+        import mlx.nn as nn
+        from mlx.utils import tree_flatten
+        from moss_image_mlx.dit import load_transformer
+        from moss_image_mlx.export import _save_sharded
+        from moss_image_mlx.quantize import DIT_SKIP
+
+        from moss_small import bits_for, small_spec
+
+        self.pipe, self.key = None, None
+        gc.collect()
+        mx.clear_cache()
+        src, out = Path(a["src"]), Path(a["out"])
+        part = out.with_name(out.name + ".part")
+        shutil.rmtree(part, ignore_errors=True)
+        part.mkdir(parents=True)
+        cfg = json.loads((src / "transformer" / "config.json").read_text())
+        old = (cfg.get("moss_image_mlx") or {}).get("quantization")
+        if not old or old.get("mode", "affine") != "affine":
+            raise RuntimeError("this MOSS-Image download isn't the expected 8-bit format, so it can't be made smaller")
+        started = time.time()
+        previous = mx.default_device()
+        mx.set_default_device(mx.cpu)
+        try:
+            model = load_transformer(src / "transformer")
+            spec = small_spec(old["group_size"], old.get("skip", DIT_SKIP), len(model.layers))
+            todo = [(p, m) for p, m in model.named_modules() if isinstance(m, nn.QuantizedLinear)]
+            checked = False
+            for i, (path, m) in enumerate(todo):
+                if cancel.is_set():
+                    raise Cancelled()
+                bits = bits_for(spec, path)
+                if bits != m.bits:
+                    w = mx.dequantize(m.weight, m.scales, m.biases, group_size=m.group_size, bits=m.bits)
+                    wq, scales, biases = mx.quantize(w, group_size=spec["group_size"], bits=bits)
+                    mx.eval(wq, scales, biases)
+                    if not checked:  # the first converted layer must come back close to the original
+                        back = mx.dequantize(wq, scales, biases, group_size=spec["group_size"], bits=bits)
+                        err = (mx.linalg.norm((back - w).astype(mx.float32)) /
+                               (mx.linalg.norm(w.astype(mx.float32)) + 1e-12)).item()
+                        if not err < 0.25:
+                            raise RuntimeError(f"self-check failed: layer {path} changed too much ({err:.2f})")
+                        print(f"[moss] small copy self-check {path}: {err:.3f} relative error", file=sys.stderr,
+                              flush=True)
+                        checked = True
+                    m.weight, m.scales, m.biases, m.bits, m.group_size = wq, scales, biases, bits, spec["group_size"]
+                    del w
+                else:
+                    mx.eval(m.weight, m.scales, m.biases)
+                if i % 8 == 0 or i == len(todo) - 1:
+                    send({"type": "progress", "step": i + 1, "steps": len(todo), "elapsed": round(time.time() - started, 1)})
+            params = dict(tree_flatten(model.parameters()))
+            mx.eval(list(params.values()))
+            size = sum(v.nbytes for v in params.values())
+            _save_sharded(params, part / "transformer")
+            del params, model
+            gc.collect()
+            mx.clear_cache()
+        finally:
+            mx.set_default_device(previous)
+        cfg["moss_image_mlx"] = {**cfg["moss_image_mlx"], "quantization": spec}
+        (part / "transformer" / "config.json").write_text(json.dumps(cfg, indent=2) + "\n")
+        for f in src.iterdir():  # everything else is shared with the download
+            if f.name != "transformer":
+                os.symlink(f.resolve() if f.is_file() else f, part / f.name)
+        (part / ".protoart-done").write_text(json.dumps({"source": str(src), "transformer_gb": round(size / 2**30, 2),
+                                                          "spec": spec}))
+        shutil.rmtree(out, ignore_errors=True)
+        part.rename(out)
+        print(f"[moss] small copy made in {time.time() - started:.0f}s: transformer {size / 2**30:.2f} GB", file=sys.stderr,
+              flush=True)
+        return str(out)
 
     def generate(self, a):
         from PIL import Image
@@ -117,6 +201,8 @@ def main():
             if cmd == "load":
                 worker.load(msg)
                 send({"type": "loaded"})
+            elif cmd == "shrink":
+                send({"type": "done", "path": worker.shrink(msg)})
             elif cmd == "generate":
                 send({"type": "done", "path": worker.generate(msg)})
         except Cancelled:

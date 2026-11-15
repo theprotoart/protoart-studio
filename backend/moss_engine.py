@@ -35,6 +35,27 @@ STUDENT = {"repo": "VisualInference/MOSS-Image-SFT-Turbo-MLX", "file": "turbo_st
            "revision": "4dd94eeb06457a12ad5ca8f3b2df5674d06378a7"}
 DESTRIPE = {"repo": "nynxz/MOSS-Image", "file": "loras/moss_sft_destripe_top64_bf16.safetensors",
             "revision": "7b071d5915362f0101f0aa913315fd10a0772059", "strength": 1.5}
+# 8 GB Macs: a smaller copy of the picture model ("transformer"), made once on this Mac from the download above.
+# It's the part used on every step, so it has to fit in memory; the text encoder runs once per prompt (the encoded
+# prompt is kept), so it stays as published (6-bit) and is shared with the download, not copied. In the small copy,
+# attention and the first and last blocks stay 8-bit and the feed-forward layers (most of the weights) become 4-bit:
+# ~5.3 GB -> ~3.5 GB. The author's notes found an all-6-bit or smaller transformer lost fine detail, so the parts
+# that place things (attention) and the ends of the network keep full 8-bit precision.
+SMALL_RAM_GB = 14     # Macs with less memory than this use the small copy
+SMALL_TAG = "a8f4-v1"  # change when the recipe changes: a new copy is made
+SMALL_GB = 3.6
+from moss_small import small_spec, bits_for  # noqa: E402,F401  (shared with the worker)
+
+
+def small_dir():
+    return _HOME / "quantized" / f"moss-image-sft-{REVISION[:10]}-{SMALL_TAG}"
+
+
+def small_ready(d=None):
+    d = Path(d or small_dir())
+    return (d / ".protoart-done").exists() and (d / "transformer" / "config.json").exists()
+
+
 # sizes near one megapixel (the model's training size), multiples of 16
 SIZES = [(1024, 1024), (896, 1152), (1152, 896), (832, 1216), (1216, 832), (768, 1344), (1344, 768), (768, 768)]
 

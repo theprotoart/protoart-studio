@@ -1,0 +1,37 @@
+"""MOSS-Image's 8 GB version: the recipe the worker uses and the loader rebuilds must agree, and the app must pick it
+on small Macs."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import moss_small  # noqa: E402
+
+
+def test_recipe():
+    spec = moss_small.small_spec(64, ["video_embedder"], 30)
+    b = moss_small.bits_for
+    assert b(spec, "layers.5.proj.ffn_up_gate") == 4
+    assert b(spec, "layers.5.proj.ffn_down") == 4
+    assert b(spec, "layers.5.proj.q") == 8 and b(spec, "layers.5.proj.o") == 8
+    assert b(spec, "layers.0.proj.ffn_down") == 8 and b(spec, "layers.29.proj.ffn_down") == 8
+    assert b(spec, "layers.10.proj.ffn_down") == 4 and b(spec, "layers.2.proj.ffn_down") == 4  # not "layers.0."/"layers.29."
+    assert b(spec, "text_embedder.blocks.0.qkv") == 8
+    assert spec["skip"] == ["video_embedder"] and spec["mode"] == "affine"
+
+
+def test_catalog():
+    import engine
+    m = engine.all_models()
+    for k in ("moss_turbo_mlx", "moss_mlx", "zimage_turbo_mlx_q4"):
+        assert m[k]["min_ram_gb"] == 8, k
+    src = (Path(engine.__file__).parent / "engine.py").read_text()
+    assert '"cmd": "shrink"' in src and "student_bf16" in src
+    w = (Path(engine.__file__).parent / "moss_worker.py").read_text()
+    assert 'cmd == "shrink"' in w and "mx.set_default_device(previous)" in w
+
+
+if __name__ == "__main__":
+    test_recipe()
+    test_catalog()
+    print("ok")

@@ -106,6 +106,8 @@ class Worker:
         self.patterns = None
         self.cls_path = None
         self.f2_cache = {}   # FLUX.2: encoded prompts, so the text encoder can be dropped between prompts
+        self.zi_cache = {}   # Z-Image: the same
+        self.path = None
 
     def load(self, repo, base="ernie-image-turbo", loras=None, low_ram=False, force=False, allow_download=False,
              label=None, size_gb=None, revision=None, variant=None, quantize=None, patterns=None, cls=None):
@@ -124,6 +126,7 @@ class Worker:
         self.cls_path = cls or GENERIC.get(self.family)
         name = label or FAMILY_NAME[self.family]
         self.f2_cache = {}
+        self.zi_cache = {}
 
         self.model = None
         gc.collect()
@@ -176,11 +179,14 @@ class Worker:
             q = getattr(self, "quantize", None)  # full-size files: shrink while loading
             self.model = _make(klass, model_path=path, model_config=ModelConfig.from_name(base),
                                **({"quantize": int(q)} if q else {}), **lora_kw)
+            if self.family == "zimage":
+                self._cache_zimage_prompts(self.model)
         else:
             from mflux.models.ernie_image import ErnieImage
             config = ModelConfig.ernie_image_turbo() if base == "ernie-image-turbo" else ModelConfig.ernie_image()
             self.model = _make(ErnieImage, model_path=path, model_config=config, **lora_kw)
         self.key = key
+        self.path = path
         self.low_ram = bool(low_ram)
         if self.low_ram:
             mx.set_cache_limit(1 << 30)
@@ -204,6 +210,35 @@ class Worker:
 
         m._encode_prompt_pair = encode   # a plain function: MLX keeps it as an attribute, not a weight
 
+    def _cache_zimage_prompts(self, m):
+        """Z-Image: keep encoded prompts, so on small Macs its Qwen3 text encoder (~2.2 GB at 4-bit) can be dropped
+        while the picture is made and the 6B picture model has the memory to itself (see _Hooks)."""
+        orig = m._encode_prompts
+        cache = self.zi_cache
+
+        def encode(*, prompt, negative_prompt, guidance):
+            k = (prompt, (negative_prompt or "") if guidance and guidance > 1.0 else "", bool(guidance and guidance > 1.0))
+            if k not in cache:
+                if len(cache) > 16:
+                    cache.clear()
+                cache[k] = orig(prompt=prompt, negative_prompt=negative_prompt, guidance=guidance)
+            return cache[k]
+
+        m._encode_prompts = encode
+
+    def _reload_zimage_text_encoder(self):
+        """Bring back only Z-Image's text encoder for a new prompt (instead of reloading the whole model)."""
+        from mflux.models.common.weights.loading.weight_applier import WeightApplier
+        from mflux.models.common.weights.loading.weight_loader import WeightLoader
+        from mflux.models.z_image.model.z_image_text_encoder.text_encoder import TextEncoder
+        from mflux.models.z_image.weights.z_image_weight_definition import ZImageWeightDefinition
+        weights = WeightLoader.load(weight_definition=ZImageWeightDefinition, model_path=self.path)
+        comp = next(c for c in ZImageWeightDefinition.get_components() if c.name == "text_encoder")
+        te = TextEncoder()
+        WeightApplier.apply_and_quantize_single(weights=weights, model=te, component=comp, quantize_arg=None)
+        del weights
+        self.model.text_encoder = te
+
     def generate(self, a):
         import mlx.core as mx
         m = self.model
@@ -219,12 +254,24 @@ class Worker:
             neg = None  # FLUX.2 [klein] is distilled: no negative prompt, guidance stays at 1
             cache_key = (a["prompt"], cfg > 1.0)
             missing = getattr(m, "text_encoder", None) is None
+        elif self.family == "zimage":
+            g = cfg if cfg > 1.0 and getattr(getattr(m, "model_config", None), "supports_guidance", False) else 0.0
+            cache_key = (a["prompt"], (neg or "") if g > 1.0 else "", g > 1.0)
+            missing = getattr(m, "text_encoder", None) is None
         elif self.cls_path:
             cache_key, missing = None, False  # these keep their text encoder (see _Hooks)
         else:
             cache_key = (a["prompt"], neg, cfg)
             missing = m.text_encoder is None
-        prompt_cache = self.f2_cache if self.family == "flux2" else getattr(m, "prompt_cache", {})
+        prompt_cache = self.f2_cache if self.family == "flux2" else self.zi_cache if self.family == "zimage" \
+            else getattr(m, "prompt_cache", {})
+        if missing and cache_key not in prompt_cache and self.family == "zimage":
+            try:
+                send({"type": "status", "msg": "Loading Z-Image's text reader for the new prompt…"})
+                self._reload_zimage_text_encoder()
+                missing = False
+            except Exception as e:  # mflux changed inside: reload the whole model instead
+                print(f"[mlx] Z-Image text encoder reload failed ({e}); reloading the model", file=sys.stderr, flush=True)
         if missing and cache_key not in prompt_cache:
             # Low-memory mode dropped the text encoder after the last prompt: reload to encode this one.
             repo, base, loras, variant = self.key
@@ -273,6 +320,11 @@ class _Hooks:
             # The prompt is encoded and cached: drop the text encoder(s) while the picture is made, so the
             # image model has the memory to itself (on 8 GB Macs this avoids swapping, the main slowdown).
             fam = getattr(self.w, "family", "ernie")
+            if fam == "zimage":
+                self.w.model.text_encoder = None      # Qwen3-4B, ~2.2 GB at 4-bit (the prompt is cached)
+                gc.collect()
+                mx.clear_cache()
+                return
             if getattr(self.w, "cls_path", None):
                 return  # newer models: their text encoder stays (each is built differently; mflux frees what it can)
             if fam == "flux":

@@ -2,6 +2,12 @@
 
 ## 1.6.16
 
+- MOSS-Image and Z-Image Turbo on 8 GB Macs (`min_ram_gb` 8). MOSS: below `SMALL_RAM_GB` (14) a small copy of the DiT is
+  made once by the worker's `shrink` command from the compact download (`moss_small.small_spec`: 4-bit g64 with
+  q/k/v/o, the text embedder and the first/last blocks at 8-bit; one layer at a time on the CPU, self-checked; the
+  text encoder, VAE, tokenizer and scheduler are symlinked) in `~/.protoartstudio/quantized/`; the turbo student loads in
+  bf16 there. Z-Image: encoded prompts cached (`_cache_zimage_prompts`), the text encoder dropped before the loop on
+  low-RAM Macs and reloaded alone for a new prompt (`_reload_zimage_text_encoder`, whole-model reload as fallback)
 - Fix: Create's ControlNet kept an SD 1.5 type after switching to Pony/SDXL and the run failed ("This ControlNet is made for
   an SD 1.5 model"); `ccTypeNow` maps it to the same kind for the new model type (openpose → union:openpose), a `family`
   watcher switches the picked button, and `createSkips` explains when there's no match
