@@ -95,6 +95,48 @@ def _make(cls, **kw):
         raise
 
 
+def _internal_copy(path, name):
+    """Small Macs: use a copy on this Mac's own drive of a model kept on an external drive (once).
+
+    The fast engine reads a model's weights from disk while the graphics chip waits for them. From a slow external
+    drive (37 MB/s measured) the first step of a freshly downloaded model waited so long that macOS's GPU watchdog
+    stopped it ("GPU Timeout Error"). On Macs with 14 GB or more, or without the free space, the original is used."""
+    import shutil
+    from pathlib import Path
+    src = Path(path)
+    try:
+        real = str(src.resolve())
+    except OSError:
+        return path
+    if not real.startswith("/Volumes/") or not 0 < total_ram_gb() < 14:
+        return path
+    home = Path(os.environ.get("PROTOART_HOME") or (Path.home() / ".protoartstudio"))
+    dest = home / "fast-copies" / f"{src.parent.parent.name}--{src.name}"  # models--org--name--<revision>
+    if (dest / ".protoart-done").exists():
+        return str(dest)
+    files = [f for f in src.rglob("*") if f.is_file()]
+    need = sum(f.stat().st_size for f in files)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if shutil.disk_usage(dest.parent).free < need + (3 << 30):
+        print(f"[mlx] not enough space to copy {name} off the external drive; reading it from there", file=sys.stderr,
+              flush=True)
+        return path
+    part = dest.with_name(dest.name + ".part")
+    shutil.rmtree(part, ignore_errors=True)
+    done = 0
+    for f in files:
+        out = part / f.relative_to(src)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        send({"type": "status", "msg": f"Copying {name} from the external drive to this Mac (one time): "
+                                       f"{done / 2**30:.1f} of {need / 2**30:.1f} GB…"})
+        shutil.copyfile(f.resolve(), out)
+        done += out.stat().st_size
+    (part / ".protoart-done").write_text(real)
+    shutil.rmtree(dest, ignore_errors=True)
+    part.rename(dest)
+    return str(dest)
+
+
 class Worker:
     def __init__(self):
         self.model = None
@@ -149,6 +191,7 @@ class Worker:
                 finally:
                     hc.HF_HUB_OFFLINE = True
                     os.environ["HF_HUB_OFFLINE"] = "1"
+        path = _internal_copy(path, name)
         send({"type": "status", "msg": f"Loading {name} (fast engine)…"})
         t0 = time.time()
         lora_kw = dict(lora_paths=[p for p, _ in loras] or None, lora_scales=[float(s) for _, s in loras] or None)
