@@ -499,6 +499,8 @@ def handle_quick(cmd, a):
         return "pong"
     if cmd == "system_info":
         return engine().system_info()
+    if cmd == "h3_licence":  # MiniMax-H3-Image's licence card: state, or accept / withdraw
+        return engine().h3_licence(a)
     if cmd == "list_models":
         if a.get("fresh"):  # just moved a model to the Trash (or added one): look in the folders again now
             model_hub._dirs_result["at"] = 0

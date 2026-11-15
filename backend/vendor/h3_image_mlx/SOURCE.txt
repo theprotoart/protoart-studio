@@ -1,0 +1,1 @@
+h3-image-mlx by Anionex, Apache-2.0 (kernels MIT), https://github.com/Anionex/h3-image-mlx @ e8b83f294bdfb82c87daf293f9ce30be45e41d22, unmodified

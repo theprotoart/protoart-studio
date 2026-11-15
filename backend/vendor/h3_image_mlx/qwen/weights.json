@@ -1,0 +1,112 @@
+{
+  "repo": "ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit",
+  "revision": "214ca346520a59597b89bd77408afa49d526bde5",
+  "files": [
+    {
+      "path": "LICENSE",
+      "bytes": 7831,
+      "sha256": "8dc973f024ff95966bea25866efa443fd16776dcb1001e681e3d467ea572b28d",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/LICENSE",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/3f7ca4c780ddf768dcc92b53b0a56b154a8ea40f/LICENSE"
+    },
+    {
+      "path": "NOTICE",
+      "bytes": 434,
+      "sha256": "24bc697610b726de6252300de54888db21eeb57e7c506c05154432bf648bf26d",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/NOTICE",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/bb446b3799c65e8b10b7a414dc071bae8fa61249/NOTICE"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4086,
+      "sha256": "706019bbc95b9e8084e0904a31dbcb9f375ea8d421f90ad98721df1901b9307d",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/README.md",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/ab4e649cf2c7d486f9b886b812393a8453a47118/README.md"
+    },
+    {
+      "path": "config.json",
+      "bytes": 117,
+      "sha256": "162421c72795cb49e8c6f64eef2577a7da4c58b2d9a58dc0d792262ba71be218",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/config.json",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/bbd462c32786a2ac494e3ac34f42d146b7acada0/config.json"
+    },
+    {
+      "path": "model_index.json",
+      "bytes": 578,
+      "sha256": "97e2febeb19d93cb41fa44807cde8bd42757950b5dffeacdb0331fb2d390cf20",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/model_index.json",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/5013766a68685a32a6a329a06a55f5e0fed0a456/model_index.json"
+    },
+    {
+      "path": "processor/tokenizer.json",
+      "bytes": 11422650,
+      "sha256": "be75606093db2094d7cd20f3c2f385c212750648bd6ea4fb2bf507a6a4c55506",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/processor/tokenizer.json",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/9ce0116c389e98be6d3db91d2d2dee9e0556a7d8/processor/tokenizer.json"
+    },
+    {
+      "path": "processor/tokenizer_config.json",
+      "bytes": 705,
+      "sha256": "fd42a0b35a8d13cd473e88e310b50cbf1bccaa9eb60ed0fd873af5f8f0c59307",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/processor/tokenizer_config.json",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/fa861167f9065bd8f66fdb49f6d94d7c2dac42a3/processor/tokenizer_config.json"
+    },
+    {
+      "path": "scheduler/scheduler_config.json",
+      "bytes": 486,
+      "sha256": "16c948c71f9152a34cce6e3a2f309e97ad2dca32beecbe5e2fd3a7925b7eb4bb",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/scheduler/scheduler_config.json",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/9ab48f229cab9f3c7384e2611831c5e8b77f9f08/scheduler/scheduler_config.json"
+    },
+    {
+      "path": "text_encoder/config.json",
+      "bytes": 1542,
+      "sha256": "89050cba6b66c4f68f52305b54fc37efe28d95232246b94aa8dc0cfa36f3b734",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/text_encoder/config.json",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/0ba570f3c261cf5a55e23de1872587333614f518/text_encoder/config.json"
+    },
+    {
+      "path": "text_encoder/model.safetensors",
+      "bytes": 9367829459,
+      "sha256": "4db3757e59b070b827e1285e506df8874527206bcbc708fdcf02b79bb9a915a2",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/text_encoder/model.safetensors",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/5ddcd9329ef5de58b96ca6cf3688c7d580c2ef25/text_encoder/model.safetensors"
+    },
+    {
+      "path": "transformer/config.json",
+      "bytes": 370,
+      "sha256": "2c567038ca190824728844b8d06d94ae02360e668707afd9734e789a7eb58ce3",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/transformer/config.json",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/00b9096d5ee3090fac06cf56e943859ca5286dca/transformer/config.json"
+    },
+    {
+      "path": "transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
+      "bytes": 5407063648,
+      "sha256": "cff3e7601fa701d189ce6b013a3f7ca7a318ba49c8b4c8b820faf443adeb1ec8",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/1436a4a29143099ab682f11e264412a8935659d0/transformer/diffusion_pytorch_model-00001-of-00002.safetensors"
+    },
+    {
+      "path": "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
+      "bytes": 2280158619,
+      "sha256": "1a4117365d8e6a13b72d71abd13f2a3c60edcb9128a44c1018d0128182bf3728",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/acb48ff4be081bd5d19235868bb896d06e7b9fb5/transformer/diffusion_pytorch_model-00002-of-00002.safetensors"
+    },
+    {
+      "path": "vae/config.json",
+      "bytes": 2172,
+      "sha256": "42bfdec412459bbb7bc38a0617ab70edcfc873f84ec47e0c7d01c53ba09885a5",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/vae/config.json",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/d5997286726c52ceeec3b94374c646b5cd069b94/vae/config.json"
+    },
+    {
+      "path": "vae/diffusion_pytorch_model.safetensors",
+      "bytes": 662000745,
+      "sha256": "3ecb67f7df44bef3a74a65fa2a90d477122e45c7214906f04222a59ca4ca8aeb",
+      "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/214ca346520a59597b89bd77408afa49d526bde5/vae/diffusion_pytorch_model.safetensors",
+      "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-Turbo-MLX-Serve-8bit/resolve/fc8b047cdd2a6d4a3c247ec06f2670de73db8db9/vae/diffusion_pytorch_model.safetensors"
+    }
+  ],
+  "total_bytes": 17728493442
+}

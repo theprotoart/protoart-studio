@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased (1.6.18)
+
+- MiniMax-H3-Image (`h3_image`, family `h3`, engine `h3`): MiniMax's 33B create-and-edit model on 8 GB Macs.
+  `h3_engine.py` downloads Comfy-Org's pruned INT8 ConvRot files (pinned, resumable, Hugging Face then ModelScope) to
+  `<downloaded-models>/h3-image`, then `h3_worker.convert` writes a 4-bit copy (MLX affine, group 64, still rotated) to
+  `~/.protoartstudio/h3-image-4bit` one tensor at a time (~27 GB). Pictures run with h3-image-mlx (vendored unmodified in
+  `backend/vendor/h3_image_mlx`, Apache-2.0; its INT8 route is M5-only-fast) plus `h3_worker.patch()`: the input is
+  rotated by the same H256 and multiplied with `mx.quantized_matmul`. Four short processes (prompt reader, reference
+  pictures, picture model streamed per block, decoder): peak <2 GB; 1024² in 4.2 min on an 8 GB M1 (measured).
+  Prompt embeddings are cached per prompt + pictures (`h3-prompts/`)
+- Edit with words / Camera angle can use it (`edit_model: h3_image`): the picture and More pictures are its references,
+  `h3_engine.edit_prompt` adds "Edit <Picture 1>." when the prompt doesn't name them; painted areas composite as before
+- Licence gate: nothing downloads or runs before `h3_licence {accept: true}` (card in Create / Image to image);
+  MiniMax-H3-Image Community License: not in the US, EU, UK or Republic of Korea; outputs can't improve other models
+- Tests: `test_h3.py` (4-bit file layout with metadata kept, licence gate, edit prompts, catalog)
+
 ## 1.6.17
 
 - Fix: ✨ Enhance was much slower with Z-Image Turbo than with Klein on 8 GB Macs: the fast-engine worker (~6 GB) stayed

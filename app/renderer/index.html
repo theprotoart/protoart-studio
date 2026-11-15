@@ -97,6 +97,9 @@
             <option value="flux2_klein_mlx_q4" :disabled="form.i2i_mode === 'inpaint'">FLUX.2 Klein 4B · {{ form.i2i_mode === 'inpaint' ? '— not an inpainting model' : form.i2i_mode === 'outpaint' ? '↔ Expand with the outpaint LoRA' : '✨ Edit with words' }}{{ editModel().cached ? '' : ' · ' + Math.round(editModel().download_gb) + ' GB download' }}</option>
             <option v-if="editModel9() && form.i2i_mode !== 'outpaint'" value="flux2_klein9b_mlx_q4" :disabled="form.i2i_mode === 'inpaint' || ramBlocked(editModel9())">FLUX.2 Klein 9B · ✨ Edit with words (sharper){{ ramBlocked(editModel9()) ? ' — needs ' + editModel9().min_ram_gb + ' GB memory' : editModel9().cached ? '' : ' · ' + Math.round(editModel9().download_gb) + ' GB download' }}</option>
           </optgroup>
+          <optgroup v-if="editModelH3()" label="MiniMax-H3-Image · ✨ Edit with words, 📷 Camera angle (slower: ~8 min on 8 GB)">
+            <option value="h3_image" :disabled="!['edit', 'camera', 'change'].includes(form.i2i_mode)">MiniMax-H3-Image · ✨ Edit with words{{ editModelH3().cached ? '' : ' · ' + Math.round(editModelH3().download_gb) + ' GB download' }}</option>
+          </optgroup>
           <optgroup v-for="g in i2iModelGroups" :key="g.name" :label="g.name">
             <option v-for="m in g.models" :key="m.id" :value="m.id" :disabled="!m.i2iOk || ramBlocked(m)">
               {{ m.label }}{{ m.people ? ' ●' : '' }}{{ m.nsfw ? ' ⚑' : '' }}{{ ramBlocked(m) ? ' — needs ' + m.min_ram_gb + ' GB RAM' : m.i2iOk ? (m.cached ? '' : ' · ' + Math.round(m.download_gb) + ' GB download') : (m.why || ' — not for image to image') }}</option>
@@ -1075,6 +1078,18 @@
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
       <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-diag" @click="copyDiagnostics" title="Copy what went wrong (the app's version, this Mac, the message and the end of the backend log, with your user name taken out) to paste into a message">{{ diagCopied ? '✓ Copied' : '📋 Copy diagnostics' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
+      <div v-if="h3LicenceShown()" class="card cn-guide model-guide h3-licence">
+        <div class="cn-guide-head"><h3>📜 MiniMax-H3-Image · licence</h3></div>
+        <p>Before its first download (~49 GB once, plus a ~27 GB 4-bit copy on this Mac's drive), please read and accept the
+          <a href="https://huggingface.co/MiniMaxAI/MiniMax-H3-Image/blob/main/LICENSE" target="_blank" rel="noopener">MiniMax-H3-Image Community License</a>.</p>
+        <ul class="cn-steps">
+          <li>It may <b>not</b> be used in the United States, the European Union, the United Kingdom or the Republic of Korea.</li>
+          <li>Its pictures may not be used to improve other AI models (e.g. as training pictures for a LoRA of another model).</li>
+          <li>No military use, impersonation, election misinformation or unlabelled AI content in public; commercial products must show its name, and over US$1M yearly revenue or as an online service you need MiniMax's written permission.</li>
+        </ul>
+        <label class="check"><input type="checkbox" v-model="h3Tick"> I accept this licence, and I'm not in one of the places it excludes</label>
+        <button class="primary small" :disabled="!h3Tick" @click="h3Accept">Accept</button>
+      </div>
       <div v-if="modelGuide()" class="card cn-guide model-guide">
         <div class="cn-guide-head"><h3>💡 {{ modelGuide().title }} <span class="hint">· suggested settings</span></h3><span class="grow"></span>
           <button class="primary small" @click="applyModelGuide" title="Set the steps, guidance, strength and size this model works best with">Use these settings</button>
@@ -4064,6 +4079,18 @@
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
         <button class="ghost small" @click="memLowShown = false" title="Hide this note">✕</button></div>
       <div v-if="error && errorHere()" class="error-box closable" :class="{ 'error-retry': needsDownload(error) }"><span>{{ error }}</span><button v-if="needsDownload(error)" class="primary" :disabled="dlBusy" @click="downloadAndRetry" title="Open the connection for this job, download what it needs from Hugging Face (once), and run it again">{{ dlBusy ? 'Downloading…' : '⬇ Download it now' }}</button><button class="ghost small err-diag" @click="copyDiagnostics" title="Copy what went wrong (the app's version, this Mac, the message and the end of the backend log, with your user name taken out) to paste into a message">{{ diagCopied ? '✓ Copied' : '📋 Copy diagnostics' }}</button><button class="ghost small err-close" @click="error = ''" title="Hide this message">✕</button></div>
+      <div v-if="h3LicenceShown()" class="card cn-guide model-guide h3-licence">
+        <div class="cn-guide-head"><h3>📜 MiniMax-H3-Image · licence</h3></div>
+        <p>Before its first download (~49 GB once, plus a ~27 GB 4-bit copy on this Mac's drive), please read and accept the
+          <a href="https://huggingface.co/MiniMaxAI/MiniMax-H3-Image/blob/main/LICENSE" target="_blank" rel="noopener">MiniMax-H3-Image Community License</a>.</p>
+        <ul class="cn-steps">
+          <li>It may <b>not</b> be used in the United States, the European Union, the United Kingdom or the Republic of Korea.</li>
+          <li>Its pictures may not be used to improve other AI models (e.g. as training pictures for a LoRA of another model).</li>
+          <li>No military use, impersonation, election misinformation or unlabelled AI content in public; commercial products must show its name, and over US$1M yearly revenue or as an online service you need MiniMax's written permission.</li>
+        </ul>
+        <label class="check"><input type="checkbox" v-model="h3Tick"> I accept this licence, and I'm not in one of the places it excludes</label>
+        <button class="primary small" :disabled="!h3Tick" @click="h3Accept">Accept</button>
+      </div>
       <div v-if="modelGuide()" class="card cn-guide model-guide">
         <div class="cn-guide-head"><h3>💡 {{ modelGuide().title }} <span class="hint">· suggested settings</span></h3><span class="grow"></span>
           <button class="primary small" @click="applyModelGuide" title="Set the steps, guidance, strength and size this model works best with">Use these settings</button>

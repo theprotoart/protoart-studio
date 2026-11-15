@@ -1,0 +1,75 @@
+{
+  "base": {
+    "repo": "base-dit",
+    "source": "ddalcu/Qwen-Image-2.1-MLX-Serve-8bit",
+    "revision": "dc21b8d3441eef8f50ee5915dd5ea74679bcf338",
+    "files": [
+      {
+        "path": "config.json",
+        "bytes": 370,
+        "sha256": "56ae3281c4e6c2d1aa3658252d187488071815fd79bef15808bb0205fc1a2241",
+        "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-MLX-Serve-8bit/resolve/dc21b8d3441eef8f50ee5915dd5ea74679bcf338/transformer/config.json",
+        "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-MLX-Serve-8bit/resolve/1be64bf8ec9e2c3831b53a8ba0b76500f3fed376/transformer/config.json"
+      },
+      {
+        "path": "diffusion_pytorch_model-00001-of-00002.safetensors",
+        "bytes": 5407063648,
+        "sha256": "460ecb16d6152864f59db73dccff1e25cbc29d1fcc8fb3d2464810f416ef710e",
+        "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-MLX-Serve-8bit/resolve/dc21b8d3441eef8f50ee5915dd5ea74679bcf338/transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
+        "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-MLX-Serve-8bit/resolve/000fecab33d1022368287c1593ff279264d4c471/transformer/diffusion_pytorch_model-00001-of-00002.safetensors"
+      },
+      {
+        "path": "diffusion_pytorch_model-00002-of-00002.safetensors",
+        "bytes": 2280158619,
+        "sha256": "e406bdc808d4524dad6d0ed598e8f13b78f74779a8ed687e003879c5de60c12a",
+        "huggingface": "https://huggingface.co/ddalcu/Qwen-Image-2.1-MLX-Serve-8bit/resolve/dc21b8d3441eef8f50ee5915dd5ea74679bcf338/transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
+        "modelscope": "https://modelscope.cn/models/ddalcu/Qwen-Image-2.1-MLX-Serve-8bit/resolve/9663a42525a0cbce393c92dcdd01b7c7334a0b8e/transformer/diffusion_pytorch_model-00002-of-00002.safetensors"
+      }
+    ],
+    "total_bytes": 7687222637
+  },
+  "dmd2": {
+    "repo": "dmd2",
+    "source": "linoyts/Qwen-Image-2.1-DMD2-2steps",
+    "revision": "88455a22d4aae892da41302de1122a560d9fe2dc",
+    "files": [
+      {
+        "path": "adapter.safetensors",
+        "bytes": 67144520,
+        "sha256": "0cfee5d5fbb9c5f6262c82db4f59dd4e872dfaac9fb7c82c9f7191e0d31406c4",
+        "huggingface": "https://huggingface.co/linoyts/Qwen-Image-2.1-DMD2-2steps/resolve/88455a22d4aae892da41302de1122a560d9fe2dc/pytorch_lora_weights_v1_5.safetensors"
+      }
+    ],
+    "total_bytes": 67144520
+  },
+  "lightning": {
+    "repo": "lightning",
+    "source": "lightx2v/Qwen-Image-2.1-Lightning",
+    "revision": "6b0a1176327c01522a44276c5da67331a025b6fc",
+    "files": [
+      {
+        "path": "adapter.safetensors",
+        "bytes": 67144280,
+        "sha256": "53c69320d4163da51032f90275074028cb098556039c72b45f8dce9f0f9e34a3",
+        "huggingface": "https://huggingface.co/lightx2v/Qwen-Image-2.1-Lightning/resolve/6b0a1176327c01522a44276c5da67331a025b6fc/pytorch_lora_weights.safetensors",
+        "modelscope": "https://modelscope.cn/models/lightx2v/Qwen-Image-2.1-Lightning/resolve/0e7cab3e5067fb53fe68947841b0268cfd1358df/pytorch_lora_weights.safetensors"
+      }
+    ],
+    "total_bytes": 67144280
+  },
+  "turbo8": {
+    "repo": "turbo8",
+    "source": "Comfy-Org/Qwen-Image-2.1",
+    "revision": "aacf31a6d48e707f352ecba714cee0680da3479b",
+    "files": [
+      {
+        "path": "adapter.safetensors",
+        "bytes": 913314512,
+        "sha256": "208dd43250e1e01467ba190572ae2e7107a7870ec1ff026bc65f791fa1e80e95",
+        "huggingface": "https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/aacf31a6d48e707f352ecba714cee0680da3479b/loras/qwen_image_2.1_turbo_lora_avg_rank_178_bf16.safetensors",
+        "modelscope": "https://modelscope.cn/models/Comfy-Org/Qwen-Image-2.1/resolve/8c798285d642b81a1af415b70f2e444e809820d7/loras/qwen_image_2.1_turbo_lora_avg_rank_178_bf16.safetensors"
+      }
+    ],
+    "total_bytes": 913314512
+  }
+}

@@ -67,6 +67,15 @@ MODELS = {
         "download_gb": 6.6, "engine_gb": 1.5, "min_ram_gb": 8,
         "defaults": {"width": 1024, "height": 1024, "steps": 8, "cfg": 1.0},
     },
+    # MiniMax-H3-Image (MiniMax, 33B; MiniMax-H3-Image Community License: not in the US, EU, UK or Korea): creates and
+    # edits (up to 16 reference pictures) in 6 steps. A 4-bit copy made on this Mac streams from the drive, so it runs
+    # on 8 GB Macs (~4 min at 1024). See h3_engine.py.
+    "h3_image": {
+        "label": "MiniMax-H3-Image · 4-bit · ✨ creates & edits", "family": "h3", "quant": "4-bit (made on this Mac)",
+        "engine": "h3", "h3": True, "license": "MiniMax-H3-Image Community License",
+        "download_gb": 49.3, "disk_gb": 27.0, "min_ram_gb": 8,
+        "defaults": {"width": 1024, "height": 1024, "steps": 6, "cfg": 1.0},
+    },
     # MOSS-Image (OpenMOSS, Apache-2.0): a 5B model made for lettering and layouts (signs, posters, covers),
     # on the Apple GPU with moss-image-mlx in its own Python. See moss_engine.py.
     "moss_turbo_mlx": {
@@ -289,6 +298,16 @@ def _moss_small(ram):
     """True when this Mac runs MOSS-Image's 8 GB version (its own smaller copy; see moss_small.py)."""
     import moss_engine
     return bool(ram) and ram < moss_engine.SMALL_RAM_GB
+
+
+def _h3_sizes():
+    import h3_engine
+    return h3_engine.SIZES
+
+
+def _h3_accepted():
+    import h3_engine
+    return h3_engine.licence_accepted()
 
 
 def _moss_sizes():
@@ -691,7 +710,7 @@ def _from_tdict(cls, path, **kw):
 
 FAMILY_NAMES = {"ernie": "ERNIE", "flux": "FLUX", "flux2": "FLUX.2", "zimage": "Z-Image", "qwen21": "Qwen-Image 2.1",
                 "krea2": "Krea 2", "fibo2": "FIBO 2", "anima": "Anima", "sd15": "SD 1.5", "sdxl": "SDXL", "moss": "MOSS-Image",
-                "fast": "fast-engine model"}
+                "h3": "MiniMax-H3-Image", "fast": "fast-engine model"}
 
 
 def all_models():
@@ -847,7 +866,9 @@ class Engine:
                                   and self._is_cached(v["repo"])),
              "enough_ram": ram == 0 or ram >= min(v["min_ram_gb"], v.get("low_memory_min_ram_gb") or 999),
              "auto_low_memory": bool(ram and v.get("low_memory_min_ram_gb") and ram < v["min_ram_gb"]),
-             "sizes": ERNIE_SIZES if v["family"] == "ernie" else _moss_sizes() if v["family"] == "moss" else None,
+             "sizes": ERNIE_SIZES if v["family"] == "ernie" else _moss_sizes() if v["family"] == "moss"
+             else _h3_sizes() if v["family"] == "h3" else None,
+             "licence_needed": bool(v.get("h3")) and not _h3_accepted(),
              "source": v.get("source"),
              "engine": v.get("engine", "torch"), "fast_mode": v["family"] in FAST_LORAS and not v.get("engine"),
              "clip_skip": recommended_clip_skip(v, k), "flavor": model_flavor(v, k),
@@ -879,6 +900,10 @@ class Engine:
             return {"model": model_id, "already": True}
         if net.strict:
             raise UserError("Strict offline mode is on (Settings → Privacy): turn it off to download models.")
+        if spec.get("h3"):  # MiniMax-H3-Image: its own download (resumable) and the 4-bit copy
+            self._h3_prepare(spec)
+            self.emit({"type": "status", "msg": f"{spec['label']} is ready: it works offline from now on"})
+            return {"model": model_id, "downloaded": True}
         size = float(spec.get("download_gb") or 0)
         free = free_disk_gb(_hub_dir())
         if free < size + 3:
@@ -1016,6 +1041,9 @@ class Engine:
             return True
         if spec.get("file") or spec.get("tdict") or spec.get("local_dir"):
             return True
+        if spec.get("h3"):
+            import h3_engine
+            return h3_engine.ready()
         if spec.get("moss"):
             import moss_engine
             here = bool(moss_engine.weights_dir() or moss_engine.small_ready() or moss_engine.small_ready_made())
@@ -1904,6 +1932,159 @@ class Engine:
                 pass
         return files
 
+    # ------------------------------------------------------------------------------------- MiniMax-H3-Image
+    def _h3_python(self):
+        """The fast engine's Python (it has MLX); installed the first time like the fast engine."""
+        import mlx_engine
+        if not mlx_engine.supported():
+            raise UserError("MiniMax-H3-Image needs a Mac with Apple Silicon (M1 or newer).")
+        if not mlx_engine.installed():
+            try:
+                mlx_engine.MlxEngine(self.emit, self.cancel_event).install()
+            except mlx_engine.EngineError as e:
+                raise UserError(str(e))
+        return mlx_engine.PY
+
+    def _h3_prepare(self, spec):
+        """Download (resumable) and make the 4-bit copy, once. Asks for nothing: the licence must be accepted first."""
+        import h3_engine
+        import net
+        if h3_engine.ready():
+            return
+        if not h3_engine.licence_accepted():
+            raise UserError(f"MiniMax-H3-Image: accept its licence first (the card in Create, under the model). It may "
+                            f"not be used in {h3_engine.EXCLUDED}.")
+        py = self._h3_python()
+
+        def on_event(ev):
+            if ev.get("type") == "download":
+                tot = max(1, ev["total"])
+                self.emit({"type": "progress", "image": 1, "images": 1, "step": int(ev["done"] / 1e6),
+                           "steps": int(tot / 1e6)})
+                self.emit({"type": "status", "msg": f"Downloading MiniMax-H3-Image (one time): {ev['done'] / 1e9:.1f} of "
+                                                    f"{tot / 1e9:.1f} GB"})
+            elif ev.get("type") == "convert":
+                part = ev["part"] - 1 + ev["done"] / max(1, ev["total"])
+                self.emit({"type": "progress", "image": 1, "images": 1, "step": int(part * 500), "steps": 1000})
+                self.emit({"type": "status", "msg": f"Making MiniMax-H3-Image's 4-bit copy (one time, about half an "
+                                                    f"hour): part {ev['part']} of 2, {ev['done'] / 2**30:.1f} of "
+                                                    f"{ev['total'] / 2**30:.1f} GB"})
+
+        try:
+            if not net.is_online() and h3_engine.status()["download_gb"] > 0:
+                if net.strict:
+                    raise UserError("MiniMax-H3-Image isn't on this Mac yet: turn off Strict offline (Settings → Privacy) "
+                                    "for the one-time download.")
+            net.set_online(True)
+            try:
+                h3_engine.download(on_event, self.cancel_event)
+            finally:
+                net.set_online(False)
+            h3_engine.make_four(py, on_event, self.cancel_event)
+        except h3_engine.Cancelled:
+            raise Cancelled()
+        except h3_engine.H3Error as e:
+            raise UserError(str(e))
+
+    def _h3_picture(self, prompt, out, width, height, seed, refs=(), image=1, images=1, extra_steps=0):
+        """One MiniMax-H3-Image picture into out, with one progress bar for its stages. -> timings"""
+        import h3_engine
+        py = self._h3_python()
+        weights = {"text": 1, "refs": 1, "dit": 6, "vae": 1}
+        order = ["text", *(["refs"] if refs else []), "dit", "vae"]
+        total = sum(weights[s] for s in order) + extra_steps
+        state = {"base": 0, "stage": None}
+        names = {"text": "reading the prompt", "refs": "reading the pictures", "dit": "drawing",
+                 "vae": "finishing the picture"}
+
+        def on_event(ev):
+            if ev.get("type") == "stage":
+                if state["stage"] is None and ev["stage"] != "text":
+                    state["base"] = weights["text"]  # the prompt was read before (same prompt and pictures)
+                elif state["stage"] is not None:
+                    state["base"] += weights[state["stage"]]
+                state["stage"] = ev["stage"]
+                self.emit({"type": "status", "msg": f"MiniMax-H3-Image ({image} of {images}): {names[ev['stage']]}…"})
+                self.emit({"type": "progress", "image": image, "images": images, "step": state["base"], "steps": total})
+            elif ev.get("type") == "progress" and ev.get("stage") == "dit":
+                self.emit({"type": "progress", "image": image, "images": images,
+                           "step": state["base"] + min(6, ev["step"]), "steps": total})
+
+        try:
+            return h3_engine.picture(py, prompt, out, width, height, seed, refs, on_event, self.cancel_event)
+        except h3_engine.Cancelled:
+            raise Cancelled()
+        except h3_engine.H3Error as e:
+            raise UserError(str(e))
+
+    def _generate_h3(self, args, model_id, spec, prompt, width, height, n, seed, original_prompt, force=False):
+        """MiniMax-H3-Image (Create; with a start picture it edits it: "Edit <Picture 1>. …")."""
+        import h3_engine
+        import pictures
+        from PIL import Image
+        if args.get("loras"):
+            raise UserError("MiniMax-H3-Image can't use LoRAs: take them out of the LoRA list first.")
+        if not h3_engine.licence_accepted():
+            raise UserError("MiniMax-H3-Image: accept its licence first (the card under the model in Create).")
+        width, height = max(256, int(width) // 32 * 32), max(256, int(height) // 32 * 32)
+        self.unload()  # only one big model at a time (it needs under 2 GB itself, but the others are big)
+        self.enhancer = None
+        self.drop_helpers()
+        self._h3_prepare(spec)
+        refs = []
+        if args.get("init_image"):
+            refs.append(pictures.prepare(args["init_image"]))
+        refs += [pictures.prepare(r) for r in (args.get("refs") or []) if isinstance(r, str) and r][:15]
+        out_dir = paths.HOME / "tmp"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        self.loaded_key = None
+        self.family = "h3"
+        results = []
+        for i in range(n):
+            if self.cancel_event.is_set():
+                raise Cancelled()
+            img_seed = (seed + i) % 2**31
+            p_i = prompt[i] if isinstance(prompt, list) else prompt
+            o_i = original_prompt[i] if isinstance(original_prompt, list) else original_prompt
+            p_run = h3_engine.edit_prompt(p_i, len(refs)) if refs else p_i
+            out = out_dir / f"h3_{os.getpid()}_{i}.png"
+            started = time.time()
+            timings = self._h3_picture(p_run, out, width, height, img_seed, refs, i + 1, n)
+            image = Image.open(out).convert("RGB")
+            try:
+                out.unlink()
+            except OSError:
+                pass
+            secs = time.time() - started
+            print(f"[timing] MiniMax-H3-Image {i + 1}/{n}: {secs:.1f}s at {width}x{height}, {len(refs)} pictures, "
+                  f"stages {timings}", flush=True)
+            settings = {"model": model_id, "prompt": p_run, "negative_prompt": "", "width": image.width,
+                        "height": image.height, "steps": 6, "cfg": 1.0, "sampler": "flow · 6 steps", "seed": img_seed,
+                        "engine": "h3", "loras": [], "seconds": round(secs, 1)}
+            if refs and args.get("init_image"):
+                settings.update(init_image=str(args["init_image"]))
+            if o_i and o_i != p_run:
+                settings["original_prompt"] = o_i
+            if args.get("restore_faces"):
+                image, face_info = self._restore_faces(image, args)
+                if face_info:
+                    settings["face_restore"] = face_info
+            path = self._save(image, settings)
+            record = self.library.add_image(path, settings, kind="img2img" if refs else "generated")
+            record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
+            record = self._people_check(self._content_check(record, image), image)
+            results.append(record)
+            self.emit({"type": "image", "record": record})
+        return results
+
+    def h3_licence(self, args):
+        """MiniMax-H3-Image's licence card: its state, or accept / withdraw it."""
+        import h3_engine
+        if "accept" in args:
+            h3_engine.accept_licence(bool(args["accept"]))
+        return {**h3_engine.status(), "licence": h3_engine.LICENCE_NAME, "url": h3_engine.LICENCE_URL,
+                "excluded": h3_engine.EXCLUDED}
+
     def _generate_moss(self, args, model_id, spec, prompt, negative, width, height, steps, cfg, n, seed,
                        original_prompt, force=False):
         """MOSS-Image (its own worker process; see moss_engine.py). Text to image only."""
@@ -2724,7 +2905,7 @@ class Engine:
         # image-to-image
         init_image, strength = None, None
         if args.get("init_image"):
-            if not is_sd and family != "anima" and not (spec.get("engine") == "mlx" and family not in ("flux2", "fibo2")):
+            if not is_sd and family not in ("anima", "h3") and not (spec.get("engine") == "mlx" and family not in ("flux2", "fibo2")):
                 raise UserError("Image-to-image works with SD 1.5, SDXL, Anima and the fast-engine models. "
                                 "For FLUX.2 Klein use ✨ Edit with words; FIBO 2 only makes new pictures here.")
             init_image = open_image(args["init_image"], "start image for image-to-image")
@@ -2831,6 +3012,8 @@ class Engine:
         if self.cancel_event.is_set():
             raise Cancelled()
 
+        if spec.get("h3"):
+            return self._generate_h3(args, model_id, spec, prompts, width, height, n, seed, originals, force=force)
         if spec.get("moss"):
             return self._generate_moss(args, model_id, spec, prompts, negatives, width, height, steps, cfg, n, seed,
                                        originals, force=force)
@@ -4608,7 +4791,8 @@ class Engine:
         from PIL import Image, ImageFilter
         edit_id = args.get("edit_model") or self.EDIT_MODEL
         spec = all_models().get(edit_id)
-        if spec is None or spec.get("family") != "flux2" or spec.get("engine") != "mlx":
+        h3 = bool(spec and spec.get("h3"))  # MiniMax-H3-Image edits too (the picture and the extras as its references)
+        if not h3 and (spec is None or spec.get("family") != "flux2" or spec.get("engine") != "mlx"):
             edit_id, spec = self.EDIT_MODEL, all_models().get(self.EDIT_MODEL)  # only FLUX.2 Klein models can edit
         if spec is None:
             raise UserError("Edit with words needs the FLUX.2 Klein model, which isn't in this version.")
@@ -4652,101 +4836,132 @@ class Engine:
         started = time.time()
         if self.cancel_event.is_set():
             raise Cancelled()
-        try:
-            # LoRAs for FLUX.2 (e.g. a model chain step with its own LoRA); Edit with words itself sends none
-            self._mlx_load(spec, [l for l in (args.get("loras") or []) if isinstance(l, dict) and l.get("name")], variant="edit")
-            self.loaded_key = None
-            self.family = spec["family"]
+        if h3:  # MiniMax-H3-Image: one pass, "Edit <Picture 1>. …" with the extra pictures as <Picture 2>…
+            import h3_engine
+            if not h3_engine.licence_accepted():
+                raise UserError("MiniMax-H3-Image: accept its licence first (the card under the model in Create).")
+            self.unload()
+            self.enhancer = None
+            self.drop_helpers()
+            self._h3_prepare(spec)
+            scale = 1024 / max(1.0, (image.width * image.height) ** 0.5)
+            width = max(256, min(2048, int(image.width * scale) // 32 * 32))
+            height = max(256, min(2048, int(image.height * scale) // 32 * 32))
+            steps = 6
             tmp = paths.HOME / "tmp"
             tmp.mkdir(parents=True, exist_ok=True)
-            first = tmp / f"edit_src_{os.getpid()}.png"
-            image.save(first)
-            ref_files = [str(first)]
+            ref_files = [tmp / f"h3edit_src_{os.getpid()}.png"]
+            image.save(ref_files[0])
             for i, im in enumerate(ref_imgs):
-                im = im.convert("RGB")
-                p = tmp / f"edit_ref_{os.getpid()}_{i}.png"
-                im.save(p)
-                ref_files.append(str(p))
-            out = tmp / f"edit_out_{os.getpid()}.png"
-            self.emit({"type": "status", "msg": "Editing with FLUX.2 Klein (fast engine)…"})
-            face_files = []
-            # one progress bar for the whole job: a retry or a 🙂 Keep faces pass adds its steps to the same bar
-            # (each pass used to start the bar and the time left again, which looked like it was stuck)
-            phase = {"done": 0, "total": steps}
-
-            def on_event(ev):
-                if ev.get("type") == "_more":
-                    phase["total"] += steps * int(ev.get("passes") or 1)
-                    return
-                if ev.get("type") == "_next":
-                    phase["done"] = min(phase["done"] + steps, phase["total"] - steps)
-                    return
-                if ev.get("type") == "progress":
-                    self.emit({"type": "progress", "image": 1, "images": 1, "step": min(phase["total"], phase["done"] + ev["step"]),
-                               "steps": phase["total"]})
-                elif ev.get("type") == "preview":
-                    self.emit({"type": "preview", "image": 1, "src": ev["src"]})
-                elif ev.get("type") == "status":
-                    self.emit(ev)
-
+                ref_files.append(tmp / f"h3edit_ref_{os.getpid()}_{i}.png")
+                im.convert("RGB").save(ref_files[-1])
+            out = tmp / f"h3edit_out_{os.getpid()}.png"
+            prompt = h3_engine.edit_prompt(prompt, len(ref_files))
             try:
-                self.mlx.request({"cmd": "generate", "prompt": prompt, "negative_prompt": None, "width": width,
-                                  "height": height, "steps": steps, "cfg": 1.0, "seed": seed, "out": str(out),
-                                  "preview": self.previews, "image_paths": ref_files}, on_event=on_event)
+                self._h3_picture(prompt, out, width, height, seed, ref_files)
                 result = Image.open(out).convert("RGB")
-                cam = args.get("camera") if isinstance(args.get("camera"), dict) else None
-                if cam and (cam.get("layout") or "single") == "single" and not self.cancel_event.is_set():
-                    # 📷 Klein sometimes answers a camera move with a split / comic-panel picture: try again once with
-                    # another seed and firmer words, and if it's still split, keep the biggest panel
-                    import postprocess.compose as comp
-                    if comp.panel_seams(result):
-                        self.emit({"type": "status", "msg": "It came out split into panels: trying once more as one picture…"})
-                        on_event({"type": "_more"}); on_event({"type": "_next"})
-                        seed = (seed + 7919) % 2**32
-                        self.mlx.request({"cmd": "generate", "prompt": prompt + " The whole frame is one single photograph "
-                                          "of one moment: one person shown once, no grid, no split, no second view.",
-                                          "negative_prompt": None, "width": width, "height": height, "steps": steps,
-                                          "cfg": 1.0, "seed": seed, "out": str(out), "preview": self.previews,
-                                          "image_paths": ref_files}, on_event=on_event)
-                        result = Image.open(out).convert("RGB")
-                        if comp.panel_seams(result):
-                            result = result.crop(comp.largest_panel(result))
-                            panels_cropped = True
-                if cam and not self.cancel_event.is_set() and not re.search(
-                        r"black[- ]and[- ]white|monochrome|gr[ae]yscale|sepia|b&w", args.get("prompt") or "", re.I):
-                    # 📷 Klein sometimes turns a colour picture black and white when it moves the camera: try once more
-                    # asking for the colours, and say so if it still came out grey
-                    import postprocess.compose as comp
-                    if comp.turned_grey(image, result):
-                        self.emit({"type": "status", "msg": "It came out black and white: trying once more in colour…"})
-                        on_event({"type": "_more"}); on_event({"type": "_next"})
-                        seed = (seed + 104729) % 2**32
-                        self.mlx.request({"cmd": "generate", "prompt": prompt + " In full colour, with exactly the colours "
-                                          "of the original picture; not black and white, not monochrome, not greyscale.",
-                                          "negative_prompt": None, "width": width, "height": height, "steps": steps,
-                                          "cfg": 1.0, "seed": seed, "out": str(out), "preview": self.previews,
-                                          "image_paths": ref_files}, on_event=on_event)
-                        again = Image.open(out).convert("RGB")
-                        if comp.colourfulness(again) > comp.colourfulness(result):
-                            result, panels_cropped = again, False
-                            if (cam.get("layout") or "single") == "single" and comp.panel_seams(result):
-                                result, panels_cropped = result.crop(comp.largest_panel(result)), True
-                        grey_retried = True
-                        still_grey = comp.turned_grey(image, result)
-                if keep_faces and mask is None and combine is None and not self.cancel_event.is_set():
-                    # 🙂 Keep faces: each face is edited again on its own, close up (it fills the picture, so Klein
-                    # keeps its features), with the original face as a second picture, and blended into the result
-                    result, faces_redone = self._klein_faces(image, result, prompt, seed, steps, tmp, on_event, face_files)
             finally:
-                for f in [out, *map(Path, ref_files), *face_files]:
+                for f in [out, *ref_files]:
                     try:
                         Path(f).unlink()
                     except OSError:
                         pass
-        except mlx_engine.CancelledError:
-            raise Cancelled()
-        except mlx_engine.EngineError as e:
-            raise UserError(str(e))
+        else:
+            try:
+                # LoRAs for FLUX.2 (e.g. a model chain step with its own LoRA); Edit with words itself sends none
+                self._mlx_load(spec, [l for l in (args.get("loras") or []) if isinstance(l, dict) and l.get("name")], variant="edit")
+                self.loaded_key = None
+                self.family = spec["family"]
+                tmp = paths.HOME / "tmp"
+                tmp.mkdir(parents=True, exist_ok=True)
+                first = tmp / f"edit_src_{os.getpid()}.png"
+                image.save(first)
+                ref_files = [str(first)]
+                for i, im in enumerate(ref_imgs):
+                    im = im.convert("RGB")
+                    p = tmp / f"edit_ref_{os.getpid()}_{i}.png"
+                    im.save(p)
+                    ref_files.append(str(p))
+                out = tmp / f"edit_out_{os.getpid()}.png"
+                self.emit({"type": "status", "msg": "Editing with FLUX.2 Klein (fast engine)…"})
+                face_files = []
+                # one progress bar for the whole job: a retry or a 🙂 Keep faces pass adds its steps to the same bar
+                # (each pass used to start the bar and the time left again, which looked like it was stuck)
+                phase = {"done": 0, "total": steps}
+
+                def on_event(ev):
+                    if ev.get("type") == "_more":
+                        phase["total"] += steps * int(ev.get("passes") or 1)
+                        return
+                    if ev.get("type") == "_next":
+                        phase["done"] = min(phase["done"] + steps, phase["total"] - steps)
+                        return
+                    if ev.get("type") == "progress":
+                        self.emit({"type": "progress", "image": 1, "images": 1, "step": min(phase["total"], phase["done"] + ev["step"]),
+                                   "steps": phase["total"]})
+                    elif ev.get("type") == "preview":
+                        self.emit({"type": "preview", "image": 1, "src": ev["src"]})
+                    elif ev.get("type") == "status":
+                        self.emit(ev)
+
+                try:
+                    self.mlx.request({"cmd": "generate", "prompt": prompt, "negative_prompt": None, "width": width,
+                                      "height": height, "steps": steps, "cfg": 1.0, "seed": seed, "out": str(out),
+                                      "preview": self.previews, "image_paths": ref_files}, on_event=on_event)
+                    result = Image.open(out).convert("RGB")
+                    cam = args.get("camera") if isinstance(args.get("camera"), dict) else None
+                    if cam and (cam.get("layout") or "single") == "single" and not self.cancel_event.is_set():
+                        # 📷 Klein sometimes answers a camera move with a split / comic-panel picture: try again once with
+                        # another seed and firmer words, and if it's still split, keep the biggest panel
+                        import postprocess.compose as comp
+                        if comp.panel_seams(result):
+                            self.emit({"type": "status", "msg": "It came out split into panels: trying once more as one picture…"})
+                            on_event({"type": "_more"}); on_event({"type": "_next"})
+                            seed = (seed + 7919) % 2**32
+                            self.mlx.request({"cmd": "generate", "prompt": prompt + " The whole frame is one single photograph "
+                                              "of one moment: one person shown once, no grid, no split, no second view.",
+                                              "negative_prompt": None, "width": width, "height": height, "steps": steps,
+                                              "cfg": 1.0, "seed": seed, "out": str(out), "preview": self.previews,
+                                              "image_paths": ref_files}, on_event=on_event)
+                            result = Image.open(out).convert("RGB")
+                            if comp.panel_seams(result):
+                                result = result.crop(comp.largest_panel(result))
+                                panels_cropped = True
+                    if cam and not self.cancel_event.is_set() and not re.search(
+                            r"black[- ]and[- ]white|monochrome|gr[ae]yscale|sepia|b&w", args.get("prompt") or "", re.I):
+                        # 📷 Klein sometimes turns a colour picture black and white when it moves the camera: try once more
+                        # asking for the colours, and say so if it still came out grey
+                        import postprocess.compose as comp
+                        if comp.turned_grey(image, result):
+                            self.emit({"type": "status", "msg": "It came out black and white: trying once more in colour…"})
+                            on_event({"type": "_more"}); on_event({"type": "_next"})
+                            seed = (seed + 104729) % 2**32
+                            self.mlx.request({"cmd": "generate", "prompt": prompt + " In full colour, with exactly the colours "
+                                              "of the original picture; not black and white, not monochrome, not greyscale.",
+                                              "negative_prompt": None, "width": width, "height": height, "steps": steps,
+                                              "cfg": 1.0, "seed": seed, "out": str(out), "preview": self.previews,
+                                              "image_paths": ref_files}, on_event=on_event)
+                            again = Image.open(out).convert("RGB")
+                            if comp.colourfulness(again) > comp.colourfulness(result):
+                                result, panels_cropped = again, False
+                                if (cam.get("layout") or "single") == "single" and comp.panel_seams(result):
+                                    result, panels_cropped = result.crop(comp.largest_panel(result)), True
+                            grey_retried = True
+                            still_grey = comp.turned_grey(image, result)
+                    if keep_faces and mask is None and combine is None and not self.cancel_event.is_set():
+                        # 🙂 Keep faces: each face is edited again on its own, close up (it fills the picture, so Klein
+                        # keeps its features), with the original face as a second picture, and blended into the result
+                        result, faces_redone = self._klein_faces(image, result, prompt, seed, steps, tmp, on_event, face_files)
+                finally:
+                    for f in [out, *map(Path, ref_files), *face_files]:
+                        try:
+                            Path(f).unlink()
+                        except OSError:
+                            pass
+            except mlx_engine.CancelledError:
+                raise Cancelled()
+            except mlx_engine.EngineError as e:
+                raise UserError(str(e))
         # a small picture worked on bigger keeps the bigger result (unless only a painted part changed)
         if panels_cropped:
             pass  # the kept panel has its own shape: not stretched back to the picture's
@@ -4766,7 +4981,7 @@ class Engine:
         print(f"[timing] edit with words: {secs:.1f}s for {steps} steps at {width}x{height}", flush=True)
         settings = {"model": edit_id, "prompt": prompt, "negative_prompt": "", "width": result.width,
                     "height": result.height, "steps": steps, "cfg": 1.0, "sampler": "flow_euler", "seed": seed,
-                    "engine": "mlx", "loras": [], "seconds": round(secs, 1),
+                    "engine": "h3" if h3 else "mlx", "loras": [], "seconds": round(secs, 1),
                     "edit": {"painted": mask is not None, "extra_pictures": len(refs), "faces_redone": faces_redone}}
         if isinstance(args.get("camera"), dict):  # 📷 Camera angle
             settings["camera"] = {k: args["camera"].get(k) for k in ("az", "el", "zoom", "view", "layout")}

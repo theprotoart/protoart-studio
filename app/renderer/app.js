@@ -291,7 +291,7 @@ const SAMPLER_PICKS = {  // the 3 fastest and the 3 best-quality samplers for ea
   flux: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
   flux2: { fast: ["flow_euler"], quality: [] },
 };
-const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}, {"model": "BiRefNet lite (✂ Cut out, 👤 Subject, 📄 Paper cut-out)", "licence": "MIT", "note": ""}, {"model": "MOSS-Image (OpenMOSS; MLX weights by VisualInference, turbo adapters by VisualInference and nynxz)", "licence": "Apache-2.0", "note": "runs with moss-image-mlx (Apache-2.0); text encoder Qwen3.5-9B and FLUX.2 small VAE (Apache-2.0)"}];
+const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}, {"model": "BiRefNet lite (✂ Cut out, 👤 Subject, 📄 Paper cut-out)", "licence": "MIT", "note": ""}, {"model": "MiniMax-H3-Image (MiniMax; INT8 files by Comfy-Org, made 4-bit on your Mac)", "licence": "MiniMax-H3-Image Community License", "note": "not for use in the US, EU, UK or Republic of Korea; pictures may not be used to improve other AI models; commercial products must show its name; written permission over US$1M yearly revenue or as a hosted service. Runs with h3-image-mlx (Apache-2.0)"}, {"model": "MOSS-Image (OpenMOSS; MLX weights by VisualInference, turbo adapters by VisualInference and nynxz)", "licence": "Apache-2.0", "note": "runs with moss-image-mlx (Apache-2.0); text encoder Qwen3.5-9B and FLUX.2 small VAE (Apache-2.0)"}];
 const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677" };
 // 📷 Camera angle: the words for each direction (the same 8 × 4 × 3 grid multi-angle tools use)
 const CAM_VIEWS = ["front view", "front-right quarter view", "right side view", "back-right quarter view",
@@ -475,7 +475,7 @@ const TILED_PRESETS = [
   { id: "print", label: "Print", tip: "3× for printing; slow on 8 GB Macs", set: { scale: 3, strength: 0.25, steps: 24 } },
   { id: "quick", label: "Quick", tip: "1.5× with few steps: a fast check", set: { scale: 1.5, strength: 0.25, steps: 12 } },
 ];
-const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "Klein", anima: "Anima", sd2: "SD 2", moss: "MOSS-Image",
+const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "Klein", anima: "Anima", sd2: "SD 2", moss: "MOSS-Image", h3: "MiniMax-H3",
                        zimage: "Z-Image", qwen21: "Qwen-Image 2.1", krea2: "Krea 2", fibo2: "FIBO 2", fast: "Fast engine" };
 // model types made by the fast engine that read sentences and draw at sizes in steps of 16 (newer ones too)
 const SD_FAMILIES = ["sd15", "sdxl", "sd2"];
@@ -742,6 +742,21 @@ const MODEL_GUIDES = {
              "Strength 0.4–0.5 restyles (light, colours, medium); 0.65–0.8 changes people, clothes and objects.",
              "To change one thing and keep the rest exactly (the same face, the same room), use ✨ Edit with words."] },
   },
+  h3: {
+    create: { title: "MiniMax-H3-Image", what: "A big 33B model, shrunk to 4-bit on this Mac: photos, illustration, posters and clean lettering, in 6 steps.",
+      set: { steps: 6, cfg: 1 },
+      tips: ["Write full sentences: the subject, the place, the light, the style, the camera. ✨ Enhance writes it that way.",
+             "Words the picture should show go in double quotes: a sign that reads \"OPEN\". It spells them right.",
+             "Steps and guidance are fixed (6 and 1); there's no negative prompt. Change the seed for another take.",
+             "On an 8 GB Mac: 1024 × 1024 takes about 4 minutes; 2048 × 2048 (its best) about 15. A new prompt adds ~20 s once.",
+             "Licence: not for use in the US, EU, UK or Korea; its pictures can't be used to train other AI models."] },
+    edit: { title: "MiniMax-H3-Image · ✨ Edit with words", what: "Changes your picture as described, and can take things from up to 3 more pictures.",
+      set: {},
+      tips: ["Say what to change and what to keep: “make it a snowy night; keep her face, pose and clothes”.",
+             "Your picture is <Picture 1>, the extra pictures are <Picture 2>, <Picture 3>…: “put the hat from <Picture 2> on her”.",
+             "Relight: “relight the scene with warm sunset light from the left”. Turnarounds: “front, side and back views of the character on a white background”.",
+             "About 8 minutes on an 8 GB Mac with one picture, a few minutes more for each extra picture. No painted areas or LoRAs."] },
+  },
   moss: {
     create: { title: "MOSS-Image", what: "Made for lettering and layouts: signs, posters, book covers, labels, infographics.",
       set: { cfg: 3 }, small: 768,
@@ -943,6 +958,7 @@ const protoartApp = createApp({
       relightRefOver: false,
       diagCopied: false,
       procreateJob: false,   // 🗂 reading a Procreate file's layers
+      h3Tick: false,  // MiniMax-H3-Image's licence card: the "I accept" box
       trainSmallAsk: false,  // Train: Z-Image on a Mac under 14 GB (it doesn't fit): say so before starting
       trainLongAsk: false,   // Train: "this will take many hours" shown before starting // a picture dragged over Tools → Image → prompt    // Image to image → Inpaint: the inpainting model you picked ('' = the first that fits)
       mrg: { a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" },  // Tools → Model merger
@@ -1077,6 +1093,11 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.6.18: 🧠 MiniMax-H3-Image on 8 GB Macs: creates and edits", items: [
+              "<b>MiniMax-H3-Image</b> (a 33B model by MiniMax) in Create and in Image to image → <b>✨ Edit with words</b> and <b>📷 Camera angle</b>. On this Mac it's shrunk to <b>4-bit</b> once and read from the drive a piece at a time, so it needs under 2 GB of memory: about <b>4 minutes</b> for 1024 × 1024 on an 8 GB M1, about 15 for 2048 × 2048. It spells quoted words right (signs, posters, covers).",
+              "<b>Editing</b>: your picture is <code>&lt;Picture 1&gt;</code>, More pictures are <code>&lt;Picture 2&gt;</code>…: relight, change the season, put a hat from another picture on someone, or draw a turnaround sheet of a character. One picture takes about 8 minutes on an 8 GB Mac.",
+              "<b>One time</b>: a ~49 GB download (to your downloaded-models folder) and a ~27 GB 4-bit copy on this Mac's own drive (about half an hour). <b>Licence first</b>: the MiniMax-H3-Image Community License doesn't allow use in the US, EU, UK or Korea, and its pictures can't train other AI models; a card asks you to accept it before anything downloads.",
+            ] },
             { h: "1.6.17: ✨ faster Enhance with Z-Image Turbo, MOSS-Image's 8 GB version ready-made", items: [
               "<b>✨ Enhance with Z-Image Turbo</b> on 8 GB Macs is as quick as with Klein: Z-Image is put away while the prompt is written (before, both stayed in memory and the Mac slowed to a crawl). Your next picture loads Z-Image again, which adds a few seconds to its start.",
               "<b>🧩 MOSS-Image's 8 GB version</b> now downloads ready-made (~10.5 GB, first time only) instead of the 12 GB original plus a few minutes of making it on your Mac. Kept on an external drive, it's copied to the Mac's own drive once.",
@@ -1927,6 +1948,7 @@ const protoartApp = createApp({
               "Filter by type (ERNIE, SDXL, SD 1.5) or search. <b>+ Add from your Mac</b> and <b>+ Add from Hugging Face</b> bring in models from elsewhere. In Create, the link under the model list opens this tab.",
               "<b>Keep everything big on an external drive</b>: Settings → <b>Downloaded models folder</b> (models the app downloads), <b>Image folder</b> (your pictures) and <b>📦 Model files the app keeps</b> (LoRAs, embeddings, checkpoints, VAEs, ControlNets, 8-bit copies, converted models: <i>Move to another drive…</i>). Each can move what you already have. <b>Main folder</b> is different: it only reads models you already keep somewhere, where they are. Keep the drive plugged in while you use the app.",
               "<b>Bigger fast-engine models</b> (greyed out when this Mac has too little memory): <b>FLUX.2 Klein 9B</b> (16 GB+, 9.5 GB download, FLUX non-commercial licence), <b>Z-Image Turbo</b> (now on 8 GB Macs too, 5.9 GB, Apache-2.0, 9 steps), <b>Qwen-Image 2.1 Turbo</b> (24 GB+, 10 GB, 8 steps) and <b>Qwen-Image 2.1</b> (24 GB+, 40 steps; both Qwen research licence, non-commercial) and <b>Krea 2 Turbo</b> (32 GB+, 15.8 GB, Krea 2 Community licence). Write sentences; Z-Image, Qwen-Image and Krea 2 can also start from a picture (Image to image → Change it).",
+              "<b>MiniMax-H3-Image</b> (works on 8 GB Macs): a large model shrunk to 4-bit on your Mac. <b>Create</b>: write sentences (✨ Enhance does), put words in double quotes; steps (6) and guidance (1) are fixed and it has no negative prompt. 1024 × 1024 takes about 4 minutes on an 8 GB M1; 2048 × 2048 looks best (~15 min). <b>Image to image</b>: pick it in the model list for ✨ Edit with words or 📷 Camera angle; say what to change and what to keep (“relight with warm sunset light from the left; keep her face and clothes”); More pictures become &lt;Picture 2&gt;, &lt;Picture 3&gt;… One edit takes about 8 minutes. Before the first use: accept its licence in the card (not for use in the US, EU, UK or Korea; its pictures can't train other AI models). It then downloads ~49 GB once and makes a ~27 GB 4-bit copy on this Mac's drive (half an hour); after that it works offline. No LoRAs or painted areas yet.",
               "<b>FIBO 2.0</b> (Bria, 24 GB Macs and up): <b>Edit Turbo</b> makes a picture in 4 steps; <b>Dev</b> takes 30 steps (each a double pass) for the most detail. It was trained on long structured captions: a short sentence works, a JSON caption (short_description, objects, background_setting, lighting, aesthetics, photographic_characteristics…) gives the most control, and <code>{\"short_description\": \"…\", \"text_render\": [{\"text\": \"OPEN\"}]}</code> writes text in the picture. Non-commercial only (CC BY-NC 4.0). Before the first download: accept the licence on its Hugging Face page and save a Hugging Face token in Settings → Models. It can't start from a picture here (no image to image).",
               "<b>Add new base models (future ones too)</b>: Models → Add from Hugging Face takes a diffusers model id, a single SD 1.5 / SDXL file, or a <b>⚡ fast-engine (MLX) version</b> of a kind of model the fast engine knows (FLUX.2 Klein, Z-Image, Qwen-Image 2.1, Krea 2; e.g. <code>mflux-community/qwen-image-2-1-turbo-mflux-q4</code>). It's recognised by its name and pinned to the version you checked.",
               "<b>A brand-new kind of fast-engine model</b> (one this app doesn't know yet, once the fast engine supports it): make a file named <code>fast_models.json</code> in Protoart's data folder (<code>~/.protoartstudio</code>) with a list like <code>[{\"repo\": \"owner/model-mflux-q4\", \"mlx_base\": \"the fast engine's name for it\", \"mlx_class\": \"mflux.models.….:ClassName\", \"min_ram_gb\": 16, \"steps\": 8, \"cfg\": 1.0}]</code>, then ↻ Refresh. <code>mlx_class</code> is only needed for kinds this app doesn't know, and must be one of the fast engine's own classes. Bad entries are skipped (the backend log says why)." ] },
@@ -2524,6 +2546,7 @@ const protoartApp = createApp({
         { id: "flux", label: "FLUX", count: count((m) => m.family === "flux") },
         { id: "ernie", label: "ERNIE", count: count((m) => m.family === "ernie") },
         { id: "anima", label: "Anima", count: count((m) => m.family === "anima") },
+        { id: "h3", label: "MiniMax-H3", count: count((m) => m.family === "h3") },
         { id: "moss", label: "MOSS", count: count((m) => m.family === "moss") },
         ...Object.entries(FLAVOR_LABEL).map(([k, label]) => ({ id: "fl:" + k, label, count: count((m) => m.flavor === k) })),
         { id: "sdxl", label: "SDXL", count: count((m) => m.family === "sdxl" && sdKind(m) === "SDXL") },
@@ -2604,6 +2627,7 @@ const protoartApp = createApp({
     modelGroups() {
       const groups = [
         { name: "FLUX.2 Klein", models: this.models.filter((m) => m.family === "flux2") },
+        { name: "MiniMax-H3-Image (creates and edits; ~4 min a picture on 8 GB)", models: this.models.filter((m) => m.family === "h3") },
         { name: "Z-Image", models: this.models.filter((m) => m.family === "zimage") },
         { name: "Qwen-Image 2.1", models: this.models.filter((m) => m.family === "qwen21") },
         { name: "Krea 2", models: this.models.filter((m) => m.family === "krea2") },
@@ -9031,13 +9055,30 @@ const protoartApp = createApp({
       }
       if (!this.controlTypes.length) this.controlTypes = await call("control_types").catch(() => []);
     },
-    modelGuide() {  // 💡 the suggested-settings card for the picked model (Create, or Image to image → Change it)
-      const g = MODEL_GUIDES[this.family];
-      if (!g || this.currentModel?.engine !== "mlx" && !this.currentModel?.moss && this.family !== "moss") return null;
-      const where = this.tab === "i2i" ? (this.form.i2i_mode === "change" ? "change" : null) : this.tab === "create" ? "create" : null;
+    modelGuide() {  // 💡 the suggested-settings card for the picked model (Create, or Image to image → Change it / Edit)
+      const h3edit = this.tab === "i2i" && this.i2iUsesKlein && this.editModelId() === "h3_image";
+      const fam = h3edit ? "h3" : this.family;
+      const g = MODEL_GUIDES[fam];
+      if (!g || !h3edit && this.currentModel?.engine !== "mlx" && !this.currentModel?.moss && !["moss", "h3"].includes(this.family)) return null;
+      const where = h3edit ? "edit" : this.tab === "i2i" ? (this.form.i2i_mode === "change" ? "change" : null) : this.tab === "create" ? "create" : null;
       const c = where && g[where];
-      if (!c || (this.opts.hidden_guides || []).includes(this.family + ":" + where)) return null;
-      return { ...c, key: this.family + ":" + where };
+      if (!c || (this.opts.hidden_guides || []).includes(fam + ":" + where)) return null;
+      return { ...c, key: fam + ":" + where };
+    },
+    h3LicenceShown() {  // MiniMax-H3-Image's licence card: before its first download, where it's picked
+      const m = this.editModelH3();
+      if (!m || !m.licence_needed) return false;
+      return this.tab === "create" && this.form.model === "h3_image" || this.tab === "i2i" && this.i2iUsesKlein && this.editModelId() === "h3_image";
+    },
+    async h3Accept() {
+      if (!this.h3Tick) return (this.error = "Tick the box first: you accept the licence and you're not in one of the places it excludes.");
+      try {
+        await call("h3_licence", { accept: true });
+        this.models = await call("list_models");
+        this.status = "MiniMax-H3-Image's licence accepted: the first picture downloads it (~49 GB) and makes the 4-bit copy (~27 GB on this Mac's drive)";
+      } catch (e) {
+        this.error = String(e.message || e);
+      }
     },
     applyModelGuide() {
       const g = this.modelGuide();
@@ -9300,6 +9341,11 @@ const protoartApp = createApp({
         this.status = m.label + " will fill in what you paint";
         return;
       }
+      if (id === "h3_image") {  // MiniMax-H3-Image edits: ✨ Edit with words (also 📷 camera angles and turnarounds)
+        this.form.edit_model = id;
+        if (!["edit", "camera"].includes(this.form.i2i_mode)) this.setI2iMode("edit");
+        return;
+      }
       if (id === "flux2_klein_mlx_q4" || id === "flux2_klein9b_mlx_q4") {
         if (this.form.i2i_mode === "outpaint") { this.form.outpaint_engine = "klein"; return; }  // (the outpaint LoRA is for 4B)
         this.form.edit_model = id;
@@ -9321,7 +9367,11 @@ const protoartApp = createApp({
     editModel9() {  // FLUX.2 Klein 9B, for Edit with words on Macs with 16 GB or more
       return this.models.find((m) => m.id === "flux2_klein9b_mlx_q4") || null;
     },
-    editModelId() {  // Edit with words: 9B when picked and this Mac has room for it, else 4B
+    editModelH3() {  // MiniMax-H3-Image, which edits too (the picture and the extras are its references)
+      return this.models.find((m) => m.id === "h3_image") || null;
+    },
+    editModelId() {  // Edit with words: H3 or 9B when picked (and this Mac has room for it), else 4B
+      if (this.form.edit_model === "h3_image" && this.editModelH3() && !["outpaint", "combine"].includes(this.form.i2i_mode)) return "h3_image";
       const nine = this.editModel9();
       return this.form.edit_model === "flux2_klein9b_mlx_q4" && nine && !this.ramBlocked(nine) ? nine.id : "flux2_klein_mlx_q4";
     },
@@ -9796,7 +9846,7 @@ const protoartApp = createApp({
 
     // -------------------------------------------------------------- random prompt
     naturalPrompts() {  // models that read sentences get sentence prompts from 🎲 Random prompt
-      return ["ernie", "flux", "flux2", "moss", ...NEW_FAST].includes(this.family);
+      return ["ernie", "flux", "flux2", "moss", "h3", ...NEW_FAST].includes(this.family);
     },
     // 📚 a few extra details from the Ideas (safe ones), from categories picked at random.
     // People get pose/expression/hair/clothes/…; animals and scenery only get framing and style.

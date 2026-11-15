@@ -24,7 +24,7 @@ engine) comes from DiffusionBee; no DiffusionBee code is used.
 ## What it does
 
 - **Create:** text to image with SD 1.5, SDXL (incl. Pony / Illustrious / NoobAI), Anima (anime; all-ages by default via its "safe" rating tag), ERNIE-Image, FLUX.1 Schnell, FLUX.2 Klein 4B
-  (made for 8 GB Macs), FLUX.1 Dev (32 GB+) and MOSS-Image (lettering, posters and layouts; best on 16 GB+, smaller Macs download a ready-made 8 GB version); LoRA stacking with per-LoRA weights (sort A–Z / newest first, filter by kind or ● People, ★ favourites, in Create and Image to image),
+  (made for 8 GB Macs), FLUX.1 Dev (32 GB+), MiniMax-H3-Image (33B, creates and edits; made 4-bit on your Mac, ~4 min a picture on 8 GB; its licence excludes the US, EU, UK and Korea) and MOSS-Image (lettering, posters and layouts; best on 16 GB+, smaller Macs download a ready-made 8 GB version); LoRA stacking with per-LoRA weights (sort A–Z / newest first, filter by kind or ● People, ★ favourites, in Create and Image to image),
   embeddings, VAEs (Automatic picks the right one for each model; each model remembers your own pick; one-click recommended VAE), 20+ samplers with the top picks per model,
   presets, 📒 saved prompts, wildcards, a random-prompt generator that writes tags or sentences to suit the model, negative
   prompt ✨ suggest / 🎲 random matched to the model, ⚡ fast mode, live preview, a queue with ❚❚ Pause / Skip / Stop, and
@@ -186,6 +186,8 @@ allow commercial use, for example:
 - Optional bigger fast-engine models (only on Macs with enough memory): Z-Image Turbo: Apache-2.0 · FLUX.2 Klein 9B:
   FLUX Non-Commercial · Qwen-Image 2.1 / Turbo: Qwen research licence (non-commercial) · Krea 2 Turbo: Krea 2 Community ·
   FIBO 2.0 Dev / Edit Turbo (Bria, 24 GB+): CC BY-NC 4.0 (non-commercial; gated, accept on Hugging Face)
+- MiniMax-H3-Image: MiniMax-H3-Image Community License (not for use in the US, EU, UK or Republic of Korea; its pictures
+  may not be used to improve other AI models; accepted in the app before the first download)
 - **Non-commercial:** the enhancer's 4x-UltraSharp upscaler (CC BY-NC-SA 4.0), Depth Anything V2 Base / Large
   (CC BY-NC 4.0), Anima / Anima Turbo (CircleStone Labs Non-Commercial; pictures may be used commercially), the face
   swap models inswapper_128 and ArcFace (InsightFace, non-commercial research only)

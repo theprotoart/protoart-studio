@@ -1,0 +1,13 @@
+MiniMax-H3-Image is licensed under the MiniMax-H3-Image Community License Agreement, Copyright © 2026 MiniMax. All Rights Reserved.
+Weights: MiniMaxAI/MiniMax-H3-Image, repackaged and quantized by Comfy-Org.
+See MODEL_LICENSE.txt for the upstream model license. Model weights and the VAE configuration are downloaded separately.
+The implementation authored for this project is licensed under Apache-2.0.
+This implementation adapts H3 Image inference to Apple MLX, including staged memory management and ConvRot projections.
+mpp_tensor_ops.metal, w8a8_gemm_body.metal and w8a8_epi_plain.metal are adapted from ddalcu/mlx-serve commit 9191fbdf697df333cac19ec7a93eaa1098ce3ad5.
+Their copyright and MIT license are in kernels/LICENSE.
+
+Qwen Image 2.1 uses a separate optional native runtime based on ddalcu/mlx-serve
+revision 4e231ceebe63308cc038117d40b9f9b64bd0372e with the source patch in native/.
+The native distribution includes its MIT, Apache-2.0 and third-party notices.
+Qwen model and adapter licenses are separate from this runtime and accompany
+their upstream downloads. No Qwen weights are embedded in either Python wheel.
