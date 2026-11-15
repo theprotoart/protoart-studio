@@ -4857,11 +4857,11 @@ class Engine:
             self._h3_prepare(spec)
             # each picture it's given costs as much as the one it draws: on smaller Macs edits work at 768 (~5-6 min)
             # unless Full size is ticked (1024, ~12 min on an 8 GB M1)
-            sizes = {"768": 768, "896": 896, "1024": 1024}
+            sizes = {"768": 768, "896": 896, "1024": 1024, "1280": 1280, "1536": 1536, "2048": 2048}
             side = sizes.get(str(args.get("h3_side") or ""), 1024 if args.get("h3_full") or not 0 < ram < 12 else 768)
             scale = side / max(1.0, (image.width * image.height) ** 0.5)
-            width = max(256, min(2048, int(image.width * scale) // 32 * 32))
-            height = max(256, min(2048, int(image.height * scale) // 32 * 32))
+            width = max(256, min(4096, int(image.width * scale) // 32 * 32))
+            height = max(256, min(4096, int(image.height * scale) // 32 * 32))
             steps = 6
             tmp = paths.HOME / "tmp"
             tmp.mkdir(parents=True, exist_ok=True)

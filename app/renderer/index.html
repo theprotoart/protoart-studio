@@ -109,7 +109,8 @@
           <option value="">usual order</option><option value="az">A → Z</option><option value="za">Z → A</option><option value="size">biggest first</option>
         </select>
         </div>
-        <span v-if="i2iUsesKlein" class="hint">FLUX.2 · ⚡ fast engine · the other modes use {{ currentModel ? currentModel.label : 'the Create model' }}</span>
+        <span v-if="i2iUsesKlein && editModelId() === 'h3_image'" class="hint">MiniMax-H3-Image · 4-bit · 🧠 Work size sets the time · the other modes use {{ currentModel && currentModel.family !== 'h3' ? currentModel.label : 'an SD model' }}</span>
+        <span v-else-if="i2iUsesKlein" class="hint">FLUX.2 · ⚡ fast engine · the other modes use {{ currentModel ? currentModel.label : 'the Create model' }}</span>
         <span v-else class="hint">{{ familyLabel }}<template v-if="form.loras.length"> · {{ form.loras.length }} LoRA{{ form.loras.length === 1 ? "" : "s" }}</template></span>
       </div>
       <!-- Tools: the engine -->
@@ -3203,9 +3204,9 @@
             <span class="hint">{{ mask.size }}</span>
           </div>
           <template v-if="editModelId() === 'h3_image'">
-            <label title="The size MiniMax-H3-Image works at (the longer it is, the sharper faces and lettering come out). On an 8 GB Mac with one picture: 768 about 5–6 minutes, 896 about 8, 1024 about 12">🧠 Work size</label>
+            <label title="The size MiniMax-H3-Image works at (the bigger, the sharper faces and lettering come out). On an 8 GB Mac with one picture, about: 768 5–6 minutes, 896 8, 1024 12, 1280 17, 1536 25, 2048 45">🧠 Work size</label>
             <div class="seg mod-seg">
-              <button v-for="z in ['768', '896', '1024']" :key="z" :class="{on: (form.h3_side || (sys.ram_gb && sys.ram_gb < 12 ? '768' : '1024')) === z}" @click="form.h3_side = z">{{ z }}</button>
+              <button v-for="z in ['768', '896', '1024', '1280', '1536', '2048']" :key="z" :title="{'768': 'about 5–6 min', '896': 'about 8 min', '1024': 'about 12 min', '1280': 'about 17 min', '1536': 'about 25 min', '2048': 'about 45 min: its best, for a final picture'}[z] + ' with one picture on an 8 GB Mac'" :class="{on: (form.h3_side || (sys.ram_gb && sys.ram_gb < 12 ? '768' : '1024')) === z}" @click="form.h3_side = z">{{ z }}</button>
             </div>
             <label class="check" title="More pictures go in at 512 (a quarter of the work of 1024 each: enough for a face, an outfit or a style). Tick this for 768 when small details matter (lettering on a label, a pattern), about twice as long per picture"><input type="checkbox" v-model="form.h3_ref_detail"> More pictures in more detail <span class="hint">(slower)</span></label>
           </template>

@@ -46,6 +46,7 @@
   H3 now stays (Edit with words uses it), and any model Image to image swaps in is swapped back on return to Create
 - H3 presets: press the picked one again (or ✕ None) to stop using it; 🎲 any layout is its own choice; ✕ folds the
   card away (🧠 Show H3 presets brings it back)
+- H3 edit Work size also 1280 / 1536 / 2048 (about 17 / 25 / 45 min with one picture on 8 GB)
 - Example prompts: a new "Comics & lettering" group (a 4-panel comic page and a character turnaround sheet for H3)
 - Tests: `test_h3.py` (4-bit file layout with metadata kept, licence gate, edit prompts, catalog)
 
