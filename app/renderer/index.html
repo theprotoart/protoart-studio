@@ -1993,6 +1993,9 @@
             <button class="ghost small" :class="{on: adj.paintMode === 'erase'}" :disabled="!adjHasPaint()" @click="adjPaintToggle('erase')"
                     title="Paint over parts where it shouldn't show">🧽 Erase</button>
             <button v-if="adjHasPaint()" class="ghost small" @click="adjClearPaint(adj.pointTarget)" title="Take away everything painted for this step">✕ Clear paint</button>
+            <span class="seg mod-seg adj-paint-show" title="How the painted area shows while you paint (it never shows in the saved picture). Hold Option (⌥) to hide it for a moment">
+              <button v-for="v in [['outline', '◌ Outline'], ['tint', '🟧 Tint'], ['off', '👁 Off']]" :key="v[0]" :class="{on: (adj.paintShow || 'outline') === v[0]}" @click="adj.paintShow = v[0]; adjPaintShow()">{{ v[1] }}</button>
+            </span>
             <span class="hint">{{ adj.paintMode ? 'paint on the picture · [ ] brush size' : adj.pointMode ? 'click the picture to place it' : adjPointCount() || adjHasPaint() ? 'shows only around the points and painted areas' : 'no points: the whole picture' }}</span>
           </div>
           <div v-if="adj.paintMode" class="adj-points adj-point-opts">
@@ -2537,6 +2540,35 @@
             <button v-if="!cut.open" class="primary mod-go" :disabled="!tool.source || cut.busy" @click="toolCutout">✂ Cut out</button>
             <button v-else class="primary mod-go" :disabled="cut.busy || !!tool.working" @click="cutSave" title="Save the cut-out to the Library (a see-through PNG when the background is None)">💾 Save</button>
             <span class="mod-plate">Cutter · CO-1</span>
+          </div>
+        </div>
+
+        <div id="rack-harmonize" class="card rack-module" :class="{active: harmJob}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🎯</span>
+            <h3>Match colours</h3><button class="mod-reset" @click.stop="resetToolPart('harmonize')" title="This module's settings back to the start">↺</button><span class="mod-sub">subject ↔ background</span></div>
+          <p class="mod-desc" title="Like Photoshop's Match Color: the subject is found automatically (✂ Cut out's finder), and its light and colours are shifted to sit in the scene. Nothing is redrawn: only colour and brightness change, so details, faces and lettering stay exactly as they are">Make a subject that doesn't fit (pasted in, or lit differently) take on the colours and light of the scene around it.</p>
+          <label title="Which part changes to fit the other">Change the</label>
+          <div class="seg mod-seg">
+            <button :class="{on: post.harmonize.direction !== 'background'}" @click="post.harmonize.direction = 'subject'" title="The subject takes on the colours and light of the background right around it">👤 Subject</button>
+            <button :class="{on: post.harmonize.direction === 'background'}" @click="post.harmonize.direction = 'background'" title="The background takes on the subject's colours and light">🏞 Background</button>
+          </div>
+          <label title="How far the colours move (0 = unchanged, 100 = all the way)">Strength <span class="mod-val">{{ post.harmonize.strength }}</span></label>
+          <input type="range" min="0" max="100" step="5" v-model.number="post.harmonize.strength" @dblclick="post.harmonize.strength = 70">
+          <label title="How much of the brightness difference is matched too (colour always is). Lower keeps the subject's own brightness">Light <span class="mod-val">{{ post.harmonize.light }}</span></label>
+          <input type="range" min="0" max="100" step="5" v-model.number="post.harmonize.light" @dblclick="post.harmonize.light = 50">
+          <label title="Optional: match another picture's colours instead of this picture's own background (or subject)">Or match another picture <span class="hint">optional</span></label>
+          <div class="relight-ref" :class="{over: harmRefOver}" @dragover.prevent="harmRefOver = true" @dragleave="harmRefOver = false" @drop.prevent="harmRefDrop"
+               title="Drop a picture here whose colours to match, or pick one">
+            <img v-if="post.harmonize.ref" :src="fileUrl(post.harmonize.ref)" alt="Colours to match">
+            <span v-else class="hint">Drop a picture whose colours to match (or leave empty to use this picture's own)</span>
+            <div class="row small">
+              <label class="ghost small file-pick">Pick a picture…<input type="file" accept="image/*,.heic,.heif,.tif,.tiff,.psd,.avif" @change="harmRefPicked" hidden></label>
+              <button v-if="post.harmonize.ref" class="ghost small" @click="post.harmonize.ref = ''" title="Use this picture's own colours again">✕ Clear</button>
+            </div>
+          </div>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!tool.source || harmJob" @click="toolHarmonize" title="Find the subject and match the colours; saved as a new picture">🎯 Match colours</button>
+            <span class="mod-plate">Matcher · MC-1</span>
           </div>
         </div>
 

@@ -4043,6 +4043,47 @@ class Engine:
         self._cut_cache[key] = m
         return m
 
+    def harmonize(self, args, emit=None):
+        """🎯 Match colours (Tools): the subject (found by ✂ Cut out's model) takes on the light and colour of the
+        background around it, or the background takes on the subject's, or either takes another picture's colours.
+        Saved as a new picture."""
+        import color_match
+        import pictures
+        import postprocess.cutout as cut
+        from PIL import Image, ImageOps
+        emit = emit or self.emit
+        src, image = self._source_picture(args)
+        image = image.convert("RGB")
+        started = time.time()
+        emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 2})
+        m = self._cut_matte(src, image, emit, str(args.get("finder") or "birefnet"))
+        alpha = cut.refine(m, threshold=0.5, softness=0.12, grow=0)
+        if not (alpha > 0.5).any():
+            raise UserError("No subject was found in this picture: try the other finder (✂ Cut out's Finder setting).")
+        ref = None
+        if args.get("reference"):
+            try:
+                ref = ImageOps.exif_transpose(Image.open(pictures.prepare(args["reference"])))
+            except Exception:
+                raise UserError("Couldn't read the picture to match.")
+        direction = "background" if args.get("direction") == "background" else "subject"
+        strength = max(0.0, min(1.0, float(args.get("strength") if args.get("strength") is not None else 0.7)))
+        light = max(0.0, min(1.0, float(args.get("light") if args.get("light") is not None else 0.5)))
+        emit({"type": "status", "msg": "Matching the colours…"})
+        out, info = color_match.match_subject(image, alpha, direction, strength, light, ref)
+        emit({"type": "progress", "image": 1, "images": 1, "step": 2, "steps": 2})
+        settings = dict(src.get("settings") or {})
+        settings.update({k: src.get(k) for k in ("prompt", "negative_prompt", "model", "sampler", "steps", "cfg", "seed")})
+        settings["loras"] = src.get("loras") or []
+        settings.update(width=out.width, height=out.height, seconds=round(time.time() - started, 1),
+                        match_colours={"direction": direction, "strength": strength, "light": light,
+                                       "reference": bool(ref is not None), **info})
+        path = self._save(out, settings, suffix="matched")
+        record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="edited")
+        record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
+        emit({"type": "image", "record": record})
+        return record
+
     def cutout(self, args, emit=None):
         """✂ Cut out (remove the background). args["mode"]:
         "matte": the model's matte as a working PNG (the window refines it live) -> {matte, width, height}

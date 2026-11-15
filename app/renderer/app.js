@@ -6,7 +6,7 @@ let nextId = 1;
 const pending = new Map();
 const listeners = [];
 const HEAVY = new Set(["store_move", "zeng_setup", "lora_hf_download", "ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "faceswap_faces", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
-                        "control_preview", "convert_tdict", "compare", "relight", "make3d"]);
+                        "control_preview", "convert_tdict", "compare", "relight", "make3d", "harmonize"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
 const jobTab = new Map();  // queue job id -> the tab it was started from (its pictures show there, not in the other tab)
@@ -211,6 +211,7 @@ function defaultPost() {  // Tools settings on a fresh install
     cut: { threshold: 0.5, softness: 0.1, grow: 0, bg: "transparent", color: "#ffffff", clean: true, fix_edges: true, crop: false, finder: "birefnet" },
     // 📄 Paper cut-out: border width (% of the shorter side), its paper, torn-ness, shadow, print look, background
     paper: { edge: 2, edge_colour: "white", rough: 0.5, shadow: 0.6, print_as: "photo", background: "transparent" },
+    harmonize: { direction: "subject", strength: 70, light: 50, ref: "" },  // 🎯 Match colours (Tools)
     relight: { prompt: "", subject: "", direction: "none", model: "", size: 640, hires: true, speed: "standard", background: "keep", ref_on: false, ref: "",
                shadow: true, blend: true, full_size: true, warmth: 0, colour_on: false, colour: "#ffb066" },
     mesh3d: { steps: 30, octree: 380, faces: 40000 },
@@ -219,7 +220,7 @@ function defaultPost() {  // Tools settings on a fresh install
 // each Tools module's own starting settings (its ↺ reset button); the big ↺ Reset Tools settings does them all
 const TOOL_PARTS = {
   enhance: { post: ["enh", "do_enhance"] }, faces: { post: ["face_strength", "face_model", "face_fidelity", "do_faces"] },
-  depth: { post: ["depth"] }, vector: { post: ["vec"] }, detail: { post: ["det"] }, cutout: { post: ["cut"] }, paper: { post: ["paper"] }, relight: { post: ["relight"] }, mesh3d: { post: ["mesh3d"] },
+  depth: { post: ["depth"] }, vector: { post: ["vec"] }, detail: { post: ["det"] }, cutout: { post: ["cut"] }, paper: { post: ["paper"] }, relight: { post: ["relight"] }, harmonize: { post: ["harmonize"] }, mesh3d: { post: ["mesh3d"] },
   heal: {}, tiled: {}, quant: {}, merge: {}, convert: {},
 };
 // 😀 Expression sheets (📷 Camera angle → Picture layout): the expressions to show, picked in the window
@@ -1039,6 +1040,8 @@ const protoartApp = createApp({
       diagCopied: false,
       procreateJob: false,   // 🗂 reading a Procreate file's layers
       h3Tick: false,
+      harmJob: false,      // 🎯 Match colours is working
+      harmRefOver: false,  // 🎯 a picture is being dragged over its "match this picture" box
       h3SlotOver: "",    // 🧩 the labelled slot a picture is being dragged over
       h3SlotRole: "",    // 🧩 the slot whose “pick a file” is open  // MiniMax-H3-Image's licence card: the "I accept" box
       trainSmallAsk: false,  // Train: Z-Image on a Mac under 14 GB (it doesn't fit): say so before starting
@@ -1175,6 +1178,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Next: 🎯 Match colours", items: [
+              "<b>🎯 Match colours</b> (Tools, a new module): like Photoshop's Match Color. The subject is found by itself (✂ Cut out's finder) and takes on the colours and light of the background right around it, so a pasted-in or differently lit person sits in the scene. <b>Background → subject</b> works the other way; <b>Or match another picture</b> copies a picture's colours instead. <b>Strength</b> sets how far the colours move, <b>Light</b> how much of the brightness is matched. Nothing is redrawn: faces, details and lettering stay exactly as they are.",
+              "<b>Adjust → Paint</b>: the painted area now shows as an <b>outline</b> instead of an orange wash, so you can see the change you're painting. Next to ✕ Clear paint: ◌ Outline, 🟧 Tint (lighter than before) or 👁 Off; hold <b>Option (⌥)</b> to hide it for a moment.",
+            ] },
             { h: "1.6.18: 🧠 MiniMax-H3-Image on 8 GB Macs: creates and edits", items: [
               "<b>MiniMax-H3-Image</b> (a 33B model by MiniMax) in Create and in Image to image → <b>✨ Edit with words</b> and <b>📷 Camera angle</b>. On this Mac it's shrunk to <b>4-bit</b> once and read from the drive a piece at a time, so it needs under 2 GB of memory: about <b>4 minutes</b> for 1024 × 1024 on an 8 GB M1, about 15 for 2048 × 2048. It spells quoted words right (signs, posters, covers).",
               "<b>Editing</b>: your picture is <code>&lt;Picture 1&gt;</code>, More pictures are <code>&lt;Picture 2&gt;</code>…: relight, change the season, put a hat from another picture on someone, or draw a turnaround sheet of a character (📷 Camera angle's sheets use it when it's picked). <b>💡 Relight</b> has a <b>🧠 H3</b> button in its Speed row: the whole picture relit from your words or a reference picture's light, no SD 1.5 model needed. On an 8 GB Mac an edit works at 768 (about 5–6 minutes); tick 🧠 Full size for 1024 (about 12).",
@@ -3789,6 +3796,9 @@ const protoartApp = createApp({
     this.swapPrompts(this.tab === "i2i" ? "i2i" : "create");
     window.ProtoTips?.setEnabled(this.opts.tooltips !== false);
     window.addEventListener("keydown", (e) => this.adjKey(e));  // Adjust: \ flips Edited / Original
+    // Adjust: hold Option (⌥) to hide the painted area's outline / tint for a moment and see the change itself
+    window.addEventListener("keydown", (e) => { if (e.key === "Alt" && this.adj.open && this.adj.paintMode && !this.adj.paintHide) { this.adj.paintHide = true; this.adjPaintShow(); } });
+    window.addEventListener("keyup", (e) => { if (e.key === "Alt" && this.adj.paintHide) { this.adj.paintHide = false; this.adjPaintShow(); } });
     window.addEventListener("keydown", (e) => this.selKey(e));
     window.addEventListener("keydown", (e) => this.pwKey(e));  // Puppet warp: ⌘Z, Enter, Delete
     // Space held over Tools / Image to image: drag to move around a zoomed picture
@@ -3922,7 +3932,7 @@ const protoartApp = createApp({
         const fromJob = this.queue.find((j) => j.id === m.job);
         const sent = jobArgs.get(m.job);
         const toolKinds = ["enhanced", "faces", "depth", "edited", "vector", "cutout", "papercut", "layer"];
-        const toolCmds = ["postprocess", "vectorize", "cutout", "papercut", "procreate_layers", "peel_save"];
+        const toolCmds = ["postprocess", "vectorize", "cutout", "papercut", "procreate_layers", "peel_save", "harmonize"];
         const cmd = sent ? sent.cmd : fromJob ? fromJob.cmd : null;
         const startedIn = jobTab.get(m.job);
         const fromTools = startedIn === "tools" || (cmd ? (toolCmds.includes(cmd) || !!(sent && sent.args.from_tools))
@@ -7444,6 +7454,28 @@ const protoartApp = createApp({
       } finally { this.tool.working = null; this.relightJob = false; }
     },
     relightIdea(x) { this.post.relight.prompt = x; },
+    async toolHarmonize() {  // 🎯 Match colours: the subject to the background around it (or the other way, or a picture)
+      const s = this.tool.source, o = this.post.harmonize;
+      if (!s || this.harmJob) return;
+      this.harmJob = true;
+      this.tool.working = { label: "Matching colours", started: Date.now() };
+      this.tool.latest = null;
+      try {
+        const rec = await this.runJob("harmonize", { ...this.toolArgs(), direction: o.direction, strength: (+o.strength || 0) / 100,
+                                                     light: (+o.light || 0) / 100, reference: o.ref || null, finder: this.post.cut.finder });
+        if (rec) { this.tool.latest = rec; this.afterPost(rec); }
+      } finally { this.tool.working = null; this.harmJob = false; }
+    },
+    async harmRefDrop(e) {
+      this.harmRefOver = false;
+      const file = [...(e.dataTransfer?.files || [])].find(isPicture);
+      if (file) this.post.harmonize.ref = await this.preparePicture(window.bee.pathForFile(file));
+    },
+    async harmRefPicked(e) {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (file) this.post.harmonize.ref = await this.preparePicture(window.bee.pathForFile(file));
+    },
     relightH3Prompt(o) {  // 💡 Relight with MiniMax-H3-Image: one edit of the whole picture (an instruction, not IC-Light's mask)
       const keep = " Keep everything else exactly the same: the people, their faces, poses, expressions and clothes, the objects, " +
         "the composition and the camera. Only the lighting, shadows, reflections and colour of the light change.";
@@ -11945,9 +11977,32 @@ const protoartApp = createApp({
       if (!src || !this.adj.paintMode) { ctx.clearRect(0, 0, show.width, show.height); return; }
       show.width = src.width; show.height = src.height;
       ctx.clearRect(0, 0, show.width, show.height);
+      const mode = this.adj.paintHide ? "off" : this.adj.paintShow || "outline";
+      if (mode === "off") return;  // 👁 Off (or ⌥ held): see the change itself
       ctx.drawImage(src, 0, 0);
-      const d = ctx.getImageData(0, 0, show.width, show.height), px = d.data;
-      for (let i = 0; i < px.length; i += 4) { const v = px[i]; px[i] = 255; px[i + 1] = 176; px[i + 2] = 40; px[i + 3] = v * 0.45; }
+      const W = show.width, H = show.height, d = ctx.getImageData(0, 0, W, H), px = d.data;
+      if (mode === "tint") {  // a light wash, so the change underneath still shows
+        for (let i = 0; i < px.length; i += 4) { const v = px[i]; px[i] = 255; px[i + 1] = 176; px[i + 2] = 40; px[i + 3] = v * 0.2; }
+      } else {  // ◌ Outline: only the painted area's edge, as a light line with a dark rim (seen on any picture)
+        const on = new Uint8Array(W * H);
+        for (let k = 0; k < W * H; k++) on[k] = px[k * 4] > 127 ? 1 : 0;
+        const t = Math.max(1, Math.round(Math.max(W, H) / 500));  // about 2 screen pixels when the picture fits
+        // shrink the painted area by t (a separable minimum: rows, then columns); the edge is what the shrink took
+        const row = new Uint8Array(W * H), ins = new Uint8Array(W * H);
+        for (let y = 0; y < H; y++) { let run = 0; const o = y * W;
+          for (let x = 0; x < W; x++) { run = on[o + x] ? run + 1 : 0; row[o + x] = run > t ? 1 : 0; }
+          run = 0;
+          for (let x = W - 1; x >= 0; x--) { run = on[o + x] ? run + 1 : 0; if (run <= t) row[o + x] = 0; } }
+        for (let x = 0; x < W; x++) { let run = 0;
+          for (let y = 0; y < H; y++) { run = row[y * W + x] ? run + 1 : 0; ins[y * W + x] = run > t ? 1 : 0; }
+          run = 0;
+          for (let y = H - 1; y >= 0; y--) { run = row[y * W + x] ? run + 1 : 0; if (run <= t) ins[y * W + x] = 0; } }
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const k = (y * W + x) * 4;
+          if (on[y * W + x] && !ins[y * W + x]) { const light = ((x + y) >> (t + 2)) & 1; px[k] = light ? 255 : 20; px[k + 1] = light ? 214 : 20; px[k + 2] = light ? 92 : 20; px[k + 3] = 235; }
+          else px[k + 3] = 0;
+        }
+      }
       ctx.putImageData(d, 0, 0);
     },
     adjPointStyle(q) {  // the circle on the preview: radius is in units of the picture's long side

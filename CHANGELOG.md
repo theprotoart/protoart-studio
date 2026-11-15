@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- 🎯 Match colours (Tools): like Photoshop's Match Color. The subject is found with ✂ Cut out's finder and its light and
+  colour moved to the background right around it (Lab mean / spread transfer, spreads limited to ×0.6–1.6;
+  `color_match.match_subject`), or the background to the subject, or either to another picture. Strength and Light
+  (how much of the brightness change) sliders; nothing is redrawn, so details stay. `harmonize` job (side lane)
+
+- Adjust → Paint: the painted area shows as an outline (a light-and-dark dashed edge) instead of a 45 % amber fill
+  that hid the change being painted; ◌ Outline / 🟧 Tint (now 20 %) / 👁 Off, and hold Option (⌥) to hide it
+
 ## 1.6.18
 
 - MiniMax-H3-Image (`h3_image`, family `h3`, engine `h3`): MiniMax's 33B create-and-edit model on 8 GB Macs.
