@@ -1915,6 +1915,12 @@ class Engine:
                             "model or FLUX.2 Klein (Edit with words).")
         if args.get("loras"):
             raise UserError("MOSS-Image can't use LoRAs in this version: take them out of the LoRA list first.")
+        layout = args.get("moss_layout") if isinstance(args.get("moss_layout"), dict) else None
+        if layout:
+            import moss_layout_check
+            problems = moss_layout_check.check(layout, width, height)
+            if problems:
+                raise UserError("The page layout doesn't fit the page: " + "; ".join(problems[:3]))
         need = spec.get("min_ram_gb") or 16
         ram = total_ram_gb()
         if ram and ram < 8 and not force:
@@ -2016,7 +2022,9 @@ class Engine:
 
                 self.skip_event.clear()
                 try:
-                    self.moss.request({"cmd": "generate", "prompt": p_i, "negative_prompt": n_i or "", "width": width,
+                    # 📰 a page layout (Create → Comic page & poster) is MOSS-Image's own JSON prompt format
+                    worker_prompt = json.dumps(layout, ensure_ascii=False) if layout else p_i
+                    self.moss.request({"cmd": "generate", "prompt": worker_prompt, "negative_prompt": n_i or "", "width": width,
                                        "height": height, "steps": steps, "cfg": cfg, "seed": img_seed, "out": str(out)},
                                       on_event=on_event, skip_event=self.skip_event)
                 except moss_engine.CancelledError:
@@ -2036,7 +2044,8 @@ class Engine:
                 settings = {"model": model_id, "prompt": p_i, "negative_prompt": n_i, "width": image.width,
                             "height": image.height, "steps": 15 if spec.get("moss_turbo") else steps, "cfg": cfg,
                             "sampler": "flow_euler" + (" · turbo" if spec.get("moss_turbo") else ""), "seed": img_seed,
-                            "engine": "moss", "loras": [], "seconds": round(secs, 1)}
+                            "engine": "moss", "loras": [], "seconds": round(secs, 1),
+                            **({"moss_layout": layout} if layout else {})}
                 if o_i and o_i != p_i:
                     settings["original_prompt"] = o_i
                 if args.get("restore_faces"):
@@ -2700,6 +2709,8 @@ class Engine:
         seed = random.randint(0, 2**32 - 1) if seed < 0 else seed % 2**32
         prompt_t = args.get("prompt") or ""
         negative_t = args.get("negative_prompt") or ""
+        if not prompt_t.strip() and isinstance(args.get("moss_layout"), dict):  # 📰 a page: its layout says it all
+            prompt_t = (args["moss_layout"].get("summary") or {}).get("caption") or "a comic page"
         if not prompt_t.strip():
             raise UserError("Type a prompt first.")
 

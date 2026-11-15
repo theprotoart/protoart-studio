@@ -2761,3 +2761,13 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 /* Relight's four speeds: two by two (they don't fit in one row of a module) */
 .seg.relight-speed { display: grid; grid-template-columns: 1fr 1fr; }
 .seg.relight-speed button { white-space: nowrap; }
+
+/* 📰 MOSS-Image comic page & poster (Create) */
+.moss-page .moss-tpl { flex-wrap: wrap; margin: 6px 0; }
+.moss-page-row { display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: start; margin: 6px 0; }
+.moss-preview { width: 120px !important; height: auto !important; max-width: 120px; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.moss-page-opts { display: grid; gap: 4px; min-width: 0; }
+.moss-page-opts input { width: 100%; box-sizing: border-box; }
+.moss-panel { display: grid; gap: 4px; padding: 6px 0; border-top: 1px solid rgba(255,255,255,.08); }
+.moss-panel input { width: 100%; box-sizing: border-box; }
+.moss-panel-line { display: grid; grid-template-columns: 1fr auto auto; gap: 4px; }

@@ -239,6 +239,9 @@ function defaultForm() {
     var_seed: -1, var_strength: 0,  // 🎲 Small change (variation seed): 0 = off
     seamless: false,  // 🧱 Seamless: the picture tiles
     regions: { on: false, layout: "cols", ratios: "1,1", prompts: ["", ""], base: 0.2, add_main: false, refine: 0.5 },  // 🗺 Regional prompts
+    // 📰 MOSS-Image page layout: a comic page or a poster, its words placed exactly (moss_page.js)
+    moss_page: { on: false, template: "4", size: "draft", title: "", subtitle: "", style: "",
+                 panels: Array.from({ length: 6 }, () => ({ scene: "", bubble: "", caption: "", bubble_side: "left", bubble_kind: "speech" })) },
     swap: { face: "", more: [], which: "all", picks: [], marks: [], boost: 1, restore: true, consent: false },  // 🔁 Face swap (Image to image)
     vae: "",
     restore_faces: false, face_strength: 0.8, face_model: "codeformer", face_fidelity: 0.5, enhance_prompt: false, clip_skip: 1, quality_tags: true,
@@ -887,6 +890,8 @@ const protoartApp = createApp({
       form: (() => {
         const f = mergeDefaults(defaultForm(), loadJSON(FORM_KEY, {}));
         f.regions = { ...defaultForm().regions, ...(f.regions || {}) };
+        f.moss_page = { ...defaultForm().moss_page, ...(f.moss_page || {}) };
+        if (!Array.isArray(f.moss_page.panels) || f.moss_page.panels.length < 6) f.moss_page.panels = defaultForm().moss_page.panels;
         f.swap = { ...defaultForm().swap, ...(f.swap || {}), consent: false };
         f.cam = { ...defaultForm().cam, ...(f.cam || {}) };
         f.combine = { ...defaultForm().combine, ...(f.combine || {}) };
@@ -1079,6 +1084,7 @@ const protoartApp = createApp({
           sections: [
             { h: "1.6.16: 🎃 holiday looks, 💬 balloons on any picture in one press, ✥ free transform, 🎨 blending modes, 🔄 turn, slant, perspective and warp text (wrap it round a bottle), clearer effect buttons", items: [
               "<b>🎃🦃🎄🎆 Holiday looks</b> (Settings → Look, the four buttons after the colour swatches), all original art made for Protoart Studio: <b>Halloween</b> (pumpkin orange and witchy purple, jack-o'-lantern lamps whose eyes light up, a flickering pumpkin and a VU meter that's a <b>jack-o'-lantern that lights up</b> while it works), <b>Thanksgiving</b> (harvest wheat and chestnut, autumn-leaf lamps, a turkey, pie and corn), <b>Christmas</b> (snowy white and evergreen, Christmas-bulb lamps, still snowflakes and a <b>snow globe</b> meter whose cabin lights up and snows while it works) and <b>New Year's</b> (midnight blue and champagne gold, star lamps, fireworks and clinking glasses). The launch screen joins in too. Light and Dark both work with each.",
+              "<b>📰 Comic pages and posters with MOSS-Image</b> (Create, with a MOSS-Image model picked → 📰 Comic page &amp; poster): pick 3, 4 or 6 panels, a big splash panel with two small ones, or a poster; type what happens in each panel, the words of its speech or thought bubble and narration box, a page title and a style. A little map shows where everything goes, and MOSS-Image draws the whole page with every word spelled as you typed it. Keep bubbles to a few words. About 8 minutes a page on an 8 GB Mac (Draft size).",
               "<b>💡 Suggested settings for Z-Image Turbo and MOSS-Image</b>: a card in Create (and in Image to image → Change it for Z-Image) says what the model is good at, how to write for it, and sets its best steps, guidance, strength and size with one press of <b>Use these settings</b> (✕ hides it). <b>✨ Enhance writes for the model you picked</b>: tags for SD 1.5 / SDXL, sentences for Z-Image, Klein and ERNIE, and for <b>MOSS-Image</b> a designer's description that keeps your quoted words exactly and says where the lettering goes and how it looks. Words in quotes are never lost by Enhance any more. In Image to image the models you can use for the mode you're in are listed first.",
               "<b>🔄 Change it with ⚡ fast-engine models</b> (Image to image): Z-Image Turbo, ERNIE and the other fast-engine models that can start from a picture are now in the model list for <b>Change it</b> (their own group at the bottom). Strength works as usual; ControlNet and inpainting stay with SD 1.5 / SDXL.",
               "<b>🧩 MOSS-Image and Z-Image Turbo on 8 GB Macs</b> (no longer greyed out): MOSS-Image makes a smaller <b>8 GB version</b> of its picture model once, on your Mac, right after the download (attention and the first and last blocks stay 8-bit, the rest becomes 4-bit, ~5.3 → ~3.5 GB; the text reader stays as published so lettering stays right, and is shared, not copied). Z-Image Turbo puts its text reader away while it draws and brings back only that part for a new prompt. Both are slower than on a 16 GB Mac: use Medium (768) sizes for drafts, and close web browsers.",
@@ -3192,6 +3198,13 @@ const protoartApp = createApp({
     },
     poseFast() {  // 🦴 Follow a pose without ControlNet: FLUX.2 Klein on the fast engine, and ERNIE through Klein
       return this.currentModel?.engine === "mlx" && ["flux2", "ernie"].includes(this.family);
+    },
+    mossPage() {  // 📰 the page layout MOSS-Image draws (and the boxes for its preview)
+      const P = window.MossPage, pg = this.form.moss_page;
+      if (!P || !pg) return null;
+      const size = P.PAGE_SIZES.find((x) => x.id === pg.size) || P.PAGE_SIZES[0];
+      const r = P.buildLayout(pg, (this.form.prompt || "").trim(), size.w, size.h);
+      return { ...r, w: size.w, h: size.h, n: P.panelCount(pg), poster: pg.template === "poster", P };
     },
     ccTypeNow() {  // Create's ControlNet for the current model: the one picked, or the same kind made for this model type
       const id = this.form.cc && this.form.cc.type;
@@ -5964,6 +5977,14 @@ const protoartApp = createApp({
       }
       delete args.outpaint;
       delete args.inpaint;
+      delete args.moss_page;
+      if (this.family === "moss" && this.form.moss_page.on) {  // 📰 the page layout is MOSS-Image's prompt
+        const pg = this.mossPage;
+        args.moss_layout = pg.layout;
+        args.width = pg.w;
+        args.height = pg.h;
+        args.enhance_prompt = false;  // the layout's words must stay as written
+      }
       this.cleanExtras(args);
       return Object.assign(args, overrides || {});
     },
