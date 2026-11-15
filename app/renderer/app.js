@@ -9135,7 +9135,9 @@ const protoartApp = createApp({
                                           outpaint: { left: o.left || 0, right: o.right || 0, top: o.top || 0, bottom: o.bottom || 0 } });
         return;
       }
-      if (f.i2i_mode === "change" && !f.i2i_use_init && !f.control.type) return (this.error = "Tick “Start from this picture”, pick a ControlNet, or both.");
+      if (f.i2i_mode === "change" && this.currentModel?.engine === "mlx" && FAST_I2I.includes(this.family) && !f.control.type)
+        f.i2i_use_init = true;  // ⚡ fast-engine models always start from the picture
+      if (f.i2i_mode === "change" && !f.i2i_use_init && !f.control.type) return (this.error = "Press “Start from this picture”, pick a ControlNet, or both.");
       const fastChange = f.i2i_mode === "change" && this.currentModel?.engine === "mlx" && FAST_I2I.includes(this.family);
       if (fastChange && (f.control.type || !f.i2i_use_init))
         return (this.error = `${this.currentModel.label} changes your picture with Change it only: tick “Start from this picture” and take the ControlNet off, or pick an SD 1.5 / SDXL model.`);
@@ -9240,6 +9242,12 @@ const protoartApp = createApp({
       }
       if (this.form.i2i_mode === "edit") this.setI2iMode("change");
       if (this.form.i2i_mode === "outpaint") this.form.outpaint_engine = "model";  // expand with the model you picked
+      if (m && m.engine === "mlx" && FAST_I2I.includes(m.family)) {  // ⚡ these only change your picture: set that up
+        this.setI2iMode("change");
+        this.form.i2i_use_init = true;
+        this.form.control.type = "";
+        this.controlMap = null;
+      }
       this.selectModel(id);
     },
     editModel() {  // the model Edit with words uses
