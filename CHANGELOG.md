@@ -12,6 +12,18 @@
 - Fix: an upscaler that isn't downloaded yet (UltraSharp V2…) tried to download during the job's offline pass and
   showed a raw network error ("nodename nor servname"); it now asks for the online retry, and a failed download says
   the Mac couldn't reach huggingface.co and names the upscalers already on this Mac
+- 🎁 Updates (Settings → Updates, and a bar under the header): asks once whether to check daily (no answer, no check;
+  never in Strict offline); Check now any time. A newer GitHub release can be downloaded (to ~/.protoartstudio/updates,
+  checked against its .sha256; refused without one) and installed: a small script waits for the app to close, mounts
+  the DMG, copies the app beside the old one, swaps them (the old one goes back if that fails), clears the quarantine
+  flag and reopens it. A copy that isn't writable (or runs from the DMG) opens the installer instead. PRIVACY.md lists it
+- 📁 Image folder: its own section at the top of Settings ("where your pictures and Library are saved") with Choose
+  image folder…, Show in Finder and Use the default folder
+- Models: Make default for <type> (FLUX, Klein, Pony, SD 1.5…; `opts.default_models`, Pony / Illustrious / NoobAI
+  apart from plain SDXL): picking that type in Create's list picks it, and Image to image uses the default SD 1.5 /
+  SDXL when it needs one. The old Make default is now ▶ Start with this (the model Create opens with)
+- Fix: in a narrow window (one column) Image to image's preview was drawn over the controls (the left column, being
+  sideways-clipped, sized its grid row to almost nothing); rows now take their full height and the preview comes first
 
 ## 1.6.18
 

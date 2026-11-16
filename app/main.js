@@ -226,6 +226,105 @@ function realInside(p, dir) {
   }
 }
 
+// ------------------------------------------------------------------------------------------- 🎁 updates
+// Only when the person asks (Settings → Updates → Check now) or has said yes to the daily check. Asks GitHub for the
+// latest release of this project and nothing else: no ids, no stats. The installer is checked against the .sha256 file
+// published beside it, then the app copies itself over (when it can write there) and opens again.
+const UPDATE_REPO = "theprotoart/protoart-studio";
+const UPDATE_DIR = path.join(DATA_HOME, "updates");
+function verNum(v) { return String(v || "").replace(/^v/, "").split(".").map((x) => parseInt(x, 10) || 0); }
+function newer(a, b) {  // a newer than b
+  const x = verNum(a), y = verNum(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); }
+  return false;
+}
+let updateInfo = null;
+handle("update:check", async () => {
+  const r = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`,
+    { headers: { "User-Agent": "ProtoartStudio", Accept: "application/vnd.github+json" } });
+  if (!r.ok) throw new Error(`GitHub answered ${r.status}`);
+  const j = await r.json();
+  const tag = String(j.tag_name || "").replace(/^v/, "");
+  const dmg = (j.assets || []).find((x) => /\.dmg$/i.test(x.name));
+  const sum = (j.assets || []).find((x) => /\.dmg\.sha256$/i.test(x.name));
+  updateInfo = { version: tag, current: app.getVersion(), newer: newer(tag, app.getVersion()), name: j.name || tag,
+                 notes: String(j.body || "").slice(0, 6000), url: j.html_url, published: j.published_at,
+                 dmg: dmg ? { name: dmg.name, url: dmg.browser_download_url, size: dmg.size } : null,
+                 sha: sum ? sum.browser_download_url : null };
+  return updateInfo;
+});
+handle("update:download", async (e) => {
+  const u = updateInfo;
+  if (!u || !u.newer || !u.dmg) throw new Error("Check for updates first.");
+  if (!/^https:\/\/github\.com\//.test(u.dmg.url)) throw new Error("Unexpected download address.");
+  fs.mkdirSync(UPDATE_DIR, { recursive: true });
+  const dest = path.join(UPDATE_DIR, path.basename(u.dmg.name));
+  const want = u.sha ? (await (await fetch(u.sha, { headers: { "User-Agent": "ProtoartStudio" } })).text()).trim().split(/\s+/)[0].toLowerCase() : "";
+  if (!/^[0-9a-f]{64}$/.test(want)) throw new Error("The release has no checksum file, so it can't be checked: download it from the release page instead.");
+  const crypto = require("crypto");
+  const hashOf = (f) => new Promise((ok, bad) => { const h = crypto.createHash("sha256"); fs.createReadStream(f).on("data", (d) => h.update(d)).on("end", () => ok(h.digest("hex"))).on("error", bad); });
+  if (fs.existsSync(dest) && (await hashOf(dest)) === want) return { path: dest, verified: true };
+  const r = await fetch(u.dmg.url, { headers: { "User-Agent": "ProtoartStudio" } });
+  if (!r.ok || !r.body) throw new Error(`The download didn't start (${r.status}).`);
+  const total = Number(r.headers.get("content-length")) || u.dmg.size || 0;
+  const tmp = dest + ".part", out = fs.createWriteStream(tmp);
+  let got = 0, last = 0;
+  for await (const chunk of r.body) {
+    got += chunk.length;
+    if (!out.write(chunk)) await new Promise((ok) => out.once("drain", ok));
+    if (Date.now() - last > 400) { last = Date.now(); e.sender.send("update:progress", { got, total }); }
+  }
+  await new Promise((ok) => out.end(ok));
+  if ((await hashOf(tmp)) !== want) { fs.rmSync(tmp, { force: true }); throw new Error("The download didn't match its checksum, so it was thrown away. Try again."); }
+  fs.renameSync(tmp, dest);
+  e.sender.send("update:progress", { got: total, total });
+  return { path: dest, verified: true };
+});
+function appBundle() {  // /Applications/Protoart Studio.app (when running from an app bundle)
+  const p = path.resolve(process.resourcesPath, "..", "..");
+  return PACKAGED && p.endsWith(".app") ? p : null;
+}
+handle("update:install", async (_e, dmgPath) => {
+  const dmg = path.resolve(String(dmgPath || ""));
+  if (!realInside(dmg, UPDATE_DIR) || !/\.dmg$/i.test(dmg)) throw new Error("Not a downloaded update.");
+  const target = appBundle();
+  let writable = false;
+  try { if (target) { fs.accessSync(path.dirname(target), fs.constants.W_OK); fs.accessSync(target, fs.constants.W_OK); writable = true; } } catch {}
+  if (!target || !writable) {  // can't replace it ourselves (running from the DMG, or no permission): open the installer
+    await shell.openPath(dmg);
+    return { manual: true, reason: !target ? "not-installed" : "no-permission" };
+  }
+  // a small script that waits for this app to close, swaps in the new one, and opens it
+  const q = (x) => "'" + String(x).replace(/'/g, "'\\''") + "'";
+  const mnt = path.join(UPDATE_DIR, "mnt");
+  const script = [
+    "#!/bin/bash", "set -e",
+    `trap 'hdiutil detach ${q(path.join(UPDATE_DIR, "mnt"))} -force >/dev/null 2>&1; [ -d ${q(target)} ] && open ${q(target)}' ERR`,  // something failed: the app opens as it was
+    `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.5; done`,
+    `mkdir -p ${q(mnt)}; hdiutil detach ${q(mnt)} -force >/dev/null 2>&1 || true`,
+    `hdiutil attach -nobrowse -readonly -noautoopen -mountpoint ${q(mnt)} ${q(dmg)} >/dev/null`,
+    `NEW="$(find ${q(mnt)} -maxdepth 1 -name '*.app' | head -1)"`,
+    `[ -n "$NEW" ] || { hdiutil detach ${q(mnt)} -force; open ${q(dmg)}; exit 1; }`,
+    `rm -rf ${q(target + ".updating")}`,
+    `ditto "$NEW" ${q(target + ".updating")}`,
+    `hdiutil detach ${q(mnt)} -force >/dev/null 2>&1 || true`,
+    `xattr -dr com.apple.quarantine ${q(target + ".updating")} 2>/dev/null || true`,
+    // swap: if putting the new one in place fails, the old one goes back (the app is never left missing)
+    `rm -rf ${q(target + ".old")}`,
+    `if mv ${q(target)} ${q(target + ".old")}; then`,
+    `  if mv ${q(target + ".updating")} ${q(target)}; then rm -rf ${q(target + ".old")}; else mv ${q(target + ".old")} ${q(target)}; fi`,
+    `fi`,
+    `open ${q(target)}`,
+  ].join("\n");
+  const sh = path.join(UPDATE_DIR, "install.sh");
+  fs.writeFileSync(sh, script, { mode: 0o700 });
+  const child = spawn("/bin/bash", [sh], { detached: true, stdio: ["ignore", fs.openSync(path.join(UPDATE_DIR, "install.log"), "w"), fs.openSync(path.join(UPDATE_DIR, "install.log"), "a")] });
+  child.unref();
+  setTimeout(() => { stopBackend(); app.quit(); }, 300);
+  return { installing: true };
+});
+handle("update:openPage", () => updateInfo && /^https:\/\/github\.com\//.test(updateInfo.url) ? shell.openExternal(updateInfo.url) : null);
+
 handle("backend:send", (_e, msg) => {
   if (!backend || !msg || typeof msg !== "object") return false;
   backend.stdin.write(JSON.stringify(msg) + "\n");

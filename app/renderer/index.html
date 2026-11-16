@@ -254,6 +254,23 @@
     </div>
     <div class="rack-ear"><i class="screw s2"></i><i class="slot"></i></div>
   </header>
+  <!-- 🎁 a new version (or the one-time question whether to look for them) -->
+  <div v-if="!upd.hidden && ((upd.info && upd.info.newer) || (opts.update_auto == null && !strictOffline && upd.askReady))" class="update-bar">
+    <template v-if="upd.info && upd.info.newer">
+      <span>🎁 <b>Protoart Studio {{ upd.info.version }}</b> is available (you have {{ upd.info.current }}).</span>
+      <button class="link" @click="updateOpenPage()">What's new</button>
+      <template v-if="upd.busy === 'download'"><span class="hint">Downloading… {{ upd.total ? Math.round(upd.got / upd.total * 100) + '%' : '' }}</span></template>
+      <button v-else-if="!upd.path" class="primary small" @click="updateDownload" :disabled="!!upd.busy" title="Downloads the installer (~530 MB) and checks it against the checksum published with it">⬇ Download update</button>
+      <button v-else class="primary small" @click="updateInstall" :disabled="!!upd.busy" title="Closes the app, puts the new version in place of this one and opens it again (your pictures, models and settings stay)">↻ Install and restart</button>
+      <span v-if="upd.error" class="warn-text">{{ upd.error }}</span>
+      <button class="ghost small" @click="upd.hidden = true">Later</button>
+    </template>
+    <template v-else>
+      <span>🎁 Check for new versions of Protoart Studio automatically? <span class="hint">Once a day it asks GitHub for the latest release (nothing about you is sent). You can change this in Settings → Updates.</span></span>
+      <button class="primary small" @click="updateSetAuto(true)">Yes, check daily</button>
+      <button class="ghost small" @click="updateSetAuto(false)">No, I'll check myself</button>
+    </template>
+  </div>
 
   <div v-if="edits.pending.length || edits.notInstalled" class="edit-banner">
     <template v-if="edits.notInstalled">
@@ -300,7 +317,7 @@
         <div v-if="localOk" class="ok-box add-model-msg">{{ localOk }} <button class="link" @click="localOk = ''">ok</button></div>
         <div class="model-filter">
           <button v-for="f in modelFilters" :key="f.id" class="chip" :class="{on: modelFilter===f.id}"
-                  @click="modelFilter=f.id">{{ f.label }} <small>{{ f.count }}</small></button>
+                  @click="pickModelFilter(f.id)" :title="typeDefault(f.id) ? 'Shows this type and picks its default model' : ''">{{ f.label }} <small>{{ f.count }}</small></button>
         </div>
         <div class="model-search-row">
           <input class="model-search" v-model="modelSearch" placeholder="Search models…">
@@ -1503,7 +1520,8 @@
             <span v-if="m.engine === 'mlx'" class="chip static">⚡ fast engine</span>
             <span v-if="m.id === form.model" class="chip static">in use</span>
             <span v-if="m.missing" class="chip static warn-chip" title="The file isn't where it was (moved, renamed, or its drive isn't connected): right-click → Reconnect">⚠ file not found</span>
-            <span v-if="m.id === opts.default_model" class="chip static default-chip" title="Create starts with this model">★ default</span>
+            <span v-if="m.id === opts.default_model" class="chip static default-chip" title="Create starts with this model">▶ starts with</span>
+            <span v-if="isTypeDefault(m)" class="chip static default-chip" :title="'The default ' + typeName(m) + ' model'">★ {{ typeName(m) }} default</span>
             <span class="marks card-marks">
               <span class="fav-star" :class="{on: isFav(m)}" role="button" @click="toggleFav(m)"
                     :title="isFav(m) ? '★ Favourite · click to remove' : 'Click to add to your favourites (listed first in Create)'">★</span><i
@@ -1523,8 +1541,10 @@
           <div v-else class="row">
             <template v-if="isInstalled(m)">
               <button class="primary" :disabled="ramBlocked(m)" @click="useModel(m)" :title="ramBlocked(m) ? ramBlockText(m) : ''">Use in Create</button>
+              <button class="ghost" :class="{on: isTypeDefault(m)}" :disabled="ramBlocked(m) && !isTypeDefault(m)" @click="setTypeDefault(m)"
+                      :title="isTypeDefault(m) ? 'Click to stop using it as the default ' + typeName(m) + ' model' : 'Use this one whenever you switch to a ' + typeName(m) + ' model (Create\'s type list, Image to image)'">{{ isTypeDefault(m) ? '✓ ' + typeName(m) + ' default' : 'Make default for ' + typeName(m) }}</button>
               <button class="ghost" :class="{on: m.id === opts.default_model}" :disabled="ramBlocked(m) && m.id !== opts.default_model" @click="setDefaultModel(m)"
-                      :title="m.id === opts.default_model ? 'Click to stop using it as the default' : 'Create starts with this model every time the app opens (and gets it ready in the background)'">{{ m.id === opts.default_model ? '✓ Default' : 'Make default' }}</button>
+                      :title="m.id === opts.default_model ? 'Click to stop starting with it' : 'Create starts with this model every time the app opens (and gets it ready in the background)'">{{ m.id === opts.default_model ? '✓ Starts with this' : '▶ Start with this' }}</button>
               <button :class="modelDel === m.id ? 'danger' : 'danger-outline'" @click="deleteModel(m)"
                       :title="isOwnModel(m) ? 'Moves the file to the macOS Trash (you can put it back from there)' : 'Deletes the downloaded files from this Mac; it downloads again if you use it later'">
                 {{ modelDel === m.id ? (isOwnModel(m) ? 'Click again: move to Trash' : 'Click again to delete') : (isOwnModel(m) ? '🗑 Move to Trash' : '🗑 Delete') }}</button>
@@ -4922,6 +4942,37 @@
     <button class="link small" @click.stop="settingsFoldAll(false)">open all</button>
   </div>
   <div class="set-cols">
+    <section class="set-sec set-updates">
+    <h2>🎁 Updates</h2>
+    <p class="hint">You have <b>{{ APP_VERSION }}</b>.<template v-if="upd.checked"> Last checked {{ upd.checked }}.</template> Checking asks GitHub for the latest release of Protoart Studio and nothing else; updates are checked against the checksum published with them, and your pictures, models and settings stay as they are.</p>
+    <label class="check"><input type="checkbox" :checked="opts.update_auto === true" @change="updateSetAuto($event.target.checked)" :disabled="strictOffline"> Check for new versions once a day</label>
+    <div class="row">
+      <button @click="updateCheck(false)" :disabled="upd.checking || strictOffline">{{ upd.checking ? 'Checking…' : '↻ Check for updates now' }}</button>
+      <template v-if="upd.info && upd.info.newer">
+        <button v-if="!upd.path" class="primary" @click="updateDownload" :disabled="!!upd.busy">{{ upd.busy === 'download' ? 'Downloading… ' + (upd.total ? Math.round(upd.got / upd.total * 100) + '%' : '') : '⬇ Download ' + upd.info.version }}</button>
+        <button v-else class="primary" @click="updateInstall" :disabled="!!upd.busy">↻ Install {{ upd.info.version }} and restart</button>
+        <button class="ghost" @click="updateOpenPage()">What's new</button>
+      </template>
+      <span v-else-if="upd.info" class="hint">✓ You have the latest version.</span>
+    </div>
+    <div v-if="upd.error" class="warn-text">{{ upd.error }}</div>
+    <div v-if="strictOffline" class="hint">Strict offline is on (Privacy): no update checks.</div>
+    </section>
+    <section class="set-sec set-images">
+    <h2>📁 Image folder · where your pictures and Library are saved</h2>
+    <p class="hint">Every picture you make (and every edit, upscale or cut-out) is saved here, and the Library shows them. Pick any folder, also on another drive; tick the box to move the pictures you already have.</p>
+    <table>
+      <tr><td>Saving to</td><td><button class="link" @click="openFolder(imagesDir.path)" title="Open it in Finder">{{ imagesDir.path }}</button>
+        <span v-if="imagesDir.path === imagesDir.default" class="hint"> (the default)</span>
+        <div v-if="imagesDir.access && imagesDir.access !== 'ok'" class="warn-text">{{ accessProblem(imagesDir.access) }}</div></td></tr>
+    </table>
+    <div class="row">
+      <button class="primary" @click="changeImagesDir">📁 Choose image folder…</button>
+      <button class="ghost" @click="openFolder(imagesDir.path)">Show in Finder</button>
+      <button class="ghost" v-if="imagesDir.path !== imagesDir.default" @click="resetImagesDir">Use the default folder</button>
+    </div>
+    <label class="check"><input type="checkbox" v-model="moveExisting"> Move the pictures I already have to the new folder</label>
+    </section>
     <section class="set-sec">
     <h2>This Mac</h2>
     <table>
@@ -5122,18 +5173,6 @@
       <div class="row"><button class="ghost" @click="refreshDiffusionBee">Rescan</button></div>
     </template>
     <p v-else class="hint">No DiffusionBee folder found (~/.diffusionbee).</p>
-    </section>
-    <section class="set-sec">
-    <h2>Image storage</h2>
-    <table>
-      <tr><td>Save images to</td><td><button class="link" @click="openFolder(imagesDir.path)">{{ imagesDir.path }}</button>
-        <div v-if="imagesDir.access && imagesDir.access !== 'ok'" class="warn-text">{{ accessProblem(imagesDir.access) }}</div></td></tr>
-    </table>
-    <div class="row">
-      <button @click="changeImagesDir">Change folder…</button>
-      <button class="ghost" v-if="imagesDir.path !== imagesDir.default" @click="resetImagesDir">Use default</button>
-    </div>
-    <label class="check"><input type="checkbox" v-model="moveExisting"> Move my existing images to the new folder</label>
     </section>
     <section class="set-sec">
     <h2>Image format</h2>

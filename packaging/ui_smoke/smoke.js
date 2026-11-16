@@ -87,7 +87,7 @@ const CHECK = `
   const browser = await chromium.launch();
   let problems = 0;
   const looks = (process.env.UI_LOOKS || "").split(",").filter(Boolean);  // e.g. UI_LOOKS=powder:light,powder:dark
-  for (const width of [1440, 1180]) {
+  for (const width of (process.env.UI_WIDTHS || "1440,1180").split(",").map(Number)) {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     await page.addInitScript(MOCK);
     // the patchbay switched on, so the Tools screenshot shows it (its rows of modules)

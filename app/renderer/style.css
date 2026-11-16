@@ -526,3 +526,8 @@ details.fine summary { cursor: pointer; }
 .edit-refs .edit-ref.h3-slot img, .edit-refs .edit-ref.h3-slot .h3-empty { width: 112px; height: 100px; object-fit: cover; border-radius: 6px; display: flex; }
 .edit-refs .edit-ref.h3-slot select.h3-role { width: 112px; max-width: 112px; }
 .edit-refs .edit-ref.h3-slot > button { position: absolute; top: 2px; right: 2px; }
+
+/* 🎁 update bar under the header */
+.update-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 16px; background: rgba(255, 211, 107, 0.14);
+  border-bottom: 1px solid rgba(255, 211, 107, 0.4); font-size: 13px; }
+.update-bar .warn-text { flex-basis: 100%; }

@@ -1040,6 +1040,7 @@ const protoartApp = createApp({
       diagCopied: false,
       procreateJob: false,   // 🗂 reading a Procreate file's layers
       h3Tick: false,
+      upd: { checking: false, info: null, got: 0, total: 0, busy: "", path: "", error: "", hidden: false, checked: "", askReady: false },  // 🎁 updates
       harmJob: false,      // 🎯 Match colours is working
       harmRefOver: false,  // 🎯 a picture is being dragged over its "match this picture" box
       h3SlotOver: "",    // 🧩 the labelled slot a picture is being dragged over
@@ -1072,7 +1073,7 @@ const protoartApp = createApp({
                             // content filter (off until you turn it on)
                             hide_nsfw: false, check_pictures: false, hide_people: false, privacy_mode: false, sfw_mode: false, use_inpaint_model: true,
                             tooltips: true,       // quick tips when pointing at buttons (Settings → Look)
-                            default_model: "" },   // the model Create starts with (Models tab → ☆ Default)
+                            default_model: "", default_models: {} },  // the model Create starts with; the default of each type (Models tab)
         loadJSON(OPTS_KEY, {})),
       dbee: { available: false, enabled: true, checkpoints: 0, loras: 0, embeddings: 0, skipped: 0, skipped_kinds: [] },
       // Enhance & upscale speed/quality presets. Only steps × creativity steps actually run (it refines the
@@ -1178,7 +1179,11 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Next: 🎯 Match colours", items: [
+            { h: "Next: 🎯 Match colours, 🎁 updates, defaults for each model type", items: [
+              "<b>🎁 Updates</b>: the app asks once whether to look for new versions (once a day; Settings → Updates changes it, and <b>Check for updates now</b> is always there). When one is out, a bar under the header offers <b>⬇ Download update</b> (checked against its published checksum) and then <b>↻ Install and restart</b>: your pictures, models and settings stay.",
+              "<b>📁 Image folder</b>: now first in Settings: where your pictures and Library are saved, with <b>Choose image folder…</b> (and an option to move the pictures you already have).",
+              "<b>Make default for FLUX / Pony / SD 1.5…</b> (Models tab): one default model per type. Picking that type in Create's model list picks it, and Image to image uses your default SD 1.5 / SDXL when it needs one. <b>▶ Start with this</b> is the model Create opens with.",
+              "<b>Narrow window</b>: Image to image's preview no longer covers the controls; it moves to the top.",
               "<b>🎯 Match colours</b> (Tools, a new module): like Photoshop's Match Color. The subject is found by itself (✂ Cut out's finder) and takes on the colours and light of the background right around it, so a pasted-in or differently lit person sits in the scene. <b>Background → subject</b> works the other way; <b>Or match another picture</b> copies a picture's colours instead. <b>Strength</b> sets how far the colours move, <b>Light</b> how much of the brightness is matched. Nothing is redrawn: faces, details and lettering stay exactly as they are.",
               "<b>Adjust → Paint</b>: the painted area now shows as an <b>outline</b> instead of an orange wash, so you can see the change you're painting. Next to ✕ Clear paint: ◌ Outline, 🟧 Tint (lighter than before) or 👁 Off; hold <b>Option (⌥)</b> to hide it for a moment.",
             ] },
@@ -3964,7 +3969,7 @@ const protoartApp = createApp({
         }
         this.queue = this.queue.filter((x) => x.cmd !== "preload");
         this.loadContentStatus();
-        call("privacy_get").then((r) => { this.strictOffline = !!(r && r.strict); }).catch(() => {});
+        call("privacy_get").then((r) => { this.strictOffline = !!(r && r.strict); this.updateAuto(); setTimeout(() => { this.upd.askReady = !!window.bee.updateCheck; }, 20000); }).catch(() => {});
         await this.refreshLoras();
         call("diffusionbee_info").then((d) => { this.dbee = d; }).catch(() => {});
         call("list_embeddings").then((e) => { this.embeddings = e; }).catch(() => {});
@@ -9317,7 +9322,9 @@ const protoartApp = createApp({
       const fastChange = this.currentModel?.engine === "mlx" && FAST_I2I.includes(this.family);  // ⚡ kept for Change it
       if (!["sd15", "sdxl"].includes(this.family) && !fastChange) {
         // ERNIE / other models can't do image to image: switch to an SD model
-        const sd = this.models.find((m) => m.family === "sd15" && m.cached) || this.models.find((m) => m.family === "sd15")
+        const byId = (id) => id && this.models.find((m) => m.id === id);
+        const sd = byId(this.typeDefault("sd15")) || byId(this.typeDefault("sdxl"))
+          || this.models.find((m) => m.family === "sd15" && m.cached) || this.models.find((m) => m.family === "sd15")
           || this.models.find((m) => m.family === "sdxl" && m.engine !== "mlx");
         if (sd) {
           this._createModel = { was: this.form.model, now: sd.id };  // Create gets its model back when you return
@@ -10524,10 +10531,82 @@ const protoartApp = createApp({
         this.error = e.message;
       }
     },
-    async setDefaultModel(m) {
+    // ------------------------------------------------------------------------------------------- 🎁 updates
+    updateAuto() {  // once a day when the person said yes (never in Strict offline)
+      if (this.opts.update_auto !== true || this.strictOffline || !window.bee.updateCheck) return;
+      const last = +(this.opts.update_last || 0);
+      if (Date.now() - last < 20 * 3600 * 1000) return;
+      setTimeout(() => this.updateCheck(true), 8000);  // after the app has settled
+    },
+    updateOpenPage() { window.bee.updateOpenPage && window.bee.updateOpenPage(); },
+    async updateSetAuto(on) {
+      this.opts.update_auto = !!on;
+      await this.saveOpts();
+      if (on) this.updateCheck(true);
+    },
+    async updateCheck(quiet = false) {
+      if (this.strictOffline) return (this.upd.error = "Strict offline is on (Settings → Privacy): turn it off to check for updates.");
+      this.upd.checking = true; this.upd.error = "";
+      try {
+        const r = await window.bee.updateCheck();
+        this.upd.info = r; this.upd.hidden = false;
+        this.upd.checked = new Date().toLocaleString();
+        this.opts.update_last = Date.now(); this.saveOpts();
+        if (!quiet) this.status = r.newer ? `Protoart Studio ${r.version} is available (you have ${r.current})` : `You have the latest version (${r.current})`;
+      } catch (e) {
+        if (!quiet) this.upd.error = "Couldn't check for updates: " + String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
+      } finally { this.upd.checking = false; }
+    },
+    async updateDownload() {
+      this.upd.busy = "download"; this.upd.error = ""; this.upd.got = 0;
+      if (!this._updProg) { this._updProg = true; window.bee.onUpdateProgress((m) => { this.upd.got = m.got; this.upd.total = m.total; }); }
+      try {
+        const r = await window.bee.updateDownload();
+        this.upd.path = r.path;
+      } catch (e) {
+        this.upd.error = String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
+      } finally { this.upd.busy = ""; }
+    },
+    async updateInstall() {
+      if (this.busy) return (this.upd.error = "A job is still running: wait for it to finish (or stop it), then press Install again.");
+      this.upd.busy = "install";
+      try {
+        const r = await window.bee.updateInstall(this.upd.path);
+        if (r && r.manual) this.upd.error = r.reason === "not-installed"
+          ? "This copy isn't in Applications, so it can't replace itself: the installer opened: drag Protoart Studio to Applications (replace the old one)."
+          : "macOS doesn't let the app replace itself here: the installer opened: drag Protoart Studio to Applications and choose Replace.";
+      } catch (e) {
+        this.upd.error = String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
+      } finally { this.upd.busy = ""; }
+    },
+    async setDefaultModel(m) {  // ▶ Start with this: the model Create opens with
       this.opts.default_model = this.opts.default_model === m.id ? "" : m.id;
       await this.saveOpts();
-      this.status = this.opts.default_model ? `${m.label} is now the default: Create starts with it` : "No default model: Create starts with the one you used last";
+      this.status = this.opts.default_model ? `${m.label}: Create starts with it every time the app opens` : "Create starts with the model you used last";
+    },
+    typeKey(m) {  // the kind a per-type default is kept for: Pony / Illustrious / NoobAI apart from plain SDXL
+      return m.flavor ? "fl:" + m.flavor : m.family || "unknown";
+    },
+    typeName(m) {
+      return m.flavor ? this.flavorName(m.flavor) : this.familyName(m.family);
+    },
+    isTypeDefault(m) { return (this.opts.default_models || {})[this.typeKey(m)] === m.id; },
+    async setTypeDefault(m) {  // ★ Default for FLUX / Pony / SD 1.5…: picked whenever you switch to that type
+      const d = { ...(this.opts.default_models || {}) }, k = this.typeKey(m);
+      if (d[k] === m.id) delete d[k]; else d[k] = m.id;
+      this.opts.default_models = d;
+      await this.saveOpts();
+      this.status = d[k] ? `${m.label} is the default ${this.typeName(m)} model: picking ${this.typeName(m)} in Create's list (or a mode that needs it) uses it`
+        : `No default ${this.typeName(m)} model`;
+    },
+    typeDefault(key) {  // the default model of a type (family id or "fl:flavor"), if it's on this Mac
+      const id = (this.opts.default_models || {})[key];
+      return id && this.models.some((m) => m.id === id && m.cached !== false) ? id : null;
+    },
+    pickModelFilter(id) {  // Create's type chips: the list shows that type, and its default model is picked
+      this.modelFilter = id;
+      const d = this.typeDefault(id);
+      if (d && d !== this.form.model) { this.selectModel(d); this.status = `Default ${this.typeName(this.models.find((m) => m.id === d))} model picked`; }
     },
     isOwnModel(m) {
       return m.id.includes(":") && !m.id.startsWith("hf:");

@@ -13,6 +13,7 @@ Only when something you asked for isn't on your Mac yet, and never in Strict off
 | civitai.com (and its file storage) | Only when you press Check or Download under Models tab → Add from Civitai | The model link you pasted; your Civitai API key if you saved one (sent only to civitai.com). |
 | github.com | First use of face restore or the face detector | File requests |
 | pypi.org | Installing the fast ERNIE engine (once) | Package requests |
+| api.github.com, github.com | Only if you said yes to "check for new versions" (once a day), or you press Settings → Updates → Check now; downloading an update when you press Download | A request for this project's latest release; the installer and its checksum file. Nothing about you or this Mac. |
 
 Links you click (for example "Get PhotoCraft") open in your own browser.
 

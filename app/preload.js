@@ -33,6 +33,12 @@ contextBridge.exposeInMainWorld("bee", {
   // Open a picture in an outside editor (PhotoCraft, Photoshop…) and open web links in the browser.
   openInEditor: (file, appName) => ipcRenderer.invoke("editor:open", file, appName),
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
+  // 🎁 updates: check GitHub's latest release, download it (checked against its .sha256), install and reopen
+  updateCheck: () => ipcRenderer.invoke("update:check"),
+  updateDownload: () => ipcRenderer.invoke("update:download"),
+  updateInstall: (p) => ipcRenderer.invoke("update:install", p),
+  updateOpenPage: () => ipcRenderer.invoke("update:openPage"),
+  onUpdateProgress: (fn) => ipcRenderer.on("update:progress", (_e, m) => fn(m)),
   // Forget the saved window size/position (Settings -> Reset settings).
   resetWindow: () => ipcRenderer.invoke("window:reset"),
   // Real filesystem path of a dragged-in file (File.path was removed in recent Electron).

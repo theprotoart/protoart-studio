@@ -2761,3 +2761,9 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 /* Relight's four speeds: two by two (they don't fit in one row of a module) */
 .seg.relight-speed { display: grid; grid-template-columns: 1fr 1fr; }
 .seg.relight-speed button { white-space: nowrap; }
+/* narrow window (one column): each part takes its full height. The left column scrolls sideways-clipped
+   (overflow-x: hidden), which made grid rows size it to almost nothing, so the preview below was drawn over it */
+@media (max-width: 900px) {
+  .i2i, .tools, .train { grid-auto-rows: max-content; grid-template-rows: none; }
+  .i2i > .i2i-right { order: -1; }  /* the picture / result first, the controls under it */
+}
