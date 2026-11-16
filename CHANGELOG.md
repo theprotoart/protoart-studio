@@ -9,6 +9,9 @@
 
 - Adjust → Paint: the painted area shows as an outline (a light-and-dark dashed edge) instead of a 45 % amber fill
   that hid the change being painted; ◌ Outline / 🟧 Tint (now 20 %) / 👁 Off, and hold Option (⌥) to hide it
+- Fix: an upscaler that isn't downloaded yet (UltraSharp V2…) tried to download during the job's offline pass and
+  showed a raw network error ("nodename nor servname"); it now asks for the online retry, and a failed download says
+  the Mac couldn't reach huggingface.co and names the upscalers already on this Mac
 
 ## 1.6.18
 

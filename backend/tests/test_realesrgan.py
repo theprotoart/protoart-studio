@@ -51,3 +51,27 @@ class RealESRGANNets(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(torch is None, "needs torch")
+def test_fetch_offline_asks_for_the_online_retry():
+    """An upscaler that isn't downloaded yet, on the job's offline pass: a message the job runner recognises (it runs
+    the job again online) instead of a raw network error."""
+    import sys
+    import tempfile
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import net
+    from postprocess import realesrgan
+    old_dir, old_on = realesrgan._dir, net._online
+    tmp = Path(tempfile.mkdtemp())
+    realesrgan._dir = lambda: tmp
+    net._online = False
+    try:
+        try:
+            realesrgan.fetch("ultrasharpv2")
+            raise AssertionError("fetched while offline")
+        except RuntimeError as e:
+            assert net.looks_like_missing_download(e) and "UltraSharpV2" in str(e)
+    finally:
+        realesrgan._dir, net._online = old_dir, old_on

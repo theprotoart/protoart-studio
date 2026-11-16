@@ -170,6 +170,9 @@ def fetch(mid, emit=None):
     import net
     if net.strict:
         raise RuntimeError(f"{m['label']} needs a one-time download (~{m['mb']} MB), and Strict offline mode is on.")
+    if not net.is_online():
+        # the job's first, offline pass: say so, and the job is run again with the connection open (bee_backend)
+        raise RuntimeError(f"offline: {m['label']} isn't on this Mac yet (a one-time ~{m['mb']} MB download)")
     if emit:
         emit({"type": "status", "msg": f"Downloading {m['label']} (~{m['mb']} MB, first time only)…"})
     tmp = dest.with_name(dest.name + ".download")  # checked before it becomes the model file
@@ -181,10 +184,19 @@ def fetch(mid, emit=None):
         except ConnectionError as e:
             print(f"[realesrgan] curl: {e}", flush=True)
     if not ok:
+        import urllib.error
         import urllib.request
-        with urllib.request.urlopen(urllib.request.Request(m["url"], headers={"User-Agent": "ProtoartStudio"}), timeout=60) as r, \
-                open(tmp, "wb") as f:
-            f.write(r.read())
+        try:
+            with urllib.request.urlopen(urllib.request.Request(m["url"], headers={"User-Agent": "ProtoartStudio"}), timeout=60) as r, \
+                    open(tmp, "wb") as f:
+                f.write(r.read())
+        except (urllib.error.URLError, OSError) as e:
+            tmp.unlink(missing_ok=True)
+            print(f"[realesrgan] download failed: {e}", flush=True)
+            others = [x["label"] for k, x in MODELS.items() if k != mid and (_dir() / x["file"]).exists()]
+            raise RuntimeError(f"Couldn't download {m['label']} (~{m['mb']} MB, needed once): this Mac couldn't reach "
+                               "huggingface.co. Check the internet connection (or the VPN), then press Enhance again"
+                               + (f"; or pick an upscaler that's already here ({', '.join(others[:3])})." if others else ".")) from None
     if hashlib.sha256(tmp.read_bytes()).hexdigest() != m["sha256"]:
         tmp.unlink(missing_ok=True)
         raise RuntimeError(f"The {m['label']} download was damaged; try again.")
