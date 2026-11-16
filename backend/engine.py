@@ -4765,16 +4765,31 @@ class Engine:
             k = side / max(1.0, (canvas.width * canvas.height) ** 0.5)
             width, height = max(256, int(canvas.width * k) // 32 * 32), max(256, int(canvas.height * k) // 32 * 32)
             steps = 6
-            prompt = ("Expand <Picture 1>: replace every flat bright green area around the picture by continuing the scene "
-                      "naturally outward, with the same light, colours, perspective and style. Keep the picture in the "
-                      "middle exactly as it is. No green, no border, no frame, no seams." + (f" {extra}" if extra else ""))
+            # H3 wasn't trained on the outpaint LoRA's green border (it kept it as a green bar): it gets the canvas with the
+            # new area pre-filled with smudged edge colours instead, and is asked to paint real detail there
+            import detailer
+            smudge, _m = detailer.outpaint_canvas(image, **pads)
+            prompt = ("Edit <Picture 1>: the blurry, smeared areas around its edges are unfinished. Paint them with real, "
+                      "sharp detail that continues the scene naturally outward, with the same light, colours, perspective "
+                      "and style, so the whole picture is one seamless, finished image. Keep the sharp picture in the "
+                      "middle exactly as it is. No blur, no border, no frame, no seams." + (f" {extra}" if extra else ""))
             tmp = paths.HOME / "tmp"
             tmp.mkdir(parents=True, exist_ok=True)
             first, out = tmp / f"h3expand_src_{os.getpid()}.png", tmp / f"h3expand_out_{os.getpid()}.png"
-            canvas.resize((width, height), Image.LANCZOS).save(first)
+            smudge.resize((width, height), Image.LANCZOS).save(first)
             try:
                 self._h3_picture(prompt, out, width, height, seed, [first], ref_sides=[min(width, height)])
                 result = Image.open(out).convert("RGB")
+                # did it actually paint the new area? (if it just kept the smudge, say so rather than save a blur)
+                import numpy as _np
+                new_area = _np.asarray(_m.resize(result.size)) > 200
+                if new_area.any():
+                    a_ = _np.asarray(result, _np.float32)[new_area]
+                    b_ = _np.asarray(smudge.resize(result.size, Image.LANCZOS), _np.float32)[new_area]
+                    if float(_np.abs(a_ - b_).mean()) < 6:
+                        raise UserError("MiniMax-H3-Image left the new area unfinished. Try again with a prompt saying what "
+                                        "should be around the picture (e.g. “more of the cosy workshop, with shelves and "
+                                        "lamps”), or another seed, or fill it with FLUX.2 / Z-Image.")
             finally:
                 for f in (out, first):
                     try:

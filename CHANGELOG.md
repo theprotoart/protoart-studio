@@ -12,6 +12,9 @@
 - Fix: an upscaler that isn't downloaded yet (UltraSharp V2…) tried to download during the job's offline pass and
   showed a raw network error ("nodename nor servname"); it now asks for the online retry, and a failed download says
   the Mac couldn't reach huggingface.co and names the upscalers already on this Mac
+- Fix: ↔ Expand with 🧠 MiniMax-H3-Image came back with a green bar: it was given the outpaint LoRA's pure green
+  border, which only Klein's LoRA is trained on. It now gets the smudged-edge canvas (as the fast models do) and is
+  asked to paint real detail there
 - 🎁 Updates (Settings → Updates, and a bar under the header): asks once whether to check daily (no answer, no check;
   never in Strict offline); Check now any time. A newer GitHub release can be downloaded (to ~/.protoartstudio/updates,
   checked against its .sha256; refused without one) and installed: a small script waits for the app to close, mounts
