@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.6.19
 
+- Steadier on 8–12 GB Macs: the Tools side lane (heal, cutout, harmonize, papercut, peel) only runs beside a
+  generation on Macs with 16 GB or more (`SIDE_LANE_RAM_OK`); on smaller ones those jobs queue. Two models in memory
+  at once could push macOS into heavy swapping and freeze the computer.
 - 🎯 Match colours (Tools): like Photoshop's Match Color. The subject is found with ✂ Cut out's finder and its light and
   colour moved to the background right around it (Lab mean / spread transfer, spreads limited to ×0.6–1.6;
   `color_match.match_subject`), or the background to the subject, or either to another picture. Strength and Light

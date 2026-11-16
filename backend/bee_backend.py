@@ -2085,7 +2085,9 @@ def reader():
         if cmd == "preload" and jobs.busy_with_work():
             emit({"type": "result", "id": mid, "data": {"skipped": "busy"}})  # only uses idle time
             continue
-        if cmd in SIDE_LANE and jobs.running:  # quick Tools jobs don't wait behind a long generation
+        # Quick Tools jobs don't wait behind a long generation, but only on Macs with room for a second model:
+        # on 8-12 GB, two models at once pushes macOS into heavy swapping and the whole computer can freeze.
+        if cmd in SIDE_LANE and jobs.running and SIDE_LANE_RAM_OK:
             threading.Thread(target=run_side, args=(mid, cmd, a), daemon=True).start()
             continue
         if cmd in HEAVY:
@@ -2104,6 +2106,16 @@ def reader():
 # Tools jobs that run on the processor (not the graphics chip) and take seconds: while a picture is being made they
 # run beside it instead of waiting in the queue (Remove with smart fill uses LaMa on the CPU; quick fill is OpenCV).
 SIDE_LANE = ("heal", "cutout", "harmonize", "papercut", "peel", "peel_save")
+
+
+def _ram_gb():
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 2**30
+    except (ValueError, OSError, AttributeError):
+        return 0
+
+
+SIDE_LANE_RAM_OK = _ram_gb() >= 15.5  # a "16 GB" Mac reports a little under 16
 
 
 def run_side(mid, cmd, a):

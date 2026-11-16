@@ -804,7 +804,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.18";
+const APP_VERSION = "1.6.19";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1179,11 +1179,12 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Next: 🎯 Match colours, 🎁 updates, defaults for each model type", items: [
+            { h: "1.6.19: 🎯 Match colours, 🎁 updates, defaults for each model type", items: [
               "<b>🎁 Updates</b>: the app asks once whether to look for new versions (once a day; Settings → Updates changes it, and <b>Check for updates now</b> is always there). When one is out, a bar under the header offers <b>⬇ Download update</b> (checked against its published checksum) and then <b>↻ Install and restart</b>: your pictures, models and settings stay.",
               "<b>📁 Image folder</b>: now first in Settings: where your pictures and Library are saved, with <b>Choose image folder…</b> (and an option to move the pictures you already have).",
               "<b>Make default for FLUX / Pony / SD 1.5…</b> (Models tab): one default model per type. Picking that type in Create's model list picks it, and Image to image uses your default SD 1.5 / SDXL when it needs one. <b>▶ Start with this</b> is the model Create opens with.",
               "<b>Narrow window</b>: Image to image's preview no longer covers the controls; it moves to the top.",
+              "<b>Steadier on 8 GB Macs</b>: Tools jobs (Remove, Cut out, Match colours…) started while a picture is being made now wait their turn on Macs under 16 GB instead of loading a second model beside it, which could make the whole computer freeze.",
               "<b>🎯 Match colours</b> (Tools, a new module): like Photoshop's Match Color. The subject is found by itself (✂ Cut out's finder) and takes on the colours and light of the background right around it, so a pasted-in or differently lit person sits in the scene. <b>Background → subject</b> works the other way; <b>Or match another picture</b> copies a picture's colours instead. <b>Strength</b> sets how far the colours move, <b>Light</b> how much of the brightness is matched. Nothing is redrawn: faces, details and lettering stay exactly as they are.",
               "<b>Adjust → Paint</b>: the painted area now shows as an <b>outline</b> instead of an orange wash, so you can see the change you're painting. Next to ✕ Clear paint: ◌ Outline, 🟧 Tint (lighter than before) or 👁 Off; hold <b>Option (⌥)</b> to hide it for a moment.",
             ] },
