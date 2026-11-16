@@ -2330,6 +2330,8 @@ class Engine:
         ram = total_ram_gb()
         if spec.get("moss"):  # MOSS-Image loads its parts one at a time for each picture: nothing to keep ready
             return {"skipped": "MOSS-Image loads when you make a picture"}
+        if spec.get("h3"):  # MiniMax-H3-Image runs in its own process for each picture: nothing to keep ready
+            return {"skipped": "MiniMax-H3-Image loads when you make a picture"}
         try:
             if spec.get("engine") == "mlx":
                 if not mlx_engine.installed():
@@ -4762,6 +4764,13 @@ class Engine:
             self._h3_prepare(h3spec)
             sizes = {"768": 768, "896": 896, "1024": 1024, "1280": 1280, "1536": 1536, "2048": 2048}
             side = sizes.get(str(args.get("h3_side") or ""), side)
+            # The whole canvas is drawn AND read back as Picture 1, so an expand costs about twice an edit of that size:
+            # on 8-12 GB Macs 1280 (1024 x 1568) froze the computer. Keep it to ~1 MP there, Picture 1 read at 768.
+            small = 0 < ram < 12
+            if small and side > 1024:
+                side = 1024
+                self.emit({"type": "status", "msg": "MiniMax-H3-Image: expanding at 1024 (larger sizes need more memory "
+                                                    "than this Mac has); the picture is enlarged afterwards."})
             k = side / max(1.0, (canvas.width * canvas.height) ** 0.5)
             width, height = max(256, int(canvas.width * k) // 32 * 32), max(256, int(canvas.height * k) // 32 * 32)
             steps = 6
@@ -4778,7 +4787,8 @@ class Engine:
             first, out = tmp / f"h3expand_src_{os.getpid()}.png", tmp / f"h3expand_out_{os.getpid()}.png"
             smudge.resize((width, height), Image.LANCZOS).save(first)
             try:
-                self._h3_picture(prompt, out, width, height, seed, [first], ref_sides=[min(width, height)])
+                self._h3_picture(prompt, out, width, height, seed, [first],
+                                 ref_sides=[min(width, height, 768) if small else min(width, height)])
                 result = Image.open(out).convert("RGB")
                 # did it actually paint the new area? (if it just kept the smudge, say so rather than save a blur)
                 import numpy as _np

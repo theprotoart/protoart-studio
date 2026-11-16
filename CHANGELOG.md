@@ -2,6 +2,10 @@
 
 ## 1.6.19
 
+- 🧠 MiniMax-H3-Image Expand froze an 8 GB Mac at 1280 (1024×1568 drawn plus the same canvas read as Picture 1,
+  with 6 GB already in swap). Under 12 GB, Expand now caps at 1024 and reads Picture 1 at 768. New memory watchdog in
+  `h3_engine._run`: if swap grows 3 GB during a stage and RAM is nearly gone (`starving()`), the worker is stopped with a
+  clear message instead of freezing the computer. Preload skips H3 (it used to fail with a TypeError).
 - Steadier on 8–12 GB Macs: the Tools side lane (heal, cutout, harmonize, papercut, peel) only runs beside a
   generation on Macs with 16 GB or more (`SIDE_LANE_RAM_OK`); on smaller ones those jobs queue. Two models in memory
   at once could push macOS into heavy swapping and freeze the computer.

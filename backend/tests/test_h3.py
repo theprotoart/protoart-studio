@@ -93,3 +93,11 @@ def test_catalog_and_manifest():
     assert len(h3_engine.FILES) == 5 and h3_engine.FILES[0]["path"].startswith("diffusion_models/")
     assert all(f["huggingface"].startswith("https://huggingface.co/") and f["modelscope"] for f in h3_engine.FILES)
     assert all(w % 32 == 0 and h % 32 == 0 for w, h in h3_engine.SIZES)
+
+
+def test_memory_watchdog():
+    base = (2.0, 6.0, 8.0)
+    assert not h3_engine.starving(base, (1.5, 7.0, 8.0))  # some swapping is normal
+    assert not h3_engine.starving(base, (2.5, 9.5, 8.0))  # lots of swap but RAM still free
+    assert h3_engine.starving(base, (0.2, 9.5, 8.0))  # out of RAM and swapping hard: stop it
+    assert not h3_engine.starving(base, None)

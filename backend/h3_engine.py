@@ -192,14 +192,41 @@ def _part_size(e):
 
 
 # --------------------------------------------------------------------------------------------- worker processes
+def memory():
+    """(available RAM GB, swap used GB, total RAM GB), or None if it can't be read."""
+    try:
+        import psutil
+        v = psutil.virtual_memory()
+        return v.available / 2**30, psutil.swap_memory().used / 2**30, v.total / 2**30
+    except Exception:
+        return None
+
+
+def starving(base, now):
+    """The picture is pushing the Mac into heavy swapping: 3 GB more swap since the stage started and almost no RAM
+    left. (A normal stage reads its weights from the file as it goes and needs under 2 GB, so it never gets here.)"""
+    if not now:
+        return False
+    avail, swap, total = now
+    return swap - base[1] >= 3 and avail < max(0.4, total * 0.05)
+
+
 def _run(python, args, on_line, cancel_event=None):
     proc = subprocess.Popen([str(python), str(WORKER), *map(str, args)], stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True, cwd=str(HERE))
     stop = threading.Event()
+    starved = []
+    base = memory()
 
     def watch():  # Stop ends the stage right away (its memory goes back to macOS)
         while not stop.is_set() and proc.poll() is None:
             if cancel_event is not None and cancel_event.wait(0.5):
+                proc.kill()
+                return
+            if cancel_event is None:
+                stop.wait(0.5)
+            if base and starving(base, memory()):  # stop it before macOS swaps so hard the whole computer freezes
+                starved.append(True)
                 proc.kill()
                 return
 
@@ -228,6 +255,9 @@ def _run(python, args, on_line, cancel_event=None):
         stop.set()
     if cancel_event is not None and cancel_event.is_set():
         raise Cancelled()
+    if starved:
+        raise H3Error("MiniMax-H3-Image was stopped because this Mac ran out of memory (it would have frozen the "
+                      "computer). Use a smaller size or fewer pictures, close other apps, and try again.")
     if proc.returncode:
         tail = "".join(err_tail)[-1500:]
         if "GPU Timeout" in tail or "kIOGPUCommandBufferCallbackErrorTimeout" in tail:
