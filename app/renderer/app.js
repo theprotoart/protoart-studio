@@ -804,7 +804,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.19";
+const APP_VERSION = "1.6.20";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1179,7 +1179,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Next: 📷 drag the camera dials", items: [
+            { h: "1.6.20: 📷 drag the camera dials, 🧠 MiniMax expand paints real detail", items: [
+              "<b>↔ Expand with 🧠 MiniMax-H3-Image</b> now paints real detail in the new area instead of a blur: MiniMax zooms out from your picture, then the app finds your picture in the result and puts your original back exactly in its place.",
               "<b>📷 Camera angle</b>: the two dials beside the card can now be dragged. Pull the yellow dot around the pink ring to turn the camera around the subject, or up and down the blue arc to look from above or below. Hold ⇧ for 45° / 15° steps; double-click a dial to go back to the front or eye level.",
             ] },
             { h: "1.6.19: 🎯 Match colours, 🎁 updates, defaults for each model type", items: [

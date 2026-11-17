@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.6.20
 
+- 🧠 MiniMax-H3-Image ↔ Expand painted the new area as a blur: it keeps whatever it's shown (a green border stayed
+  green, a smudged one stayed blurry). It now gets your picture as it is and is asked to zoom out to the new frame
+  (`zoom_out_prompt`); your picture is found in its result at any position and 0.55–1.3× the size (multi-scale
+  template matching, `locate_in`), the result is scaled and moved so your picture sits exactly in its place, and your
+  original is pasted back as usual. If it can't be found clearly, the whole MiniMax picture is kept and the app says so
 - 📷 Camera angle: the top-down ring and the side arc can be dragged (`camDialDown`): the yellow dot follows the pointer around the ring (azimuth) or along the arc (elevation, −30–60°); ⇧ snaps to 45° / 15°; double-click resets that dial. The card drag and scroll still work
 
 ## 1.6.19

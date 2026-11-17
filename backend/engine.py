@@ -4907,7 +4907,7 @@ class Engine:
             record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="outpaint")
             record["thumb"] = str(thumbs.make(record["id"], path, result) or "") or None
             record = self._content_check(record, result)
-            self.emit({"type": "status", "msg": "FLUX.2 redrew the picture a little, so its whole version was kept "
+            self.emit({"type": "status", "msg": ("MiniMax-H3-Image" if h3x else "FLUX.2") + " redrew the picture a little, so its whole version was kept "
                                                 "(pasting your original back would leave seams). Try another seed, or "
                                                 "expand less at a time, to keep the original exactly."})
             self.emit({"type": "image", "record": record})
