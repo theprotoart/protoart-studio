@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- 📷 Camera angle: the top-down ring and the side arc can be dragged (`camDialDown`): the yellow dot follows the pointer around the ring (azimuth) or along the arc (elevation, −30–60°); ⇧ snaps to 45° / 15°; double-click resets that dial. The card drag and scroll still work
+
 ## 1.6.19
 
 - 🧠 MiniMax-H3-Image Expand froze an 8 GB Mac at 1280 (1024×1568 drawn plus the same canvas read as Picture 1,

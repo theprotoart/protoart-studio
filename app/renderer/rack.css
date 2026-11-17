@@ -2422,6 +2422,11 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .cam-dial .subj { fill: #555; }
 .cam-dial .ray { stroke: #ffc45c; stroke-width: 1.2; stroke-dasharray: 2 2; }
 .cam-dial .cam { fill: #ffc45c; stroke: #1c1408; stroke-width: 1; }
+.cam-dial.drag { cursor: grab; touch-action: none; user-select: none; }
+.cam-dial.drag:active { cursor: grabbing; }
+.cam-dial.drag .cam { transition: r .12s; }
+.cam-dial.drag:hover .cam { r: 6; }
+.cam-dial.drag text { pointer-events: none; }
 .cam-dial text { fill: #888; font: 8px system-ui, sans-serif; }
 .cam-now { text-align: center; margin-bottom: 4px; }
 .cam-pick { margin-left: 8px; font-size: 11px; }

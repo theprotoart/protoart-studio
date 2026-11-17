@@ -1179,6 +1179,9 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Next: 📷 drag the camera dials", items: [
+              "<b>📷 Camera angle</b>: the two dials beside the card can now be dragged. Pull the yellow dot around the pink ring to turn the camera around the subject, or up and down the blue arc to look from above or below. Hold ⇧ for 45° / 15° steps; double-click a dial to go back to the front or eye level.",
+            ] },
             { h: "1.6.19: 🎯 Match colours, 🎁 updates, defaults for each model type", items: [
               "<b>🎁 Updates</b>: the app asks once whether to look for new versions (once a day; Settings → Updates changes it, and <b>Check for updates now</b> is always there). When one is out, a bar under the header offers <b>⬇ Download update</b> (checked against its published checksum) and then <b>↻ Install and restart</b>: your pictures, models and settings stay.",
               "<b>📁 Image folder</b>: now first in Settings: where your pictures and Library are saved, with <b>Choose image folder…</b> (and an option to move the pictures you already have).",
@@ -1816,7 +1819,7 @@ const protoartApp = createApp({
               "Under <b>Picture layout</b>, <b>😀 Expression sheet</b> makes one picture with a grid of head-and-shoulders portraits of the same character, each with a different expression. Tick the expressions you want (1 to 12; 6 is a good number).",
               "<b>🧍😀 Turnaround + expressions</b> makes a model sheet: front, side and back full-body views on the top row, and up to 6 expression close-ups below. Klein sometimes repeats or drops a face; try another seed." ] },
             { h: "📷 Camera angle: the same picture from another side", items: [
-              "In <b>Image to image</b>, pick <b>📷 Camera angle</b>. The card shows your picture as the camera sees it: <b>drag left / right</b> to go around the subject, <b>up / down</b> to go under or over it, <b>scroll</b> to come nearer or go further. The pink ring shows where the camera is from above (front at the bottom), the blue arc how high it is.",
+              "In <b>Image to image</b>, pick <b>📷 Camera angle</b>. The card shows your picture as the camera sees it: <b>drag left / right</b> to go around the subject, <b>up / down</b> to go under or over it, <b>scroll</b> to come nearer or go further. The pink ring shows where the camera is from above (front at the bottom), the blue arc how high it is: <b>drag the yellow dot</b> on either one to move the camera there (hold ⇧ to snap to 45° around or 15° up / down; double-click a dial to go back to the front or eye level).",
               "Or use the sliders and lists: <b>Around</b> (front, front-right quarter, right side, back-right quarter, back, back-left quarter, left side, front-left quarter), <b>Up / down</b> (low-angle, eye-level, elevated, high-angle) and <b>How close</b> (wide shot, medium shot, close-up). The line under them shows which one you have; <b>↺ Front</b> goes back to the start.",
               "Press <b>📷 New angle</b>. Anything to add goes in 3 · Prompt (“she is holding the sword”). The exact words sent to Klein are shown under the controls.",
               "<b>Make: 📷 One new angle</b> gives one picture from the angle the sliders set. <b>🔄 All 8 around (turnaround)</b> gives 8 pictures, one every 45° all the way around the subject: then Around isn't used (it's greyed out), while Up / down and How close apply to all 8, and all 8 share one seed so the character stays alike. They go into the queue one after another. <b>↺ Reset camera</b> goes back to front view, eye level, medium shot.",
@@ -9682,6 +9685,28 @@ const protoartApp = createApp({
       const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
+    },
+    camDialDown(kind, e) {  // drag the yellow dot on the top-down ring (around) or the side arc (up / down)
+      e.preventDefault();
+      const svg = e.currentTarget, r = svg.getBoundingClientRect();
+      const at = (ev) => {
+        const x = ((ev.clientX - r.left) / r.width) * 80, y = ((ev.clientY - r.top) / r.height) * 80;
+        if (kind === "az") {
+          let a = (Math.atan2(x - 40, y - 40) * 180) / Math.PI;
+          if (ev.shiftKey) a = Math.round(a / 45) * 45;
+          this.camSet("az", a);
+        } else {
+          let el = (Math.atan2(62 - y, x - 18) * 180) / Math.PI;
+          if (ev.shiftKey) el = Math.round(el / 15) * 15;
+          this.camSet("el", el);
+        }
+      };
+      at(e);
+      try { svg.setPointerCapture(e.pointerId); } catch (_) { /* old pointer */ }
+      const up = () => { svg.removeEventListener("pointermove", at); svg.removeEventListener("pointerup", up); svg.removeEventListener("pointercancel", up); };
+      svg.addEventListener("pointermove", at);
+      svg.addEventListener("pointerup", up);
+      svg.addEventListener("pointercancel", up);
     },
     camWheel(e) { e.preventDefault(); this.camSet("zoom", this.form.cam.zoom - Math.sign(e.deltaY) * 0.5); },
     camCardStyle() {

@@ -3400,7 +3400,7 @@
         </template>
         <template v-else-if="form.i2i_mode === 'camera'">
           <div class="hint">Turn the camera around the subject: drag the card (left / right goes around, up / down goes over or
-            under), scroll on it to move nearer or further, or use the sliders and lists. Same picture, same character, new angle.
+            under) or the yellow dots on the two dials, scroll on it to move nearer or further, or use the sliders and lists. Same picture, same character, new angle.
             Uses FLUX.2 Klein, like ✨ Edit with words.</div>
           <div class="cam-rig">
             <div class="cam-stage" @pointerdown="camDown" @wheel="camWheel" title="Drag to turn the camera · scroll to zoom">
@@ -3409,12 +3409,14 @@
                 <i class="cam-back"></i>
               </div>
             </div>
-            <svg class="cam-dial" viewBox="0 0 80 80" aria-hidden="true">
+            <svg class="cam-dial drag" viewBox="0 0 80 80" @pointerdown="camDialDown('az', $event)" @dblclick="camSet('az', 0)"
+                 title="Seen from above: drag the yellow dot around the subject to turn the camera (hold ⇧ for 45° steps) · double-click: front">
               <circle cx="40" cy="40" r="30" class="ring"/><rect x="33" y="37" width="14" height="6" class="subj"/>
               <text x="40" y="78" text-anchor="middle">front</text>
               <line x1="40" y1="40" :x2="camDot().x" :y2="camDot().y" class="ray"/><circle :cx="camDot().x" :cy="camDot().y" r="4.5" class="cam"/>
             </svg>
-            <svg class="cam-dial" viewBox="0 0 80 80" aria-hidden="true">
+            <svg class="cam-dial drag" viewBox="0 0 80 80" @pointerdown="camDialDown('el', $event)" @dblclick="camSet('el', 0)"
+                 title="Seen from the side: drag the yellow dot up or down the arc to look from above or below (hold ⇧ for 15° steps) · double-click: eye level">
               <path d="M 62 62 A 44 44 0 0 0 40 23.9" class="ring"/><path d="M 62 62 A 44 44 0 0 1 56.1 84" class="ring dim"/>
               <rect x="12" y="52" width="12" height="20" class="subj"/>
               <line x1="18" y1="62" :x2="camDot().ex" :y2="camDot().ey" class="ray"/><circle :cx="camDot().ex" :cy="camDot().ey" r="4.5" class="cam"/>
