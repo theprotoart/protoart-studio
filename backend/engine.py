@@ -4643,6 +4643,62 @@ class Engine:
         return canvas, (left, top, left + w, top + h)
 
     @staticmethod
+    def zoom_out_prompt(pads, w, h):
+        """🧠 MiniMax-H3-Image's Expand instruction: zoom out from Picture 1 towards the sides being added."""
+        sides = [n for n in ("top", "bottom", "left", "right") if pads.get(n)]
+        words = {"top": "above", "bottom": "below", "left": "to the left of", "right": "to the right of"}
+        where = " and ".join(words[n] for n in sides) or "around"
+        tall, wide = (pads.get("top") or pads.get("bottom")), (pads.get("left") or pads.get("right"))
+        frame = "a taller" if tall and not wide else "a wider" if wide and not tall else "a bigger"
+        return (f"Zoom out from <Picture 1>: show the same scene in {frame} frame, revealing more of the surroundings "
+                f"{where} it, painted with real, sharp detail in the same light, colours, perspective and style. "
+                "Everything in <Picture 1> stays exactly the same (same people, pose, faces, clothes and lighting), at "
+                "the same size, only with more of the scene around it. One seamless photo: no border, no frame, no "
+                "blur, no collage.")
+
+    @staticmethod
+    def locate_in(drawn, original, box, min_score=0.45):
+        """Find your picture inside a zoomed-out result (any position, 0.55-1.3x the size it should be), then scale
+        and move the result so your picture lands exactly on box. -> (placed result or None, info). None when it
+        isn't found clearly, or when lining it up would leave part of the canvas empty."""
+        import cv2
+        import numpy as np
+        from PIL import Image
+        Wc, Hc = drawn.size
+        x0, y0, x1, y1 = box
+        w, h = x1 - x0, y1 - y0
+        f = 384 / max(Wc, Hc)
+        D = np.asarray(drawn.convert("L").resize((max(8, round(Wc * f)), max(8, round(Hc * f))), Image.BILINEAR),
+                       np.float32)
+        O = original.convert("L")
+        best = (-1.0, 1.0, 0, 0)
+        for s in np.linspace(0.55, 1.3, 31):
+            tw, th = round(w * f * s), round(h * f * s)
+            if tw < 8 or th < 8 or tw > D.shape[1] or th > D.shape[0]:
+                continue
+            T = np.asarray(O.resize((tw, th), Image.BILINEAR), np.float32)
+            res = cv2.matchTemplate(D, T, cv2.TM_CCOEFF_NORMED)
+            _, score, _, (bx, by) = cv2.minMaxLoc(res)
+            if score > best[0]:
+                best = (float(score), float(s), bx / f, by / f)
+        score, s, fx, fy = best
+        info = {"score": round(score, 3), "scale": round(s, 3), "at": (round(fx), round(fy))}
+        if score < min_score:
+            return None, info
+        r = 1 / s  # enlarge (or shrink) the result so its copy of your picture is your picture's size
+        ox, oy = x0 - fx * r, y0 - fy * r  # where the scaled result's top-left goes on the canvas
+        bw, bh = Wc * r, Hc * r
+        cover = min(-ox, -oy, ox + bw - Wc, oy + bh - Hc)  # >= 0 when the scaled result covers the whole canvas
+        if cover < -max(3, 0.01 * max(Wc, Hc)):
+            info["gap"] = round(-cover)
+            return None, info
+        big = np.asarray(drawn.convert("RGB").resize((max(1, round(bw)), max(1, round(bh))), Image.LANCZOS))
+        pad = int(max(0, -cover)) + 2
+        big = np.pad(big, ((pad, pad), (pad, pad), (0, 0)), mode="edge")
+        sx, sy = round(-ox) + pad, round(-oy) + pad
+        return Image.fromarray(np.ascontiguousarray(big[sy:sy + Hc, sx:sx + Wc])), info
+
+    @staticmethod
     def align_to_original(result, original, box, max_shift=64):
         """FLUX.2 may redraw the scene a few pixels off. Find how far its version of your picture moved (phase
         correlation on a small grey copy), move the whole result back by that much, and say how different the
@@ -4753,7 +4809,7 @@ class Engine:
                         Path(f).unlink()
                     except OSError:
                         pass
-        elif args.get("edit_model") == "h3_image":  # 🧠 MiniMax-H3-Image continues the scene into the green border
+        elif args.get("edit_model") == "h3_image":  # 🧠 MiniMax-H3-Image zooms out from your picture
             import h3_engine
             h3spec = all_models().get("h3_image")
             if not h3spec or not h3_engine.licence_accepted():
@@ -4764,8 +4820,8 @@ class Engine:
             self._h3_prepare(h3spec)
             sizes = {"768": 768, "896": 896, "1024": 1024, "1280": 1280, "1536": 1536, "2048": 2048}
             side = sizes.get(str(args.get("h3_side") or ""), side)
-            # The whole canvas is drawn AND read back as Picture 1, so an expand costs about twice an edit of that size:
-            # on 8-12 GB Macs 1280 (1024 x 1568) froze the computer. Keep it to ~1 MP there, Picture 1 read at 768.
+            # The canvas is drawn and your picture read as Picture 1: on 8-12 GB Macs 1280 (1024 x 1568) froze the
+            # computer. Keep it to ~1 MP there, Picture 1 read at 768.
             small = 0 < ram < 12
             if small and side > 1024:
                 side = 1024
@@ -4774,32 +4830,22 @@ class Engine:
             k = side / max(1.0, (canvas.width * canvas.height) ** 0.5)
             width, height = max(256, int(canvas.width * k) // 32 * 32), max(256, int(canvas.height * k) // 32 * 32)
             steps = 6
-            # H3 wasn't trained on the outpaint LoRA's green border (it kept it as a green bar): it gets the canvas with the
-            # new area pre-filled with smudged edge colours instead, and is asked to paint real detail there
-            import detailer
-            smudge, _m = detailer.outpaint_canvas(image, **pads)
-            prompt = ("Edit <Picture 1>: the blurry, smeared areas around its edges are unfinished. Paint them with real, "
-                      "sharp detail that continues the scene naturally outward, with the same light, colours, perspective "
-                      "and style, so the whole picture is one seamless, finished image. Keep the sharp picture in the "
-                      "middle exactly as it is. No blur, no border, no frame, no seams." + (f" {extra}" if extra else ""))
+            # H3 keeps whatever it is shown (a green border stayed a green bar, a smudged border stayed blurry), so it
+            # isn't shown a border at all: it gets your picture as it is and is asked to zoom out to the new frame.
+            # Your picture is then found in its result and the result lined up and scaled so it sits exactly where
+            # it should (locate_in), and your original pasted back as usual.
+            prompt = self.zoom_out_prompt(pads, w, h) + (f" {extra}" if extra else "")
             tmp = paths.HOME / "tmp"
             tmp.mkdir(parents=True, exist_ok=True)
             first, out = tmp / f"h3expand_src_{os.getpid()}.png", tmp / f"h3expand_out_{os.getpid()}.png"
-            smudge.resize((width, height), Image.LANCZOS).save(first)
+            image.convert("RGB").save(first)
             try:
                 self._h3_picture(prompt, out, width, height, seed, [first],
-                                 ref_sides=[min(width, height, 768) if small else min(width, height)])
-                result = Image.open(out).convert("RGB")
-                # did it actually paint the new area? (if it just kept the smudge, say so rather than save a blur)
-                import numpy as _np
-                new_area = _np.asarray(_m.resize(result.size)) > 200
-                if new_area.any():
-                    a_ = _np.asarray(result, _np.float32)[new_area]
-                    b_ = _np.asarray(smudge.resize(result.size, Image.LANCZOS), _np.float32)[new_area]
-                    if float(_np.abs(a_ - b_).mean()) < 6:
-                        raise UserError("MiniMax-H3-Image left the new area unfinished. Try again with a prompt saying what "
-                                        "should be around the picture (e.g. “more of the cosy workshop, with shelves and "
-                                        "lamps”), or another seed, or fill it with FLUX.2 / Z-Image.")
+                                 ref_sides=[min(w, h, 768 if small else 1024)])
+                drawn = Image.open(out).convert("RGB").resize(canvas.size, Image.LANCZOS)
+                placed = self.locate_in(drawn, image, box)
+                print(f"[expand] H3 zoom-out: picture found {placed[1]}", flush=True)
+                result = placed[0] if placed[0] is not None else drawn
             finally:
                 for f in (out, first):
                     try:
