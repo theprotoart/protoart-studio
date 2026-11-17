@@ -804,7 +804,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.20";
+const APP_VERSION = "1.6.21";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1179,7 +1179,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Next: 📁 image folder fix", items: [
+            { h: "1.6.21: 📁 image folder fix", items: [
               "<b>📁 Image folder</b>: choosing a new folder right after the app opens works the first time. It used to be refused for a minute or so while the app loaded a model in the background (“Wait for the queue to finish”, with nothing in the queue). Now only a picture that's being made has to finish first.",
             ] },
             { h: "1.6.20: 📷 drag the camera dials, 🧠 MiniMax expand paints real detail", items: [

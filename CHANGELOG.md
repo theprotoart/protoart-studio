@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.21
 
 - 📁 Settings → Image folder was refused with “Wait for the queue to finish” while the startup preload loaded a
   model (84 s from an external drive in a user's log), so the folder had to be picked 4–5 times. `set_images_dir` now
