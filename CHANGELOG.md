@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- 📁 Settings → Image folder was refused with “Wait for the queue to finish” while the startup preload loaded a
+  model (84 s from an external drive in a user's log), so the folder had to be picked 4–5 times. `set_images_dir` now
+  only waits for real work (`busy_with_work`); a preload saves no pictures. A successful change clears the old error.
+
 ## 1.6.20
 
 - 🧠 MiniMax-H3-Image ↔ Expand painted the new area as a blur: it keeps whatever it's shown (a green border stayed

@@ -1179,6 +1179,9 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Next: 📁 image folder fix", items: [
+              "<b>📁 Image folder</b>: choosing a new folder right after the app opens works the first time. It used to be refused for a minute or so while the app loaded a model in the background (“Wait for the queue to finish”, with nothing in the queue). Now only a picture that's being made has to finish first.",
+            ] },
             { h: "1.6.20: 📷 drag the camera dials, 🧠 MiniMax expand paints real detail", items: [
               "<b>↔ Expand with 🧠 MiniMax-H3-Image</b> now paints real detail in the new area instead of a blur: MiniMax zooms out from your picture, then the app finds your picture in the result and puts your original back exactly in its place.",
               "<b>📷 Camera angle</b>: the two dials beside the card can now be dragged. Pull the yellow dot around the pink ring to turn the camera around the subject, or up and down the blue arc to look from above or below. Hold ⇧ for 45° / 15° steps; double-click a dial to go back to the front or eye level.",
@@ -12650,6 +12653,7 @@ const protoartApp = createApp({
       try {
         const res = await call("images_dir_set", { path: picked, move_existing: this.moveExisting });
         this.imagesDir = await call("images_dir_get");
+        this.error = "";  // an earlier refusal shouldn't stay lit once the folder has changed
         this.status = `Images will be saved to ${res.path}` + (res.moved ? ` (moved ${res.moved} existing)` : "");
         if (res.failed?.length) this.error = "Some images couldn't be moved:\n" + res.failed.join("\n");
         this.session = [];
@@ -12663,6 +12667,7 @@ const protoartApp = createApp({
       try {
         await call("images_dir_set", { path: this.imagesDir.default, move_existing: this.moveExisting });
         this.imagesDir = await call("images_dir_get");
+        this.error = "";
       } catch (e) {
         this.error = e.message;
       }

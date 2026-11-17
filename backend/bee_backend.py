@@ -2028,8 +2028,12 @@ def folder_roots():
 
 
 def set_images_dir(new, move_existing):
-    if jobs.busy():
-        raise ValueError("Wait for the queue to finish before changing the image folder.")
+    # Only a job that saves pictures has to finish first. The model the app loads ahead of time when it starts (a
+    # "preload", which can take a minute or more from an external drive) saves nothing, so it no longer blocks this:
+    # it used to refuse the new folder for that whole minute, with an empty-looking queue.
+    if jobs.busy_with_work():
+        raise ValueError("A picture is being made: wait for it (and anything waiting in the queue) to finish, "
+                         "then choose the image folder again.")
     new = Path(str(new or "")).expanduser()
     if not new.is_absolute():
         raise ValueError("Choose a folder")
