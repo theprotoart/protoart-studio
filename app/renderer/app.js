@@ -804,7 +804,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.21";
+const APP_VERSION = "1.6.22";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1179,7 +1179,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Next: fixes", items: [
+            { h: "1.6.22: 🛡 invert Protect from Enhance, clearer Relight choices", items: [
               "<b>💡 Relight</b>: the Background choices are now named for what they change: <b>Character</b> (was Mine), <b>Character + Light</b> (was Mine, relit) and <b>All</b> (was New one), under the heading <b>Relight</b>.",
               "<b>🛡 Protect from Enhance</b> can be inverted: <b>⇄ Invert</b> while painting, or <b>⇄ invert</b> beside “🛡 set” afterwards. Paint (or 👤 select) the part you want enhanced, invert, and Enhance leaves everything else as it is. ⇄ Invert is now in every Tools painting mode.",
               "<b>Fix</b>: deleting pictures in the Library no longer shows “Deleted … images” in Image to image's preview (or under the picture details) while a job is running; those places now show only the job's own progress.",

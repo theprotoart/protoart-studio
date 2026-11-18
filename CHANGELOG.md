@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.22
 
 - 💡 Relight's Background choices renamed (Tools and Image to image): Mine → Character, Mine, relit → Character +
   Light, New one → All, under the heading “Relight”. Same settings underneath (`keep`, `keep_relit`, `new`).
