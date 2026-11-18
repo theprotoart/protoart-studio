@@ -3133,7 +3133,7 @@
 
 
 
-      <div v-if="busy" class="hint">{{ status }}{{ queue.length > 1 ? ' · ' + queue.length + ' jobs in queue' : '' }}</div>
+      <div v-if="busy" class="hint">{{ progressText }}{{ queue.length > 1 ? ' · ' + queue.length + ' jobs in queue' : '' }}</div>
       <div v-if="memLow && memLowShown" class="mem-low"><span><b>Your Mac is short of memory</b>, so this will be slow:
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>
@@ -4341,7 +4341,7 @@
           <template v-else-if="i2iRunning">
             <figure v-if="opts.previews && livePreview && livePreview.job === runningJob.id">
               <img :src="livePreview.src"><figcaption><span class="live-dot"></span> live preview</figcaption></figure>
-            <figure v-else class="waiting"><div class="spinner"></div><figcaption>{{ status }}</figcaption></figure>
+            <figure v-else class="waiting"><div class="spinner"></div><figcaption>{{ progressText }}</figcaption></figure>
           </template>
           <template v-else-if="i2iLatest">
             <figure v-if="i2iCompare && form.init_image" class="zoom-fig"><img :src="fileUrl(form.init_image)" :style="zoomStyle('i2i')"><figcaption>original</figcaption></figure>
@@ -5685,7 +5685,7 @@
             <button class="primary" @click="openInTools(detail)">✨ Enhance &amp; upscale…</button>
             <span class="hint">opens the Finegrain enhancer in Tools</span>
           </div>
-          <div v-if="busy" class="hint">{{ status }}{{ queue.length > 1 ? ' · ' + queue.length + ' jobs in queue' : '' }}</div>
+          <div v-if="busy" class="hint">{{ progressText }}{{ queue.length > 1 ? ' · ' + queue.length + ' jobs in queue' : '' }}</div>
           <div v-if="memLow && memLowShown" class="mem-low"><span><b>Your Mac is short of memory</b>, so this will be slow:
         only {{ memLow.free }} GB is free and {{ memLow.swap }} GB has been moved to the disk. Quit apps you aren't using
         (browsers with many tabs, Discord, other image apps) and pictures get several times faster.<template v-if="memLow.sdxl"> On an 8 GB Mac, SD 1.5 models or ⚡ fast mode are also much quicker than SDXL.</template></span>

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Image to image's waiting preview and the two busy hints showed the app-wide `status` line, so the Library's
+  “Deleted 2 images” appeared over a running edit. They now show `progressText` (the job's own progress, or the
+  engine's last message before the first step).
+
 ## 1.6.21
 
 - 📁 Settings → Image folder was refused with “Wait for the queue to finish” while the startup preload loaded a

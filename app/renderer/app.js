@@ -1179,6 +1179,9 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Next: fixes", items: [
+              "<b>Fix</b>: deleting pictures in the Library no longer shows “Deleted … images” in Image to image's preview (or under the picture details) while a job is running; those places now show only the job's own progress.",
+            ] },
             { h: "1.6.21: 📁 image folder fix", items: [
               "<b>📁 Image folder</b>: choosing a new folder right after the app opens works the first time. It used to be refused for a minute or so while the app loaded a model in the background (“Wait for the queue to finish”, with nothing in the queue). Now only a picture that's being made has to finish first.",
             ] },
