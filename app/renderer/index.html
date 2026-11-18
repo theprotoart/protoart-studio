@@ -2647,7 +2647,7 @@
           </div>
           <label class="check" title="IC-Light's second pass: 1.5× larger with more detail (the slow part: about twice as long). Off with ⚡ Fast"><input type="checkbox" v-model="post.relight.hires" :disabled="post.relight.speed === 'fast'"> Add detail (1.5× larger)</label>
           <label title="What the new light changes: just the character, the character and the light on your background, or everything (a new background)">Relight</label>
-          <div class="seg mod-seg">
+          <div class="seg mod-seg relight-bg">
             <button :class="{on: (post.relight.background || 'keep') === 'keep'}" @click="post.relight.background = 'keep'" title="Only the character is relit; your background stays exactly as it was (the character is cut out and placed back for you)">Character</button>
             <button :class="{on: post.relight.background === 'keep_relit'}" @click="post.relight.background = 'keep_relit'" title="The character is relit and your own background takes on the new light too: its colour, and brighter where surfaces face the light (read from a depth map). Everything in it stays">Character + Light</button>
             <button :class="{on: post.relight.background === 'new'}" @click="post.relight.background = 'new'" title="Everything is new: the relit character on a fresh background that Relight draws to match the light">All</button>

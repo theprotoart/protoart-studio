@@ -2772,3 +2772,7 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
   .i2i, .tools, .train { grid-auto-rows: max-content; grid-template-rows: none; }
   .i2i > .i2i-right { order: -1; }  /* the picture / result first, the controls under it */
 }
+
+/* 💡 Relight's Character / Character + Light / All: the middle one wraps onto two lines in a narrow module */
+.rack-module .mod-seg.relight-bg button { white-space: normal; text-overflow: clip; line-height: 1.15; padding: 4px 3px; overflow-wrap: anywhere; }
+.rack-module .mod-seg.relight-bg button:nth-child(2) { flex-grow: 1.4; }
