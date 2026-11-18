@@ -1180,6 +1180,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Next: fixes", items: [
+              "<b>🛡 Protect from Enhance</b> can be inverted: <b>⇄ Invert</b> while painting, or <b>⇄ invert</b> beside “🛡 set” afterwards. Paint (or 👤 select) the part you want enhanced, invert, and Enhance leaves everything else as it is. ⇄ Invert is now in every Tools painting mode.",
               "<b>Fix</b>: deleting pictures in the Library no longer shows “Deleted … images” in Image to image's preview (or under the picture details) while a job is running; those places now show only the job's own progress.",
             ] },
             { h: "1.6.21: 📁 image folder fix", items: [
@@ -1865,7 +1866,7 @@ const protoartApp = createApp({
               "<b>⏻ Force quit</b> closes the whole app immediately, even in the middle of a job (it asks once to confirm).",
               "Use them when a picture takes far too long, the Mac feels frozen, or ■ Stop doesn't respond. Pictures, settings and models are never affected." ] },
             { h: "Enhance & upscale", items: [
-              "<b>🛡 Protect from Enhance…</b>: paint over what Enhance mustn't change (faces, hands, text, a logo), then ✓ Done protecting. Those areas come back from the picture as it was (upscaled to the same size, with a soft edge). It's used whenever Enhance runs on this picture, on its own, in Run chain and in the 🔌 patchbay, so a chain like Enhance → Restore faces still restores the faces. The patchbay's own <b>🛡 Protect areas…</b> keeps areas away from <i>every</i> module instead. <b>clear</b> lets Enhance work on the whole picture again.",
+              "<b>🛡 Protect from Enhance…</b>: paint over what Enhance mustn't change (faces, hands, text, a logo), then ✓ Done protecting. Those areas come back from the picture as it was (upscaled to the same size, with a soft edge). It's used whenever Enhance runs on this picture, on its own, in Run chain and in the 🔌 patchbay, so a chain like Enhance → Restore faces still restores the faces. The patchbay's own <b>🛡 Protect areas…</b> keeps areas away from <i>every</i> module instead. <b>⇄ Invert</b> (while painting, or <b>⇄ invert</b> beside “🛡 set”) swaps protected and unprotected: paint or 👤 select the part to enhance, invert, and the rest stays as it is. <b>clear</b> lets Enhance work on the whole picture again.",
               "<b>Painting in Tools</b>: whenever you paint on the picture (🩹 Remove, ✨ Enhance's area, 🛡 Protect from Enhance, the patchbay's 🛡 Protect areas), the painting tools appear <b>under the picture</b> with what you're painting for. Each keeps its own painting: switch between them and each comes back as you left it. <b>✓ Done</b> keeps it, <b>cancel</b> forgets it.",
               "<b>🖌 Only a painted area</b>: switch it on and paint over the part to enhance (the same brush as Remove objects). Only that part is enhanced; the rest of the picture is upscaled as it is and the edge is blended in. Quicker on a big picture.",
               "<b>🎨 Keep the picture's style</b>: for paintings, drawings and anime. Adds detail in the picture's own look instead of a photo's; type a few style words if you like (oil painting, visible brush strokes).",
@@ -5598,6 +5599,28 @@ const protoartApp = createApp({
       const set = this.toolPaintSlot(kind);
       this.status = !set ? "" : kind === "enhProtect" ? "Protected from Enhance: those areas stay as they are (just upscaled) whenever Enhance runs, on its own or in the patch"
         : "Protected areas set: they stay as they are when the patch runs";
+    },
+    async enhProtectInvert() {  // 🛡 ⇄ swap what Enhance protects and what it works on, without painting again
+      const pr = this.patch.enhProtect;
+      if (!pr || !pr.data) return;
+      const img = new Image();
+      await new Promise((ok, fail) => { img.onload = ok; img.onerror = fail; img.src = pr.data; }).catch(() => null);
+      if (!img.naturalWidth) return;
+      const cv = document.createElement("canvas");
+      cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+      const ctx = cv.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      const im = ctx.getImageData(0, 0, cv.width, cv.height), d = im.data;
+      let any = false;
+      for (let i = 0; i < d.length; i += 4) {
+        const on = d[i + 3] > 32;
+        d[i] = 255; d[i + 1] = 64; d[i + 2] = 129; d[i + 3] = on ? 0 : 255;
+        if (!on) any = true;
+      }
+      ctx.putImageData(im, 0, 0);
+      this.patch.enhProtect = any ? { data: cv.toDataURL("image/png"), for: pr.for } : null;
+      this.status = any ? "Protection inverted: Enhance now works only on what you painted and leaves the rest as it is"
+        : "Protection inverted: nothing is protected now";
     },
     enhProtectArgs() {  // ✨ Enhance's 🛡 protected areas, for this picture
       const pr = this.patch.enhProtect;

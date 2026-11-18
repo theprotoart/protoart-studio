@@ -1777,6 +1777,7 @@
         </div>
         <div class="sel-opts">
           <div class="seg"><button :class="{on: !mask.subtract}" @click="mask.subtract = false" title="Add to the painted area">＋ Add</button><button :class="{on: mask.subtract}" @click="mask.subtract = true" title="Take away from the painted area (or hold ⌥ Option while you select)">－ Subtract</button></div>
+          <button class="ghost small" @click="maskInvert" :title="tool.paintFor === 'enhProtect' ? 'Swap painted and unpainted areas: paint (or 👤 select) the part Enhance should work on, then Invert, and everything else is protected' : 'Swap painted and unpainted areas: after 👤 Subject, everything except the subject (the background)'">⇄ Invert</button>
           <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
           <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
           <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
@@ -2408,6 +2409,7 @@
                     title="Paint over what Enhance mustn't change (faces, hands, a logo). Those areas are only upscaled, and blended in softly. Used when Enhance runs on its own and in the patchbay.">🛡 Protect from Enhance…</button>
             <button v-else class="primary small" @click="patchProtect(false)" title="Keep what you painted as the areas Enhance leaves alone">✓ Done protecting</button>
             <span v-if="patch.enhProtect && tool.source && patch.enhProtect.for === tool.source.path && !(tool.protecting && tool.protectWhich === 'enhance')" class="hint">🛡 set ·
+              <button class="link small" @click="enhProtectInvert" title="Swap protected and unprotected: Enhance then works only on what you painted, and leaves everything else as it is">⇄ invert</button> ·
               <button class="link small" @click="patch.enhProtect = null" title="Let Enhance work on the whole picture again">clear</button></span>
           </div>
           <button class="mod-switch enh-area-sw" :class="{on: tool.enhArea}" :disabled="!tool.source" @click="toggleEnhArea"
