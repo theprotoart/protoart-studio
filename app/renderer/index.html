@@ -2646,11 +2646,11 @@
             <button v-if="editModelH3()" :class="{on: post.relight.speed === 'h3'}" @click="post.relight.speed = 'h3'" title="MiniMax-H3-Image relights the whole picture from your words (or a reference picture's light) in one edit, keeping people and composition: no SD 1.5 model needed. Slower: about 6 minutes on an 8 GB Mac">🧠 H3</button>
           </div>
           <label class="check" title="IC-Light's second pass: 1.5× larger with more detail (the slow part: about twice as long). Off with ⚡ Fast"><input type="checkbox" v-model="post.relight.hires" :disabled="post.relight.speed === 'fast'"> Add detail (1.5× larger)</label>
-          <label title="IC-Light draws a new background to match the light. Keep mine puts the relit subject back on your picture's own background">Background</label>
+          <label title="What the new light changes: just the character, the character and the light on your background, or everything (a new background)">Relight</label>
           <div class="seg mod-seg">
-            <button :class="{on: (post.relight.background || 'keep') === 'keep'}" @click="post.relight.background = 'keep'" title="The relit subject on your picture's own background, exactly as it was (cut out and placed back for you)">Mine</button>
-            <button :class="{on: post.relight.background === 'keep_relit'}" @click="post.relight.background = 'keep_relit'" title="Your own background with everything in it, taking on the new light: its colour, and brighter where surfaces face the light (read from a depth map)">Mine, relit</button>
-            <button :class="{on: post.relight.background === 'new'}" @click="post.relight.background = 'new'" title="The background IC-Light draws for the new light">New one</button>
+            <button :class="{on: (post.relight.background || 'keep') === 'keep'}" @click="post.relight.background = 'keep'" title="Only the character is relit; your background stays exactly as it was (the character is cut out and placed back for you)">Character</button>
+            <button :class="{on: post.relight.background === 'keep_relit'}" @click="post.relight.background = 'keep_relit'" title="The character is relit and your own background takes on the new light too: its colour, and brighter where surfaces face the light (read from a depth map). Everything in it stays">Character + Light</button>
+            <button :class="{on: post.relight.background === 'new'}" @click="post.relight.background = 'new'" title="Everything is new: the relit character on a fresh background that Relight draws to match the light">All</button>
           </div>
           <details class="mod-more" title="Full size, shadow, blend in, warmth and light colour">
             <summary>finish: size, shadow, blend, warmth</summary>
@@ -3566,11 +3566,11 @@
           <div class="chips relight-ideas">
             <button v-for="x in RELIGHT_IDEAS" :key="'i' + x" class="chip" :class="{on: post.relight.prompt === x}" @click="relightIdea(x)">{{ x }}</button>
           </div>
-          <label>Background</label>
+          <label title="What the new light changes: just the character, the character and the light on your background, or everything (a new background)">Relight</label>
           <div class="seg">
-            <button :class="{on: (post.relight.background || 'keep') === 'keep'}" @click="post.relight.background = 'keep'">Keep mine</button>
-            <button :class="{on: post.relight.background === 'keep_relit'}" @click="post.relight.background = 'keep_relit'">Keep mine, relit</button>
-            <button :class="{on: post.relight.background === 'new'}" @click="post.relight.background = 'new'">New from Relight</button>
+            <button :class="{on: (post.relight.background || 'keep') === 'keep'}" @click="post.relight.background = 'keep'" title="Only the character is relit; your background stays exactly as it was (the character is cut out and placed back for you)">Character</button>
+            <button :class="{on: post.relight.background === 'keep_relit'}" @click="post.relight.background = 'keep_relit'" title="The character is relit and your own background takes on the new light too: its colour, and brighter where surfaces face the light (read from a depth map). Everything in it stays">Character + Light</button>
+            <button :class="{on: post.relight.background === 'new'}" @click="post.relight.background = 'new'" title="Everything is new: the relit character on a fresh background that Relight draws to match the light">All</button>
           </div>
           <label title="How long Relight takes. Turbo / Fast: far fewer steps, several times quicker (good for trying lights). Best: more steps for the finished picture">Speed</label>
           <div class="seg mod-seg relight-speed">

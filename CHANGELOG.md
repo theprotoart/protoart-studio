@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 💡 Relight's Background choices renamed (Tools and Image to image): Mine → Character, Mine, relit → Character +
+  Light, New one → All, under the heading “Relight”. Same settings underneath (`keep`, `keep_relit`, `new`).
 - 🛡 Protect from Enhance: ⇄ Invert in the Tools paint bar (all Tools painting modes) and ⇄ invert beside “🛡 set”
   (`enhProtectInvert`, swaps the stored protection without repainting).
 - Image to image's waiting preview and the two busy hints showed the app-wide `status` line, so the Library's
