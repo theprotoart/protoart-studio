@@ -135,20 +135,103 @@ def remove(unet, original):
     unet.set_attn_processor(original)
 
 
-def flux3_boxes(prompt, layout, ratios, prompts):
+def area_boxes(layout, ratios, n, boxes=None):
+    """The areas as (x0, y0, x1, y1) in 0..1: the boxes you drew (layout "free", 📦 Boxes) or the columns / rows / grid."""
+    if layout == "free":
+        out = []
+        for b in list(boxes or [])[:n]:
+            try:
+                x0, y0, x1, y1 = (min(1.0, max(0.0, float(v))) for v in b)
+            except (TypeError, ValueError):
+                x0, y0, x1, y1 = 0.0, 0.0, 1.0, 1.0
+            out.append((min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)))
+        return out + [(0.0, 0.0, 1.0, 1.0)] * (n - len(out))
+    return parse_layout(layout or "cols", ratios or "", n)
+
+
+def _grid(box):
+    """(x0, y0, x1, y1) in 0..1 → [y_min, x_min, y_max, x_max] on the 0-1000 grid (FLUX 3's and Ideogram 4's boxes)."""
+    x0, y0, x1, y1 = box
+    return [round(y0 * 1000), round(x0 * 1000), round(y1 * 1000), round(x1 * 1000)]
+
+
+def _quoted(text):
+    """(words to show, the rest) when an area's prompt has words in quotes ('SALE' / "SALE"), else (None, text)."""
+    import re
+    m = re.search(r"[\"“”']([^\"“”']{1,200})[\"“”']", text)
+    return (m.group(1).strip(), text) if m else (None, text)
+
+
+def _areas(layout):
+    parts = [p.strip() if isinstance(p, str) else "" for p in (layout.get("prompts") or [])]
+    boxes = area_boxes(layout.get("layout"), layout.get("ratios"), len(parts), layout.get("boxes"))
+    return [(t, b) for t, b in zip(parts, boxes) if t]
+
+
+def layout_prompt(family, prompt, layout, width=1024, height=1024):
+    """The prompt with the areas written in the way each model reads a layout (empty areas skipped; no areas: the
+    prompt as it was): FLUX 3 → flux3_boxes, Ideogram 4 → its JSON caption, MOSS-Image → its JSON layout."""
+    areas = _areas(layout or {})
+    if not areas:
+        return prompt
+    if family == "ideogram4":
+        return ideogram4_caption(prompt, areas)
+    if family == "moss":
+        return moss_layout(prompt, areas, width, height)
+    return flux3_boxes(prompt, layout.get("layout"), layout.get("ratios"), layout.get("prompts") or [], layout.get("boxes"))
+
+
+def ideogram4_caption(prompt, areas):
+    """Ideogram 4's JSON caption: the whole picture as high_level_description, each area an element (text when its
+    prompt has words in quotes) with its bbox on the 0-1000 grid. Key order as Ideogram's prompting guide."""
+    import json
+    elements = []
+    for text, box in areas:
+        words, desc = _quoted(text)
+        el = {"type": "text" if words else "obj", "bbox": _grid(box)}
+        if words:
+            el["text"] = words
+        el["desc"] = desc
+        elements.append(el)
+    cap = {"high_level_description": (prompt or "").strip(),
+           "compositional_deconstruction": {"background": "", "elements": elements}}
+    return json.dumps(cap, ensure_ascii=False)
+
+
+def moss_layout(prompt, areas, width, height):
+    """MOSS-Image's JSON layout prompt: summary caption plus one item per area (label object, or text with the words
+    in quotes), bbox [y_min, x_min, y_max, x_max] in pixels from the picture's centre ("abs_centralized", "yxyx")."""
+    import json
+    import math
+    hx, hy = int(width) // 2, int(height) // 2
+    items = []
+    for text, (x0, y0, x1, y1) in areas:
+        words, _ = _quoted(text)
+        item = {"label": "text" if words else "object", "caption": text}
+        if words:
+            item["text"] = words
+        item["bbox"] = [math.floor(round(y0 * height, 9)) - hy, math.floor(round(x0 * width, 9)) - hx,
+                        math.ceil(round(y1 * height, 9)) - hy, math.ceil(round(x1 * width, 9)) - hx]
+        items.append(item)
+    out = {"summary": {"caption": (prompt or "").strip()}, "items": items,
+           "bbox_coord_space": "abs_centralized", "bbox_format": "yxyx"}
+    return json.dumps(out, ensure_ascii=False, separators=(",", ":"))
+
+
+def flux3_boxes(prompt, layout, ratios, prompts, boxes=None):
     """🗺 Regions for FLUX 3 Image Klein, which reads layout boxes straight from the prompt: each area becomes an
-    element <region_N> with its box ([top, left, bottom, right] on a 0-1000 grid) and its description, listed as JSON
-    after the main prompt (Black Forest Labs' format). Empty areas are skipped."""
+    element <obj_N> with its box ([y_min, x_min, y_max, x_max] on a 0-1000 grid) and its description, listed as JSON
+    after the main prompt (Black Forest Labs' format, as ComfyUI's FLUX.3 prompt builders write it). Empty areas are
+    skipped."""
     import json
     parts = [p.strip() if isinstance(p, str) else "" for p in prompts]
-    boxes = parse_layout(layout or "cols", ratios or "", len(parts))
+    boxes = area_boxes(layout, ratios, len(parts), boxes)
     items, tags = [], []
-    for i, (text, (x0, y0, x1, y1)) in enumerate(zip(parts, boxes), 1):
+    for i, (text, box) in enumerate(zip(parts, boxes), 1):
         if not text:
             continue
-        rid = f"region_{i}"
-        items.append({"id": rid, "bbox": [round(y0 * 1000), round(x0 * 1000), round(y1 * 1000), round(x1 * 1000)],
-                      "desc": text})
+        rid = f"obj_{i}"
+        items.append({"id": rid, "bbox": _grid(box), "desc": text})
         tags.append(f"{text} <{rid}>")
     if not items:
         return prompt

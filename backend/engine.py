@@ -2921,11 +2921,11 @@ class Engine:
         if (rg0 and rg0.get("on", True) and spec.get("engine") == "mlx" and family in ("flux", "ernie", "flux2") and not args.get("_raw")
                 and not args.get("init_image") and len([x for x in rg0.get("prompts") or [] if isinstance(x, str) and x.strip()]) >= 2):
             return self.regions_by_parts(args, force=force)
-        if rg0 and rg0.get("on", True) and family == "flux3" and not args.get("_raw"):
-            # FLUX 3 places things itself from boxes in the prompt: no extra passes, the areas just become its layout
-            import regions as _rg
-            args = {**args, "prompt": _rg.flux3_boxes(args.get("prompt") or "", rg0.get("layout"), rg0.get("ratios"),
-                                                      rg0.get("prompts") or []), "regions": None}
+        layout = None
+        if rg0 and rg0.get("on", True) and family in ("flux3", "ideogram4", "moss") and not args.get("_raw"):
+            # FLUX 3, Ideogram 4 and MOSS-Image place things themselves from boxes written into the prompt: no extra
+            # passes, the areas (or the boxes you drew) just become their layout (after ✨ Enhance, below)
+            layout, args = rg0, {**args, "regions": None}
         if spec.get("inpaint") and not (args.get("mask") or isinstance(args.get("outpaint"), dict)):
             raise UserError(f"{spec['label']} is an inpainting model: it only fills in painted areas. It's used by "
                             "Image to image → Inpaint and Expand; pick another model to make or change whole pictures.")
@@ -3063,6 +3063,9 @@ class Engine:
                                                    "family": family})["prompt"]
                     self.emit({"type": "enhanced_prompt", "prompt": done[p], "original": p})
                 prompts[i] = done[p]
+        if layout:
+            import regions as _rg
+            prompts = [_rg.layout_prompt(family, p, layout, width, height) for p in prompts]
         if self.cancel_event.is_set():
             raise Cancelled()
 

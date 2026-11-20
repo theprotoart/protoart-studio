@@ -30,6 +30,15 @@
   `ideogram-ai/ideogram-4-fp8` files, quantized to 4-bit on load by mflux 0.24's `Ideogram4` (generic fast-engine
   path). 12 / 20 / 48 steps pass Ideogram's sampler presets (V4_TURBO_12 / V4_DEFAULT_20 / V4_QUALITY_48) so its
   guidance schedule is used; other step counts use a constant guidance. Ideogram 4 Non-Commercial licence.
+- 📦 Boxes (🗺 Regions layout "free", `regions.boxes` = [x0, y0, x1, y1] fractions): draw / move / resize areas on
+  the region map (`regDown`), up to 8. Offered for the models that read layouts from the prompt
+  (`regionsLayout`: FLUX 3, Ideogram 4, MOSS-Image); `regions.layout_prompt` writes them after ✨ Enhance (it used to
+  run before, so Enhance rewrote FLUX 3's box table): FLUX 3 → text with `<obj_N>` + JSON rows (ids now `obj_N`, as
+  BFL / ComfyUI's builders), Ideogram 4 → its JSON caption (high_level_description + compositional_deconstruction
+  elements, `text` type for quoted words), MOSS-Image → its JSON layout (summary + items, pixel bbox from the centre,
+  `abs_centralized` / `yxyx`). Formats follow ComfyUI-KJNodes' FLUX.3 / Ideogram 4 / MOSS prompt builders (read for
+  the format only; no code taken, it's GPL-3.0).
+- Fixed: FLUX 3's 🗺 Regions were dropped by `cleanExtras` before reaching the backend.
 - Create's model-type chips and the Models tab's type list gain FLUX 3 (and MiniMax-H3 in the Models tab); a test
   checks that every catalog model type has both.
 

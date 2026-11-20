@@ -27,9 +27,9 @@ def test_lora_type():
 def test_regions_become_layout_boxes():
     p = regions.flux3_boxes("A sunny park", "cols", "2,1", ["a woman in a red coat", "", "a dog"])
     head, _, tail = p.partition(" [")
-    assert head.startswith("A sunny park. a woman in a red coat <region_1>; a dog <region_3>.")
+    assert head.startswith("A sunny park. a woman in a red coat <obj_1>; a dog <obj_3>.")
     items = json.loads("[" + tail)
-    assert [i["id"] for i in items] == ["region_1", "region_3"]  # the empty area is skipped
+    assert [i["id"] for i in items] == ["obj_1", "obj_3"]  # the empty area is skipped
     assert items[0]["bbox"] == [0, 0, 1000, 500]  # [top, left, bottom, right] on 0-1000
     assert items[1]["bbox"] == [0, 750, 1000, 1000]
     assert regions.flux3_boxes("Just this", "cols", "", ["", ""]) == "Just this"
@@ -69,3 +69,20 @@ def test_ideogram4_entry():
     assert m["family"] == "ideogram4" and m["gated"] and m["min_ram_gb"] >= 24 and m["mlx_quantize"] == 4
     assert mlx_worker._family(m["mlx_base"]) == "ideogram4"
     assert mlx_worker.IDEOGRAM_PRESETS[m["defaults"]["steps"]] == "V4_DEFAULT_20"
+
+
+def test_drawn_boxes_for_flux3_ideogram4_and_moss():
+    lay = {"layout": "free", "prompts": ["a red kite", "a sign that reads 'SALE'"],
+           "boxes": [[0.1, 0.2, 0.5, 0.6], [0.6, 0.7, 0.9, 1.0]]}
+    f3 = regions.layout_prompt("flux3", "A beach", lay)
+    items = json.loads(f3[f3.index("["):])
+    assert items[0] == {"id": "obj_1", "bbox": [200, 100, 600, 500], "desc": "a red kite"}
+    ideo = json.loads(regions.layout_prompt("ideogram4", "A beach poster", lay))
+    els = ideo["compositional_deconstruction"]["elements"]
+    assert ideo["high_level_description"] == "A beach poster"
+    assert els[0]["type"] == "obj" and els[1] == {"type": "text", "bbox": [700, 600, 1000, 900], "text": "SALE",
+                                                   "desc": "a sign that reads 'SALE'"}
+    moss = json.loads(regions.layout_prompt("moss", "A beach", lay, 1024, 768))
+    assert moss["bbox_format"] == "yxyx" and moss["items"][0]["bbox"] == [-231, -410, 77, 0]
+    assert moss["items"][1]["label"] == "text" and moss["items"][1]["text"] == "SALE"
+    assert regions.layout_prompt("moss", "Plain", {"layout": "free", "prompts": [""], "boxes": []}) == "Plain"

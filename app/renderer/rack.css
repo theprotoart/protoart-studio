@@ -2178,6 +2178,11 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .reg-map { position: relative; width: 140px; max-height: 180px; border: 1px solid #000; background: #1a1a1a; margin: 6px 0; }
 .reg-box { position: absolute; display: grid; place-items: center; font: 700 11px var(--f-eng, sans-serif); color: #ffe0a0;
   border: 1px dashed rgba(255, 196, 77, .7); background: rgba(255, 196, 77, .08); box-sizing: border-box; }
+.reg-map.free { max-height: none; cursor: crosshair; touch-action: none; user-select: none; }
+.reg-map.free .reg-box { cursor: move; }
+.reg-box.sel { border-style: solid; background: rgba(255, 196, 77, .2); }
+.reg-h { position: absolute; right: -5px; bottom: -5px; width: 10px; height: 10px; background: #ffc44d; border: 1px solid #000; cursor: nwse-resize; }
+.reg-prompt.sel .reg-n { background: #ffc44d; color: #111; }
 .reg-prompt { display: flex; align-items: flex-start; gap: 6px; margin: 4px 0; }
 .reg-prompt textarea { flex: 1; min-width: 0; }
 .reg-n { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: #222; border: 1px solid #000; flex: none; margin-top: 4px; }

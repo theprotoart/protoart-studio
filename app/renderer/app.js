@@ -239,7 +239,7 @@ function defaultForm() {
     sampler: "", seed: -1, num_images: 1, loras: [],
     var_seed: -1, var_strength: 0,  // 🎲 Small change (variation seed): 0 = off
     seamless: false,  // 🧱 Seamless: the picture tiles
-    regions: { on: false, layout: "cols", ratios: "1,1", prompts: ["", ""], base: 0.2, add_main: false, refine: 0.5 },  // 🗺 Regional prompts
+    regions: { on: false, layout: "cols", ratios: "1,1", prompts: ["", ""], base: 0.2, add_main: false, refine: 0.5, boxes: [] },  // 🗺 Regional prompts (boxes: 📦 drawn areas)
     swap: { face: "", more: [], which: "all", picks: [], marks: [], boost: 1, restore: true, consent: false },  // 🔁 Face swap (Image to image)
     vae: "",
     restore_faces: false, face_strength: 0.8, face_model: "codeformer", face_fidelity: 0.5, enhance_prompt: false, clip_skip: 1, quality_tags: true,
@@ -1039,7 +1039,7 @@ const protoartApp = createApp({
       dlJob: null,
       detLoraQ: "",
       gmenu: null,
-      regionBusy: -1, regionUndo: {},
+      regionBusy: -1, regionUndo: {}, regSel: -1,
       regionPlanText: "", regionPlanBusy: false, regionPlanUndo: null, REGION_TEMPLATES,  // 🗺 ✨ Plan the layout from one sentence  // 🗺 ✨ enhance an area's prompt      // right-click menus for models, LoRAs, the queue and folders (pictures have their own)
       i2iSuggesting: false,  // Image to image → 💡 suggest from the picture     // Tools → Detail with a LoRA: search box      // the job that stopped for a missing first-time download (⬇ Download it now)
       dlBusy: false,
@@ -1229,6 +1229,8 @@ const protoartApp = createApp({
               "<b>LoRAs for MOSS-Image</b>: MOSS now uses the LoRAs you pick, including <b>LoKr</b> files (like FameGrid's). MOSS LoRAs are recognised automatically and listed when a MOSS model is picked, and <b>Models → Fix a type</b> has a <b>MOSS</b> button (also in Settings → LoRA folders) for any that land under the wrong type.",
               "<b>Fix a type</b> now lists every model type that takes LoRAs (FIBO 2 was missing too), from one list, so new base models get their button automatically.",
               "<b>🆕 Ideogram 4</b> for Macs with 24 GB or more (Models tab → Ideogram 4): Ideogram's open model for posters, logos, packaging and lettering. Its official files (~18 GB, gated: accept the licence on Hugging Face and save a token in Settings → Models) are made 4-bit as they load. 12 / 20 / 48 steps use Ideogram's own turbo / normal / best settings. Non-commercial licence.",
+              "<b>📦 Draw your own boxes</b> (Create → 🗺 Regions → <b>📦 Boxes</b>, with FLUX 3, Ideogram 4 or MOSS-Image): drag on the little picture to draw a box anywhere, drag a box to move it, its corner to resize it, and say what goes in each one (up to 8). The boxes go into the prompt in each model's own layout format (the same as ComfyUI's FLUX 3, Ideogram 4 and MOSS box editors), so there's no extra time. Words in quotes in a box become lettering there. ✨ Enhance now rewrites only the main prompt; the boxes are added after it.",
+              "<b>🗺 Regions now work with Ideogram 4 and MOSS-Image</b> (columns, rows, grid or your own boxes), and FLUX 3's regions are actually sent (they were left out before).",
               "<b>FLUX 3</b> and <b>MiniMax-H3</b> now have their own buttons above Create's model list and in the Models tab (they were missing).",
             ] },
             { h: "1.6.22: 🛡 invert Protect from Enhance, clearer Relight choices", items: [
@@ -1474,6 +1476,7 @@ const protoartApp = createApp({
               "<b>Patchbay</b>: a <b>SELECT</b> tab at the bottom of each module picks it; the rack unit below then shows <b>that module's settings</b>, with a ⚙ FACES 2 badge so you know which copy you're editing (no second settings panel). <b>✕</b> on a module takes it off the rack (bring it back from Add a module). New <b>🔎 DETAIL</b> module: a light redraw with an “add detail” LoRA. <b>🛡 Protect areas…</b>: paint parts of the picture the rack must not change. The picture forming shows in Tools while it runs.",
               "<b>CodeFormer presets</b> (Restore faces, in Create and Tools): Balanced, Keep likeness, Heavy repair, Subtle touch-up, Old photo, Gentle. Each sets fidelity and strength; you can still change both.",
               "<b>🗺 Regions</b> (SD 1.5 and SDXL): tick <i>Use regional prompts</i>, pick Columns, Rows or Grid and the sizes (1,1 = halves; 1,2 = a third and two thirds; Grid 1,1;1 = two on top, one below), and write a prompt for each numbered area. Each area follows its own prompt; the main prompt above sets the scene around them, and <i>Keep one scene</i> sets how much (0.2 is a good start). Describe each area fully (“a woman in a red coat, full body”) and use a wide size for columns (768 × 512 for three). <i>Add the main prompt to every area</i> blends them more but can drown the subjects. <b>FLUX.1 and ERNIE</b> do regions in two passes: the whole picture with each area's place in words, then each area redrawn from its own prompt and blended in (<i>Redraw each area</i>: 0 = skip, 0.5 = a good start); it takes about as long as one picture per area plus one. <b>FLUX.2 Klein</b> works the same way, but each area is <i>edited with words</i> to show its prompt (the slider sets how strongly the edit shows). Each area's <b>✨</b> button turns a few words (“a vintage 60s car”) into a detailed description of that subject (tags for SD models); ↩ puts yours back. <b>✨ Plan the layout</b> does it all from one sentence: write what goes where (“a cosy cabin in the snow with the northern lights above”) in the box at the top of Regions, or leave it empty to use the main prompt, and the app picks the layout, writes each area's prompt and puts the setting in the main prompt (↩ undoes it). Anima can't use areas: describe positions in words instead (“on the left…, on the right…”). Regions and an <b>🖼 image prompt</b> (IP-Adapter) can't run together yet: switching one on switches the other off, and it comes back when you switch the first one off.",
+              "<b>📦 Boxes</b> (🗺 Regions with FLUX 3, Ideogram 4 or MOSS-Image): pick <i>📦 Boxes</i>, then drag on the little picture to draw a box where something should go, drag a box to move it and its yellow corner to resize it. Write what goes in each box underneath (put words to show in quotes: a sign that reads 'OPEN'). The main prompt describes the whole picture. Up to 8 boxes; no extra time.",
               "<b>Prompt editing</b>: <i>[cat:dog:0.5]</i> draws a cat for the first half of the steps and a dog after (a dog in a cat's pose); a number above 1 is a step (<i>[cat:dog:10]</i>). <i>[hat:0.3]</i> adds “hat” after 30 %, <i>[hat::0.3]</i> removes it. SD 1.5 and SDXL. The shape is mostly settled early, so for a bigger change switch sooner (<i>[cat:dog:0.2]</i>).",
               "<b>🧱 Seamless</b>: the picture's edges wrap around, so copies placed side by side join with no seam: textures, patterns, wallpapers.",
               "<b>📥 Settings</b>: load a picture's settings (prompt, negative prompt, steps, guidance, seed, size, sampler, model and LoRAs if you have them) from a PNG made by A1111, Forge, ComfyUI, InvokeAI or this app, or from a .json. Anything you don't have is listed. ↩ undo brings your prompt back.",
@@ -3156,6 +3159,7 @@ const protoartApp = createApp({
     },
     regionBoxes() {  // the areas as boxes (x0, y0, x1, y1 in 0..1), the same way the engine splits them
       const r = this.form.regions || {}, n = (r.prompts || []).length || 2;
+      if (r.layout === "free") return (r.prompts || []).map((_, i) => (r.boxes || [])[i] || [0, 0, 1, 1]);  // 📦 drawn
       const split = (parts) => { const p = parts.map((x) => Math.max(0.01, Number(x) || 1)), t = p.reduce((a, b) => a + b, 0); let acc = 0; return p.map((x) => { const s = [acc / t, (acc + x) / t]; acc += x; return s; }); };
       if (r.layout === "grid" && String(r.ratios).includes(";")) {
         const rows = String(r.ratios).split(";").filter((x) => x.trim()), hs = split(rows.map(() => 1)), out = [];
@@ -6229,8 +6233,10 @@ const protoartApp = createApp({
       if (!sd || !args.face_detailer?.on) delete args.face_detailer;
       if (!sd || !args.ip_adapter?.image) delete args.ip_adapter;
       // regions: SD 1.5 / SDXL inside the model; FLUX.1 and ERNIE (fast engine) by parts (see regions_by_parts)
-      const byParts = this.currentModel?.engine === "mlx" && ["flux", "ernie", "flux2"].includes(this.family);
+      const byParts = this.currentModel?.engine === "mlx" && ["flux", "ernie", "flux2"].includes(this.family) || this.regionsLayout();
       if (!(sd || byParts) || !args.regions?.on) delete args.regions;
+      else if (args.regions.layout === "free" && !this.regionsLayout())  // 📦 drawn boxes: FLUX 3, Ideogram 4, MOSS only
+        args.regions = { ...args.regions, layout: "cols", ratios: args.regions.prompts.map(() => 1).join(",") };
       if (!sd) delete args.seamless;
       return args;
     },
@@ -8789,6 +8795,15 @@ const protoartApp = createApp({
     },
     setRegionLayout(l) {
       const r = this.form.regions;
+      if (l === "free") {  // 📦 Boxes: start from the areas as they are now, then drag them anywhere
+        // each area shrunk a little inside its place, so there's room around them to draw more
+        r.boxes = this.regionBoxes.map(([x0, y0, x1, y1]) => {
+          const dx = (x1 - x0) * 0.12, dy = (y1 - y0) * 0.12;
+          return [x0 + dx, y0 + dy, x1 - dx, y1 - dy].map((v) => Math.round(v * 1000) / 1000);
+        });
+        r.layout = l;
+        return;
+      }
       r.layout = l;
       const n = r.prompts.length;
       if (l === "grid") r.ratios = n === 3 ? "1,1;1" : n === 4 ? "1,1;1,1" : "1;1";
@@ -8958,8 +8973,81 @@ const protoartApp = createApp({
         { label: "Stop using this folder (files stay)", danger: true, run: () => this.forgetFolder(f.path) },
       ]);
     },
-    regionsByParts() {  // FLUX.1 / ERNIE on the fast engine: regions are drawn by parts
-      return this.currentModel?.engine === "mlx" && ["flux", "ernie", "flux2", "flux3"].includes(this.family);  // FLUX 3: as layout boxes
+    regionsByParts() {  // FLUX.1 / ERNIE / Klein on the fast engine: regions are drawn by parts
+      return this.currentModel?.engine === "mlx" && ["flux", "ernie", "flux2"].includes(this.family);
+    },
+    regionsLayout() {  // FLUX 3, Ideogram 4 and MOSS-Image read the areas as layout boxes in the prompt (one pass)
+      return ["flux3", "ideogram4", "moss"].includes(this.family);
+    },
+    regionMax() {
+      return this.form.regions.layout === "free" ? 8 : 4;
+    },
+    regionAdd() {
+      const r = this.form.regions;
+      if (r.prompts.length >= this.regionMax()) return;
+      r.prompts.push("");
+      if (r.layout === "free") {
+        if (!Array.isArray(r.boxes)) r.boxes = [];
+        const k = (r.prompts.length - 1) % 5 * 0.04;
+        r.boxes.splice(r.prompts.length - 1, 1, [0.3 + k, 0.3 + k, 0.7 + k * 0.5, 0.7 + k * 0.5]);
+      }
+    },
+    regionRemove(i) {
+      const r = this.form.regions;
+      r.prompts.splice(i, 1);
+      if (Array.isArray(r.boxes)) r.boxes.splice(i, 1);
+      this.regionUndo = {};
+      this.regSel = -1;
+    },
+    // 📦 Boxes: drag on the map to draw an area, drag a box to move it, its corner to resize it (as in ComfyUI's
+    // FLUX 3 / Ideogram 4 box editors). Positions are fractions of the picture (x0, y0, x1, y1).
+    regDown(e) {
+      const r = this.form.regions;
+      if (r.layout !== "free" || e.button > 0) return;
+      if (!Array.isArray(r.boxes)) r.boxes = [];
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clamp = (v) => Math.min(1, Math.max(0, v));
+      const at = (ev) => [clamp((ev.clientX - rect.left) / rect.width), clamp((ev.clientY - rect.top) / rect.height)];
+      const [px, py] = at(e);
+      const el = e.target.closest(".reg-box");
+      let idx = el ? Number(el.dataset.i) : -1, mode;
+      const start = idx >= 0 ? [...this.regionBoxes[idx]] : null;
+      if (idx >= 0) mode = e.target.classList.contains("reg-h") ? "size" : "move";
+      else {
+        if (r.prompts.length >= this.regionMax()) { this.status = `Up to ${this.regionMax()} boxes: remove one (✕) to draw another`; return; }
+        r.prompts.push("");
+        idx = r.prompts.length - 1;
+        mode = "draw";
+      }
+      while (r.boxes.length < r.prompts.length) r.boxes.push([0.25, 0.25, 0.75, 0.75]);
+      if (mode === "draw") r.boxes.splice(idx, 1, [px, py, px, py]);
+      this.regSel = idx;
+      e.preventDefault();
+      const round = (b) => b.map((v) => Math.round(v * 1000) / 1000);
+      const move = (ev) => {
+        const [x, y] = at(ev);
+        let b;
+        if (mode === "draw") b = [Math.min(px, x), Math.min(py, y), Math.max(px, x), Math.max(py, y)];
+        else if (mode === "size") b = [start[0], start[1], Math.max(start[0] + 0.03, x), Math.max(start[1] + 0.03, y)];
+        else {
+          const w = start[2] - start[0], h = start[3] - start[1];
+          const nx = Math.min(1 - w, Math.max(0, start[0] + x - px)), ny = Math.min(1 - h, Math.max(0, start[1] + y - py));
+          b = [nx, ny, nx + w, ny + h];
+        }
+        r.boxes.splice(idx, 1, round(b));
+      };
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        const b = r.boxes[idx];
+        if (mode === "draw" && b && (b[2] - b[0] < 0.03 || b[3] - b[1] < 0.03)) {  // a click: a box around that spot
+          const x0 = Math.min(0.7, Math.max(0, px - 0.15)), y0 = Math.min(0.7, Math.max(0, py - 0.15));
+          r.boxes.splice(idx, 1, round([x0, y0, x0 + 0.3, y0 + 0.3]));
+        }
+        if (mode === "draw") this.$nextTick(() => document.querySelectorAll(".reg-prompt textarea")[idx]?.focus());
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
     },
     // ✨ Plan the layout: one sentence → the areas (where each subject goes, its own prompt) and the scene prompt.
     // The prompt enhancer's small model plans it (Omost's idea, small enough for 8 GB); position words are the fallback.
