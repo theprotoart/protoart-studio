@@ -2099,7 +2099,9 @@ def reader():
             continue
         # Quick Tools jobs don't wait behind a long generation, but only on Macs with room for a second model:
         # on 8-12 GB, two models at once pushes macOS into heavy swapping and the whole computer can freeze.
-        if cmd in SIDE_LANE and jobs.running and SIDE_LANE_RAM_OK:
+        # 🩹 Remove is the exception: LaMa is small (~1 GB while it works, a few seconds), so it never waits, even on 8 GB
+        # (like HitPaw's remover, which is the same kind of model)
+        if cmd in SIDE_LANE and jobs.running and (SIDE_LANE_RAM_OK or cmd == "heal"):
             threading.Thread(target=run_side, args=(mid, cmd, a), daemon=True).start()
             continue
         if cmd in HEAVY:

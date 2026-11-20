@@ -31,8 +31,10 @@ def lama_session(download=True):
         from huggingface_hub import hf_hub_download
         import onnxruntime as ort
         path = hf_hub_download(LAMA_REPO, LAMA_FILE, revision=LAMA_REVISION, local_files_only=not download)
+        import os
         opts = ort.SessionOptions()
         opts.log_severity_level = 3
+        opts.intra_op_num_threads = max(1, min(8, os.cpu_count() or 4))  # all the performance cores
         _session = ort.InferenceSession(path, sess_options=opts, providers=["CPUExecutionProvider"])
     return _session
 
@@ -81,6 +83,47 @@ def _run_lama(sess, crop_rgb, crop_mask):
     return Image.fromarray(out).resize((w, h), Image.LANCZOS)
 
 
+def _pil(mask_np):
+    return Image.fromarray(mask_np.astype(np.uint8) * 255, "L")
+
+
+def _parts(mask_np, join=24):
+    """The painted area split into separate spots (spots closer than `join` px stay together), largest first."""
+    import cv2
+    near = cv2.dilate(mask_np.astype(np.uint8), np.ones((join, join), np.uint8))
+    n, labels = cv2.connectedComponents(near)
+    parts = [mask_np & (labels == i) for i in range(1, n)]
+    parts = [p for p in parts if p.any()]
+    return sorted(parts, key=lambda p: -int(p.sum())) or [mask_np]
+
+
+def _thickness(mask_np):
+    """How thick a painted spot is (its area over its longest side), in px."""
+    ys, xs = np.nonzero(mask_np)
+    return float(mask_np.sum()) / max(1, max(xs.max() - xs.min() + 1, ys.max() - ys.min() + 1))
+
+
+def _windows(mask_np, size=LAMA_SIZE, overlap=0.35):
+    """Full-size LaMa windows along a long thin spot (with picture around it), overlapping so the fills join up."""
+    h, w = mask_np.shape
+    ys, xs = np.nonzero(mask_np)
+    x0, x1, y0, y1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1
+    size = min(size, w, h)
+    step = max(32, int(size * (1 - overlap)))
+
+    def starts(a0, a1, full):
+        lo = max(0, min(full - size, (a0 + a1) // 2 - size // 2)) if a1 - a0 <= size else max(0, a0 - size // 4)
+        out, s = [], lo
+        while True:
+            s = min(s, full - size)
+            out.append(s)
+            if s + size >= min(full, a1 + size // 4) or s >= full - size:
+                return out
+            s += step
+
+    return [(sx, sy, sx + size, sy + size) for sy in starts(y0, y1, h) for sx in starts(x0, x1, w)]
+
+
 def _quick(image, mask):
     import cv2
     rgb = np.asarray(image.convert("RGB"))
@@ -105,9 +148,18 @@ def heal(image, mask, method="lama", session=None, feather=2):
         sess = session or lama_session()
         filled = image.copy()
         gnp = np.asarray(grown) > 127
-        x0, y0, x1, y1 = _box(gnp)
-        crop = _run_lama(sess, image.crop((x0, y0, x1, y1)), grown.crop((x0, y0, x1, y1)))
-        filled.paste(crop, (x0, y0))
+        for part in _parts(gnp):  # each separate painted spot on its own, at the best size for it
+            x0, y0, x1, y1 = _box(part)
+            if (x1 - x0) <= LAMA_SIZE * 1.5 or _thickness(part) > LAMA_SIZE * 0.3:
+                crop = _run_lama(sess, filled.crop((x0, y0, x1, y1)), _pil(part).crop((x0, y0, x1, y1)))
+                filled.paste(Image.composite(crop, filled.crop((x0, y0, x1, y1)), _pil(part).crop((x0, y0, x1, y1))), (x0, y0))
+            else:  # a long thin mark (a watermark, a line of text, a wire) on a big picture: worked along at full size
+                for wx0, wy0, wx1, wy1 in _windows(part):
+                    wm = _pil(part).crop((wx0, wy0, wx1, wy1))
+                    if not wm.getbbox():
+                        continue
+                    crop = _run_lama(sess, filled.crop((wx0, wy0, wx1, wy1)), wm)
+                    filled.paste(Image.composite(crop, filled.crop((wx0, wy0, wx1, wy1)), wm), (wx0, wy0))
     # only the painted area changes, with a soft edge so it doesn't show
     soft = grown.filter(ImageFilter.GaussianBlur(feather)) if feather else grown
     return Image.composite(filled, image, soft)

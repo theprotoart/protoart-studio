@@ -71,3 +71,19 @@ class VectorizeTests(unittest.TestCase):
         self.assertGreaterEqual(st["shapes"], 2)
         self.assertEqual(svg.count("<path"), 2)
         self.assertTrue(svg.index("<rect") < svg.index("<path"))
+
+
+def test_heal_long_thin_mark_is_worked_along():
+    import numpy as np
+    from postprocess import heal
+    m = np.zeros((1080, 1920), bool)
+    m[900:960, 200:1700] = True  # a watermark line along the bottom
+    m[100:150, 100:160] = True   # and a separate spot
+    parts = heal._parts(m)
+    assert len(parts) == 2 and heal._thickness(parts[0]) == 60
+    wins = heal._windows(parts[0])
+    assert len(wins) >= 4 and all(x1 - x0 == 512 and y1 - y0 == 512 for x0, y0, x1, y1 in wins)
+    covered = np.zeros_like(m)
+    for x0, y0, x1, y1 in wins:
+        covered[y0:y1, x0:x1] = True
+    assert covered[parts[0]].all()

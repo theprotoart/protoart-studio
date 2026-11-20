@@ -1,7 +1,8 @@
 /* 🎨 Styles: prompt templates that wrap your prompt in a style (photo, illustration and "wild" looks), made for
  * Z-Image Turbo and fine with other models that read sentences. From ComfyUI-ZImagePowerNodes v1.0 styles
  * (https://github.com/martin-rizzo/ComfyUI-ZImagePowerNodes), MIT License, Copyright (c) 2026 Martin Rizzo.
- * pre + your prompt + post; their optional extra-content switch is left out. */
+ * pre + your prompt + post; their optional extra-content switch is left out.
+ * The last two (Crime Game Loading Screen / Character Portrait) are Protoart Studio's own, not from ZImagePowerNodes. */
 window.Z_STYLES = [
 {
 "name": "Phone Photo",
@@ -740,5 +741,17 @@ window.Z_STYLES = [
 "cat": "Wild",
 "pre": "YOUR CONTEXT:\nA postcard printed in the 1950s depicts a charming coastal village. The card is slightly creased, its edges softened by years of handling, and the paper has a warm, yellowed patina.\nINSIDE ARTWORK ON THE FRONT OF THE POSTCARD:\nImage printed in faded colors, blurry and of low quality.\nINSIDE ARTWORK ON THE FRONT OF THE POSTCARD:\n<!--\n",
 "post": "\n-->\nOUTSIDE ARTWORK:\nA flat, highly detailed photograph of the postcard on a textured linen surface. The postcard's border is embossed, and a handwritten address line (blurred for privacy) is visible. Soft natural light from a nearby window creates gentle shadows that accentuate the nostalgic feel."
+},
+{
+"name": "Crime Game Loading Screen",
+"cat": "Illustration",
+"pre": "A modern open-world crime video game loading-screen illustration of ",
+"post": ". Art style: bold clean ink outlines, cel-shaded skin and clothes with hard-edged graphic shadows and highlights, slightly stylised realistic faces and proportions, a saturated sunset palette of lavender, violet, magenta, peach and warm gold with teal accents, a hazy Miami-style Art Deco skyline and palm trees, strong warm rim light, poster-like composition, highly detailed hand-drawn digital painting."
+},
+{
+"name": "Crime Game Character Portrait",
+"cat": "Illustration",
+"pre": "A waist-up character portrait for a modern open-world crime video game, loading-screen art of ",
+"post": ". Confident pose, looking at the viewer, plain hazy sunset background with the city skyline. Art style: bold clean ink outlines, cel-shaded skin and clothes with hard-edged graphic shadows and highlights, slightly stylised realistic faces and proportions, a saturated sunset palette of lavender, violet, magenta, peach and warm gold with teal accents, a hazy Miami-style Art Deco skyline and palm trees, strong warm rim light, poster-like composition, highly detailed hand-drawn digital painting."
 }
 ];

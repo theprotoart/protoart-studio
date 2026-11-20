@@ -721,7 +721,7 @@
                :style="{aspectRatio: form.width + ' / ' + form.height, width: form.regions.layout === 'free' ? 'min(100%, ' + Math.round(320 * form.width / form.height) + 'px)' : null}">
             <div v-for="(b, i) in regionBoxes" :key="'rb' + i" :data-i="i" class="reg-box" :class="{sel: form.regions.layout === 'free' && regSel === i}" :style="{left: b[0] * 100 + '%', top: b[1] * 100 + '%', width: (b[2] - b[0]) * 100 + '%', height: (b[3] - b[1]) * 100 + '%'}">{{ i + 1 }}<span v-if="form.regions.layout === 'free'" class="reg-h" title="Drag to resize"></span></div>
           </div>
-          <p v-if="form.regions.layout === 'free'" class="hint">Drag on the picture to draw a box (up to 8), drag a box to move it, its corner to resize it; then say what goes in each box below. Put words to show in quotes (a sign that reads 'SALE').</p>
+          <p v-if="form.regions.layout === 'free'" class="hint">Drag on the picture to draw a box (up to 10), drag a box to move it, its corner to resize it; then say what goes in each box below. Put words to show in quotes (a sign that reads 'SALE').</p>
           <div v-for="(rp, i) in form.regions.prompts" :key="'rp' + i" class="reg-prompt" :class="{sel: form.regions.layout === 'free' && regSel === i}" @focusin="regSel = i">
             <span class="reg-n">{{ i + 1 }}</span>
             <textarea class="tape" rows="2" v-model="form.regions.prompts[i]" :placeholder="['e.g. a red-haired knight', 'e.g. a blue dragon', 'e.g. a castle', 'e.g. a stormy sky'][i]"></textarea>
@@ -3914,7 +3914,7 @@
         </template>
         <template v-else-if="form.i2i_mode === 'remove'">
           <div class="hint">Paint over what you want gone (cover it fully, a little past its edges), then press <b>🩹 Remove</b>.
-            No prompt or model needed; only the painted part changes.</div>
+            No prompt or model needed; only the painted part changes. Smart fill (LaMa, the same kind of model watermark removers use) takes a few seconds, and doesn't wait for pictures being made. Long thin marks (watermarks, captions, wires) are worked along at full size.</div>
           <div class="mask-tools">
             <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
               <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>

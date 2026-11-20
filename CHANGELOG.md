@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- 🌴 Crime-game loading-screen art: two of Protoart Studio's own 🎨 style presets (Illustration: Crime Game Loading
+  Screen, Crime Game Character Portrait), a ✨ Edit with words quick edit (🌴 Crime-game art) and 🎮 Game cover collage
+  (a quick edit for several pictures, and a 🗺 Regions template of 8 panels + title as 📦 Boxes). Named by the look,
+  not by any game (no trademarks or logos).
+- 🕺 Character into pose (two-picture recipe, no LoRA): Picture 2's character in Picture 1's pose, scene and light.
+- 📦 Boxes: up to 10; region templates can set boxes (`layout: "free"`).
+- 🩹 Remove: runs in the side lane on every Mac (LaMa ~1 GB, seconds), ONNX Runtime on all performance cores, each
+  painted spot worked separately (`_parts`), and long thin spots (thickness under 30% of 512 px) in overlapping
+  full-resolution 512 px windows along their length (`_windows`) instead of one shrunk square.
+
 ## 1.6.23
 
 - 🔍 Select by words (painting tools: `words` tool, `find_words` job): Florence-2's referring-expression segmentation

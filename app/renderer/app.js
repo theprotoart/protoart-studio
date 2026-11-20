@@ -385,6 +385,10 @@ const EDIT_RECIPES = [
     tip: "Redraws the person in Picture 1 in the drawing style of Picture 2, taking Picture 2's eye colour, hairstyle, hair colour and outfit, while keeping Picture 1's facial expression, pose, face lighting and scene.",
     prompt: "Use the drawing style of Picture 2 and lock the eye colour, hair style, hair colour and outfit style of Picture 2 to redraw Picture 1, while keeping the facial expression, pose and face lighting of Picture 1 unchanged, and change the outfit of the character in Picture 1 to the outfit of Picture 2.",
     licence: "no LoRA: the edit model alone" },
+  { id: "into_pose", label: "🕺 Character into pose", by: "", files: null, p1: "the pose & scene (a photo)", p2: "the character",
+    tip: "The character from Picture 2 takes the place of the person in Picture 1: exactly Picture 1's pose, hands, camera angle, framing, background and light, with Picture 2's face, hair, eye colour, outfit and drawing style (an anime character stays anime). No LoRA download.",
+    prompt: "Redraw Picture 1 with the character from Picture 2 in place of the person: keep exactly Picture 1's pose, body position, hand placement, camera angle, framing, background, props and lighting. Take the character's face, eye colour, hair style, hair colour, outfit, accessories, body proportions and drawing style from Picture 2, so the result looks like Picture 2's character photographed (or drawn) in Picture 1's pose and scene.",
+    licence: "no LoRA: the edit model alone" },
   { id: "into_scene", label: "🏞 Character into scene", by: "", files: null, p1: "the scene (background)", p2: "the character",
     tip: "Puts the character from Picture 2 into the scene of Picture 1, in its light and perspective, keeping the character's face, hair, outfit and art style. Say where and what they're doing after the prompt (“sitting on the dock, waving”).",
     prompt: "Place the character from Picture 2 into the scene of Picture 1. Keep the character's face, hair, eye colour, outfit and art style exactly as in Picture 2, and keep Picture 1's background, lighting, colours and perspective; match the character to the scene's light and shadows so they look like they were always there.",
@@ -489,7 +493,10 @@ const H3_SUBJECTS = {
   scene: ["two mandarin ducks on a misty lake", "a fruit market at sunrise", "a fisherman's boat at dawn", "a quiet cafe interior with afternoon light", "a vase of peonies on a windowsill"],
   nature: ["a pelican looking into a mirror", "a pair of cranes among pine trees", "a koi fish under lotus leaves", "a white tiger beside a waterfall", "a magpie on a plum blossom branch"],
 };
+const LOADING_ART = "bold clean ink outlines, cel-shaded skin and clothes with hard-edged graphic shadows and highlights, slightly stylised realistic faces and proportions, a saturated sunset palette of lavender, violet, magenta, peach and warm gold with teal accents, a hazy Miami-style Art Deco skyline and palm trees, strong warm rim light, poster-like composition, highly detailed hand-drawn digital painting";
 const EDIT_QUICK = [
+  { label: "🌴 Crime-game art", prompt: "Redraw this picture as a modern open-world crime video game loading-screen illustration: " + LOADING_ART + ". Keep the person's face, identity, expression, pose, outfit and the composition exactly the same." },
+  { label: "🎮 Game cover collage", prompt: "Make a video-game cover collage from these pictures: each picture becomes its own rectangular panel, redrawn as a modern crime-game loading-screen illustration (" + LOADING_ART + "), panels separated by thin dark purple borders, with a big bold white game title that reads 'PROTOART CITY' in the centre over the panels. Keep each person's face and identity." },
   { label: "🚶 Remove people", prompt: "Remove all the people from this picture and fill in what was behind them naturally (the floor, walls, scenery, shadows and reflections), as if they were never there. Keep everything else exactly the same: the place, the light, the colours and the framing." },
   { label: "🧍 Remove one person", prompt: "Remove the person on the left from this picture and fill in what was behind them naturally, with matching light and shadows. Keep everyone and everything else exactly the same." },
   { label: "🧹 Tidy the background", prompt: "Remove the clutter, stray objects, wires, signs and passers-by from the background and fill those areas in naturally. Keep the main subject, the light and the framing exactly the same." },
@@ -786,6 +793,15 @@ const ADJ_FILTERS = {
 };
 // 🗺 Regions → Templates: ready-made layouts with example prompts to edit (the main prompt sets the scene)
 const REGION_TEMPLATES = [
+  { id: "gamecover", icon: "🎮", label: "Game cover collage", shape: "wide", layout: "free",
+    tip: "A crime-game style cover: 8 illustrated panels and a big title in the middle (📦 Boxes: best with FLUX 3; change the title's words and each panel's scene)",
+    main: "A video-game cover collage: eight rectangular illustrated panels separated by thin dark purple borders, each a separate scene, with a large bold game title over the middle, modern open-world crime game loading-screen art: bold clean ink outlines, cel shading, sunset palette of lavender, magenta, peach and teal, Miami-style city",
+    boxes: [[0, 0, 0.2, 0.44], [0, 0.46, 0.2, 1], [0.21, 0, 0.5, 0.6], [0.21, 0.62, 0.44, 1], [0.51, 0, 0.79, 0.4], [0.45, 0.74, 0.79, 1], [0.8, 0, 1, 0.55], [0.8, 0.57, 1, 1], [0.33, 0.28, 0.68, 0.72]],
+    prompts: ["a police helicopter with floats flying over a bay and city towers", "a woman with long curly hair and gold hoop earrings holding a drink can, posing by a hotel pool",
+              "a couple embracing, she with a dark ponytail and hoop earrings, he in a white tank top, serious faces", "a yellow sports car with its doors open on a palm-lined street",
+              "a speedboat cutting through turquoise water next to a pink flamingo", "an alligator with its jaws open in swamp water with lily pads",
+              "a confident man in sunglasses and a heavy gold chain", "a rider doing a wheelie on a purple sport motorbike in front of a police car",
+              "a big bold white game title that reads 'PROTOART CITY', with a purple and orange gradient outline"] },
   { id: "beforeafter", icon: "◧", label: "Before / after", shape: "wide", layout: "cols", ratios: "1,1",
     tip: "Two halves of the same subject: before on the left, after on the right (a makeover, a renovation, a restoration)",
     main: "split-screen before and after comparison, same person, same pose, same framing, thin white dividing line down the middle, photo",
@@ -1227,6 +1243,12 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Next: 🌴 crime-game art, 🕺 character into pose, 🩹 faster Remove", items: [
+              "<b>🌴 Crime-game loading-screen art</b>: in Create, 🎨 Style presets → Illustration → <i>Crime Game Loading Screen</i> or <i>Crime Game Character Portrait</i> (bold ink outlines, cel shading, sunset lavender-and-peach palette, palm-tree skyline). In Image to image → ✨ Edit with words → Quick edits, <b>🌴 Crime-game art</b> redraws your photo that way, keeping the face and pose.",
+              "<b>🎮 Game cover collage</b>: in Create → 🗺 Regions → templates, 8 illustrated panels and a big title in the middle, as 📦 Boxes (best with FLUX 3: change the title and each panel's scene). Or in ✨ Edit with words, add your pictures under More pictures and press Quick edits → <b>🎮 Game cover collage</b>.",
+              "<b>🕺 Character into pose</b> (✨ Edit with words → Two pictures → one): drop a photo on 1 (the pose and scene) and a character on 2: the character takes the person's place in that exact pose, setting and light, keeping their own face, hair, outfit and drawing style. No download.",
+              "<b>🩹 Remove is faster</b>: it no longer waits behind pictures being made (even on 8 GB Macs), uses all the processor's cores, and works each painted spot on its own, with long thin marks (watermarks, captions, wires) done along their length at full size instead of shrunk. It's the same kind of model (LaMa) the watermark-remover apps use.",
+            ] },
             { h: "1.6.23: 🆕 FLUX 3, Ideogram 4, 📦 draw your own boxes, 🧩 Z-Image tiled upscale, 🎨 style presets, 📸 Anime ↔ Real, 🔍 select by words, MOSS LoRAs", items: [
 
               "<b>🔍 Select by words</b> (the painting tools in Image to image and Tools): pick 🔍 Words, type what to select (“the red shirt”, “the dog”, “the sky”) and press Return. Florence-2 finds it (the model Quick describe uses, no new download); fix the edge with the brush if needed.",
@@ -1250,7 +1272,7 @@ const protoartApp = createApp({
               "<b>🎨 Keep the original's colours</b> (✨ Edit with words): moves the result's colours back to your picture's (like ComfyUI's Color Match), for when the model shifts everything warmer or brighter.",
               "<b>🎨 Style presets card</b> (Create, with Z-Image, FLUX.2 Klein or FLUX 3, like MiniMax-H3's presets): the 123 ZImagePowerNodes styles right under the model: Photo / Illustration / Wild or search, one press puts the style on top of your prompt, press it again (or ✕ None) to take it off. ✕ folds the card away.",
               "<b>🧩 Two pictures → one</b> is now at the top of Image to image → ✨ Edit with words: pick 📸 Anime → Real, 🎨 Real → Anime, 🏞 Character into scene (new), 🧑 Head swap (BFS) and the others, then drop Picture 1 ＋ Picture 2 in their boxes ➜ the result shows beside them. <b>🧩 Combine</b> has the same Scene ＋ Character ➜ Result boxes.",
-              "<b>📦 Draw your own boxes</b> (Create → 🗺 Regions → <b>📦 Boxes</b>, with FLUX 3, Ideogram 4 or MOSS-Image): drag on the little picture to draw a box anywhere, drag a box to move it, its corner to resize it, and say what goes in each one (up to 8). The boxes go into the prompt in each model's own layout format (the same as ComfyUI's FLUX 3, Ideogram 4 and MOSS box editors), so there's no extra time. Words in quotes in a box become lettering there. ✨ Enhance now rewrites only the main prompt; the boxes are added after it.",
+              "<b>📦 Draw your own boxes</b> (Create → 🗺 Regions → <b>📦 Boxes</b>, with FLUX 3, Ideogram 4 or MOSS-Image): drag on the little picture to draw a box anywhere, drag a box to move it, its corner to resize it, and say what goes in each one (up to 10). The boxes go into the prompt in each model's own layout format (the same as ComfyUI's FLUX 3, Ideogram 4 and MOSS box editors), so there's no extra time. Words in quotes in a box become lettering there. ✨ Enhance now rewrites only the main prompt; the boxes are added after it.",
               "<b>🗺 Regions now work with Ideogram 4 and MOSS-Image</b> (columns, rows, grid or your own boxes), and FLUX 3's regions are actually sent (they were left out before).",
               "<b>FLUX 3</b> and <b>MiniMax-H3</b> now have their own buttons above Create's model list and in the Models tab (they were missing).",
             ] },
@@ -1498,7 +1520,7 @@ const protoartApp = createApp({
               "<b>Patchbay</b>: a <b>SELECT</b> tab at the bottom of each module picks it; the rack unit below then shows <b>that module's settings</b>, with a ⚙ FACES 2 badge so you know which copy you're editing (no second settings panel). <b>✕</b> on a module takes it off the rack (bring it back from Add a module). New <b>🔎 DETAIL</b> module: a light redraw with an “add detail” LoRA. <b>🛡 Protect areas…</b>: paint parts of the picture the rack must not change. The picture forming shows in Tools while it runs.",
               "<b>CodeFormer presets</b> (Restore faces, in Create and Tools): Balanced, Keep likeness, Heavy repair, Subtle touch-up, Old photo, Gentle. Each sets fidelity and strength; you can still change both.",
               "<b>🗺 Regions</b> (SD 1.5 and SDXL): tick <i>Use regional prompts</i>, pick Columns, Rows or Grid and the sizes (1,1 = halves; 1,2 = a third and two thirds; Grid 1,1;1 = two on top, one below), and write a prompt for each numbered area. Each area follows its own prompt; the main prompt above sets the scene around them, and <i>Keep one scene</i> sets how much (0.2 is a good start). Describe each area fully (“a woman in a red coat, full body”) and use a wide size for columns (768 × 512 for three). <i>Add the main prompt to every area</i> blends them more but can drown the subjects. <b>FLUX.1 and ERNIE</b> do regions in two passes: the whole picture with each area's place in words, then each area redrawn from its own prompt and blended in (<i>Redraw each area</i>: 0 = skip, 0.5 = a good start); it takes about as long as one picture per area plus one. <b>FLUX.2 Klein</b> works the same way, but each area is <i>edited with words</i> to show its prompt (the slider sets how strongly the edit shows). Each area's <b>✨</b> button turns a few words (“a vintage 60s car”) into a detailed description of that subject (tags for SD models); ↩ puts yours back. <b>✨ Plan the layout</b> does it all from one sentence: write what goes where (“a cosy cabin in the snow with the northern lights above”) in the box at the top of Regions, or leave it empty to use the main prompt, and the app picks the layout, writes each area's prompt and puts the setting in the main prompt (↩ undoes it). Anima can't use areas: describe positions in words instead (“on the left…, on the right…”). Regions and an <b>🖼 image prompt</b> (IP-Adapter) can't run together yet: switching one on switches the other off, and it comes back when you switch the first one off.",
-              "<b>📦 Boxes</b> (🗺 Regions with FLUX 3, Ideogram 4 or MOSS-Image): pick <i>📦 Boxes</i>, then drag on the little picture to draw a box where something should go, drag a box to move it and its yellow corner to resize it. Write what goes in each box underneath (put words to show in quotes: a sign that reads 'OPEN'). The main prompt describes the whole picture. Up to 8 boxes; no extra time.",
+              "<b>📦 Boxes</b> (🗺 Regions with FLUX 3, Ideogram 4 or MOSS-Image): pick <i>📦 Boxes</i>, then drag on the little picture to draw a box where something should go, drag a box to move it and its yellow corner to resize it. Write what goes in each box underneath (put words to show in quotes: a sign that reads 'OPEN'). The main prompt describes the whole picture. Up to 10 boxes; no extra time.",
               "<b>Prompt editing</b>: <i>[cat:dog:0.5]</i> draws a cat for the first half of the steps and a dog after (a dog in a cat's pose); a number above 1 is a step (<i>[cat:dog:10]</i>). <i>[hat:0.3]</i> adds “hat” after 30 %, <i>[hat::0.3]</i> removes it. SD 1.5 and SDXL. The shape is mostly settled early, so for a bigger change switch sooner (<i>[cat:dog:0.2]</i>).",
               "<b>🧱 Seamless</b>: the picture's edges wrap around, so copies placed side by side join with no seam: textures, patterns, wallpapers.",
               "<b>📥 Settings</b>: load a picture's settings (prompt, negative prompt, steps, guidance, seed, size, sampler, model and LoRAs if you have them) from a PNG made by A1111, Forge, ComfyUI, InvokeAI or this app, or from a .json. Anything you don't have is listed. ↩ undo brings your prompt back.",
@@ -9129,7 +9151,7 @@ const protoartApp = createApp({
       window.addEventListener("pointerup", up);
     },
     regionMax() {
-      return this.form.regions.layout === "free" ? 8 : 4;
+      return this.form.regions.layout === "free" ? 10 : 4;
     },
     regionAdd() {
       const r = this.form.regions;
@@ -9218,11 +9240,12 @@ const protoartApp = createApp({
     useRegionTemplate(t) {  // 🗺 a ready-made layout: the areas, example prompts to edit, a picture shape that fits
       this.regionPlanUndo = { regions: JSON.parse(JSON.stringify(this.form.regions)), prompt: this.form.prompt, size: [this.form.width, this.form.height] };
       const r = this.form.regions;
-      Object.assign(r, { on: true, layout: t.layout, ratios: t.ratios, prompts: [...t.prompts] });
+      Object.assign(r, { on: true, layout: t.layout, ratios: t.ratios || "", prompts: [...t.prompts] });
+      if (t.boxes) r.boxes = t.boxes.map((b) => [...b]);
       if (!this.form.prompt.trim() || this.REGION_TEMPLATES.some((x) => x.main === this.form.prompt.trim())) this.form.prompt = t.main;
-      const big = ["sdxl", "flux", "flux2", "ernie", "anima"].includes(this.family);
+      const big = ["sdxl", "flux", "flux2", "flux3", "zimage", "ideogram4", "moss", "qwen21", "krea2", "fibo2", "ernie", "anima"].includes(this.family);
       const sizes = { wide: big ? [1216, 832] : [768, 512], tall: big ? [832, 1216] : [512, 768], square: big ? [1024, 1024] : [512, 512] };
-      if (t.layout === "cols" && t.prompts.length >= 3) sizes.wide = big ? [1344, 768] : [896, 512];
+      if ((t.layout === "cols" && t.prompts.length >= 3) || t.layout === "free") sizes.wide = big ? [1344, 768] : [896, 512];
       const [w, h] = sizes[t.shape] || sizes.square;
       this.form.width = w; this.form.height = h;
       this.status = `${t.label}: areas, example prompts and a ${w} × ${h} size are set · edit the words · ↩ puts it back`;
