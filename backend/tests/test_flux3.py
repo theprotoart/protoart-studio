@@ -89,3 +89,18 @@ def test_drawn_boxes_for_flux3_ideogram4_and_moss():
     assert moss["bbox_format"] == "yxyx" and moss["items"][0]["bbox"] == [-231, -410, 77, 0]
     assert moss["items"][1]["label"] == "text" and moss["items"][1]["text"] == "SALE"
     assert regions.layout_prompt("moss", "Plain", {"layout": "free", "prompts": [""], "boxes": []}) == "Plain"
+
+
+def test_flux3_edit_boxes():
+    p = regions.flux3_edit_boxes("Night time", [
+        {"desc": "red lamp", "act": "move", "src": [0.1, 0.1, 0.3, 0.5], "tgt": [0.6, 0.1, 0.8, 0.5]},
+        {"desc": "cup", "act": "remove", "src": [0.4, 0.6, 0.5, 0.7]},
+        {"desc": "a black cat", "act": "add", "tgt": [0.2, 0.6, 0.4, 0.9]},
+        {"desc": "half done", "act": "move", "src": [0, 0, 0.5, 0.5]},  # no target box yet: left out
+    ])
+    head, rows = p[:p.index(" [{")], json.loads(p[p.index(" [{") + 1:])
+    assert head.startswith("Night time. Move the red lamp <obj_1> to its new place; Remove the cup <obj_2>")
+    assert [r["from"] for r in rows] == ["ref_image_0", "ref_image_0", "target"]
+    assert rows[0]["src_bbox"] == [100, 100, 500, 300] and rows[0]["tgt_bbox"] == [100, 600, 500, 800]
+    assert rows[1]["tgt_bbox"] is None and rows[2]["src_bbox"] is None
+    assert regions.flux3_edit_boxes("Just this", []) == "Just this"

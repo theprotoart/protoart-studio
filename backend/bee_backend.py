@@ -178,7 +178,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("make3d", "harmonize", "relight", "store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("make3d", "harmonize", "relight", "store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "detail_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -293,6 +293,8 @@ def job_label(cmd, a):
         return "Face swap"
     if cmd == "quantize":
         return f"Make a {a.get('bits', 8)}-bit copy"
+    if cmd == "detail_upscale":
+        return "Tiled upscale · Z-Image" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
     if cmd == "tiled_upscale":
         return "Tiled upscale" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
     if cmd == "ckpt_merge":
@@ -2355,6 +2357,15 @@ def run_job(kind, a):
         return eng.faceswap(a)
     if kind == "tiled_upscale":
         return eng.tiled_upscale(a)
+    if kind == "detail_upscale":  # ✨ Flow-DPO on by default: downloaded the first time (skipped offline)
+        dpo = None
+        if a.get("flow_dpo", True):
+            try:
+                dpo = lora_hf_job({"repo": "F16/z-image-turbo-flow-dpo", "file": "zit_fdpo_v1.safetensors"}, eng)["path"]
+            except Exception as e:  # noqa: BLE001
+                print("[detail] Flow-DPO skipped:", e, flush=True)
+                eng.emit({"type": "status", "msg": "Flow-DPO couldn't be downloaded now: upscaling without it"})
+        return eng.detail_upscale(a, flow_dpo=dpo)
     if kind == "quantize":
         r = eng.quantize_model(a)
         entry = {"id": "local:" + r["path"], "path": r["path"], "kind": "folder", "family": r["family"],

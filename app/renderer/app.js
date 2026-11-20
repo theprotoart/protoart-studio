@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["store_move", "zeng_setup", "lora_hf_download", "ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "faceswap_faces", "tiled_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["store_move", "zeng_setup", "lora_hf_download", "ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "faceswap_faces", "tiled_upscale", "detail_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare", "relight", "make3d", "harmonize"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
@@ -228,7 +228,7 @@ const EXPRESSIONS = ["neutral", "happy smile", "laughing", "sad", "angry", "surp
                      "smug smirk", "crying", "disgusted", "sleepy", "determined", "confused", "winking", "shouting"];
 const EXPR_DEFAULT = ["neutral", "happy smile", "laughing", "sad", "angry", "surprised"];
 const TOOL_STATE_DEFAULTS = {
-  tup: () => ({ scale: 2, strength: 0.25, steps: 24, prompt: "" }),
+  tup: () => ({ scale: 2, strength: 0.25, steps: 24, prompt: "", engine: "z", flow_dpo: true }),
   qnt: () => ({ model: "", bits: 8, msg: "" }),
   mrg: () => ({ a: "", b: "", c: "", mode: "sum", m: 0.5, name: "", msg: "" }),
   cvt: () => ({ to: "copy", model: "", base: "", rank: 32, te: true, name: "", msg: "", extra: [], kind: "", found: null }),
@@ -254,6 +254,7 @@ function defaultForm() {
     edit_recipe: "",    // ✨ Edit with words: a two-picture recipe (EDIT_RECIPES), or "" for none
     edit_refs: [],      // ✨ Edit with words: extra pictures to take a style, object or outfit from (🧩 Combine: what to add)
     keep_faces: true,  // ✨ Edit with words: each face redone close-up so it stays like the original
+    match_colors: false,  // ✨ Edit with words: 🎨 the result's colours moved back to the original's (Color Match)
     cam: { az: 0, el: 0, zoom: 5, turnaround: false, layout: "single", expressions: EXPR_DEFAULT.slice() },  // 📷 Camera angle: around (0–360°), up / down (−30–60°), how close (0–10)
     combine: { cutout: true, match_light: true, light_strength: 0.7, where: "auto", keep_scene: true, boxes: [] },  // 🧩 Combine
     i2i_mode: "change", inpaint: { strength: 0.85, blur: 4, only_masked: false },
@@ -1044,6 +1045,7 @@ const protoartApp = createApp({
       detLoraQ: "",
       gmenu: null,
       regionBusy: -1, regionUndo: {}, regSel: -1,
+      mv: { items: [], sel: -1, draw: "src" },  // 📦 FLUX 3 edits: move / remove / add things with boxes
       regionPlanText: "", regionPlanBusy: false, regionPlanUndo: null, REGION_TEMPLATES,  // 🗺 ✨ Plan the layout from one sentence  // 🗺 ✨ enhance an area's prompt      // right-click menus for models, LoRAs, the queue and folders (pictures have their own)
       i2iSuggesting: false,  // Image to image → 💡 suggest from the picture     // Tools → Detail with a LoRA: search box      // the job that stopped for a missing first-time download (⬇ Download it now)
       dlBusy: false,
@@ -1073,7 +1075,7 @@ const protoartApp = createApp({
       promptPresets: loadJSON("protoart.prompts", []),   // 📒 My prompts
       promptIoMsg: "",
       qnt: { model: "", bits: 8, msg: "" },  // Tools → Smaller copy
-      tup: { scale: 2, strength: 0.25, steps: 24, prompt: "" },  // Tools → Tiled upscale
+      tup: { scale: 2, strength: 0.25, steps: 24, prompt: "", engine: "z", flow_dpo: true },  // Tools → Tiled upscale (z: Z-Image Turbo)
       cut: { open: false, busy: false, msg: "", path: "", w: 0, h: 0, view: "result", rev: 0, paperView: false },  // ✂ Cut out's live preview
       paperJob: false,
       i2iInpaintPick: "",
@@ -1233,6 +1235,10 @@ const protoartApp = createApp({
               "<b>LoRAs for MOSS-Image</b>: MOSS now uses the LoRAs you pick, including <b>LoKr</b> files (like FameGrid's). MOSS LoRAs are recognised automatically and listed when a MOSS model is picked, and <b>Models → Fix a type</b> has a <b>MOSS</b> button (also in Settings → LoRA folders) for any that land under the wrong type.",
               "<b>Fix a type</b> now lists every model type that takes LoRAs (FIBO 2 was missing too), from one list, so new base models get their button automatically.",
               "<b>🆕 Ideogram 4</b> for Macs with 24 GB or more (Models tab → Ideogram 4): Ideogram's open model for posters, logos, packaging and lettering. Its official files (~18 GB, gated: accept the licence on Hugging Face and save a token in Settings → Models) are shrunk to 4-bit once and the shrunk copy is kept, so later starts are quicker. An experimental <b>3-bit</b> build is there too for 16 GB Macs (8 GB Macs can try it with Settings → Load anyway: expect it to be slow). 12 / 20 / 48 steps use Ideogram's own turbo / normal / best settings. Non-commercial licence.",
+              "<b>🧩 Tiled upscale with ⚡ Z-Image Turbo + ✨ Flow-DPO</b> (Tools, now the default; like ComfyUI's Ultimate SD Upscale): enlarges the picture and Z-Image Turbo redraws it lightly tile by tile, with Flow-DPO on for richer light. Fits 8 GB Macs. The SD 1.5 / SDXL version is still there (SD model).",
+              "<b>📦 Move, remove or add with boxes</b> (FLUX 3 in ✨ Edit with words): draw a box around something and another where it should go, or just one to remove or add something. Written in FLUX 3's own edit layout.",
+              "<b>✂ Crop and stitch</b>: a small painted area in ✨ Edit with words is now cut out with some picture around it and edited at full size, then put back: sharper hands, eyes and lettering, and faster.",
+              "<b>🎨 Keep the original's colours</b> (✨ Edit with words): moves the result's colours back to your picture's (like ComfyUI's Color Match), for when the model shifts everything warmer or brighter.",
               "<b>🎨 Style presets card</b> (Create, with Z-Image, FLUX.2 Klein or FLUX 3, like MiniMax-H3's presets): the 123 ZImagePowerNodes styles right under the model: Photo / Illustration / Wild or search, one press puts the style on top of your prompt, press it again (or ✕ None) to take it off. ✕ folds the card away.",
               "<b>🧩 Two pictures → one</b> is now at the top of Image to image → ✨ Edit with words: pick 📸 Anime → Real, 🎨 Real → Anime, 🏞 Character into scene (new), 🧑 Head swap (BFS) and the others, then drop Picture 1 ＋ Picture 2 in their boxes ➜ the result shows beside them. <b>🧩 Combine</b> has the same Scene ＋ Character ➜ Result boxes.",
               "<b>📦 Draw your own boxes</b> (Create → 🗺 Regions → <b>📦 Boxes</b>, with FLUX 3, Ideogram 4 or MOSS-Image): drag on the little picture to draw a box anywhere, drag a box to move it, its corner to resize it, and say what goes in each one (up to 8). The boxes go into the prompt in each model's own layout format (the same as ComfyUI's FLUX 3, Ideogram 4 and MOSS box editors), so there's no extra time. Words in quotes in a box become lettering there. ✨ Enhance now rewrites only the main prompt; the boxes are added after it.",
@@ -1469,6 +1475,7 @@ const protoartApp = createApp({
               "<b>Right-click menus across the app</b>: models (use, favourite, <b>⟲ Reconnect…</b> a moved or missing file, Show in Finder, fix the type, copy the name or location, remove from the list), LoRAs (add or take out, trigger words, Show in Finder, fix the type), the queue (start next, move up or down, stop), your folders in Settings (reconnect, show, stop using) and text boxes (cut, copy, paste, spelling). Pictures keep their own menu.",
               "<b>Library → Select</b>: the selection bar stays at the top while you scroll, and there's a 🗑 Delete button next to Compare. <b>Detail with a LoRA</b> (Tools) has a search box for the LoRA list.",
               "<b>🧩 Tiled upscale</b> (Tools): enlarges a picture 1.5–3× and lets your Create model add real detail tile by tile (MultiDiffusion), with no seams and little memory.",
+              "<b>🧩 Tiled upscale with ⚡ Z-Image Turbo</b> (Tools, the default): the picture is enlarged, then Z-Image Turbo lightly redraws it tile by tile with <b>✨ Flow-DPO</b> on (richer light; 170 MB, downloaded the first time), and the tiles are blended with soft seams. Works on 8 GB Macs (about 1–2 minutes a tile). New detail 0.25–0.35 keeps the picture; the detail prompt can add a texture (skin pores, film grain). Pick <i>SD model</i> for drawings and anime with an SD model.",
               "<b>🔁 Face swap</b> (Image to image): put the face from one photo onto the person in another, tidied with CodeFormer (fidelity 0.7, 60%). Only for faces you have permission to use; non-commercial licence (inswapper_128); explicit results aren't saved.",
               "<b>ControlNet Union ProMax for SDXL</b>: one ~2.5 GB model for Canny, Depth, OpenPose, Line art, Scribble, Soft edges and Tile with any SDXL, Pony, Illustrious or NoobAI model. <b>Which one should I use?</b> (Image prompt and ControlNet) sets up the right tool for “the same person”, “copy a style or outfit” or “follow a pose or drawing”.",
               "<b>🗜 Smaller copy</b> (Tools): make an 8, 6 or 4-bit copy of an SD 1.5 or SDXL model that needs less memory. <b>🧪 Model merger</b> (Tools): blend two models into a new one, or add a difference.",
@@ -1567,6 +1574,7 @@ const protoartApp = createApp({
               "<b>SDXL ControlNets</b> (Pony, Illustrious and NoobAI too): download them from Civitai into the ControlNet folder and pick them in Image to image → ControlNet with an SDXL model. Full, mid and small sizes are read from the file. A name with <i>canny, depth, lineart, openpose, softedge, scribble</i> or <i>tile</i> gets that map made from your picture (SD 1.5 ones too). Control-LoRA, LLLite and Union files aren't supported yet: the Models tab says so next to the file." ] },
             { h: "Version 1.2: new tools, and more of your testers' notes", items: [
               "<b>✨ Edit with words</b> (Image to image): describe a change (“make the jacket red”, “add a hat”, “turn it into a watercolour”) and FLUX.2 Klein makes just that change. Paint over a part to keep everything else exactly as it was, or add more pictures to take a style or an outfit from.",
+              "<b>📦 Move, remove or add with boxes</b> (✨ Edit with words with FLUX 3 picked): press ＋ Move, ＋ Remove or ＋ Add, write what it is (“the red lamp”), then draw its box on your picture: for Move, first where it is now (orange), then where it goes (blue). The prompt can stay empty. <b>✂ Painted areas</b> are edited on their own, cut out with some picture around them and worked on at full size, then put back (sharper hands, eyes and lettering). <b>🎨 Keep the original's colours</b> moves the result's colours back to your picture's, for edits that shouldn't change them.",
               "<b>🎲 Random prompt speaks the model's language</b>: with FLUX, FLUX.2 or ERNIE picked it writes a scene in sentences (“Medium shot of a fisherman with a white beard, mending a net on a harbour wall at dawn…”); with SD 1.5 and SDXL it still writes tags. In Image to image, <b>FLUX.2 Klein</b> now shows at the top of the model list while Edit with words is on.",
               "<b>Selection tools</b> wherever you paint over a picture (Inpaint, Remove, Edit with words, Tools → Remove objects): <b>🖌 Brush</b>, <b>🧽 Erase</b>, <b>➰ Lasso</b> (draw around an area), <b>⬠ Polygon</b> (click the corners), <b>🪄 Wand</b> (click a colour; set the tolerance) and <b>⬚ Object</b> (drag a box and the object's outline is found). <b>＋ Add / － Subtract</b> (or hold ⌥ Option); keys B E L P W O; Esc cancels. <b>VAE</b>: each model remembers its VAE, only matching ones are listed, and <b>⤓ get</b> downloads the recommended one. <b>Random / Wildcards / List</b> are now three keys.",
               "<b>🛡 Safe-for-work mode</b> (Settings, the 🛡 SFW switch at the top): refuses prompts that ask for adult content, NSFW LoRAs and models, hides NSFW pictures everywhere (they can't be opened) and checks every new picture on this Mac. An SFW lamp shows at the top. <b>VAEs</b>: download them from Civitai (or drop files in the VAE folder) and pick one in Create → Extras → VAE (SD 1.5 and SDXL). <b>Your own ControlNets</b> (SD 1.5, e.g. a canny or depth one from Civitai) appear in Image to image → ControlNet and follow your picture as it is. The <b>Models</b> tab lists <b>Embeddings, VAEs &amp; ControlNets</b> with filters. <b>FLUX.1 Dev</b> (higher quality FLUX, 25 steps) is in the Models tab for Macs with 32 GB or more; it's free for personal use only (non-commercial licence) and needs a free Hugging Face account.",
@@ -3153,7 +3161,7 @@ const protoartApp = createApp({
       return this.loras.filter((l) => l.family === this.mergeFamily && !/\.safetensors$/i.test(l.file || "")).length;
     },
     tiledJob() {
-      return this.queue.find((j) => j.cmd === "tiled_upscale");
+      return this.queue.find((j) => j.cmd === "tiled_upscale" || j.cmd === "detail_upscale");
     },
     tiledEstimate() {  // the result's size and a rough count of the work
       const src = this.tool.source || {}, sc = this.tup.scale;
@@ -5938,9 +5946,7 @@ const protoartApp = createApp({
             rec = await this.runJob("generate", this.detailArgs(d, curPath));
             if (Array.isArray(rec)) rec = rec[rec.length - 1] || null;  // generate answers with a list of pictures
           } else if (id === "tiled") {
-            const f = this.form;
-            rec = await this.runJob("tiled_upscale", { ...cur, model: f.model, prompt: (this.tup.prompt || "").trim(), scale: this.tup.scale,
-                                                         strength: this.tup.strength, steps: this.tup.steps, cfg: Math.min(f.cfg || 6, 6), sampler: f.sampler, seed: f.seed });
+            rec = await this.runJob(...this.tiledJobArgs(cur));
           } else if (id === "relight") {
             const o = this.post.relight;
             rec = await this.runJob("relight", { ...cur, prompt: o.prompt, subject: o.subject, direction: o.direction, model: this.relightModel().id,
@@ -8790,7 +8796,20 @@ const protoartApp = createApp({
       else f.create_prompt = out;
       this.status = to === "tags" ? "Converted to Stable Diffusion tags (↩ undo puts yours back)" : "Converted to natural sentences (↩ undo puts yours back)";
     },
+    tiledJobArgs(cur) {  // 🧩 Tiled upscale: Z-Image Turbo (+ Flow-DPO) tile by tile, or the Create SD model (MultiDiffusion)
+      const f = this.form;
+      if (this.tup.engine === "z")
+        return ["detail_upscale", { ...cur, prompt: (this.tup.prompt || "").trim(), scale: this.tup.scale, strength: this.tup.strength,
+                                    flow_dpo: this.tup.flow_dpo !== false, seed: f.seed }];
+      return ["tiled_upscale", { ...cur, model: f.model, prompt: (this.tup.prompt || "").trim(), scale: this.tup.scale, strength: this.tup.strength,
+                                 steps: this.tup.steps, cfg: Math.min(f.cfg || 6, 6), sampler: f.sampler, seed: f.seed }];
+    },
     async toolTiled() {
+      if (this.tup.engine === "z") {
+        const r = await this.runJob(...this.tiledJobArgs(this.toolArgs()));
+        if (r) this.afterPost(r);
+        return;
+      }
       const f = this.form;
       // Not Create's prompt: every tile would try to draw that whole scene (new faces and people in each tile). A short
       // "detail" prompt (or your own words for the texture/style) keeps the picture and adds detail.
@@ -8984,6 +9003,75 @@ const protoartApp = createApp({
     },
     regionsLayout() {  // FLUX 3, Ideogram 4 and MOSS-Image read the areas as layout boxes in the prompt (one pass)
       return ["flux3", "ideogram4", "moss"].includes(this.family);
+    },
+    // 📦 FLUX 3 · Edit with words: things to move, remove or add, each with a box where it is now (src) and/or
+    // where it goes (tgt), drawn on your picture. Sent as move_boxes; the backend writes FLUX 3's edit layout.
+    mvAdd(act) {
+      this.mv.items.push({ desc: "", act, src: null, tgt: null });
+      this.mv.sel = this.mv.items.length - 1;
+      this.mv.draw = act === "add" ? "tgt" : "src";
+      this.$nextTick(() => document.querySelectorAll(".mv-row input")[this.mv.sel]?.focus());
+    },
+    mvRemove(i) {
+      this.mv.items.splice(i, 1);
+      this.mv.sel = Math.min(this.mv.sel, this.mv.items.length - 1);
+    },
+    mvPick(i) {
+      this.mv.sel = i;
+      const it = this.mv.items[i];
+      if (it) this.mv.draw = it.act === "add" ? "tgt" : it.act === "remove" ? "src" : (it.src && !it.tgt ? "tgt" : this.mv.draw);
+    },
+    mvReady() {  // the items with what they need (a description and their boxes)
+      return this.mv.items.filter((it) => (it.desc || "").trim() && (it.act === "add" || it.src) && (it.act === "remove" || it.tgt))
+        .map((it) => ({ desc: it.desc.trim(), act: it.act, src: it.src, tgt: it.tgt }));
+    },
+    mvDown(e) {
+      const mv = this.mv;
+      if (e.button > 0) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const clamp = (v) => Math.min(1, Math.max(0, v));
+      const at = (ev) => [clamp((ev.clientX - rect.left) / rect.width), clamp((ev.clientY - rect.top) / rect.height)];
+      const [px, py] = at(e);
+      const el = e.target.closest(".reg-box");
+      let i, k, mode, start;
+      if (el) {
+        i = Number(el.dataset.i); k = el.dataset.k;
+        mode = e.target.classList.contains("reg-h") ? "size" : "move";
+        start = [...mv.items[i][k]];
+        mv.sel = i;
+      } else {
+        if (mv.sel < 0 || !mv.items[mv.sel]) { this.status = "Press ＋ Move, ＋ Remove or ＋ Add first, then draw its box"; return; }
+        i = mv.sel; k = mv.draw; mode = "draw";
+        if (mv.items[i].act === "add") k = "tgt";
+        if (mv.items[i].act === "remove") k = "src";
+        mv.items[i][k] = [px, py, px, py];
+      }
+      e.preventDefault();
+      const round = (b) => b.map((v) => Math.round(v * 1000) / 1000);
+      const move = (ev) => {
+        const [x, y] = at(ev);
+        let b;
+        if (mode === "draw") b = [Math.min(px, x), Math.min(py, y), Math.max(px, x), Math.max(py, y)];
+        else if (mode === "size") b = [start[0], start[1], Math.max(start[0] + 0.03, x), Math.max(start[1] + 0.03, y)];
+        else {
+          const w = start[2] - start[0], h = start[3] - start[1];
+          const nx = Math.min(1 - w, Math.max(0, start[0] + x - px)), ny = Math.min(1 - h, Math.max(0, start[1] + y - py));
+          b = [nx, ny, nx + w, ny + h];
+        }
+        mv.items[i][k] = round(b);
+      };
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        const b = mv.items[i] && mv.items[i][k];
+        if (mode === "draw" && b && (b[2] - b[0] < 0.03 || b[3] - b[1] < 0.03)) {  // a click: a box around that spot
+          const x0 = Math.min(0.8, Math.max(0, px - 0.1)), y0 = Math.min(0.8, Math.max(0, py - 0.1));
+          mv.items[i][k] = round([x0, y0, x0 + 0.2, y0 + 0.2]);
+        }
+        if (mode === "draw" && k === "src" && mv.items[i]?.act === "move" && !mv.items[i].tgt) mv.draw = "tgt";  // next: where it goes
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
     },
     regionMax() {
       return this.form.regions.layout === "free" ? 8 : 4;
@@ -9709,7 +9797,8 @@ const protoartApp = createApp({
         return;
       }
       if (f.i2i_mode === "edit") {  // ✨ FLUX.2 Klein, whatever model Create has
-        if (!(f.prompt || "").trim()) return (this.error = "Describe the change in the prompt, e.g. “make the jacket red” or “turn it into a watercolour”.");
+        if (!(f.prompt || "").trim() && !(this.editModelId() === "flux3_klein_mlx_q4" && this.mvReady().length))
+          return (this.error = "Describe the change in the prompt, e.g. “make the jacket red” or “turn it into a watercolour”.");
         this.error = "";
         const painted = this.maskIsFor("i2i", f.init_image) ? this.mask.data : null;
         const rec = this.editRecipe();
@@ -9718,7 +9807,8 @@ const protoartApp = createApp({
           if (rec.files && !this.editRecipeLora(rec)) return (this.error = `${rec.label} needs its LoRA first: press ⤓ Download under the recipe.`);
         }
         await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: f.init_image, prompt: f.prompt, mask: painted,
-                                          keep_faces: !painted && f.keep_faces !== false && !rec,
+                                          keep_faces: !painted && f.keep_faces !== false && !rec, match_colors: !painted && !!f.match_colors,
+                                          move_boxes: this.editModelId() === "flux3_klein_mlx_q4" && this.mvReady().length ? this.mvReady() : null,
                                           refs: (f.edit_refs || []).slice(0, this.editRefMax()), seed: f.seed, ...this.recipeEditArgs() });
         return;
       }

@@ -240,3 +240,43 @@ def flux3_boxes(prompt, layout, ratios, prompts, boxes=None):
         main += "."
     lead = (main + " " if main else "") + "; ".join(tags) + "."
     return lead + " " + json.dumps(items, ensure_ascii=False)
+
+
+def flux3_edit_boxes(prompt, items):
+    """📦 Move / remove / add with boxes (✨ Edit with words with FLUX 3): each item is {"desc", "act": "move" |
+    "remove" | "add", "src": box where it is now in your picture, "tgt": box where it goes} (boxes x0, y0, x1, y1 in
+    0..1). Written as BFL's edit layout (as ComfyUI's FLUX.3 prompt builder does with a reference picture): a sentence
+    per item citing <obj_N>, then rows {id, from, src_bbox, tgt_bbox, desc}: from "ref_image_0" (your picture) when it
+    has a source box, "target" when it's new. A remove has no target box; an add has no source box."""
+    import json
+
+    def box(b):
+        try:
+            x0, y0, x1, y1 = (min(1.0, max(0.0, float(v))) for v in b)
+        except (TypeError, ValueError):
+            return None
+        if x1 - x0 < 0.01 or y1 - y0 < 0.01:
+            return None
+        return _grid((x0, y0, x1, y1))
+
+    rows, says = [], []
+    for it in items or []:
+        if not isinstance(it, dict):
+            continue
+        desc = str(it.get("desc") or "").strip()
+        act = it.get("act") if it.get("act") in ("move", "remove", "add") else "move"
+        src = box(it.get("src")) if act != "add" else None
+        tgt = box(it.get("tgt")) if act != "remove" else None
+        if not desc or (act != "add" and not src) or (act != "remove" and not tgt):
+            continue
+        rid = f"obj_{len(rows) + 1}"
+        rows.append({"id": rid, "from": "ref_image_0" if src else "target", "src_bbox": src, "tgt_bbox": tgt, "desc": desc})
+        says.append({"move": f"Move the {desc} <{rid}> to its new place", "remove": f"Remove the {desc} <{rid}> and fill in what was behind it",
+                     "add": f"Add {desc} <{rid}>"}[act])
+    if not rows:
+        return prompt
+    main = (prompt or "").strip()
+    if main and main[-1] not in ".!?":
+        main += "."
+    lead = (main + " " if main else "") + "; ".join(says) + ". Keep everything else exactly as it is."
+    return lead + " " + json.dumps(rows, ensure_ascii=False)

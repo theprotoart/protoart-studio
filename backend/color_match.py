@@ -141,3 +141,20 @@ def match_subject(image, matte, direction="subject", strength=0.7, light=0.5, re
     out = _from_lab(lab + delta)
     moved = float(np.abs(delta).sum(-1)[apply_w > 0.5].mean()) if (apply_w > 0.5).any() else 0.0
     return Image.fromarray(out), {"moved": round(moved, 2)}
+
+
+# ------------------------------------------------------------------------- 🎨 Keep the original's colours (edits)
+def match_global(result, original, strength=1.0):
+    """The result's colours moved towards the original's (Reinhard: each Lab channel's mean and spread, like ComfyUI's
+    Color Match node), by `strength` 0..1. For edits that should keep the picture's colours: Klein / FLUX 3 sometimes
+    shift the whole picture warmer, greener or more saturated."""
+    r = np.asarray(result.convert("RGB"), dtype=np.float32)
+    o = np.asarray(original.convert("RGB").resize(result.size, Image.BILINEAR), dtype=np.float32)
+    rl, ol = _to_lab(r), _to_lab(o)
+    ones = np.ones(rl.shape[:2], np.float32)
+    rm, rs = _stats(rl, ones)
+    om, os_ = _stats(ol, ones)
+    moved = (rl - rm) / rs * os_ + om
+    s = max(0.0, min(1.0, float(strength)))
+    out = _from_lab(rl + (moved - rl) * s)
+    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))

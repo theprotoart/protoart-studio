@@ -33,6 +33,16 @@
   `ideogram4_mlx_q3`: the same files at 3-bit (16 GB Macs, experimental). Both are shrunk once and saved with mflux's
   `save_model` to `fast-copies/<org>--<name>-q<bits>` (`mlx_save_copy`; not with LoRAs, skipped without 12 GB free);
   the fast engine's load key now includes the bit width, so switching between them reloads.
+- 🧩 Tiled upscale with Z-Image Turbo (`detail_upscale`, now the Tools default): Real-ESRGAN enlarge, then per-tile
+  img2img on the fast engine (768 / 1024 px tiles, 1/6 overlap, linear-ramp blend, `keep_tones` per tile so tiles
+  can't drift), with Flow-DPO (zit_fdpo_v1 at 0.6) downloaded and applied by default (`flow_dpo`). The SD
+  MultiDiffusion version stays (`tup.engine` "sd").
+- 📦 FLUX 3 move / remove / add with boxes (`move_boxes` → `regions.flux3_edit_boxes`): BFL's edit layout rows
+  {id, from: ref_image_0 | target, src_bbox, tgt_bbox, desc} after a sentence per item; drawn on the picture (`mvDown`).
+- ✂ Crop and stitch for ✨ Edit with words with a painted area (`crop_around`: the painted box + 60% context, ≥ 384 px,
+  only when under 45% of the picture; `crop_stitch: false` turns it off): edited at full work size, pasted back.
+- 🎨 Keep the original's colours (`match_colors`, `color_match.match_global`: Reinhard Lab mean/std transfer at 0.8)
+  for whole-picture edits.
 - 🎨 Style presets as a card in Create (`zstyle-card`, like the MiniMax-H3 presets; Z-Image, FLUX.2 Klein, FLUX 3;
   foldable via `hidden_guides` "zstyles"), on top of the 🎨 Styles prompt tool.
 - Image to image: the two-picture recipes moved to the top of ✨ Edit with words ("🧩 Two pictures → one"), new LoRA-free

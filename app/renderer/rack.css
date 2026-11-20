@@ -2182,6 +2182,13 @@ label.check.consent { margin-top: 8px; font-weight: 600; }
 .reg-map.free .reg-box { cursor: move; }
 .reg-box.sel { border-style: solid; background: rgba(255, 196, 77, .2); }
 .reg-h { position: absolute; right: -5px; bottom: -5px; width: 10px; height: 10px; background: #ffc44d; border: 1px solid #000; cursor: nwse-resize; }
+.mv-map { position: relative; width: min(100%, 360px); aspect-ratio: auto; max-height: none; }
+.mv-map img { display: block; width: 100%; height: auto; pointer-events: none; user-select: none; }
+.mv-map .pair-empty { padding: 30px 10px; text-align: center; }
+.reg-box.mv-tgt { border-color: rgba(120, 220, 255, .9); color: #bdf0ff; background: rgba(120, 220, 255, .1); }
+.mv-row input { min-width: 0; }
+.mv-act { width: 52px; flex: none; margin-top: 4px; }
+.mv-add { gap: 6px; flex-wrap: wrap; align-items: center; }
 .reg-prompt.sel .reg-n { background: #ffc44d; color: #111; }
 .reg-prompt { display: flex; align-items: flex-start; gap: 6px; margin: 4px 0; }
 .reg-prompt textarea { flex: 1; min-width: 0; }

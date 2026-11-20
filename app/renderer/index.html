@@ -3001,10 +3001,16 @@
         </div>
         <div class="card rack-module tiled-module" :class="{active: !!tiledJob}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🧩</span>
-            <h3>Tiled upscale</h3><button class="mod-reset" @click.stop="resetToolPart('tiled')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span class="mod-sub">MultiDiffusion · {{ currentModel && ['sd15', 'sdxl'].includes(family) ? currentModel.label : 'needs an SD 1.5 / SDXL model in Create' }}</span></div>
+            <h3>Tiled upscale</h3><button class="mod-reset" @click.stop="resetToolPart('tiled')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span class="mod-sub">{{ tup.engine === 'z' ? '⚡ Z-Image Turbo' + (tup.flow_dpo ? ' + ✨ Flow-DPO' : '') : 'MultiDiffusion · ' + (currentModel && ['sd15', 'sdxl'].includes(family) ? currentModel.label : 'needs an SD 1.5 / SDXL model in Create') }}</span></div>
           <p class="mod-desc" title="The picture is enlarged, then the Create model redraws it lightly in overlapping tiles, averaged at every step so there are no seams. It uses a short detail prompt, not Create's (each tile would redraw that whole scene).">Enlarges the picture and lets your Create model add real detail, tile by tile, with no seams.</p>
-          <label>Preset</label>
-          <div class="seg mod-seg tup-presets">
+          <label>Redraw with</label>
+          <div class="seg mod-seg">
+            <button :class="{on: tup.engine === 'z'}" @click="tup.engine = 'z'" title="Z-Image Turbo redraws each tile lightly (like ComfyUI's Ultimate SD Upscale): photoreal detail, fits 8 GB Macs. Downloads Z-Image Turbo the first time">⚡ Z-Image Turbo</button>
+            <button :class="{on: tup.engine !== 'z'}" @click="tup.engine = 'sd'" title="Your Create model (SD 1.5 or SDXL), MultiDiffusion: good for drawings and anime with an anime model">SD model</button>
+          </div>
+          <label v-if="tup.engine === 'z'" class="check" title="Flow-DPO (a 170 MB LoRA for Z-Image Turbo, Apache-2.0) gives richer, less flat light and texture. Downloaded the first time"><input type="checkbox" v-model="tup.flow_dpo"> ✨ Flow-DPO <span class="hint">(richer light; downloads 170 MB once)</span></label>
+          <label v-if="tup.engine !== 'z'">Preset</label>
+          <div v-if="tup.engine !== 'z'" class="seg mod-seg tup-presets">
             <button v-for="pr in TILED_PRESETS" :key="pr.id" :class="{on: tupPreset() === pr.id}" @click="Object.assign(tup, pr.set)" :title="pr.tip">{{ pr.label }}</button>
           </div>
           <label>Size</label>
@@ -3014,13 +3020,13 @@
           </div>
           <label title="How much the model may redraw: 0.25–0.4 adds detail and keeps the picture">New detail <span class="mod-val">{{ Number(tup.strength).toFixed(2) }}</span></label>
           <input type="range" min="0.15" max="0.6" step="0.05" v-model.number="tup.strength" title="0.2–0.3 adds detail and keeps the picture; higher redraws more (and can add new things)">
-          <label>Steps <span class="mod-val">{{ tup.steps }}</span></label>
-          <input type="range" min="10" max="40" step="1" v-model.number="tup.steps" title="Only the last part of the steps is used (as in image to image)">
+          <label v-if="tup.engine !== 'z'">Steps <span class="mod-val">{{ tup.steps }}</span></label>
+          <input v-if="tup.engine !== 'z'" type="range" min="10" max="40" step="1" v-model.number="tup.steps" title="Only the last part of the steps is used (as in image to image)">
           <label title="Optional: words for the texture or style to add (oil paint, film grain, skin pores…). Don't describe the whole scene: each tile would try to draw it again">Detail prompt <span class="hint">optional</span></label>
           <input v-model="tup.prompt" class="mod-input" placeholder="empty = just sharper detail · or e.g. oil painting texture, film grain">
-          <p class="mod-note">{{ tool.source ? tiledEstimate : 'Pick a picture above.' }}</p>
+          <p class="mod-note">{{ !tool.source ? 'Pick a picture above.' : tup.engine === 'z' ? 'Tile by tile at ' + (sys.ram_gb && sys.ram_gb < 12 ? 768 : 1024) + ' px: about 1–2 minutes a tile on an 8 GB Mac (2× of a 1024 picture: ~6–9 tiles).' : tiledEstimate }}</p>
           <div class="mod-foot">
-            <button class="primary mod-go" :disabled="!tool.source || !!tiledJob || !['sd15', 'sdxl'].includes(family)" @click="toolTiled">{{ tiledJob ? 'Upscaling…' : 'Upscale' }}</button>
+            <button class="primary mod-go" :disabled="!tool.source || !!tiledJob || (tup.engine !== 'z' && !['sd15', 'sdxl'].includes(family))" @click="toolTiled">{{ tiledJob ? 'Upscaling…' : 'Upscale' }}</button>
             <span class="mod-plate">Tiler · TD-8</span>
           </div>
         </div>
@@ -3308,6 +3314,34 @@
             </div>
             <div v-if="!(form.edit_refs || []).length" class="hint warn">Drop Picture 2 in its box above.</div>
           </div>
+          <template v-if="editModelId() === 'flux3_klein_mlx_q4'">
+            <label class="pair-head">📦 Move, remove or add with boxes <span class="hint">FLUX 3 · optional: press one, write what it is, then draw its box on your picture (for Move: where it is now, then where it goes)</span></label>
+            <div class="row small mv-add">
+              <button class="ghost small" @click="mvAdd('move')" title="Something in your picture to move: draw where it is, then where it should go">＋ Move</button>
+              <button class="ghost small" @click="mvAdd('remove')" title="Something in your picture to take away: draw a box around it">＋ Remove</button>
+              <button class="ghost small" @click="mvAdd('add')" title="Something new to put in: draw where it should go">＋ Add</button>
+              <div v-if="mv.sel >= 0 && mv.items[mv.sel] && mv.items[mv.sel].act === 'move'" class="seg">
+                <button :class="{on: mv.draw === 'src'}" @click="mv.draw = 'src'" title="Draw the box around where it is now">◻ where it is</button>
+                <button :class="{on: mv.draw === 'tgt'}" @click="mv.draw = 'tgt'" title="Draw the box where it should go">➜ where it goes</button>
+              </div>
+            </div>
+            <div v-if="mv.items.length" class="reg-map free mv-map" @pointerdown="mvDown($event)">
+              <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt="" draggable="false">
+              <div v-else class="pair-empty"><b>Add your picture above</b></div>
+              <template v-for="(it, i) in mv.items" :key="'mv' + i">
+                <div v-if="it.src" :data-i="i" data-k="src" class="reg-box mv-src" :class="{sel: mv.sel === i}" :style="{left: it.src[0] * 100 + '%', top: it.src[1] * 100 + '%', width: (it.src[2] - it.src[0]) * 100 + '%', height: (it.src[3] - it.src[1]) * 100 + '%'}">{{ i + 1 }}<span class="reg-h"></span></div>
+                <div v-if="it.tgt" :data-i="i" data-k="tgt" class="reg-box mv-tgt" :class="{sel: mv.sel === i}" :style="{left: it.tgt[0] * 100 + '%', top: it.tgt[1] * 100 + '%', width: (it.tgt[2] - it.tgt[0]) * 100 + '%', height: (it.tgt[3] - it.tgt[1]) * 100 + '%'}">{{ it.act === 'add' ? '＋' : '' }}{{ i + 1 }}{{ it.act === 'move' ? ' ➜' : '' }}<span class="reg-h"></span></div>
+              </template>
+            </div>
+            <div v-for="(it, i) in mv.items" :key="'mvr' + i" class="reg-prompt mv-row" :class="{sel: mv.sel === i}" @focusin="mvPick(i)" @click="mvPick(i)">
+              <span class="reg-n">{{ i + 1 }}</span>
+              <span class="hint mv-act">{{ {move: 'Move', remove: 'Remove', add: 'Add'}[it.act] }}</span>
+              <input v-model="it.desc" class="grow" :placeholder="it.act === 'add' ? 'what to add, e.g. a black cat' : 'what it is, e.g. the red lamp'">
+              <span class="hint">{{ (it.act !== 'add' && !it.src) ? 'draw where it is' : (it.act !== 'remove' && !it.tgt) ? 'draw where it goes' : '✓' }}</span>
+              <button class="ghost small" @click.stop="mvRemove(i)" title="Take this one off">✕</button>
+            </div>
+            <p v-if="mv.items.length" class="hint">The prompt can stay empty, or add to it (“at night”). Orange boxes: where things are now · blue: where they go. Drag a box to move it, its corner to resize it.</p>
+          </template>
           <div class="hint">Describe the change in <b>3 · Prompt</b>. <b>Optional:</b> paint over the part that may change, and
             everything else stays exactly as it is (best for small, precise edits).</div>
           <div class="mask-tools">
@@ -3341,6 +3375,8 @@
           </template>
           <label v-if="editModelId() !== 'h3_image'" class="check" title="After the edit, each face (up to 3) is edited again on its own, close up, with the original face beside it, and blended in: the person stays recognisable (restoring or colouring old photos, changing clothes or the background). Adds about one more edit per face. Not used when you paint an area (the rest stays exactly the same then)">
             <input type="checkbox" :checked="form.keep_faces !== false" @change="form.keep_faces = $event.target.checked"> 🙂 Keep faces close to the original <span class="hint">(+1 full edit per face: switch it off when only the background changes)</span></label>
+          <label class="check" title="After the edit, the whole picture's colours are moved back to the original's (like ComfyUI's Color Match), for when the model shifts everything warmer, greener or brighter. Leave it off when the change IS the colours (a sunset relight, black and white, a new palette). Not used with a painted area: that already matches the light around it">
+            <input type="checkbox" v-model="form.match_colors"> 🎨 Keep the original's colours <span class="hint">(for edits that shouldn't change the colours)</span></label>
           <template v-if="editModelId() === 'h3_image'">
             <label>🧩 Compose with pictures <span class="hint">optional · pick a starting point, add the pictures, set what each one brings, then ✍ Write the prompt. Without one, just describe the change in the prompt (or use a Quick edit, like 🚶 Remove people) and press ✨ Edit</span></label>
             <div class="seg seg-wrap edit-recipes">

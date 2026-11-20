@@ -292,6 +292,25 @@ class Skipped(Exception):
     """The current image was skipped; the job carries on with its next image."""
 
 
+def crop_around(bbox, size, context=0.6, min_side=384, most=0.45):
+    """✂ Crop and stitch: the part of the picture to edit around a painted area (bbox), with `context` of its size
+    added on each side (so the model sees what's around it), at least `min_side` px, kept inside the picture.
+    None when the area is big (the crop would cover over `most` of the picture): then the whole picture is edited."""
+    if not bbox:
+        return None
+    W, H = size
+    x0, y0, x1, y1 = bbox
+    bw, bh = x1 - x0, y1 - y0
+    w = min(W, max(min_side, int(bw * (1 + 2 * context))))
+    h = min(H, max(min_side, int(bh * (1 + 2 * context))))
+    if w * h > most * W * H:
+        return None
+    cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+    left = max(0, min(W - w, cx - w // 2))
+    top = max(0, min(H - h, cy - h // 2))
+    return (left, top, left + w, top + h)
+
+
 class UserError(Exception):
     """An error with a message meant for the person using the app."""
 
@@ -5044,6 +5063,10 @@ class Engine:
         if spec is None:
             raise UserError("Edit with words needs the FLUX.2 Klein model, which isn't in this version.")
         prompt = (args.get("prompt") or "").strip()
+        moves = args.get("move_boxes") if isinstance(args.get("move_boxes"), list) and spec.get("family") == "flux3" and not h3 else None
+        if moves:  # 📦 FLUX 3: move / remove / add things with boxes (its edit layout, written into the prompt)
+            import regions
+            prompt = regions.flux3_edit_boxes(prompt, moves)
         if not prompt and not isinstance(args.get("combine"), dict):
             raise UserError("Describe the change in the prompt, e.g. “make the jacket red” or “turn it into a watercolour”.")
         src, image = self._source_picture(args)
@@ -5068,6 +5091,15 @@ class Engine:
                 raise UserError(f"Couldn't read the extra picture: {os.path.basename(r)}")
         if combine is not None:  # 🧩 Combine: the scene is picture 1, the characters / things to add are the others
             image, ref_imgs, mask, prompt = self._combine_prepare(image, refs, ref_imgs, combine, prompt)
+        stitch = None
+        if mask is not None and combine is None and not h3 and args.get("crop_stitch", True):
+            # ✂ Crop and stitch (like ComfyUI's Inpaint Crop & Stitch): a small painted area is edited on its own,
+            # cut out with some picture around it, so it's worked on at full size (sharper hands, eyes, lettering),
+            # then put back in its place. The rest of the picture is never touched.
+            box = crop_around(mask.getbbox(), image.size)
+            if box:
+                stitch = (image, mask, box)
+                image, mask = image.crop(box), mask.crop(box)
         ram = total_ram_gb()
         side = 768 if 0 < ram < 12 else 1024
         # small pictures are worked on bigger (up to 2×): faces and small details come out much closer to the original
@@ -5232,6 +5264,17 @@ class Engine:
             except Exception as e:
                 print("[engine] colour match skipped:", e, flush=True)
             result = Image.composite(result, image, m)
+        if stitch is not None:  # ✂ the edited piece back in its place in the whole picture
+            whole = stitch[0].copy()
+            whole.paste(result.resize((stitch[2][2] - stitch[2][0], stitch[2][3] - stitch[2][1]), Image.LANCZOS), stitch[2][:2])
+            image, mask, result = stitch[0], stitch[1], whole
+        if args.get("match_colors") and mask is None and not panels_cropped:
+            # 🎨 Keep the original's colours: the whole result's colours moved back towards the picture's
+            try:
+                import color_match
+                result = color_match.match_global(result, image, float(args.get("match_colors_strength") or 0.8))
+            except Exception as e:  # noqa: BLE001
+                print("[engine] colour match skipped:", e, flush=True)
         secs = time.time() - started
         print(f"[timing] edit with words: {secs:.1f}s for {steps} steps at {width}x{height}", flush=True)
         settings = {"model": edit_id, "prompt": prompt, "negative_prompt": "", "width": result.width,
@@ -5540,6 +5583,117 @@ class Engine:
         phase(4, f"Saved {label} · {bits}-bit ({size:.1f} GB) in {time.time() - started:.0f} s")
         return {"path": str(dest), "label": f"{label} · {bits}-bit", "bits": bits, "gb": round(size, 2),
                 "family": spec["family"]}
+
+    DETAIL_MODEL = "zimage_turbo_mlx_q4"
+
+    def detail_upscale(self, args, flow_dpo=None):
+        """✨ Detail upscale (like ComfyUI's Ultimate SD Upscale): the picture is enlarged (Real-ESRGAN), cut into
+        overlapping tiles, and each tile is lightly redrawn by Z-Image Turbo (with ✨ Flow-DPO, `flow_dpo` = its file,
+        for richer light), then the tiles are blended back with soft seams. Each tile keeps the original's broad colours
+        (color_match.keep_tones), so the tiles can't drift apart. Memory: one tile at a time, so it fits 8 GB Macs."""
+        import numpy as np
+        import mlx_engine
+        import color_match
+        import tiled
+        from PIL import Image
+        src, image = self._source_picture(args)
+        image = image.convert("RGB")
+        spec = all_models().get(self.DETAIL_MODEL)
+        if spec is None:
+            raise UserError("Detail upscale needs Z-Image Turbo, which isn't in this version.")
+        ram = total_ram_gb()
+        scale = max(1.25, min(4.0, float(args.get("scale") or 2)))
+        limit = 4096 if ram >= 16 else 3072
+        if max(image.size) * scale > limit:
+            scale = limit / max(image.size)
+            if scale < 1.05:
+                raise UserError(f"That picture is already about as big as this Mac can upscale ({limit} px).")
+        W, H = int(image.width * scale) // 16 * 16, int(image.height * scale) // 16 * 16
+        change = max(0.1, min(0.6, float(args.get("strength") or 0.3)))  # how much each tile is redrawn
+        seed = int(args.get("seed") if args.get("seed") not in (None, "", -1) else random.randint(0, 2**31 - 1))
+        extra = (args.get("prompt") or "").strip()
+        # a detail prompt, not the scene: each tile sees only part of the picture (a scene prompt draws it again in
+        # every tile)
+        prompt = ", ".join(x for x in (extra, "highly detailed, sharp focus, fine natural texture, crisp clean edges, "
+                                       "high quality photograph detail") if x)
+        started = time.time()
+        self.emit({"type": "status", "msg": "Detail upscale: enlarging the picture…"})
+        big = None
+        try:
+            import torch as t
+            import postprocess.realesrgan as rs
+            dev = t.device(self.device())
+            big = rs.upscale("realesr_general_x4v3", image, W / image.width, dev,
+                             t.float16 if dev.type == "mps" else t.float32, self.emit, tile=192)
+            if dev.type == "mps":
+                t.mps.empty_cache()
+        except Exception as e:  # noqa: BLE001
+            print("[detail] Real-ESRGAN skipped:", e, flush=True)
+        big = (big if big is not None else image).convert("RGB").resize((W, H), Image.LANCZOS)
+        tile = 768 if 0 < ram < 12 else 1024
+        tile = min(tile, W, H) // 16 * 16
+        overlap = tile // 6 // 16 * 16 or 16
+        stride = max(16, tile - overlap)
+        ys, xs = tiled._starts(H, tile, stride), tiled._starts(W, tile, stride)
+        boxes = [(x, y, x + tile, y + tile) for y in ys for x in xs]
+        loras = [(flow_dpo, 0.6)] if flow_dpo else []
+        self._mlx_load(spec, [], extra_loras=loras)
+        self.loaded_key = None
+        self.family = spec["family"]
+        acc = np.zeros((H, W, 3), np.float32)
+        wsum = np.zeros((H, W, 1), np.float32)
+        ramp = np.minimum(np.arange(tile) + 1, tile - np.arange(tile)).astype(np.float32)
+        ramp = np.clip(ramp / max(1, overlap), 0.02, 1.0)
+        weight = (ramp[:, None] * ramp[None, :])[..., None]
+        steps = int(spec["defaults"]["steps"])
+        tmp = paths.HOME / "tmp"
+        tmp.mkdir(parents=True, exist_ok=True)
+        tin, tout = tmp / f"detail_in_{os.getpid()}.png", tmp / f"detail_out_{os.getpid()}.png"
+        try:
+            for i, box in enumerate(boxes):
+                self.wait_if_paused()
+                if self.cancel_event.is_set():
+                    raise Cancelled()
+                self.emit({"type": "status", "msg": f"Detail upscale: tile {i + 1} of {len(boxes)} (Z-Image Turbo"
+                                                    f"{' + Flow-DPO' if flow_dpo else ''})…"})
+                part = big.crop(box)
+                part.save(tin)
+
+                def on_event(ev, _i=i):
+                    if ev.get("type") == "progress":
+                        self.emit({"type": "progress", "image": _i + 1, "images": len(boxes), "step": ev["step"],
+                                   "steps": ev["steps"]})
+
+                self.mlx.request({"cmd": "generate", "prompt": prompt, "negative_prompt": None, "width": tile,
+                                  "height": tile, "steps": steps, "cfg": float(spec["defaults"].get("cfg") or 1.0),
+                                  "seed": seed + i, "out": str(tout), "preview": False, "init_image": str(tin),
+                                  "image_strength": 1.0 - change}, on_event=on_event)
+                new = Image.open(tout).convert("RGB").resize(part.size, Image.LANCZOS)
+                new = color_match.keep_tones(new, part)  # the tile's broad light and colour stay the original's
+                acc[box[1]:box[3], box[0]:box[2]] += np.asarray(new, np.float32) * weight
+                wsum[box[1]:box[3], box[0]:box[2]] += weight
+        except mlx_engine.CancelledError:
+            raise Cancelled()
+        except mlx_engine.EngineError as e:
+            raise UserError(str(e))
+        finally:
+            for f in (tin, tout):
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
+        out = Image.fromarray(np.clip(acc / np.maximum(wsum, 1e-6), 0, 255).astype(np.uint8))
+        settings = {"model": self.DETAIL_MODEL, "prompt": prompt, "negative_prompt": "", "width": W, "height": H,
+                    "steps": steps, "cfg": 1.0, "seed": seed, "strength": change, "engine": "mlx",
+                    "loras": [{"name": "zit_fdpo_v1", "weight": 0.6}] if flow_dpo else [],
+                    "detail_upscale": {"scale": round(scale, 2), "tiles": len(boxes)},
+                    "seconds": round(time.time() - started, 1)}
+        path = self._save(out, settings, suffix="detail")
+        record = self.library.add_image(path, settings, parent_id=src.get("id") if isinstance(src, dict) else None, kind="tiled")
+        record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
+        record = self._content_check(record, out)
+        self.emit({"type": "image", "record": record})
+        return record
 
     def tiled_upscale(self, args):
         """🧩 Tiled upscale (MultiDiffusion): enlarge a picture and let the Create model (SD 1.5 / SDXL) redraw it
