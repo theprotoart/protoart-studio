@@ -825,7 +825,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.22";
+const APP_VERSION = "1.6.23";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1223,7 +1223,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Next: 🆕 FLUX 3 Image Klein, 🧩 LoRAs for MOSS-Image", items: [
+            { h: "1.6.23: 🆕 FLUX 3, Ideogram 4, 📦 draw your own boxes, 🧩 Z-Image tiled upscale, 🎨 style presets, 📸 Anime ↔ Real, MOSS LoRAs", items: [
               "<b>FLUX 3 Image Klein</b> (Create's model list): Black Forest Labs' newest small model, a 5.3 GB download that fits 8 GB Macs. Sharp pictures, good lettering, and it follows long descriptions closely (✨ Enhance writes them). 16 steps.",
               "<b>✨ Edit with words with FLUX 3</b> (Image to image's model list): edit your picture from a sentence, with up to <b>9 More pictures</b> (people, clothes, objects, a style).",
               "<b>🗺 Regions with FLUX 3</b>: your areas become FLUX 3's own <b>layout boxes</b> (in one pass, no extra time): each area's subject is placed in its box.",

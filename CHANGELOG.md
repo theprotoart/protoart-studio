@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.23
 
 - 🆕 FLUX 3 Image Klein (`flux3_klein_mlx_q4`, family `flux3`): mflux-community's 4-bit MLX conversion (5.3 GB, pinned,
   not gated), on mflux 0.24's `Flux3Klein` / `Flux3KleinEdit`. 16 steps, no guidance; the Qwen3-VL text encoder is
