@@ -57,3 +57,39 @@ def test_lokr_without_building_the_big_matrix():
     want = x @ np.kron(w1, w2).T
     got = (w1 @ (x.reshape(2, 3, 6) @ w2.T)).reshape(2, 4 * 5)
     assert np.allclose(got, want)
+
+
+def test_fused_qkv_split_into_q_k_v():
+    # the MLX port keeps proj = {"q", "k", "v", "o", ...}; an adapter for the original's fused proj.qkv goes on all three
+    class Layer:
+        def __init__(self):
+            self.proj = {"q": "Q", "k": "K", "v": "V", "o": "O"}
+
+    class Model:
+        layers = [Layer()]
+
+    def resolve(model, name):
+        parts = name.split(".")
+        node = model
+        for p in parts[:-1]:
+            node = node[int(p)] if isinstance(node, list) else node[p] if isinstance(node, dict) else getattr(node, p)
+        return node, parts[-1]
+
+    def get(parent, key):
+        return parent[int(key)] if isinstance(parent, list) else parent[key] if isinstance(parent, dict) else getattr(parent, key)
+
+    m = Model()
+    assert [t[2] for t in moss_lora.split_targets(m, "layers.0.proj.qkv", resolve, get)] == ["Q", "K", "V"]
+    assert [t[2] for t in moss_lora.split_targets(m, "layers.0.proj.o", resolve, get)] == ["O"]
+    assert moss_lora.split_targets(m, "layers.0.attn.to_out", resolve, get) == []
+
+
+def test_fused_lokr_slices_add_up():
+    # q, k and v each take their rows of the fused (W1 ⊗ W2) x: together they are exactly the fused output
+    rng = np.random.default_rng(1)
+    w1, w2 = rng.standard_normal((4, 4)), rng.standard_normal((6, 3))  # fused out 24 = 3 × 8, in 12
+    x = rng.standard_normal((5, 12))
+    full = x @ np.kron(w1, w2).T
+    t = (w1 @ (x.reshape(5, 4, 3) @ w2.T)).reshape(5, 24)
+    parts = [t[:, s:s + 8] for s in (0, 8, 16)]
+    assert np.allclose(np.concatenate(parts, 1), full)

@@ -6,6 +6,11 @@
   keys or a "moss" base model in the metadata; these used to be listed as ERNIE). MOSS pictures attach your LoRAs
   unmerged in their own group (`moss_worker` → `moss_lora.apply`), reading kohya, PEFT and LyCORIS LoKr files (LoKr as
   W1·X·W2ᵀ, never building the Kronecker matrix); LoHa / Tucker LoKr give a clear message.
+- MOSS LoRAs made for the original PyTorch model target its fused `proj.qkv`; the MLX port splits it into q / k / v,
+  so `moss_lora.split_targets` puts the adapter on all three, each taking its rows of the fused output (FameGrid's
+  LoKr failed with "doesn't match MOSS-Image's layers (layers.0.proj.qkv)").
+- MOSS-Image Turbo's own adapters (turbo_student, destripe) no longer appear in the LoRA list now that MOSS LoRAs are
+  listed: they're always on already, and adding them doubled them.
 - Fix a type and Settings → LoRA folders build their type buttons from `LORA_FAMILIES` (app.js), kept equal to
   `loras.FAMILIES` by a test, so a new base model can't be left out again (FIBO 2 and MOSS were missing).
 

@@ -197,6 +197,8 @@ INTERNAL_LORAS = ("flux-outpaint-lora", "lynia z53tudg0j6st8xbx")  # fal's outpa
 def _internal(row):
     name = str(row.get("name", "")).lower()
     path = str(row.get("file", "")).lower()
+    if "models--visualinference--moss-image-sft-turbo-mlx" in path or "models--nynxz--moss-image" in path:
+        return True  # MOSS-Image Turbo's own adapters (turbo_student, destripe): always on already, not yours to add
     return name in INTERNAL_LORAS or "flux-2-klein-4b-outpaint-lora" in path or "lynia" in name.replace(" ", "") and "comfy_converted" in name
 
 
