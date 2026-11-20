@@ -58,13 +58,15 @@ def _family(base, cls=None):
         return "flux"
     if base in FLUX2_BASES or str(base).startswith("flux2-klein"):
         return "flux2"
+    if str(base).startswith("flux3"):
+        return "flux3"
     for prefix, fam in GENERIC_BASES:
         if str(base).startswith(prefix):
             return fam
     return "ernie"
 
 
-FAMILY_NAME = {"flux": "FLUX", "flux2": "FLUX.2", "ernie": "ERNIE", "zimage": "Z-Image", "qwen21": "Qwen-Image 2.1",
+FAMILY_NAME = {"flux": "FLUX", "flux2": "FLUX.2", "flux3": "FLUX 3", "ernie": "ERNIE", "zimage": "Z-Image", "qwen21": "Qwen-Image 2.1",
                "krea2": "Krea 2", "generic": "the model"}
 
 
@@ -213,6 +215,12 @@ class Worker:
             config = ModelConfig.flux2_klein_4b() if base == "flux2-klein-4b" else ModelConfig.from_name(base)
             self.model = _make(cls, model_path=path, model_config=config, **lora_kw)
             self._cache_flux2_prompts(self.model)
+        elif self.family == "flux3":
+            # FLUX 3 Image Klein (5.6B, Qwen3-VL-4B text encoder): "edit" also reads up to 10 reference pictures.
+            # It keeps its own prompt cache, so on small Macs the text encoder can go while it draws (see _Hooks).
+            from mflux.models.flux3.variants import Flux3Klein, Flux3KleinEdit
+            cls = Flux3KleinEdit if variant == "edit" else Flux3Klein
+            self.model = _make(cls, model_path=path, model_config=ModelConfig.from_name(base), **lora_kw)
         elif self.cls_path:
             import importlib
             mod, _, name = self.cls_path.partition(":")
@@ -297,6 +305,11 @@ class Worker:
             neg = None  # FLUX.2 [klein] is distilled: no negative prompt, guidance stays at 1
             cache_key = (a["prompt"], cfg > 1.0)
             missing = getattr(m, "text_encoder", None) is None
+        elif self.family == "flux3":
+            neg = None  # FLUX 3 Image Klein is distilled: no negative prompt or guidance (mflux ignores it)
+            cfg = None
+            cache_key = a["prompt"]  # its own prompt_cache is keyed by the prompt
+            missing = getattr(m, "text_encoder", None) is None
         elif self.family == "zimage":
             g = cfg if cfg > 1.0 and getattr(getattr(m, "model_config", None), "supports_guidance", False) else 0.0
             cache_key = (a["prompt"], (neg or "") if g > 1.0 else "", g > 1.0)
@@ -338,8 +351,8 @@ class Worker:
             kw["image_path"] = a["init_image"]
             kw["image_strength"] = float(a.get("image_strength") or 0.4)
         if a.get("image_paths"):
-            if self.family != "flux2" or (self.key and self.key[3] != "edit"):
-                raise RuntimeError("reference pictures need FLUX.2 loaded for editing")
+            if self.family not in ("flux2", "flux3") or (self.key and self.key[3] != "edit"):
+                raise RuntimeError("reference pictures need FLUX.2 or FLUX 3 loaded for editing")
             kw["image_paths"] = list(a["image_paths"])
         res = m.generate_image(**kw)
         res.image.save(a["out"])
@@ -375,6 +388,8 @@ class _Hooks:
                 self.w.model.clip_text_encoder = None
             elif fam == "flux2":
                 self.w.model.text_encoder = None      # Qwen3, ~2 GB at 4-bit
+            elif fam == "flux3":
+                self.w.model.text_encoder = None      # Qwen3-VL-4B, ~2.5 GB at 4-bit (its prompt_cache keeps the prompt)
             else:
                 self.w.model.text_encoder = None  # ~2 GB
             gc.collect()
@@ -388,7 +403,8 @@ class _Hooks:
         done = (t - getattr(config, "init_time_step", 0)) + 1
         send({"type": "progress", "step": min(done, steps), "steps": steps})
         now = time.time()
-        if st.get("preview") and done < steps and now - st.get("last", 0) > 1.5 and not getattr(self.w, "cls_path", None):
+        if st.get("preview") and done < steps and now - st.get("last", 0) > 1.5 and not getattr(self.w, "cls_path", None) \
+                and getattr(self.w, "family", "") != "flux3":  # no live preview for FLUX 3 yet
             try:
                 import numpy as np
                 import mlx.core as mx

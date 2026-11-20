@@ -151,6 +151,20 @@ MODELS = {
         "download_gb": 4.6, "engine_gb": 1.5, "min_ram_gb": 8, "license": "Apache-2.0",
         "defaults": {"width": 1024, "height": 1024, "steps": 4, "cfg": 1.0},
     },
+    # FLUX 3 Image Klein (Black Forest Labs, 5.6B + Qwen3-VL-4B text encoder, FLUX.2 VAE): makes pictures and edits
+    # them with up to 10 reference pictures; reads layout boxes in the prompt and spells text well. Distilled: 16
+    # steps, no guidance. mflux-community's 4-bit MLX conversion (5.3 GB, text encoder and tokenizer included, not
+    # gated), pinned to one revision; the fast engine drops the text encoder while it draws, so it fits 8 GB Macs.
+    # FLUX Kommunity License v1.0: non-commercial use, plus selling pictures for people and businesses under
+    # US$5M a year in revenue.
+    "flux3_klein_mlx_q4": {
+        "label": "FLUX 3 Image Klein · 4-bit · ⚡ fast engine (newest, makes and edits)", "family": "flux3",
+        "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "mflux-community/flux-3-image-klein-mflux-q4",
+        "mlx_revision": "79c0034de040c460e9685bf0127f40af042a2abe", "mlx_base": "flux3-image-klein",
+        "download_gb": 5.3, "engine_gb": 1.5, "min_ram_gb": 8, "license": "FLUX Kommunity (non-commercial; "
+        "commercial pictures under US$5M revenue)",
+        "defaults": {"width": 1024, "height": 1024, "steps": 16, "cfg": 1.0},
+    },
     # FLUX.2 [klein] 9B: the bigger Klein (sharper detail, better text), community 4-bit MLX conversion. Needs 16 GB+.
     # Its licence is FLUX Non-Commercial (the 4B is Apache-2.0).
     "flux2_klein9b_mlx_q4": {
@@ -708,7 +722,7 @@ def _from_tdict(cls, path, **kw):
         gc.collect()
 
 
-FAMILY_NAMES = {"ernie": "ERNIE", "flux": "FLUX", "flux2": "FLUX.2", "zimage": "Z-Image", "qwen21": "Qwen-Image 2.1",
+FAMILY_NAMES = {"ernie": "ERNIE", "flux": "FLUX", "flux2": "FLUX.2", "flux3": "FLUX 3", "zimage": "Z-Image", "qwen21": "Qwen-Image 2.1",
                 "krea2": "Krea 2", "fibo2": "FIBO 2", "anima": "Anima", "sd15": "SD 1.5", "sdxl": "SDXL", "moss": "MOSS-Image",
                 "h3": "MiniMax-H3-Image", "fast": "fast-engine model"}
 
@@ -2896,6 +2910,11 @@ class Engine:
         if (rg0 and rg0.get("on", True) and spec.get("engine") == "mlx" and family in ("flux", "ernie", "flux2") and not args.get("_raw")
                 and not args.get("init_image") and len([x for x in rg0.get("prompts") or [] if isinstance(x, str) and x.strip()]) >= 2):
             return self.regions_by_parts(args, force=force)
+        if rg0 and rg0.get("on", True) and family == "flux3" and not args.get("_raw"):
+            # FLUX 3 places things itself from boxes in the prompt: no extra passes, the areas just become its layout
+            import regions as _rg
+            args = {**args, "prompt": _rg.flux3_boxes(args.get("prompt") or "", rg0.get("layout"), rg0.get("ratios"),
+                                                      rg0.get("prompts") or []), "regions": None}
         if spec.get("inpaint") and not (args.get("mask") or isinstance(args.get("outpaint"), dict)):
             raise UserError(f"{spec['label']} is an inpainting model: it only fills in painted areas. It's used by "
                             "Image to image → Inpaint and Expand; pick another model to make or change whole pictures.")
@@ -2929,9 +2948,9 @@ class Engine:
         # image-to-image
         init_image, strength = None, None
         if args.get("init_image"):
-            if not is_sd and family not in ("anima", "h3") and not (spec.get("engine") == "mlx" and family not in ("flux2", "fibo2")):
+            if not is_sd and family not in ("anima", "h3") and not (spec.get("engine") == "mlx" and family not in ("flux2", "flux3", "fibo2")):
                 raise UserError("Image-to-image works with SD 1.5, SDXL, Anima and the fast-engine models. "
-                                "For FLUX.2 Klein use ✨ Edit with words; FIBO 2 only makes new pictures here.")
+                                "For FLUX.2 or FLUX 3 Klein use ✨ Edit with words; FIBO 2 only makes new pictures here.")
             init_image = open_image(args["init_image"], "start image for image-to-image")
             strength = max(0.05, min(1.0, float(args.get("strength", 0.6))))
 
@@ -4995,8 +5014,8 @@ class Engine:
         edit_id = args.get("edit_model") or self.EDIT_MODEL
         spec = all_models().get(edit_id)
         h3 = bool(spec and spec.get("h3"))  # MiniMax-H3-Image edits too (the picture and the extras as its references)
-        if not h3 and (spec is None or spec.get("family") != "flux2" or spec.get("engine") != "mlx"):
-            edit_id, spec = self.EDIT_MODEL, all_models().get(self.EDIT_MODEL)  # only FLUX.2 Klein models can edit
+        if not h3 and (spec is None or spec.get("family") not in ("flux2", "flux3") or spec.get("engine") != "mlx"):
+            edit_id, spec = self.EDIT_MODEL, all_models().get(self.EDIT_MODEL)  # only Klein models (FLUX.2, FLUX 3) edit
         if spec is None:
             raise UserError("Edit with words needs the FLUX.2 Klein model, which isn't in this version.")
         prompt = (args.get("prompt") or "").strip()

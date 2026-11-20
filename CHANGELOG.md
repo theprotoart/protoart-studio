@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 🆕 FLUX 3 Image Klein (`flux3_klein_mlx_q4`, family `flux3`): mflux-community's 4-bit MLX conversion (5.3 GB, pinned,
+  not gated), on mflux 0.24's `Flux3Klein` / `Flux3KleinEdit`. 16 steps, no guidance; the Qwen3-VL text encoder is
+  dropped while drawing on small Macs (its own prompt cache keeps the prompt). ✨ Edit with words with up to 9 More
+  pictures; 🗺 Regions become its layout boxes in the prompt (`regions.flux3_boxes`, [top, left, bottom, right] on
+  0–1000); `flux3` LoRAs (mode_blocks / image_cond / ref_time_in keys). No live preview for it yet.
 - 🧩 LoRAs for MOSS-Image: `loras.FAMILIES` gains `moss` (recognised from `layers.N.proj.(q|k|v|o|ffn_up_gate|ffn_down)`
   keys or a "moss" base model in the metadata; these used to be listed as ERNIE). MOSS pictures attach your LoRAs
   unmerged in their own group (`moss_worker` → `moss_lora.apply`), reading kohya, PEFT and LyCORIS LoKr files (LoKr as

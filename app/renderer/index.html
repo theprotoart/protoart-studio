@@ -97,6 +97,9 @@
             <option value="flux2_klein_mlx_q4" :disabled="form.i2i_mode === 'inpaint'">FLUX.2 Klein 4B · {{ form.i2i_mode === 'inpaint' ? '— not an inpainting model' : form.i2i_mode === 'outpaint' ? '↔ Expand with the outpaint LoRA' : '✨ Edit with words' }}{{ editModel().cached ? '' : ' · ' + Math.round(editModel().download_gb) + ' GB download' }}</option>
             <option v-if="editModel9() && form.i2i_mode !== 'outpaint'" value="flux2_klein9b_mlx_q4" :disabled="form.i2i_mode === 'inpaint' || ramBlocked(editModel9())">FLUX.2 Klein 9B · ✨ Edit with words (sharper){{ ramBlocked(editModel9()) ? ' — needs ' + editModel9().min_ram_gb + ' GB memory' : editModel9().cached ? '' : ' · ' + Math.round(editModel9().download_gb) + ' GB download' }}</option>
           </optgroup>
+          <optgroup v-if="editModelF3()" label="FLUX 3 Image Klein · ✨ Edit with words (up to 9 More pictures)">
+            <option value="flux3_klein_mlx_q4" :disabled="['inpaint', 'outpaint'].includes(form.i2i_mode) || ramBlocked(editModelF3())">FLUX 3 Image Klein · ✨ Edit with words{{ ['inpaint', 'outpaint'].includes(form.i2i_mode) ? ' — not for this mode' : editModelF3().cached ? '' : ' · ' + Math.round(editModelF3().download_gb) + ' GB download' }}</option>
+          </optgroup>
           <optgroup v-if="editModelH3()" label="MiniMax-H3-Image · ✨ Edit with words, 📷 Camera angle (~6 min on 8 GB)">
             <option value="h3_image" :disabled="!['edit', 'camera', 'change'].includes(form.i2i_mode)">MiniMax-H3-Image · ✨ Edit with words{{ editModelH3().cached ? '' : ' · ' + Math.round(editModelH3().download_gb) + ' GB download' }}</option>
           </optgroup>
@@ -671,7 +674,7 @@
       <section v-if="(['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx') || regionsByParts()" class="regions cfold" :class="{shut: cfShut('regions')}">
         <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">a different prompt for each part of the picture</span><span v-if="cfShut('regions')" class="cfold-sum">{{ cfSummary('regions') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <label class="check"><input type="checkbox" v-model="form.regions.on"> Use regional prompts
-          <span class="hint">· each area draws its own prompt; the main prompt above sets the scene around them</span></label>
+          <span class="hint">· {{ family === 'flux3' ? 'FLUX 3 places each area’s subject in its box (one pass: the boxes go into the prompt as its layout)' : 'each area draws its own prompt; the main prompt above sets the scene around them' }}</span></label>
         <div v-if="form.regions.on && ipaParked" class="hint mutex-note">🖼 Your image prompt is switched off while regions are on (they can't run together yet); it comes back when you untick this.</div>
         <div class="reg-templates">
           <span class="hint">Templates</span>

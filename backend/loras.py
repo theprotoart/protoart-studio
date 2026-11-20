@@ -12,7 +12,7 @@ import nsfw
 
 # Every model type a LoRA can be made for. The app's "Fix a type" buttons and LoRA lists come from this list
 # (bee_backend "lora_families"), so a new base model only needs adding here (and a label in FAMILY_LABEL in app.js).
-FAMILIES = ("sd15", "sdxl", "flux", "flux2", "ernie", "zimage", "qwen21", "krea2", "fibo2", "moss")
+FAMILIES = ("sd15", "sdxl", "flux", "flux2", "flux3", "ernie", "zimage", "qwen21", "krea2", "fibo2", "moss")
 
 
 # SDXL "flavours": fine-tuned SDXL families that are used differently from plain SDXL
@@ -67,6 +67,8 @@ def detect_family(header):
         return "ernie"
     if "moss" in base:
         return "moss"
+    if any(m in base for m in ("flux3", "flux.3", "flux-3", "flux_3", "flux 3")):
+        return "flux3"
     if any(m in base for m in ("flux2", "flux.2", "flux-2", "flux_2", "klein")):
         return "flux2"
     if "flux" in base:
@@ -74,6 +76,9 @@ def detect_family(header):
 
     keys = [k for k in header if k != "__metadata__"]
     joined = "\n".join(keys)
+    # FLUX 3 Image Klein: per-mode blocks (image / image_cond / txt), checked before FLUX.1/2 (it has single blocks too)
+    if re.search(r"(?:^|[._])(?:content_)?mode_blocks[._]|txt_mode_blocks|image_cond|ref_time_in|target_timestep_embedder", joined):
+        return "flux3"
     # FLUX: double/single stream blocks (Kohya "lora_unet_double_blocks_", diffusers "single_transformer_blocks")
     if any(m in joined for m in ("double_blocks", "single_blocks", "single_transformer_blocks", "context_embedder")):
         return _flux_generation(joined)

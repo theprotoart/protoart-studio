@@ -291,8 +291,9 @@ const SAMPLER_PICKS = {  // the 3 fastest and the 3 best-quality samplers for ea
   ernie: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras", "flow_euler_stochastic"] },
   flux: { fast: ["flow_euler"], quality: ["flow_euler_beta", "flow_euler_karras"] },
   flux2: { fast: ["flow_euler"], quality: [] },
+  flux3: { fast: ["flow_euler"], quality: [] },
 };
-const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}, {"model": "BiRefNet lite (✂ Cut out, 👤 Subject, 📄 Paper cut-out)", "licence": "MIT", "note": ""}, {"model": "MiniMax-H3-Image (MiniMax; INT8 files by Comfy-Org, made 4-bit on your Mac)", "licence": "MiniMax-H3-Image Community License", "note": "not for use in the US, EU, UK or Republic of Korea; pictures may not be used to improve other AI models; commercial products must show its name; written permission over US$1M yearly revenue or as a hosted service. Runs with h3-image-mlx (Apache-2.0)"}, {"model": "MOSS-Image (OpenMOSS; MLX weights by VisualInference, turbo adapters by VisualInference and nynxz)", "licence": "Apache-2.0", "note": "runs with moss-image-mlx (Apache-2.0); text encoder Qwen3.5-9B and FLUX.2 small VAE (Apache-2.0)"}];
+const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX 3 Image Klein (Black Forest Labs; 4-bit MLX by mflux-community)", "licence": "FLUX Kommunity License v1.0", "note": "non-commercial use; selling pictures is allowed if you (with your business) make under US$5M a year; text encoder Qwen3-VL-4B (Apache-2.0)"}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}, {"model": "BiRefNet lite (✂ Cut out, 👤 Subject, 📄 Paper cut-out)", "licence": "MIT", "note": ""}, {"model": "MiniMax-H3-Image (MiniMax; INT8 files by Comfy-Org, made 4-bit on your Mac)", "licence": "MiniMax-H3-Image Community License", "note": "not for use in the US, EU, UK or Republic of Korea; pictures may not be used to improve other AI models; commercial products must show its name; written permission over US$1M yearly revenue or as a hosted service. Runs with h3-image-mlx (Apache-2.0)"}, {"model": "MOSS-Image (OpenMOSS; MLX weights by VisualInference, turbo adapters by VisualInference and nynxz)", "licence": "Apache-2.0", "note": "runs with moss-image-mlx (Apache-2.0); text encoder Qwen3.5-9B and FLUX.2 small VAE (Apache-2.0)"}];
 const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677" };
 // 📷 Camera angle: the words for each direction (the same 8 × 4 × 3 grid multi-angle tools use)
 const CAM_VIEWS = ["front view", "front-right quarter view", "right side view", "back-right quarter view",
@@ -556,13 +557,13 @@ const TILED_PRESETS = [
   { id: "print", label: "Print", tip: "3× for printing; slow on 8 GB Macs", set: { scale: 3, strength: 0.25, steps: 24 } },
   { id: "quick", label: "Quick", tip: "1.5× with few steps: a fast check", set: { scale: 1.5, strength: 0.25, steps: 12 } },
 ];
-const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "Klein", anima: "Anima", sd2: "SD 2", moss: "MOSS-Image", h3: "MiniMax-H3",
+const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "Klein", flux3: "FLUX 3", anima: "Anima", sd2: "SD 2", moss: "MOSS-Image", h3: "MiniMax-H3",
                        zimage: "Z-Image", qwen21: "Qwen-Image 2.1", krea2: "Krea 2", fibo2: "FIBO 2", fast: "Fast engine" };
 // model types made by the fast engine that read sentences and draw at sizes in steps of 16 (newer ones too)
 // Every model type a LoRA can be made for: the same list as FAMILIES in backend/loras.py (a test keeps them equal).
 // The "Fix a type" and LoRA-folder type buttons are built from it, so a new base model shows up there by adding it
 // to both lists (and a name in FAMILY_LABEL).
-const LORA_FAMILIES = ["sd15", "sdxl", "flux", "flux2", "ernie", "zimage", "qwen21", "krea2", "fibo2", "moss"];
+const LORA_FAMILIES = ["sd15", "sdxl", "flux", "flux2", "flux3", "ernie", "zimage", "qwen21", "krea2", "fibo2", "moss"];
 const LORA_TYPE_LABEL = { flux2: "Klein", moss: "MOSS" };  // shorter button names where FAMILY_LABEL is long
 const SD_FAMILIES = ["sd15", "sdxl", "sd2"];
 const NEW_FAST = ["zimage", "qwen21", "krea2", "fibo2"];  // FLUX.2 [klein] 4B: named by the model, so its LoRAs and models match
@@ -815,6 +816,17 @@ const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
 // (set: what "Use these settings" applies; small: the size on Macs under 14 GB)
 const MODEL_GUIDES = {
+  flux3: {
+    create: { title: "FLUX 3 Image Klein", what: "Black Forest Labs' newest small model: sharp pictures, good lettering, and it follows long, detailed descriptions closely.",
+      set: { steps: 16, cfg: 1 }, small: 768,
+      tips: ["Write a full caption, not a few words: the subject, the place, the light, the style, the camera. ✨ Enhance writes it that way (FLUX 3 gives plain results from short prompts).",
+             "Put words the picture should show in quotes: a sign that reads 'MORNING GLORY BAKERY'.",
+             "16 steps is what it was made for; there is no guidance or negative prompt.",
+             "Licence: FLUX Kommunity: free for non-commercial use, and you may sell pictures if you (or your business) make under US$5M a year."] },
+    edit: { title: "FLUX 3 Image Klein · Edit with words", what: "Edits your picture from a sentence, and can combine it with up to 9 More pictures (people, clothes, objects, a style).",
+      tips: ["Say the change and what stays: “make the jacket red, keep the face and pose the same”.",
+             "With More pictures, say what each brings: “the woman from the first picture wearing the scarf from the second”."] },
+  },
   zimage: {
     create: { title: "Z-Image Turbo", what: "Photoreal pictures and clean lettering in 9 steps. It reads plain sentences.",
       set: { steps: 9, cfg: 1 }, small: 768,
@@ -1185,7 +1197,11 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Next: 🧩 LoRAs for MOSS-Image", items: [
+            { h: "Next: 🆕 FLUX 3 Image Klein, 🧩 LoRAs for MOSS-Image", items: [
+              "<b>FLUX 3 Image Klein</b> (Create's model list): Black Forest Labs' newest small model, a 5.3 GB download that fits 8 GB Macs. Sharp pictures, good lettering, and it follows long descriptions closely (✨ Enhance writes them). 16 steps.",
+              "<b>✨ Edit with words with FLUX 3</b> (Image to image's model list): edit your picture from a sentence, with up to <b>9 More pictures</b> (people, clothes, objects, a style).",
+              "<b>🗺 Regions with FLUX 3</b>: your areas become FLUX 3's own <b>layout boxes</b> (in one pass, no extra time): each area's subject is placed in its box.",
+              "<b>FLUX 3 LoRAs</b> are recognised and listed for it, with a <b>FLUX 3</b> button in Fix a type.",
               "<b>LoRAs for MOSS-Image</b>: MOSS now uses the LoRAs you pick, including <b>LoKr</b> files (like FameGrid's). MOSS LoRAs are recognised automatically and listed when a MOSS model is picked, and <b>Models → Fix a type</b> has a <b>MOSS</b> button (also in Settings → LoRA folders) for any that land under the wrong type.",
               "<b>Fix a type</b> now lists every model type that takes LoRAs (FIBO 2 was missing too), from one list, so new base models get their button automatically.",
             ] },
@@ -3480,7 +3496,7 @@ const protoartApp = createApp({
     },
     sizeTiers() {
       // Small / Medium / Large for each model type (side of an equivalent square).
-      const t = { sd15: [512, 640, 768], sdxl: [768, 1024, 1280], anima: [768, 1024, 1280], ernie: [640, 768, 1024], flux: [512, 768, 1024], flux2: [512, 768, 1024], other: [512, 768, 1024] };
+      const t = { sd15: [512, 640, 768], sdxl: [768, 1024, 1280], anima: [768, 1024, 1280], ernie: [640, 768, 1024], flux: [512, 768, 1024], flux2: [512, 768, 1024], flux3: [768, 1024, 1280], other: [512, 768, 1024] };
       const [s, m, l] = t[this.family] || t.other;
       if (this.family === "h3")  // MiniMax-H3-Image is made for big pictures: up to 2048 (about 4 / 6 / 9 / 13 min on 8 GB)
         return [{ id: "s", label: "Draft", side: 1024 }, { id: "m", label: "Medium", side: 1280 }, { id: "l", label: "Large", side: 1536 },
@@ -8017,7 +8033,7 @@ const protoartApp = createApp({
     },
     EDIT_RECIPES() { return EDIT_RECIPES; },
     EDIT_QUICK() { return this.editModelId() === "h3_image" ? [...H3_QUICK, ...EDIT_QUICK] : EDIT_QUICK; },
-    editRefMax() { return this.editModelId() === "h3_image" ? 15 : 3; },  // H3 takes up to 16 pictures in all
+    editRefMax() { return this.editModelId() === "h3_image" ? 15 : this.editModelId() === "flux3_klein_mlx_q4" ? 9 : 3; },  // H3 takes up to 16 pictures in all
     expandFastModel() {  // ↔ Expand with the ⚡ fast-engine model at the top (Z-Image Turbo…): ones that start from a picture
       const m = this.currentModel;
       return m && m.engine === "mlx" && FAST_I2I.includes(m.family) && m.cached !== false ? m : null;
@@ -8892,7 +8908,7 @@ const protoartApp = createApp({
       ]);
     },
     regionsByParts() {  // FLUX.1 / ERNIE on the fast engine: regions are drawn by parts
-      return this.currentModel?.engine === "mlx" && ["flux", "ernie", "flux2"].includes(this.family);
+      return this.currentModel?.engine === "mlx" && ["flux", "ernie", "flux2", "flux3"].includes(this.family);  // FLUX 3: as layout boxes
     },
     // ✨ Plan the layout: one sentence → the areas (where each subject goes, its own prompt) and the scene prompt.
     // The prompt enhancer's small model plans it (Omost's idea, small enough for 8 GB); position words are the fallback.
@@ -9385,10 +9401,11 @@ const protoartApp = createApp({
     },
     modelGuide() {  // 💡 the suggested-settings card for the picked model (Create, or Image to image → Change it / Edit)
       const h3edit = this.tab === "i2i" && this.i2iUsesKlein && this.editModelId() === "h3_image";
-      const fam = h3edit ? "h3" : this.family;
+      const f3edit = this.tab === "i2i" && this.i2iUsesKlein && this.editModelId() === "flux3_klein_mlx_q4";
+      const fam = h3edit ? "h3" : f3edit ? "flux3" : this.family;
       const g = MODEL_GUIDES[fam];
-      if (!g || !h3edit && this.currentModel?.engine !== "mlx" && !this.currentModel?.moss && !["moss", "h3"].includes(this.family)) return null;
-      const where = h3edit ? "edit" : this.tab === "i2i" ? (this.form.i2i_mode === "change" ? "change" : null) : this.tab === "create" ? "create" : null;
+      if (!g || !h3edit && !f3edit && this.currentModel?.engine !== "mlx" && !this.currentModel?.moss && !["moss", "h3"].includes(this.family)) return null;
+      const where = h3edit || f3edit ? "edit" : this.tab === "i2i" ? (this.form.i2i_mode === "change" ? "change" : null) : this.tab === "create" ? "create" : null;
       const c = where && g[where];
       if (!c || (this.opts.hidden_guides || []).includes(fam + ":" + where)) return null;
       return { ...c, key: fam + ":" + where };
@@ -9677,6 +9694,11 @@ const protoartApp = createApp({
         if (!["edit", "camera"].includes(this.form.i2i_mode)) this.setI2iMode("edit");
         return;
       }
+      if (id === "flux3_klein_mlx_q4") {  // FLUX 3 Image Klein: ✨ Edit with words (not Expand or inpaint)
+        this.form.edit_model = id;
+        if (!["edit", "camera", "combine"].includes(this.form.i2i_mode)) this.setI2iMode("edit");
+        return;
+      }
       if (id === "flux2_klein_mlx_q4" || id === "flux2_klein9b_mlx_q4") {
         if (this.form.i2i_mode === "outpaint") { this.form.outpaint_engine = "klein"; return; }  // (the outpaint LoRA is for 4B)
         this.form.edit_model = id;
@@ -9698,11 +9720,15 @@ const protoartApp = createApp({
     editModel9() {  // FLUX.2 Klein 9B, for Edit with words on Macs with 16 GB or more
       return this.models.find((m) => m.id === "flux2_klein9b_mlx_q4") || null;
     },
+    editModelF3() {  // FLUX 3 Image Klein, which edits with up to 10 pictures
+      return this.models.find((m) => m.id === "flux3_klein_mlx_q4") || null;
+    },
     editModelH3() {  // MiniMax-H3-Image, which edits too (the picture and the extras are its references)
       return this.models.find((m) => m.id === "h3_image") || null;
     },
     editModelId() {  // Edit with words: H3 or 9B when picked (and this Mac has room for it), else 4B
       if (this.form.edit_model === "h3_image" && this.editModelH3() && !["outpaint", "combine"].includes(this.form.i2i_mode)) return "h3_image";
+      if (this.form.edit_model === "flux3_klein_mlx_q4" && this.editModelF3() && !["outpaint", "inpaint"].includes(this.form.i2i_mode)) return "flux3_klein_mlx_q4";
       const nine = this.editModel9();
       return this.form.edit_model === "flux2_klein9b_mlx_q4" && nine && !this.ramBlocked(nine) ? nine.id : "flux2_klein_mlx_q4";
     },

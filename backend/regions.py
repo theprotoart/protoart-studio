@@ -133,3 +133,27 @@ def install(unet, processor):
 
 def remove(unet, original):
     unet.set_attn_processor(original)
+
+
+def flux3_boxes(prompt, layout, ratios, prompts):
+    """🗺 Regions for FLUX 3 Image Klein, which reads layout boxes straight from the prompt: each area becomes an
+    element <region_N> with its box ([top, left, bottom, right] on a 0-1000 grid) and its description, listed as JSON
+    after the main prompt (Black Forest Labs' format). Empty areas are skipped."""
+    import json
+    parts = [p.strip() if isinstance(p, str) else "" for p in prompts]
+    boxes = parse_layout(layout or "cols", ratios or "", len(parts))
+    items, tags = [], []
+    for i, (text, (x0, y0, x1, y1)) in enumerate(zip(parts, boxes), 1):
+        if not text:
+            continue
+        rid = f"region_{i}"
+        items.append({"id": rid, "bbox": [round(y0 * 1000), round(x0 * 1000), round(y1 * 1000), round(x1 * 1000)],
+                      "desc": text})
+        tags.append(f"{text} <{rid}>")
+    if not items:
+        return prompt
+    main = (prompt or "").strip()
+    if main and main[-1] not in ".!?":
+        main += "."
+    lead = (main + " " if main else "") + "; ".join(tags) + "."
+    return lead + " " + json.dumps(items, ensure_ascii=False)
