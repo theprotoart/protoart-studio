@@ -446,8 +446,10 @@ class _Hooks:
         st = getattr(self.w, "hooks_state", {})
         if cancel.is_set():
             raise Cancelled()
-        steps = st.get("steps") or config.num_inference_steps
-        done = (t - getattr(config, "init_time_step", 0)) + 1
+        first = getattr(config, "init_time_step", 0) or 0
+        # starting from a picture, only the last steps run: count those, so the time left is right
+        steps = max(1, (st.get("steps") or config.num_inference_steps) - first)
+        done = (t - first) + 1
         send({"type": "progress", "step": min(done, steps), "steps": steps})
         now = time.time()
         if st.get("preview") and done < steps and now - st.get("last", 0) > 1.5 and not getattr(self.w, "cls_path", None) \

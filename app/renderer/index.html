@@ -3024,7 +3024,7 @@
           <input v-if="tup.engine !== 'z'" type="range" min="10" max="40" step="1" v-model.number="tup.steps" title="Only the last part of the steps is used (as in image to image)">
           <label title="Optional: words for the texture or style to add (oil paint, film grain, skin pores…). Don't describe the whole scene: each tile would try to draw it again">Detail prompt <span class="hint">optional</span></label>
           <input v-model="tup.prompt" class="mod-input" placeholder="empty = just sharper detail · or e.g. oil painting texture, film grain">
-          <p class="mod-note">{{ !tool.source ? 'Pick a picture above.' : tup.engine === 'z' ? 'Tile by tile at ' + (sys.ram_gb && sys.ram_gb < 12 ? 768 : 1024) + ' px: about 1–2 minutes a tile on an 8 GB Mac (2× of a 1024 picture: ~6–9 tiles).' : tiledEstimate }}</p>
+          <p class="mod-note">{{ !tool.source ? 'Pick a picture above.' : tup.engine === 'z' ? 'Tile by tile at ' + (sys.ram_gb && sys.ram_gb < 12 ? 768 : 1024) + ' px: about 2 minutes a tile on an 8 GB Mac (a 1024 picture at 1.5× or 2×: 9 tiles, ~20 min). Lower New detail = fewer steps a tile.' : tiledEstimate }}</p>
           <div class="mod-foot">
             <button class="primary mod-go" :disabled="!tool.source || !!tiledJob || (tup.engine !== 'z' && !['sd15', 'sdxl'].includes(family))" @click="toolTiled">{{ tiledJob ? 'Upscaling…' : 'Upscale' }}</button>
             <span class="mod-plate">Tiler · TD-8</span>
