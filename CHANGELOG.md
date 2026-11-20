@@ -13,6 +13,8 @@
   `fast-copies/models--org--name--<revision>`, `kept.py`; only app-made copies are removed). SD / SDXL pipelines load
   from a kept copy; the fast engine's automatic first-use copy (small Macs) can be turned off (`auto_keep_copies`).
 - 🧩 Tiled upscale leaves plain tiles as they are (`plain_tile`: mean Laplacian under 2/255 on a 128 px grey copy).
+- 🙂 Restore faces (CodeFormer / RestoreFormer): faces are found on a copy with an 800 px short side on big pictures
+  (RetinaFace on the processor was the slow part), then restored from the full picture; a timing line is logged.
 - `find_words` / `find_text` jump the queue; `drop_helpers` also lets go of LaMa's session and the cut-out sessions.
 - 🩹 Remove: runs in the side lane on every Mac (LaMa ~1 GB, seconds), ONNX Runtime on all performance cores, each
   painted spot worked separately (`_parts`), and long thin spots (thickness under 30% of 512 px) in overlapping

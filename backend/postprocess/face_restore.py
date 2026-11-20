@@ -126,9 +126,11 @@ class FaceRestorer:
         model: "restoreformer" (default) or "codeformer". fidelity (CodeFormer only, 0-1): higher keeps more
         of the person's own features, lower gives a cleaner face.
         """
+        import time
         import cv2
         from PIL import Image
 
+        started = time.time()
         torch = self.torch
         key = model_key(model)
         strength = float(max(0.0, min(1.0, strength)))
@@ -138,7 +140,10 @@ class FaceRestorer:
         h = self._get_helper()
         h.clean_all()
         h.read_image(bgr)
-        h.get_face_landmarks_5(only_center_face=False, eye_dist_threshold=5)
+        # finding the faces is the slow part on big pictures (RetinaFace on the processor): look on a copy whose short
+        # side is 800 px, then restore at full quality (each face is still cut from the full picture at 512 px)
+        short = min(bgr.shape[:2])
+        h.get_face_landmarks_5(only_center_face=False, eye_dist_threshold=5, resize=800 if short > 1000 else None)
         h.align_warp_face()
         if not h.cropped_faces:
             return pil_image, 0
@@ -161,4 +166,5 @@ class FaceRestorer:
         result = h.paste_faces_to_input_image()
         if self.device.type == "mps":
             torch.mps.empty_cache()
+        print(f"[timing] face restore ({key}): {len(h.cropped_faces)} face(s) in {time.time() - started:.1f}s", flush=True)
         return Image.fromarray(cv2.cvtColor(result.astype(np.uint8), cv2.COLOR_BGR2RGB)), len(h.cropped_faces)
