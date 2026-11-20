@@ -60,6 +60,7 @@ when you first use them, and each comes with its own licence that you accept by 
 | FLUX.2 [klein] 9B (Black Forest Labs; 4-bit MLX conversion by mflux-community), optional, 16 GB+ | FLUX Non-Commercial |
 | 🎨 Styles: style templates from ComfyUI-ZImagePowerNodes v1.0 (https://github.com/martin-rizzo/ComfyUI-ZImagePowerNodes), copied into `app/renderer/zimage_styles.js` | MIT, Copyright (c) 2026 Martin Rizzo |
 | Flow-DPO LoRA for Z-Image Turbo (F16/z-image-turbo-flow-dpo, `zit_fdpo_v1`), downloaded by the user on request, not bundled | Apache-2.0 |
+| Ideogram 4 (Ideogram; official FP8 files, quantized to 4-bit on the user's Mac), optional, downloaded on first use after accepting its licence on Hugging Face; not redistributed | Ideogram 4 Non-Commercial License |
 | FLUX 3 Image Klein (Black Forest Labs; 4-bit MLX conversion by mflux-community), optional, downloaded on first use | FLUX Kommunity License v1.0 (non-commercial; commercial output for users under US$5M yearly revenue). Text encoder Qwen3-VL-4B: Apache-2.0 |
 | Z-Image Turbo (Tongyi-MAI; 4-bit MLX conversion by mflux-community), optional, 16 GB+ | Apache-2.0 |
 | Qwen-Image 2.1 and 2.1 Turbo (Qwen; 4-bit MLX conversions by mflux-community), optional, 24 GB+ | Qwen research licence (non-commercial) |

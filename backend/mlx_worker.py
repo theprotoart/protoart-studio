@@ -47,8 +47,12 @@ GENERIC = {
     "qwen21": "mflux.models.qwen21.variants.txt2img.qwen_image_21:QwenImage21",
     "krea2": "mflux.models.krea2.variants.txt2img.krea2:Krea2",
     "fibo2": "mflux.models.fibo2.variants.txt2img.fibo2:Fibo2",
+    "ideogram4": "mflux.models.ideogram4.variants.txt2img.ideogram4:Ideogram4",
 }
-GENERIC_BASES = (("z-image", "zimage"), ("qwen-image-2.1", "qwen21"), ("krea-2", "krea2"), ("fibo2", "fibo2"))
+GENERIC_BASES = (("z-image", "zimage"), ("qwen-image-2.1", "qwen21"), ("krea-2", "krea2"), ("fibo2", "fibo2"), ("ideogram-4", "ideogram4"))
+
+
+IDEOGRAM_PRESETS = {12: "V4_TURBO_12", 20: "V4_DEFAULT_20", 48: "V4_QUALITY_48"}
 
 
 def _family(base, cls=None):
@@ -67,7 +71,7 @@ def _family(base, cls=None):
 
 
 FAMILY_NAME = {"flux": "FLUX", "flux2": "FLUX.2", "flux3": "FLUX 3", "ernie": "ERNIE", "zimage": "Z-Image", "qwen21": "Qwen-Image 2.1",
-               "krea2": "Krea 2", "generic": "the model"}
+               "krea2": "Krea 2", "fibo2": "FIBO 2", "ideogram4": "Ideogram 4", "generic": "the model"}
 
 
 def total_ram_gb():
@@ -344,6 +348,9 @@ class Worker:
             params = inspect.signature(m.generate_image).parameters
             if neg and cfg > 1.0 and "negative_prompt" in params:
                 kw["negative_prompt"] = neg
+            preset = IDEOGRAM_PRESETS.get(int(a["steps"])) if "preset" in params else None
+            if preset:  # Ideogram 4: its own sampler for 12 / 20 / 48 steps (guidance changes along the way)
+                kw.update(preset=preset, num_inference_steps=None, guidance=None)
         if a.get("init_image"):  # start from a picture: how much of it to keep (mflux image strength)
             import inspect
             if "image_path" not in inspect.signature(m.generate_image).parameters:

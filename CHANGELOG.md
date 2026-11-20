@@ -26,6 +26,12 @@
   listed: they're always on already, and adding them doubled them.
 - Fix a type and Settings → LoRA folders build their type buttons from `LORA_FAMILIES` (app.js), kept equal to
   `loras.FAMILIES` by a test, so a new base model can't be left out again (FIBO 2 and MOSS were missing).
+- 🆕 Ideogram 4 (`ideogram4_mlx_q4`, family `ideogram4`) for 24 GB+ Macs: the official gated
+  `ideogram-ai/ideogram-4-fp8` files, quantized to 4-bit on load by mflux 0.24's `Ideogram4` (generic fast-engine
+  path). 12 / 20 / 48 steps pass Ideogram's sampler presets (V4_TURBO_12 / V4_DEFAULT_20 / V4_QUALITY_48) so its
+  guidance schedule is used; other step counts use a constant guidance. Ideogram 4 Non-Commercial licence.
+- Create's model-type chips and the Models tab's type list gain FLUX 3 (and MiniMax-H3 in the Models tab); a test
+  checks that every catalog model type has both.
 
 ## 1.6.22
 

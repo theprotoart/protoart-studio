@@ -60,3 +60,12 @@ def test_every_model_type_has_a_chip_and_shop_entry():
     for f in set(re.findall(r'"family": "(\w+)"', e)):
         assert f'"{f}"' in shop, f
         assert f'"{f}"' in chips, f
+
+
+def test_ideogram4_entry():
+    import engine
+    import mlx_worker
+    m = engine.MODELS["ideogram4_mlx_q4"]
+    assert m["family"] == "ideogram4" and m["gated"] and m["min_ram_gb"] >= 24 and m["mlx_quantize"] == 4
+    assert mlx_worker._family(m["mlx_base"]) == "ideogram4"
+    assert mlx_worker.IDEOGRAM_PRESETS[m["defaults"]["steps"]] == "V4_DEFAULT_20"

@@ -225,6 +225,17 @@ MODELS = {
         "download_gb": 15.8, "engine_gb": 1.5, "min_ram_gb": 32, "license": "Krea 2 Community",
         "defaults": {"width": 1024, "height": 1024, "steps": 8, "cfg": 1.0},
     },
+    # Ideogram 4 (Ideogram, 9.3B single-stream DiT, Qwen3-VL-8B text encoder): posters, logos and lettering; reads
+    # structured JSON captions best. Gated (accept the licence on Hugging Face and save a token in Settings → Models);
+    # Ideogram 4 Non-Commercial licence. The official FP8 files are shrunk to 4-bit by the fast engine as they load;
+    # with its 8B text encoder that needs a 24 GB Mac or more. 20 steps (Ideogram's default sampler; 12 = turbo, 48 = best).
+    "ideogram4_mlx_q4": {
+        "label": "Ideogram 4 · 4-bit · ⚡ fast engine (24 GB Macs, non-commercial)", "family": "ideogram4",
+        "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "ideogram-ai/ideogram-4-fp8", "mlx_base": "ideogram-4-fp8",
+        "mlx_class": "mflux.models.ideogram4.variants.txt2img.ideogram4:Ideogram4", "mlx_quantize": 4, "mflux_min": [0, 24],
+        "download_gb": 18, "engine_gb": 1.5, "min_ram_gb": 24, "license": "Ideogram 4 Non-Commercial", "gated": True,
+        "defaults": {"width": 1024, "height": 1024, "steps": 20, "cfg": 7.0},
+    },
     # Anima (CircleStone Labs, 2B, anime / illustration; tags or sentences). Official diffusers files; the Turbo
     # build uses the official distilled transformer. CircleStone Labs Non-Commercial License (pictures may be sold).
     "anima_turbo": {
@@ -723,7 +734,7 @@ def _from_tdict(cls, path, **kw):
 
 
 FAMILY_NAMES = {"ernie": "ERNIE", "flux": "FLUX", "flux2": "FLUX.2", "flux3": "FLUX 3", "zimage": "Z-Image", "qwen21": "Qwen-Image 2.1",
-                "krea2": "Krea 2", "fibo2": "FIBO 2", "anima": "Anima", "sd15": "SD 1.5", "sdxl": "SDXL", "moss": "MOSS-Image",
+                "krea2": "Krea 2", "fibo2": "FIBO 2", "ideogram4": "Ideogram 4", "anima": "Anima", "sd15": "SD 1.5", "sdxl": "SDXL", "moss": "MOSS-Image",
                 "h3": "MiniMax-H3-Image", "fast": "fast-engine model"}
 
 

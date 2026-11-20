@@ -14,7 +14,7 @@ FAMILY_BY_PIPELINE = {
     "ErnieImagePipeline": "ernie",
 }
 FAMILY_LABEL = {"sd15": "SD 1.5", "sdxl": "SDXL", "ernie": "ERNIE", "other": "Other", "flux2": "FLUX.2 Klein",
-                "zimage": "Z-Image", "qwen21": "Qwen-Image 2.1", "krea2": "Krea 2", "fast": "Fast engine model"}
+                "zimage": "Z-Image", "qwen21": "Qwen-Image 2.1", "krea2": "Krea 2", "ideogram4": "Ideogram 4", "fast": "Fast engine model"}
 DEFAULTS = {
     "sd15": {"width": 512, "height": 512, "steps": 25, "cfg": 7.0},
     "sdxl": {"width": 1024, "height": 1024, "steps": 30, "cfg": 6.0},
@@ -24,6 +24,7 @@ DEFAULTS = {
     "zimage": {"width": 1024, "height": 1024, "steps": 9, "cfg": 1.0},
     "qwen21": {"width": 1024, "height": 1024, "steps": 40, "cfg": 4.0},
     "krea2": {"width": 1024, "height": 1024, "steps": 8, "cfg": 1.0},
+    "ideogram4": {"width": 1024, "height": 1024, "steps": 20, "cfg": 7.0},
     "fast": {"width": 1024, "height": 1024, "steps": 20, "cfg": 3.5},
 }
 
@@ -39,6 +40,7 @@ FAST_ALIASES = [
     (("qwen-image-2",), "qwen-image-2.1", "qwen21", 40, 4.0),
     (("krea-2", "raw"), "krea-2-raw", "krea2", 28, 4.0),
     (("krea-2",), "krea-2", "krea2", 8, 1.0),
+    (("ideogram-4",), "ideogram-4-fp8", "ideogram4", 20, 7.0),
 ]
 _CLASS_RE = re.compile(r"^mflux(\.[A-Za-z_]\w*)+:[A-Za-z_]\w*$")  # only classes from the fast engine's own package
 
