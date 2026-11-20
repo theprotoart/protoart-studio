@@ -2792,3 +2792,5 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .sel-words { flex: 1; min-width: 120px; }
 .sd-boost { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin: 4px 0; }
 .sd-boost input[type=range] { flex: 1; min-width: 100px; }
+.kept-table td { padding: 3px 8px 3px 0; }
+.ok-tag { color: #8fd18f; }

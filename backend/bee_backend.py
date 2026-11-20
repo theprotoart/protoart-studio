@@ -178,7 +178,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("make3d", "harmonize", "relight", "store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "detail_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "find_words", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("make3d", "harmonize", "relight", "store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "detail_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "model_keep", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "find_words", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -248,6 +248,8 @@ def job_label(cmd, a):
         return f"Download LoRA · {a.get('file') or ''}"
     if cmd == "civitai_download":
         return "Download from Civitai · " + str(a.get("name") or a.get("url") or "")
+    if cmd == "model_keep":
+        return ("Keep on this Mac · " if a.get("keep", True) else "Remove the copy on this Mac · ") + str(a.get("label") or a.get("id"))
     if cmd == "model_keep_local":
         return "Keep a copy on this Mac · " + os.path.basename(str(a.get("path") or ""))
     if cmd == "lora_base_find":
@@ -1169,6 +1171,11 @@ def handle_quick(cmd, a):
         library.set_setting("local_models", model_hub.LOCAL_MODELS)
         model_hub.invalidate()
         return {"id": entry["id"], "old": old_id, "label": entry.get("label")}
+    if cmd == "kept_list":  # ⚡ Settings → Models kept on this Mac: downloaded models, most used first
+        return kept_list()
+    if cmd == "auto_keep_set":
+        library.set_setting("auto_keep_copies", bool(a.get("on")))
+        return {"on": bool(a.get("on"))}
     if cmd == "model_keep_check":  # before 💾 Keep a copy on this Mac: is there room? (nothing is written)
         return local_copy.check(a.get("path"))
     if cmd == "model_local_remove":
@@ -1955,6 +1962,56 @@ def lora_hf_job(a, eng):
     return {"path": dest, "name": os.path.splitext(fname)[0]}
 
 
+def kept_list():
+    """The downloaded Hugging Face models (picture models and the fast engine's), with their size, whether their files
+    are on an external drive and whether a copy is kept on this Mac. Most used first."""
+    import kept
+    from engine import all_models
+    uses = library.model_use_counts()
+    rows, seen = [], set()
+    for mid, spec in all_models().items():
+        repo = spec.get("mlx_repo") or spec.get("repo")
+        if not repo or "/" not in str(repo) or repo in seen or spec.get("file") or spec.get("tdict"):
+            continue
+        snap = kept.snapshot(repo, spec.get("mlx_revision"))
+        if snap is None:
+            continue
+        seen.add(repo)
+        rows.append({"id": mid, "repo": repo, "label": spec.get("label", mid), "gb": round(kept.size(snap) / 1e9, 1),
+                     "external": kept.on_external(snap), "kept": kept.kept_path(repo) is not None, "uses": uses.get(mid, 0)})
+    rows.sort(key=lambda r: (-r["uses"], r["label"]))
+    import shutil
+    return {"rows": rows, "free_gb": round(shutil.disk_usage(str(paths.HOME)).free / 1e9, 1),
+            "auto": library.get_setting("auto_keep_copies", True) is not False}
+
+
+def model_keep_job(a, eng):
+    """⚡ Keep a copy on this Mac (or remove the copy) of a downloaded model whose files are on an external drive."""
+    import kept
+    from engine import Cancelled, UserError, all_models
+    spec = all_models().get(str(a.get("id") or ""))
+    repo = spec and (spec.get("mlx_repo") or spec.get("repo"))
+    if not repo:
+        raise UserError("That model isn't one that can be kept on this Mac.")
+    if not a.get("keep", True):
+        gb = kept.remove(repo)
+        eng.emit({"type": "status", "msg": f"Removed the copy of {spec['label']} from this Mac ({gb} GB freed); it loads from the drive again"})
+        return {"removed": gb}
+
+    def progress(done, total):
+        eng.emit({"type": "progress", "image": 1, "images": 1, "step": max(1, int(done / 1e8)), "steps": max(1, int(total / 1e8))})
+        eng.emit({"type": "status", "msg": f"Copying {spec['label']} to this Mac: {done / 1e9:.1f} of {total / 1e9:.1f} GB"})
+    try:
+        dest = kept.keep(repo, spec.get("mlx_revision"), progress, cancelled=eng.cancel_event.is_set)
+    except ValueError as e:
+        raise UserError(str(e))
+    except InterruptedError:
+        raise Cancelled()
+    eng.unload()  # the next picture loads from the copy
+    eng.emit({"type": "status", "msg": f"{spec['label']} is kept on this Mac: it loads from here from now on"})
+    return {"kept": str(dest)}
+
+
 def keep_local_job(a, eng):
     """Models → right-click → 💾 Keep a copy on this Mac: copy a drive's model file into Protoart's models folder.
     The original is only read. Your marks (NSFW, People) and the type you picked move to the copy."""
@@ -2108,7 +2165,7 @@ def reader():
             job = {"id": mid, "cmd": cmd, "args": a, "label": job_label(cmd, a), "model": a.get("model")}
             jobs.make_way(None if cmd == "preload" else (a.get("model") or (a.get("base") or {}).get("model")))
             # Image -> prompt is quick and the user is waiting on it, so it jumps the queue.
-            jobs.put(job, front=cmd in ("interrogate", "enhance_prompt", "plan_regions", "control_preview", "faceswap_faces"))
+            jobs.put(job, front=cmd in ("interrogate", "enhance_prompt", "plan_regions", "control_preview", "faceswap_faces", "find_words", "find_text"))
             continue
         if cmd in NET_QUICK:  # these wait on the internet: never hold up the other buttons while they do
             threading.Thread(target=run_quick, args=(mid, cmd, a), daemon=True).start()
@@ -2162,7 +2219,7 @@ def run_side(mid, cmd, a):
 
 # quick commands that talk to a website (up to ~25 s if it's slow or blocked): run beside the reader, so the
 # app stays responsive (an unanswered Check used to leave every other button waiting)
-NET_QUICK = ("select_object", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
+NET_QUICK = ("select_object", "kept_list", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
              "train_square_copies", "poselib_thumbs", "poselib_get")  # (that one isn't online, but can take a while for a big folder)
 
 
@@ -2307,6 +2364,8 @@ def run_job(kind, a):
         return civitai_job(a, eng)
     if kind == "model_keep_local":
         return keep_local_job(a, eng)
+    if kind == "model_keep":
+        return model_keep_job(a, eng)
     if kind == "postprocess":
         return eng.postprocess(a, force=settings["force_load"])
     if kind == "interrogate":

@@ -5184,6 +5184,23 @@
       <button class="link" @click="measureDownloads">how much space do they use?</button>
     </div>
     <label class="check"><input type="checkbox" v-model="dl.move"> Move the models already downloaded to the new folder</label>
+    <h3 class="sub">⚡ Models kept on this Mac <span class="hint">· load in seconds instead of a minute or more from an external drive</span></h3>
+    <p class="hint">Models in a folder on an external drive load from it every time, and a slow drive can take a minute or more.
+      Keep a copy of the ones you use most on this Mac's own drive and they load from here in seconds. The drive's files aren't
+      changed; removing a copy deletes only the app's copy (it loads from the drive again). Most used first.</p>
+    <div class="row"><button class="ghost small" @click="loadKept" :disabled="kept.busy">{{ kept.rows ? '↻ Check again' : 'Show my downloaded models' }}</button>
+      <span class="hint" v-if="kept.free_gb != null">{{ kept.free_gb }} GB free on this Mac</span></div>
+    <table v-if="kept.rows" class="kept-table">
+      <tr v-for="r in kept.rows" :key="r.repo">
+        <td>{{ r.label }}<span class="hint"> · {{ r.gb }} GB{{ r.uses ? ' · ' + r.uses + ' pictures' : '' }}</span></td>
+        <td v-if="r.kept"><span class="ok-tag">⚡ kept on this Mac</span> <button class="link small-link" @click="keepModel(r, false)">remove the copy</button></td>
+        <td v-else-if="r.external"><button class="ghost small" @click="keepModel(r, true)" :disabled="r.gb + 5 > kept.free_gb" :title="r.gb + 5 > kept.free_gb ? 'Not enough space on this Mac (it needs the model\'s size plus 5 GB spare)' : 'Copy it onto this Mac'">⚡ Keep on this Mac</button></td>
+        <td v-else class="hint">already on this Mac</td>
+      </tr>
+      <tr v-if="!kept.rows.length"><td class="hint">No downloaded models yet.</td></tr>
+    </table>
+    <label class="check" title="On Macs with under 14 GB, a fast-engine model on an external drive is copied onto this Mac the first time it's used (a slow drive can make the graphics chip give up waiting). Off: only the models you keep above are copied">
+      <input type="checkbox" :checked="kept.auto !== false" @change="setAutoKeep($event.target.checked)"> Copy fast-engine models onto this Mac automatically the first time they're used <span class="hint">(safer with slow drives)</span></label>
     </section>
     <section class="set-sec">
     <h2>📦 Model files the app keeps</h2>

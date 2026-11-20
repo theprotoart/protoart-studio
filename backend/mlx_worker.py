@@ -127,7 +127,7 @@ def _save_copy(model, dest, name):
         print(f"[mlx] couldn't save a shrunk copy of {name}: {e}", file=sys.stderr, flush=True)
 
 
-def _internal_copy(path, name):
+def _internal_copy(path, name, auto=True):
     """Small Macs: use a copy on this Mac's own drive of a model kept on an external drive (once).
 
     The fast engine reads a model's weights from disk while the graphics chip waits for them. From a slow external
@@ -146,6 +146,8 @@ def _internal_copy(path, name):
     dest = home / "fast-copies" / f"{src.parent.parent.name}--{src.name}"  # models--org--name--<revision>
     if (dest / ".protoart-done").exists():
         return str(dest)
+    if not auto:  # Settings → Models kept on this Mac: copying automatically is off (copies are made from there)
+        return path
     files = [f for f in src.rglob("*") if f.is_file()]
     need = sum(f.stat().st_size for f in files)
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -223,7 +225,7 @@ class Worker:
                 finally:
                     hc.HF_HUB_OFFLINE = True
                     os.environ["HF_HUB_OFFLINE"] = "1"
-        path = _internal_copy(path, name)
+        path = _internal_copy(path, name, getattr(self, "auto_copy", True))
         send({"type": "status", "msg": f"Loading {name} (fast engine)…"})
         t0 = time.time()
         import lokr_mlx  # LoKr files (Flow-DPO…) aren't mflux's: attached after the model is built
@@ -519,6 +521,7 @@ def main():
         cancel.clear()
         try:
             if cmd == "load":
+                worker.auto_copy = msg.get("auto_copy", True) is not False
                 worker.load(msg["repo"], msg.get("base", "ernie-image-turbo"), msg.get("loras"), msg.get("low_ram"),
                             allow_download=bool(msg.get("allow_download")), label=msg.get("label"),
                             size_gb=msg.get("size_gb"), revision=msg.get("revision"), variant=msg.get("variant"),

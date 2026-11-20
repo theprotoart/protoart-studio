@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 import nsfw as nsfw_words
+import kept
 import paths
 import kv_cache
 import samplers
@@ -290,6 +291,15 @@ class Cancelled(Exception):
 
 class Skipped(Exception):
     """The current image was skipped; the job carries on with its next image."""
+
+
+def plain_tile(tile, limit=2.0):
+    """True for a tile with almost no detail (sky, a plain wall, a blurred background): its average edge strength
+    (Laplacian, on a 128 px grey copy) is under `limit` out of 255. Tiled upscale leaves those as they are."""
+    import numpy as np
+    g = np.asarray(tile.convert("L").resize((128, 128)), dtype=np.float32)
+    lap = np.abs(4 * g[1:-1, 1:-1] - g[:-2, 1:-1] - g[2:, 1:-1] - g[1:-1, :-2] - g[1:-1, 2:])
+    return float(lap.mean()) < limit
 
 
 def look_info(args):
@@ -1371,6 +1381,15 @@ class Engine:
             elif self.local_copy(spec):
                 import sdnq  # noqa: F401  needed to read the saved 8-bit weights
                 pipe = cls.from_pretrained(str(self.local_copy(spec)), torch_dtype=dtype)
+            elif repo and kept.kept_path(repo) and not spec.get("quantize_unet"):
+                # ⚡ kept on this Mac (Settings → Models kept on this Mac): read from the Mac's own drive, not the drive
+                kw.update(use_safetensors=True, local_files_only=True)
+                if spec.get("variant"):
+                    kw["variant"] = spec["variant"]
+                if family == "sd15":
+                    kw.update(safety_checker=None, requires_safety_checker=False)
+                self.emit({"type": "status", "msg": f"Loading {spec['label']} (kept on this Mac)…"})
+                pipe = cls.from_pretrained(str(kept.kept_path(repo)), **kw)
             else:
                 kw["use_safetensors"] = True
                 if spec.get("local_dir"):
@@ -2400,6 +2419,7 @@ class Engine:
                           "revision": spec.get("mlx_revision"), "variant": variant,
                           "quantize": spec.get("mlx_quantize"), "patterns": spec.get("mlx_patterns"), "cls": spec.get("mlx_class"),
                           "save_copy": bool(spec.get("mlx_save_copy")),
+                          "auto_copy": self.library.get_setting("auto_keep_copies", True) is not False,
                           "label": spec["label"], "size_gb": spec.get("download_gb"),
                           "loras": loras, "low_ram": 0 < ram < 20,
                           "allow_download": bool(allow_download) and net.is_online()},
@@ -2695,7 +2715,14 @@ class Engine:
             pass
 
     def drop_helpers(self):
-        """Free optional helper models (tagger, face restorer, prompt enhancer, upscaler)."""
+        """Free optional helper models (tagger, face restorer, prompt enhancer, upscaler, Remove's LaMa, cut-out)."""
+        try:  # 🩹 Remove's LaMa (~0.8 GB) and ✂ cut-out's models stay in memory after use otherwise; they reload in ~1 s
+            import postprocess.heal as _heal
+            import postprocess.cutout as _cut
+            _heal._session = None
+            _cut._sessions.clear()
+        except Exception:  # noqa: BLE001
+            pass
         self.interrogator = None
         self.face_restorer = None
         self.prompt_enhancer = None
@@ -5741,6 +5768,7 @@ class Engine:
         tmp = paths.HOME / "tmp"
         tmp.mkdir(parents=True, exist_ok=True)
         tin, tout = tmp / f"detail_in_{os.getpid()}.png", tmp / f"detail_out_{os.getpid()}.png"
+        skipped = 0
         try:
             for i, box in enumerate(boxes):
                 self.wait_if_paused()
@@ -5749,6 +5777,11 @@ class Engine:
                 self.emit({"type": "status", "msg": f"Detail upscale: tile {i + 1} of {len(boxes)} (Z-Image Turbo"
                                                     f"{' + Flow-DPO' if flow_dpo else ''})…"})
                 part = big.crop(box)
+                if plain_tile(part):  # sky, a wall, a blurred background: nothing to add there, so it isn't redrawn
+                    skipped += 1
+                    acc[box[1]:box[3], box[0]:box[2]] += np.asarray(part, np.float32) * weight
+                    wsum[box[1]:box[3], box[0]:box[2]] += weight
+                    continue
                 part.save(tin)
 
                 def on_event(ev, _i=i):
@@ -5778,7 +5811,7 @@ class Engine:
         settings = {"model": self.DETAIL_MODEL, "prompt": prompt, "negative_prompt": "", "width": W, "height": H,
                     "steps": steps, "cfg": 1.0, "seed": seed, "strength": change, "engine": "mlx",
                     "loras": [{"name": "zit_fdpo_v1", "weight": 0.6}] if flow_dpo else [],
-                    "detail_upscale": {"scale": round(scale, 2), "tiles": len(boxes)},
+                    "detail_upscale": {"scale": round(scale, 2), "tiles": len(boxes), "plain_tiles_kept": skipped},
                     "seconds": round(time.time() - started, 1)}
         path = self._save(out, settings, suffix="detail")
         record = self.library.add_image(path, settings, parent_id=src.get("id") if isinstance(src, dict) else None, kind="tiled")

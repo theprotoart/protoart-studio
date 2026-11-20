@@ -368,6 +368,11 @@ class Library:
         return n
 
     # ---------- app settings ----------
+    def model_use_counts(self):
+        """{model id: pictures made with it} (⚡ Models kept on this Mac: most used first)."""
+        with self._lock:
+            return dict(self._db.execute("SELECT model, COUNT(*) FROM images GROUP BY model").fetchall())
+
     def get_setting(self, key, default=None):
         with self._lock:
             row = self._db.execute("SELECT value_json FROM app_settings WHERE key=?", (key,)).fetchone()

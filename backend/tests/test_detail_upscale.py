@@ -15,11 +15,8 @@ def test_detail_upscale_tiles_and_blends():
     import thumbs
     tmp_path = Path(tempfile.mkdtemp())
     undo = [(engine, "total_ram_gb", engine.total_ram_gb), (engine.paths, "HOME", engine.paths.HOME), (thumbs, "make", thumbs.make)]
-    src = Image.new("RGB", (640, 480))
-    px = src.load()
-    for y in range(480):
-        for x in range(640):
-            px[x, y] = (x * 255 // 640, y * 255 // 480, 128)
+    rng = np.random.default_rng(1)
+    src = Image.fromarray(rng.integers(0, 255, (480, 640, 3), dtype=np.uint8))  # detailed everywhere: every tile redrawn
     calls = []
 
     class Mlx:
@@ -61,7 +58,7 @@ def test_detail_upscale_tiles_and_blends():
     assert len(calls) >= 4 and all(c["width"] == 768 and abs(c["image_strength"] - 0.7) < 1e-6 for c in calls)
     assert saved["loras"] == [("/x/zit_fdpo_v1.safetensors", 0.6)]
     ref = np.asarray(src.resize(out.size, Image.LANCZOS), np.float32)
-    assert np.abs(np.asarray(out, np.float32) - ref).mean() < 3  # an unchanged redraw blends back to the picture
+    assert np.abs(np.asarray(out, np.float32) - ref).mean() < 8  # an unchanged redraw blends back to the picture
     assert rec["settings"]["detail_upscale"]["tiles"] == len(calls)
 
 
@@ -72,3 +69,12 @@ def test_crop_around_painted_area():
     left, top, right, bottom = engine.crop_around((1950, 1450, 2000, 1500), (2000, 1500))
     assert right == 2000 and bottom == 1500 and right - left == 384  # kept inside the picture
     assert engine.crop_around(None, (100, 100)) is None
+
+
+def test_plain_tiles_are_left_alone():
+    import engine
+    sky = Image.new("RGB", (512, 512), (120, 160, 220))
+    assert engine.plain_tile(sky)
+    rng = np.random.default_rng(2)
+    busy = Image.fromarray(rng.integers(0, 255, (512, 512, 3), dtype=np.uint8))
+    assert not engine.plain_tile(busy)

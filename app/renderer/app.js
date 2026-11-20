@@ -5,7 +5,7 @@ const { createApp } = Vue;
 let nextId = 1;
 const pending = new Map();
 const listeners = [];
-const HEAVY = new Set(["store_move", "zeng_setup", "lora_hf_download", "ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "faceswap", "faceswap_faces", "tiled_upscale", "detail_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
+const HEAVY = new Set(["store_move", "zeng_setup", "lora_hf_download", "ckpt_merge", "lora_extract", "lora_base_find", "model_keep_local", "model_keep", "faceswap", "faceswap_faces", "tiled_upscale", "detail_upscale", "quantize", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption",
                         "control_preview", "convert_tdict", "compare", "relight", "make3d", "harmonize"]);
 const SOUND_JOBS = new Set(["generate", "edit_words", "heal", "postprocess", "train_lora", "train_embedding", "lora_merge", "vectorize"]);
 const jobArgs = new Map(); // queue job id -> {cmd, args}, so jobs can be re-queued after a Force stop
@@ -1065,7 +1065,8 @@ const protoartApp = createApp({
       detLoraQ: "",
       gmenu: null,
       regionBusy: -1, regionUndo: {}, regSel: -1,
-      mv: { items: [], sel: -1, draw: "src" },  // 📦 FLUX 3 edits: move / remove / add things with boxes
+      mv: { items: [], sel: -1, draw: "src" },
+      kept: { rows: null, free_gb: null, auto: true, busy: false },  // ⚡ Settings → Models kept on this Mac  // 📦 FLUX 3 edits: move / remove / add things with boxes
       regionPlanText: "", regionPlanBusy: false, regionPlanUndo: null, REGION_TEMPLATES,  // 🗺 ✨ Plan the layout from one sentence  // 🗺 ✨ enhance an area's prompt      // right-click menus for models, LoRAs, the queue and folders (pictures have their own)
       i2iSuggesting: false,  // Image to image → 💡 suggest from the picture     // Tools → Detail with a LoRA: search box      // the job that stopped for a missing first-time download (⬇ Download it now)
       dlBusy: false,
@@ -1247,6 +1248,9 @@ const protoartApp = createApp({
               "<b>🌴 Crime-game loading-screen art</b>: in Create, 🎨 Style presets → Illustration → <i>Crime Game Loading Screen</i> or <i>Crime Game Character Portrait</i> (bold ink outlines, cel shading, sunset lavender-and-peach palette, palm-tree skyline). In Image to image → ✨ Edit with words → Quick edits, <b>🌴 Crime-game art</b> redraws your photo that way, keeping the face and pose.",
               "<b>🎮 Game cover collage</b>: in Create → 🗺 Regions → templates, 8 illustrated panels and a big title in the middle, as 📦 Boxes (best with FLUX 3: change the title and each panel's scene). Or in ✨ Edit with words, add your pictures under More pictures and press Quick edits → <b>🎮 Game cover collage</b>.",
               "<b>🕺 Character into pose</b> (✨ Edit with words → Two pictures → one): drop a photo on 1 (the pose and scene) and a character on 2: the character takes the person's place in that exact pose, setting and light, keeping their own face, hair, outfit and drawing style. No download.",
+              "<b>⚡ Models kept on this Mac</b> (Settings → Downloaded models folder): if your models are on an external drive, keep a copy of the ones you use most on the Mac's own drive (most used first, with their size) and they load in seconds instead of a minute or more. Remove a copy any time (only the app's copy is deleted). Copying fast-engine models automatically the first time can now be switched off there.",
+              "<b>🧩 Tiled upscale skips plain areas</b>: sky, plain walls and blurred backgrounds aren't redrawn (there's nothing to add), so most photos upscale 20–40% faster.",
+              "<b>🔍 Select by words and 🔤 Find text</b> no longer wait behind a long picture: they go next in the queue, like Quick describe. Remove's LaMa and the cut-out models are let go of before a picture model loads on Macs under 16 GB, leaving it more memory.",
               "<b>🩹 Remove is faster</b>: it no longer waits behind pictures being made (even on 8 GB Macs), uses all the processor's cores, and works each painted spot on its own, with long thin marks (watermarks, captions, wires) done along their length at full size instead of shrunk. It's the same kind of model (LaMa) the watermark-remover apps use.",
             ] },
             { h: "1.6.23: 🆕 FLUX 3, Ideogram 4, 📦 draw your own boxes, 🧩 Z-Image tiled upscale, 🎨 style presets, 📸 Anime ↔ Real, 🔍 select by words, MOSS LoRAs", items: [
@@ -9083,6 +9087,20 @@ const protoartApp = createApp({
     },
     // 📦 FLUX 3 · Edit with words: things to move, remove or add, each with a box where it is now (src) and/or
     // where it goes (tgt), drawn on your picture. Sent as move_boxes; the backend writes FLUX 3's edit layout.
+    async loadKept() {
+      this.kept.busy = true;
+      try { Object.assign(this.kept, await call("kept_list")); } catch (e) { this.error = e.message; } finally { this.kept.busy = false; }
+    },
+    async keepModel(r, keep) {
+      if (!keep && !(await this.confirmAsk(`Remove the copy of “${r.label}” from this Mac?`,
+        `It frees ${r.gb} GB here. The model stays on the drive and loads from there again (slower).`, "Remove the copy"))) return;
+      const done = await this.runJob("model_keep", { id: r.id, label: r.label, keep });
+      if (done) await this.loadKept();
+    },
+    async setAutoKeep(on) {
+      this.kept.auto = on;
+      try { await call("auto_keep_set", { on }); } catch (e) { this.error = e.message; }
+    },
     mvAdd(act) {
       this.mv.items.push({ desc: "", act, src: null, tgt: null });
       this.mv.sel = this.mv.items.length - 1;

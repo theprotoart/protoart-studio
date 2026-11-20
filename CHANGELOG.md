@@ -8,6 +8,12 @@
   not by any game (no trademarks or logos).
 - 🕺 Character into pose (two-picture recipe, no LoRA): Picture 2's character in Picture 1's pose, scene and light.
 - 📦 Boxes: up to 10; region templates can set boxes (`layout: "free"`).
+- ⚡ Models kept on this Mac (Settings): `kept_list` (downloaded Hugging Face models, size, on an external drive or not,
+  most used first by `library.model_use_counts`), `model_keep` job (copy to / remove from
+  `fast-copies/models--org--name--<revision>`, `kept.py`; only app-made copies are removed). SD / SDXL pipelines load
+  from a kept copy; the fast engine's automatic first-use copy (small Macs) can be turned off (`auto_keep_copies`).
+- 🧩 Tiled upscale leaves plain tiles as they are (`plain_tile`: mean Laplacian under 2/255 on a 128 px grey copy).
+- `find_words` / `find_text` jump the queue; `drop_helpers` also lets go of LaMa's session and the cut-out sessions.
 - 🩹 Remove: runs in the side lane on every Mac (LaMa ~1 GB, seconds), ONNX Runtime on all performance cores, each
   painted spot worked separately (`_parts`), and long thin spots (thickness under 30% of 512 px) in overlapping
   full-resolution 512 px windows along their length (`_windows`) instead of one shrunk square.
