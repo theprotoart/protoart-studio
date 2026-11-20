@@ -226,8 +226,11 @@ class Worker:
         path = _internal_copy(path, name)
         send({"type": "status", "msg": f"Loading {name} (fast engine)…"})
         t0 = time.time()
-        lora_kw = dict(lora_paths=[p for p, _ in loras] or None, lora_scales=[float(s) for _, s in loras] or None)
-        if loras and not bake_loras():
+        import lokr_mlx  # LoKr files (Flow-DPO…) aren't mflux's: attached after the model is built
+        lokrs = [(p, s) for p, s in loras if str(p).endswith(".safetensors") and lokr_mlx.is_lokr(p)]
+        plain = [(p, s) for p, s in loras if (p, s) not in lokrs]
+        lora_kw = dict(lora_paths=[p for p, _ in plain] or None, lora_scales=[float(s) for _, s in plain] or None)
+        if plain and not bake_loras():
             # Keep LoRAs as small add-ons beside the 4-bit model instead of folding them in: folding re-saves every
             # touched layer at 8 bits (a 4-bit step is too coarse for the LoRA's change), which doubles the model's
             # size. On an 8 GB Mac that pushed ERNIE into swap (80–110 s a step instead of ~10–20). Unfolded, the
@@ -274,6 +277,9 @@ class Worker:
             from mflux.models.ernie_image import ErnieImage
             config = ModelConfig.ernie_image_turbo() if base == "ernie-image-turbo" else ModelConfig.ernie_image()
             self.model = _make(ErnieImage, model_path=path, model_config=config, **lora_kw)
+        for p, sc in lokrs:
+            n = lokr_mlx.apply(self.model, p, float(sc))
+            print(f"[mlx] LoKr {os.path.basename(str(p))}: {n} layers at {float(sc):g}", file=sys.stderr, flush=True)
         self.key = key
         self.path = path
         self.low_ram = bool(low_ram)

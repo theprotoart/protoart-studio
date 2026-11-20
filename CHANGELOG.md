@@ -41,6 +41,9 @@
   {id, from: ref_image_0 | target, src_bbox, tgt_bbox, desc} after a sentence per item; drawn on the picture (`mvDown`).
 - ✂ Crop and stitch for ✨ Edit with words with a painted area (`crop_around`: the painted box + 60% context, ≥ 384 px,
   only when under 45% of the picture; `crop_stitch: false` turns it off): edited at full work size, pasted back.
+- Fixed: ✨ Flow-DPO (and other LyCORIS LoKr files) failed on the fast engine ("240 of the 240 layers … could not be
+  applied": mflux reads plain LoRAs only). LoKr files are now taken out of mflux's LoRA list and attached by the app
+  after the model loads (`lokr_mlx`: W1 · X · W2ᵀ wrappers on the transformer's linear layers, unmerged).
 - 🎨 Keep the original's colours (`match_colors`, `color_match.match_global`: Reinhard Lab mean/std transfer at 0.8)
   for whole-picture edits.
 - 🎨 Style presets as a card in Create (`zstyle-card`, like the MiniMax-H3 presets; Z-Image, FLUX.2 Klein, FLUX 3;
