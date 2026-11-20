@@ -843,7 +843,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.23";
+const APP_VERSION = "1.6.24";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1243,7 +1243,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Next: 🌴 crime-game art, 🕺 character into pose, 🩹 faster Remove", items: [
+            { h: "1.6.24: 🌴 crime-game art & 🎮 game cover, 🕺 character into pose, 🩹 faster Remove", items: [
               "<b>🌴 Crime-game loading-screen art</b>: in Create, 🎨 Style presets → Illustration → <i>Crime Game Loading Screen</i> or <i>Crime Game Character Portrait</i> (bold ink outlines, cel shading, sunset lavender-and-peach palette, palm-tree skyline). In Image to image → ✨ Edit with words → Quick edits, <b>🌴 Crime-game art</b> redraws your photo that way, keeping the face and pose.",
               "<b>🎮 Game cover collage</b>: in Create → 🗺 Regions → templates, 8 illustrated panels and a big title in the middle, as 📦 Boxes (best with FLUX 3: change the title and each panel's scene). Or in ✨ Edit with words, add your pictures under More pictures and press Quick edits → <b>🎮 Game cover collage</b>.",
               "<b>🕺 Character into pose</b> (✨ Edit with words → Two pictures → one): drop a photo on 1 (the pose and scene) and a character on 2: the character takes the person's place in that exact pose, setting and light, keeping their own face, hair, outfit and drawing style. No download.",

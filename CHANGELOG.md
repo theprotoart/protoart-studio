@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.24
 
 - 🌴 Crime-game loading-screen art: two of Protoart Studio's own 🎨 style presets (Illustration: Crime Game Loading
   Screen, Crime Game Character Portrait), a ✨ Edit with words quick edit (🌴 Crime-game art) and 🎮 Game cover collage
