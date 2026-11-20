@@ -66,7 +66,8 @@ class Worker:
         self.key = None
 
     def load(self, a):
-        key = (a["dir"], bool(a.get("turbo")), tuple(a.get("adapters") or ()), bool(a.get("student_bf16")))
+        user = [(str(p), float(w)) for p, w in a.get("loras") or []]  # your LoRAs: [path, strength]
+        key = (a["dir"], bool(a.get("turbo")), tuple(a.get("adapters") or ()), bool(a.get("student_bf16")), tuple(user))
         if self.pipe is not None and self.key == key:
             return
         import mlx.core as mx
@@ -79,6 +80,23 @@ class Worker:
             # the student is kept in float32 for precision; on small Macs bf16 halves its ~0.5 GB
             loras = [(destripe, float(a.get("destripe_strength", 1.5)), mx.bfloat16, "destripe"),
                      (student, 1.0, mx.bfloat16 if a.get("student_bf16") else mx.float32, "student")]
+        if user:
+            # your LoRAs go on after the app's own adapters, in their own group so the turbo schedule (which switches
+            # the "student" group per step) and per-step strengths ("default") leave them at the strength you set;
+            # moss_lora reads the LoRA / PEFT / LoKr formats moss-image-mlx doesn't
+            import moss_image_mlx.lora as mlora
+            import moss_lora
+            if not getattr(mlora, "_protoart_any", False):
+                plain = mlora.apply_lora
+
+                def apply_any(model, path, strength=1.0, dtype=mx.bfloat16, group="default"):
+                    if group == "user":
+                        return moss_lora.apply(model, path, strength, dtype, group)
+                    return plain(model, path, strength, dtype, group)
+
+                mlora.apply_lora = apply_any
+                mlora._protoart_any = True
+            loras += [(p, w, mx.bfloat16, "user") for p, w in user]
         self.pipe = MOSSImagePipeline(a["dir"], low_memory=True, cache_dir=a.get("cache") or None, loras=loras)
         self.key = key
         self.cpu_encode = bool(a.get("cpu_encode"))

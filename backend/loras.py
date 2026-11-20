@@ -10,7 +10,9 @@ from pathlib import Path
 
 import nsfw
 
-FAMILIES = ("sd15", "sdxl", "ernie", "flux", "flux2", "zimage", "qwen21", "krea2", "fibo2")
+# Every model type a LoRA can be made for. The app's "Fix a type" buttons and LoRA lists come from this list
+# (bee_backend "lora_families"), so a new base model only needs adding here (and a label in FAMILY_LABEL in app.js).
+FAMILIES = ("sd15", "sdxl", "flux", "flux2", "ernie", "zimage", "qwen21", "krea2", "fibo2", "moss")
 
 
 # SDXL "flavours": fine-tuned SDXL families that are used differently from plain SDXL
@@ -63,6 +65,8 @@ def detect_family(header):
         return "sd15"
     if "ernie" in base:
         return "ernie"
+    if "moss" in base:
+        return "moss"
     if any(m in base for m in ("flux2", "flux.2", "flux-2", "flux_2", "klein")):
         return "flux2"
     if "flux" in base:
@@ -83,6 +87,9 @@ def detect_family(header):
     unet_markers = ("lora_unet_", "unet.", "input_blocks", "down_blocks", "mid_block")
     if any(m in joined for m in unet_markers):
         return "sd15"
+    # MOSS-Image's picture model: layers.N.proj.(q|k|v|o|ffn_up_gate|ffn_down) (its own module names)
+    if re.search(r"layers[._]\d+[._]proj[._](?:ffn_up_gate|ffn_down|q|k|v|o)\b", joined):
+        return "moss"
     if any(k.startswith(("transformer.", "diffusion_model.", "lora_transformer_")) for k in keys):
         return "ernie"
     return "unknown"

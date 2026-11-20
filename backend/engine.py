@@ -2108,8 +2108,15 @@ class Engine:
         if args.get("init_image"):
             raise UserError("MOSS-Image makes new pictures from a prompt only: for Image to image, pick an SD 1.5 / SDXL "
                             "model or FLUX.2 Klein (Edit with words).")
+        user_loras = []  # your MOSS LoRAs (LoRA or LoKr files; moss_lora.py), attached when the model loads
         if args.get("loras"):
-            raise UserError("MOSS-Image can't use LoRAs in this version: take them out of the LoRA list first.")
+            available = {l["name"]: l for l in lora_scan.all_loras(paths.LORAS_DIR)}
+            for r in args["loras"]:
+                info = available.get(r.get("name"))
+                if info is None or info["family"] != "moss" or not info["file"].endswith(".safetensors"):
+                    raise UserError(f"LoRA '{r.get('name')}' wasn't made for MOSS-Image (if it was, set its type to "
+                                    "MOSS in Models → Fix a type).")
+                user_loras.append([info["file"], float(r.get("weight", 1.0))])
         need = spec.get("min_ram_gb") or 16
         ram = total_ram_gb()
         if ram and ram < 8 and not force:
@@ -2188,7 +2195,8 @@ class Engine:
             cache = paths.HOME / "moss-prompts"
             cache.mkdir(parents=True, exist_ok=True)
             self.moss.request({"cmd": "load", "dir": weights, "turbo": bool(spec.get("moss_turbo")),
-                               "adapters": adapters or [], "cache": str(cache), "student_bf16": small, "cpu_encode": small},
+                               "adapters": adapters or [], "cache": str(cache), "student_bf16": small, "cpu_encode": small,
+                               "loras": user_loras},
                               on_event=lambda ev: ev.get("type") == "status" and self.emit(ev))
             self.loaded_key = None
             self.family = "moss"

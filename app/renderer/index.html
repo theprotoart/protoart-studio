@@ -1436,7 +1436,7 @@
         <td class="lf-type"><button class="ghost small lock-btn" :class="{on: typeLocked(l)}" @click="toggleTypeLock(l)"
                   :title="typeLocked(l) ? 'Locked: this type can\'t be changed by accident. Click to unlock.' : 'Unlocked. Click to lock this type (picking a type locks it too).'">{{ typeLocked(l) ? '🔒' : '🔓' }}</button>
           <div class="seg" :class="{locked: typeLocked(l)}">
-          <button v-for="f in (l.kind === 'model' ? [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}] : [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein'}, {id: 'ernie', label: 'ERNIE'}, {id: 'zimage', label: 'Z-Image'}, {id: 'qwen21', label: 'Qwen-Image 2.1'}, {id: 'krea2', label: 'Krea 2'}])" :key="f.id"
+          <button v-for="f in (l.kind === 'model' ? [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}] : loraTypeChoices)" :key="f.id"
                   :class="{on: f.id ? (l.family_set && l.family === f.id) : !l.family_set}" :disabled="typeLocked(l)" @click="setLoraFamily(l, f.id)">{{ f.label }}</button>
         </div></td></tr>
     </table>
@@ -5104,7 +5104,7 @@
         <div class="row small lora-dir-type">
           <span class="hint">for</span>
           <div class="seg">
-            <button v-for="f in [{id: '', label: 'Auto'}, {id: 'sd15', label: 'SD 1.5'}, {id: 'sdxl', label: 'SDXL'}, {id: 'flux', label: 'FLUX'}, {id: 'flux2', label: 'Klein'}, {id: 'ernie', label: 'ERNIE'}, {id: 'zimage', label: 'Z-Image'}, {id: 'qwen21', label: 'Qwen-Image 2.1'}, {id: 'krea2', label: 'Krea 2'}]" :key="f.id"
+            <button v-for="f in loraTypeChoices" :key="f.id"
                     :class="{on: ((loraDirs.families || {})[d] || '') === f.id}" @click="setLoraDirFamily(d, f.id)"
                     :title="f.id ? 'Every LoRA in this folder is used with ' + f.label + ' models, whatever the file says' : 'Work out each LoRA\'s model type from the file itself'">{{ f.label }}</button>
           </div>

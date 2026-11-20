@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- 🧩 LoRAs for MOSS-Image: `loras.FAMILIES` gains `moss` (recognised from `layers.N.proj.(q|k|v|o|ffn_up_gate|ffn_down)`
+  keys or a "moss" base model in the metadata; these used to be listed as ERNIE). MOSS pictures attach your LoRAs
+  unmerged in their own group (`moss_worker` → `moss_lora.apply`), reading kohya, PEFT and LyCORIS LoKr files (LoKr as
+  W1·X·W2ᵀ, never building the Kronecker matrix); LoHa / Tucker LoKr give a clear message.
+- Fix a type and Settings → LoRA folders build their type buttons from `LORA_FAMILIES` (app.js), kept equal to
+  `loras.FAMILIES` by a test, so a new base model can't be left out again (FIBO 2 and MOSS were missing).
+
 ## 1.6.22
 
 - 💡 Relight's Background choices renamed (Tools and Image to image): Mine → Character, Mine, relit → Character +

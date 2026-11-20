@@ -559,6 +559,11 @@ const TILED_PRESETS = [
 const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX", flux2: "Klein", anima: "Anima", sd2: "SD 2", moss: "MOSS-Image", h3: "MiniMax-H3",
                        zimage: "Z-Image", qwen21: "Qwen-Image 2.1", krea2: "Krea 2", fibo2: "FIBO 2", fast: "Fast engine" };
 // model types made by the fast engine that read sentences and draw at sizes in steps of 16 (newer ones too)
+// Every model type a LoRA can be made for: the same list as FAMILIES in backend/loras.py (a test keeps them equal).
+// The "Fix a type" and LoRA-folder type buttons are built from it, so a new base model shows up there by adding it
+// to both lists (and a name in FAMILY_LABEL).
+const LORA_FAMILIES = ["sd15", "sdxl", "flux", "flux2", "ernie", "zimage", "qwen21", "krea2", "fibo2", "moss"];
+const LORA_TYPE_LABEL = { flux2: "Klein", moss: "MOSS" };  // shorter button names where FAMILY_LABEL is long
 const SD_FAMILIES = ["sd15", "sdxl", "sd2"];
 const NEW_FAST = ["zimage", "qwen21", "krea2", "fibo2"];  // FLUX.2 [klein] 4B: named by the model, so its LoRAs and models match
 const OPTS_KEY = "beestudio.opts";
@@ -844,7 +849,8 @@ const MODEL_GUIDES = {
       tips: ["Put every word the picture must show in double quotes, exactly as it should be spelled.",
              "Say where the text goes and how it looks: “at the top in bold red brush letters”. ✨ Enhance adds this for you.",
              "Turbo: about 6 minutes at Medium (768) on an 8 GB Mac. Best quality is about 7 times slower.",
-             "A new prompt is read once (a few seconds extra); more pictures of the same prompt skip that."] },
+             "A new prompt is read once (a few seconds extra); more pictures of the same prompt skip that.",
+             "MOSS LoRAs work (LoRA and LoKr files, e.g. from Civitai): they show in the LoRA list when a MOSS model is picked. One listed under the wrong type? Models → Fix a type → MOSS."] },
   },
 };  // keep in step with app/package.json
 const CLIP_KEY = "protoart.clipSkip"; // per-model CLIP skip you picked (overrides the recommendation)
@@ -1179,6 +1185,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Next: 🧩 LoRAs for MOSS-Image", items: [
+              "<b>LoRAs for MOSS-Image</b>: MOSS now uses the LoRAs you pick, including <b>LoKr</b> files (like FameGrid's). MOSS LoRAs are recognised automatically and listed when a MOSS model is picked, and <b>Models → Fix a type</b> has a <b>MOSS</b> button (also in Settings → LoRA folders) for any that land under the wrong type.",
+              "<b>Fix a type</b> now lists every model type that takes LoRAs (FIBO 2 was missing too), from one list, so new base models get their button automatically.",
+            ] },
             { h: "1.6.22: 🛡 invert Protect from Enhance, clearer Relight choices", items: [
               "<b>💡 Relight</b>: the Background choices are now named for what they change: <b>Character</b> (was Mine), <b>Character + Light</b> (was Mine, relit) and <b>All</b> (was New one), under the heading <b>Relight</b>.",
               "<b>🛡 Protect from Enhance</b> can be inverted: <b>⇄ Invert</b> while painting, or <b>⇄ invert</b> beside “🛡 set” afterwards. Paint (or 👤 select) the part you want enhanced, invert, and Enhance leaves everything else as it is. ⇄ Invert is now in every Tools painting mode.",
@@ -2511,6 +2521,9 @@ const protoartApp = createApp({
     },
     family() {
       return this.currentModel?.family || "sdxl";
+    },
+    loraTypeChoices() {
+      return [{ id: "", label: "Auto" }, ...LORA_FAMILIES.map((id) => ({ id, label: LORA_TYPE_LABEL[id] || FAMILY_LABEL[id] || id }))];
     },
     familyLabel() {
       return FAMILY_LABEL[this.family];
@@ -6305,7 +6318,7 @@ const protoartApp = createApp({
       // a LoRA made for another model type (a FLUX.1 LoRA with FLUX.2, an SD 1.5 one with SDXL…) can't be used: it's
       // left out of this picture with a note, instead of the whole picture failing (presets and older settings
       // could bring one in). LoRAs whose type isn't known are left alone.
-      const fam = this.family, names = { flux: "FLUX.1", flux2: "FLUX.2", sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", zimage: "Z-Image", qwen21: "Qwen-Image 2.1", krea2: "Krea 2", fibo2: "FIBO 2" };
+      const fam = this.family, names = { ...FAMILY_LABEL, flux: "FLUX.1", flux2: "FLUX.2" };
       const bad = this.form.loras.filter((x) => {
         const l = this.loras.find((y) => y.name === x.name);
         return l && l.family && l.family !== "unknown" && l.family !== fam;
