@@ -5783,6 +5783,8 @@
           <tr v-if="detail.settings?.clip_skip"><td>CLIP skip</td><td>{{ detail.settings.clip_skip }}</td></tr>
           <tr><td>Made with</td><td>{{ madeWith(detail) }}</td></tr>
           <tr v-if="enhanceInfo(detail)"><td>Upscaled</td><td>{{ enhanceInfo(detail) }}</td></tr>
+          <tr v-if="lookInfo(detail)"><td>Style</td><td>{{ lookInfo(detail) }}</td></tr>
+          <tr v-if="extrasInfo(detail)"><td>Extras</td><td>{{ extrasInfo(detail) }}</td></tr>
           <tr><td>LoRAs</td>
             <td><button v-for="l in detail.loras" :key="l.name" class="chip static lora-link" @click="filterByLora(l.name)"
                         title="Show all images made with this LoRA">{{ l.name }} {{ l.weight }}</button><span v-if="!detail.loras.length" class="hint">none</span></td></tr>

@@ -292,6 +292,17 @@ class Skipped(Exception):
     """The current image was skipped; the job carries on with its next image."""
 
 
+def look_info(args):
+    """What was put on top of the prompt (🎨 style preset, 🎞 film look) and the quality extras switched on, so a
+    picture's info says which were used."""
+    out = {}
+    for key in ("style", "film_look"):
+        v = args.get(key)
+        if isinstance(v, str) and v.strip():
+            out[key] = v.strip()[:80]
+    return out
+
+
 # ✨ FreeU's settings (Si et al. 2023; the values its authors give for each model)
 FREEU = {"sd15": {"s1": 0.9, "s2": 0.2, "b1": 1.5, "b2": 1.6}, "sdxl": {"s1": 0.6, "s2": 0.4, "b1": 1.1, "b2": 1.2}}
 
@@ -1716,6 +1727,7 @@ class Engine:
         if main and main != composed:
             settings["original_prompt"] = args.get("prompt")
         path = self._save(img, settings)
+        settings.update(look_info(args))  # 🎨 style preset / 🎞 film look / ✨ extras, for the picture info
         record = self.library.add_image(path, settings, kind="generated")
         record["thumb"] = str(thumbs.make(record["id"], path, img) or "") or None
         record = self._people_check(self._content_check(record, img), img)
@@ -1784,6 +1796,7 @@ class Engine:
             if face_info:
                 settings["face_restore"] = face_info
             path = self._save(image, settings)
+            settings.update(look_info(args))  # 🎨 style preset / 🎞 film look / ✨ extras, for the picture info
             record = self.library.add_image(path, settings, kind="img2img" if init_image is not None else "generated")
             record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
             record = self._people_check(self._content_check(record, image), image)
@@ -1914,6 +1927,7 @@ class Engine:
                     results.append({"image": image, "seed": img_seed, "seconds": round(secs, 1), "settings": settings})
                     continue
                 path = self._save(image, settings)
+                settings.update(look_info(args))  # 🎨 style preset / 🎞 film look / ✨ extras, for the picture info
                 record = self.library.add_image(path, settings, kind="img2img" if mlx_init and not pose else "generated")
                 record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
                 record = self._people_check(self._content_check(record, image), image)
@@ -2152,6 +2166,7 @@ class Engine:
                 if face_info:
                     settings["face_restore"] = face_info
             path = self._save(image, settings)
+            settings.update(look_info(args))  # 🎨 style preset / 🎞 film look / ✨ extras, for the picture info
             record = self.library.add_image(path, settings, kind="img2img" if refs else "generated")
             record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
             record = self._people_check(self._content_check(record, image), image)
@@ -2318,6 +2333,7 @@ class Engine:
                     if face_info:
                         settings["face_restore"] = face_info
                 path = self._save(image, settings)
+                settings.update(look_info(args))  # 🎨 style preset / 🎞 film look / ✨ extras, for the picture info
                 record = self.library.add_image(path, settings, kind="generated")
                 record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
                 record = self._people_check(self._content_check(record, image), image)
@@ -3472,6 +3488,7 @@ class Engine:
             path = self._save(image, settings)
             kind = ("outpaint" if outpaint else "inpaint") if mask is not None else \
                 ("img2img" if (init_image is not None or control) else "generated")
+            settings.update(look_info(args))  # 🎨 style preset / 🎞 film look / ✨ extras, for the picture info
             record = self.library.add_image(path, settings, kind=kind)
             record["thumb"] = str(thumbs.make(record["id"], path, image) or "") or None
             record = self._people_check(self._content_check(record, image), image)
@@ -5354,7 +5371,8 @@ class Engine:
         settings = {"model": edit_id, "prompt": prompt, "negative_prompt": "", "width": result.width,
                     "height": result.height, "steps": steps, "cfg": 1.0, "sampler": "flow_euler", "seed": seed,
                     "engine": "h3" if h3 else "mlx", "loras": [], "seconds": round(secs, 1),
-                    "edit": {"painted": mask is not None, "extra_pictures": len(refs), "faces_redone": faces_redone}}
+                    "edit": {"painted": mask is not None, "extra_pictures": len(refs), "faces_redone": faces_redone,
+                             "match_colors": bool(args.get("match_colors")) and mask is None}}
         if isinstance(args.get("camera"), dict):  # 📷 Camera angle
             settings["camera"] = {k: args["camera"].get(k) for k in ("az", "el", "zoom", "view", "layout")}
             settings["camera"]["panel_cropped"] = panels_cropped

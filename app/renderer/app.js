@@ -1227,12 +1227,12 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Next: 🔍 select by words, 🎨 style-only image prompt, ✨ FreeU, 🎚 CFG rescale", items: [
+            { h: "1.6.23: 🆕 FLUX 3, Ideogram 4, 📦 draw your own boxes, 🧩 Z-Image tiled upscale, 🎨 style presets, 📸 Anime ↔ Real, 🔍 select by words, MOSS LoRAs", items: [
+
               "<b>🔍 Select by words</b> (the painting tools in Image to image and Tools): pick 🔍 Words, type what to select (“the red shirt”, “the dog”, “the sky”) and press Return. Florence-2 finds it (the model Quick describe uses, no new download); fix the edge with the brush if needed.",
               "<b>🖼 Image prompt: 🎨 Style only / 📐 Layout only</b> (Create, SDXL; like InstantStyle in ComfyUI's IPAdapter Plus): borrow just the reference picture's style (colours, brushwork, mood) while your prompt decides what's in it, or just its composition.",
               "<b>✨ FreeU</b> and <b>🎚 CFG rescale</b> (Create, SD 1.5 and SDXL, under the knobs): FreeU gives crisper texture and richer colour at no extra time; CFG rescale stops high guidance from burning the colours (0.3–0.5; 0.7 for v-prediction models).",
-            ] },
-            { h: "1.6.23: 🆕 FLUX 3, Ideogram 4, 📦 draw your own boxes, 🧩 Z-Image tiled upscale, 🎨 style presets, 📸 Anime ↔ Real, MOSS LoRAs", items: [
+              "<b>Picture info</b> now names the 🎨 style preset or 🎞 film look you used (a Style row) and lists the extras that were on (image prompt, FreeU, CFG rescale, Regions, hi-res fix…).",
               "<b>FLUX 3 Image Klein</b> (Create's model list): Black Forest Labs' newest small model, a 5.3 GB download that fits 8 GB Macs. Sharp pictures, good lettering, and it follows long descriptions closely (✨ Enhance writes them). 16 steps.",
               "<b>✨ Edit with words with FLUX 3</b> (Image to image's model list): edit your picture from a sentence, with up to <b>9 More pictures</b> (people, clothes, objects, a style).",
               "<b>🗺 Regions with FLUX 3</b>: your areas become FLUX 3's own <b>layout boxes</b> (in one pass, no extra time): each area's subject is placed in its box.",
@@ -5341,6 +5341,25 @@ const protoartApp = createApp({
       const how = e.solver ? String(e.solver) : "Enhance";
       return `${how}${x}${e.num_inference_steps ? ` · ${e.num_inference_steps} steps` : ""}${e.keep_style ? " · kept the picture's style" : ""}${e.protected ? " · 🛡 protected areas" : ""}`;
     },
+    lookInfo(d) {  // 🎨 the style preset / 🎞 film look put on top of the prompt (picture info)
+      const s = d.settings || {};
+      return [s.style && "🎨 " + s.style + " (style preset)", s.film_look && "🎞 " + s.film_look + " (film look)"].filter(Boolean).join(" · ");
+    },
+    extrasInfo(d) {  // what else was switched on for this picture (picture info)
+      const s = d.settings || {}, out = [];
+      const ip = s.ip_adapter;
+      if (ip) out.push(`🖼 Image prompt${ip.take && ip.take !== "all" ? " (" + (ip.take === "style" ? "style only" : "layout only") + ")" : ""} ${ip.scale}`);
+      if (s.control) out.push("🦴 ControlNet" + (s.control.type ? " " + s.control.type : ""));
+      if (s.regions) out.push("🗺 Regions");
+      if (s.freeu) out.push("✨ FreeU");
+      if (s.cfg_rescale) out.push("🎚 CFG rescale " + s.cfg_rescale);
+      if (s.enhance_prompt) out.push("✨ Enhanced prompt");
+      if (s.hires) out.push("🔍 Hi-res fix");
+      if (s.face_detailer || s.face_restore) out.push("🙂 Faces fixed");
+      if (s.detail_upscale) out.push(`🧩 Tiled upscale ×${s.detail_upscale.scale} (${s.detail_upscale.tiles} tiles)`);
+      if (s.edit && s.edit.match_colors) out.push("🎨 Kept the original's colours");
+      return out.join(" · ");
+    },
     madeWith(d) {
       const st = (d && d.settings) || {};
       if (st.camera) return "📷 Camera angle (FLUX.2 Klein) · " + (st.camera.view || "");
@@ -6254,6 +6273,9 @@ const protoartApp = createApp({
       if (!sd || !args.face_detailer?.on) delete args.face_detailer;
       if (!sd || !args.ip_adapter?.image) delete args.ip_adapter;
       // regions: SD 1.5 / SDXL inside the model; FLUX.1 and ERNIE (fast engine) by parts (see regions_by_parts)
+      const zs = this.zstyle.applied, fl = this.film.applied;  // 🎨 / 🎞 on top of the prompt: named in the picture's info
+      if (zs && (args.prompt || "").startsWith(zs.pre)) args.style = zs.name;
+      if (fl && (args.prompt || "").startsWith(fl.pre)) args.film_look = (FILM_LOOKS.find((x) => x.id === fl.id) || {}).name || fl.id;
       const byParts = this.currentModel?.engine === "mlx" && ["flux", "ernie", "flux2"].includes(this.family) || this.regionsLayout();
       if (!(sd || byParts) || !args.regions?.on) delete args.regions;
       else if (args.regions.layout === "free" && !this.regionsLayout())  // 📦 drawn boxes: FLUX 3, Ideogram 4, MOSS only

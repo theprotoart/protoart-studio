@@ -18,3 +18,9 @@ def test_freeu_values():
     assert set(engine.FREEU) == {"sd15", "sdxl"}
     for v in engine.FREEU.values():
         assert set(v) == {"s1", "s2", "b1", "b2"}
+
+
+def test_look_info_names_the_style():
+    assert engine.look_info({"style": "Family Album Photo", "film_look": "Portra 400"}) == {
+        "style": "Family Album Photo", "film_look": "Portra 400"}
+    assert engine.look_info({"style": "", "prompt": "x"}) == {}

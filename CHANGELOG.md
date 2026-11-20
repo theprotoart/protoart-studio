@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.23
 
 - 🔍 Select by words (painting tools: `words` tool, `find_words` job): Florence-2's referring-expression segmentation
   outlines what the words name; when it gives only a phrase-grounding box, the outline inside it comes from ⬚ Object's
@@ -9,8 +9,10 @@
   scales, up block 0 / down block 2).
 - ✨ FreeU (`freeu`, `pipe.enable_freeu` with the authors' SD 1.5 / SDXL values) and 🎚 CFG rescale (`cfg_rescale` →
   `guidance_rescale` where the pipeline takes it), SD 1.5 / SDXL; recorded in the picture's settings.
+- Picture info names the 🎨 style preset / 🎞 film look put on the prompt (`style`, `film_look`, `look_info`) and
+  lists the extras used (image prompt and its part, ControlNet, Regions, FreeU, CFG rescale, enhanced prompt,
+  hi-res fix, faces, tiled upscale, kept colours).
 
-## 1.6.23
 
 - 🆕 FLUX 3 Image Klein (`flux3_klein_mlx_q4`, family `flux3`): mflux-community's 4-bit MLX conversion (5.3 GB, pinned,
   not gated), on mflux 0.24's `Flux3Klein` / `Flux3KleinEdit`. 16 steps, no guidance; the Qwen3-VL text encoder is
