@@ -178,7 +178,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("make3d", "harmonize", "relight", "store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "detail_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("make3d", "harmonize", "relight", "store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "detail_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "find_words", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -323,6 +323,8 @@ def job_label(cmd, a):
         return "Expand with FLUX.2" + (f" · image #{a.get('image_id')}" if a.get("image_id") is not None else "")
     if cmd == "find_text":
         return "Find the text in the picture"
+    if cmd == "find_words":
+        return f"Select “{str(a.get('words') or '')[:40]}”"
     if cmd == "peel":
         return "Peel off a layer"
     if cmd == "peel_save":
@@ -2341,6 +2343,8 @@ def run_job(kind, a):
         return eng.papercut(a)
     if kind == "find_text":
         return eng.find_text(a)
+    if kind == "find_words":
+        return eng.find_words(a)
     if kind == "peel":
         return eng.peel(a)
     if kind == "peel_save":

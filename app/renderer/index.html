@@ -774,6 +774,11 @@
             <div class="seg">
               <button v-for="k in ipKinds" :key="k.id" :class="{on: form.ip_adapter.kind === k.id}" @click="form.ip_adapter.kind = k.id" :title="k.tip">{{ k.label }}</button>
             </div>
+            <div v-if="family === 'sdxl'" class="seg" title="Take only part of the picture (like InstantStyle in ComfyUI's IPAdapter Plus)">
+              <button :class="{on: !form.ip_adapter.take || form.ip_adapter.take === 'all'}" @click="form.ip_adapter.take = 'all'" title="The whole look: style, subject and layout">All</button>
+              <button :class="{on: form.ip_adapter.take === 'style'}" @click="form.ip_adapter.take = 'style'" title="Only its style (colours, brushwork, mood); your prompt decides what's in the picture">🎨 Style only</button>
+              <button :class="{on: form.ip_adapter.take === 'layout'}" @click="form.ip_adapter.take = 'layout'" title="Only its layout (where things are, the composition); your prompt decides the style">📐 Layout only</button>
+            </div>
             <label>How much to borrow <span class="hint">{{ form.ip_adapter.scale.toFixed(2) }}</span></label>
             <input type="range" min="0" max="1.2" step="0.05" v-model.number="form.ip_adapter.scale">
             <div class="hint slider-help">0.4–0.6 mixes it with your prompt · 0.8+ follows the picture closely</div>
@@ -905,6 +910,12 @@
                      :default-value="currentModel?.defaults?.cfg ?? 7"></rack-knob>
           <rack-fader v-model.number="form.num_images" :min="1" :max="16" :step="1" label="Images" :marks="[1, 2, 4, 8, 12, 16]"
                       :height="118" title="How many images to make (click the number under it to type any amount up to 64)" :default-value="1" :type-max="64"></rack-fader>
+          <div v-if="['sd15', 'sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="sd-boost">
+            <label class="check" title="FreeU (Si et al. 2023): turns up the model's own detail and turns down its blur inside the image model, for crisper texture and richer colour. No extra time. Turn it off if pictures look over-sharpened or too saturated">
+              <input type="checkbox" v-model="form.freeu"> ✨ FreeU <span class="hint">(more detail, no extra time)</span></label>
+            <label title="CFG rescale: keeps high guidance (8+) from burning the colours and contrast. 0 = off; 0.3–0.5 for most models, 0.7 for v-prediction ones (some NoobAI / Illustrious)">🎚 CFG rescale <span class="mod-val">{{ Number(form.cfg_rescale || 0).toFixed(2) }}</span></label>
+            <input type="range" min="0" max="1" step="0.05" v-model.number="form.cfg_rescale">
+          </div>
           <div class="hint knob-hint">Turn a knob (drag or scroll), click its number to type an exact value, or double-click a knob to put it back to the default. The same goes for the Images fader: click the number under it to type any amount up to 64.</div>
           <div class="reset-row">
             <button class="ghost" @click="resetCreate" :disabled="!currentModel"
@@ -1820,7 +1831,7 @@
           <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
           <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
           <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
-          <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
+          <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span><template v-else-if="mask.tool === 'words'"><input v-model="selWords" class="sel-words" placeholder="what to select, e.g. the red shirt" @keydown.enter.prevent="selByWords(mask.subtract)"><button class="ghost small" :disabled="objFinding || !selWords.trim()" @click="selByWords(mask.subtract)">{{ objFinding ? 'Looking…' : '🔍 Select' }}</button></template>
           <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
         </div>
         <label>Brush <span class="mod-val">{{ mask.size }}</span></label>
@@ -3358,7 +3369,7 @@
               <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
               <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
               <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
-              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
+              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span><template v-else-if="mask.tool === 'words'"><input v-model="selWords" class="sel-words" placeholder="what to select, e.g. the red shirt" @keydown.enter.prevent="selByWords(mask.subtract)"><button class="ghost small" :disabled="objFinding || !selWords.trim()" @click="selByWords(mask.subtract)">{{ objFinding ? 'Looking…' : '🔍 Select' }}</button></template>
               <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
             </div>
             <span class="hint">brush</span>
@@ -3495,7 +3506,7 @@
               <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
               <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
               <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
-              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
+              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span><template v-else-if="mask.tool === 'words'"><input v-model="selWords" class="sel-words" placeholder="what to select, e.g. the red shirt" @keydown.enter.prevent="selByWords(mask.subtract)"><button class="ghost small" :disabled="objFinding || !selWords.trim()" @click="selByWords(mask.subtract)">{{ objFinding ? 'Looking…' : '🔍 Select' }}</button></template>
               <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
             </div>
             <span class="hint">brush</span>
@@ -3743,7 +3754,7 @@
               <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
               <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
               <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
-              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
+              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span><template v-else-if="mask.tool === 'words'"><input v-model="selWords" class="sel-words" placeholder="what to select, e.g. the red shirt" @keydown.enter.prevent="selByWords(mask.subtract)"><button class="ghost small" :disabled="objFinding || !selWords.trim()" @click="selByWords(mask.subtract)">{{ objFinding ? 'Looking…' : '🔍 Select' }}</button></template>
               <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
             </div>
             <span class="hint">brush</span>
@@ -3918,7 +3929,7 @@
               <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
               <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
               <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
-              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
+              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span><template v-else-if="mask.tool === 'words'"><input v-model="selWords" class="sel-words" placeholder="what to select, e.g. the red shirt" @keydown.enter.prevent="selByWords(mask.subtract)"><button class="ghost small" :disabled="objFinding || !selWords.trim()" @click="selByWords(mask.subtract)">{{ objFinding ? 'Looking…' : '🔍 Select' }}</button></template>
               <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
             </div>
             <span class="hint">brush</span>
@@ -3951,7 +3962,7 @@
               <template v-if="mask.tool === 'wand'"><span class="hint">tolerance</span><input type="range" min="2" max="120" step="1" v-model.number="mask.tolerance" title="How different a colour may be and still be picked"><span class="hint">{{ mask.tolerance }}</span></template>
               <span v-else-if="mask.tool === 'poly'" class="hint">click corners · click the first point or double-click to close · Esc cancels</span>
               <span v-else-if="mask.tool === 'lasso'" class="hint">draw around it; it fills when you let go</span>
-              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span>
+              <span v-else-if="mask.tool === 'object'" class="hint">drag a box around the object</span><template v-else-if="mask.tool === 'words'"><input v-model="selWords" class="sel-words" placeholder="what to select, e.g. the red shirt" @keydown.enter.prevent="selByWords(mask.subtract)"><button class="ghost small" :disabled="objFinding || !selWords.trim()" @click="selByWords(mask.subtract)">{{ objFinding ? 'Looking…' : '🔍 Select' }}</button></template>
               <span v-else-if="mask.tool === 'wand'" class="hint">click a colour</span>
             </div>
             <span class="hint">brush</span>

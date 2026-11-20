@@ -2788,3 +2788,7 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 /* 💡 Relight's Character / Character + Light / All: the middle one wraps onto two lines in a narrow module */
 .rack-module .mod-seg.relight-bg button { white-space: normal; text-overflow: clip; line-height: 1.15; padding: 4px 3px; overflow-wrap: anywhere; }
 .rack-module .mod-seg.relight-bg button:nth-child(2) { flex-grow: 1.4; }
+
+.sel-words { flex: 1; min-width: 120px; }
+.sd-boost { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin: 4px 0; }
+.sd-boost input[type=range] { flex: 1; min-width: 100px; }

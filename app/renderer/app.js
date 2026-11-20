@@ -249,7 +249,9 @@ function defaultForm() {
     cc: { image: "", type: "", scale: 0.8, start: 0.0, end: 0.8, already_map: false, ernie_change: 0.55 },  // 🦴 Create's own ControlNet (a pose…)
     hires: { on: false, scale: 1.5, strength: 0.45, steps: 15 },
     face_detailer: { on: false, strength: 0.4, prompt: "", max_faces: 4, min_face_pct: 0, confidence: 0.6, mask_grow: 0.18, mask_blur: 1, hair: false },
-    ip_adapter: { image: "", kind: "style", scale: 0.6 },
+    ip_adapter: { image: "", kind: "style", scale: 0.6, take: "all" },  // take: all / style / layout (SDXL)
+    freeu: false,  // ✨ FreeU (SD 1.5 / SDXL)
+    cfg_rescale: 0,  // 🎚 CFG rescale (SD 1.5 / SDXL)
     heal_method: "lama",
     edit_recipe: "",    // ✨ Edit with words: a two-picture recipe (EDIT_RECIPES), or "" for none
     edit_refs: [],      // ✨ Edit with words: extra pictures to take a style, object or outfit from (🧩 Combine: what to add)
@@ -1003,10 +1005,12 @@ const protoartApp = createApp({
         { id: "wand", icon: "🪄", label: "Wand", tip: "Magic wand: click a colour to pick the connected area of similar colour (W)" },
         { id: "object", icon: "⬚", label: "Object", tip: "Object selection: drag a box around something and its outline is found (O)" },
         { id: "text", icon: "🔤", label: "Text", tip: "Select text: finds the writing in the picture by itself (signs, logos, captions, watermarks), e.g. to peel it onto its own layer or remove it (T). To change the words, use Tools → 🔤 Replace text (picture models can't spell). Uses Florence-2 (~1.5 GB the first time)" },
+        { id: "words", icon: "🔍", label: "Words", tip: "Select by words: type what to select (“the red shirt”, “the dog”, “the sky”) and press Return; Florence-2 finds it (the model Quick describe uses: ~1.5 GB once)" },
         { id: "subject", icon: "👤", label: "Subject", tip: "Select subject: finds the people, animals or main thing in the picture by itself, like Photoshop's Select Subject (S). ~224 MB download the first time" },
       ],
       brush: { show: false, x: 0, y: 0 },
       objFinding: false,   // object selection is working out the outline
+      selWords: "",        // 🔍 Select by words: what to select
       soundsOn: window.ProtoSound ? window.ProtoSound.enabled : true,
       TAG_DICT: window.TAG_DICT || {}, ideas: { cat: Object.keys(window.TAG_DICT || {})[0] || "", q: "" },
       FAMILY_LABEL, LICENCES, TILED_PRESETS, EXAMPLE_PROMPTS, H3_ROLES, H3_COMPOSE, H3_PRESETS, EXAMPLE_GROUPS, FILM_LOOKS, FILM_GROUPS, APP_VERSION, CAM_VIEWS, CAM_ELEV, CAM_DIST,
@@ -1223,6 +1227,11 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Next: 🔍 select by words, 🎨 style-only image prompt, ✨ FreeU, 🎚 CFG rescale", items: [
+              "<b>🔍 Select by words</b> (the painting tools in Image to image and Tools): pick 🔍 Words, type what to select (“the red shirt”, “the dog”, “the sky”) and press Return. Florence-2 finds it (the model Quick describe uses, no new download); fix the edge with the brush if needed.",
+              "<b>🖼 Image prompt: 🎨 Style only / 📐 Layout only</b> (Create, SDXL; like InstantStyle in ComfyUI's IPAdapter Plus): borrow just the reference picture's style (colours, brushwork, mood) while your prompt decides what's in it, or just its composition.",
+              "<b>✨ FreeU</b> and <b>🎚 CFG rescale</b> (Create, SD 1.5 and SDXL, under the knobs): FreeU gives crisper texture and richer colour at no extra time; CFG rescale stops high guidance from burning the colours (0.3–0.5; 0.7 for v-prediction models).",
+            ] },
             { h: "1.6.23: 🆕 FLUX 3, Ideogram 4, 📦 draw your own boxes, 🧩 Z-Image tiled upscale, 🎨 style presets, 📸 Anime ↔ Real, MOSS LoRAs", items: [
               "<b>FLUX 3 Image Klein</b> (Create's model list): Black Forest Labs' newest small model, a 5.3 GB download that fits 8 GB Macs. Sharp pictures, good lettering, and it follows long descriptions closely (✨ Enhance writes them). 16 steps.",
               "<b>✨ Edit with words with FLUX 3</b> (Image to image's model list): edit your picture from a sentence, with up to <b>9 More pictures</b> (people, clothes, objects, a style).",
@@ -6975,6 +6984,30 @@ const protoartApp = createApp({
         this.status = "Subject selected: fix the edge with 🖌 Brush / 🧽 Erase (or ＋ Add / － Subtract) if needed";
       } catch (e) {
         this.error = "Select subject failed: " + (e.message || e);
+      } finally {
+        this.objFinding = false;
+      }
+    },
+    async selByWords(sub) {  // 🔍 Words: what the words name, found by Florence-2 (outline, or a box refined by GrabCut)
+      const cv = this.$refs.maskCanvas, words = (this.selWords || "").trim();
+      if (!cv || this.objFinding) return;
+      if (!words) return (this.status = "Type what to select first, e.g. “the red shirt”");
+      this.status = `Looking for “${words}”…`;
+      this.objFinding = true;
+      this.error = "";
+      try {
+        const r = await call("find_words", { path: this.maskTarget(), words, width: cv.width, height: cv.height });
+        if (!r || !r.mask) throw new Error(this.error || "no answer");
+        if (!r.found) { this.status = `Couldn't find “${words}”: try other words (“the jacket” instead of “the outfit”), or drag a box with ⬚ Object`; return; }
+        const img = new Image();
+        await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; img.src = r.mask; });
+        const cv2 = this.$refs.maskCanvas || cv, tmp = document.createElement("canvas");
+        tmp.width = cv2.width; tmp.height = cv2.height;
+        tmp.getContext("2d").drawImage(img, 0, 0, cv2.width, cv2.height);
+        this.selStamp(asSelection(tmp.getContext("2d").getImageData(0, 0, cv2.width, cv2.height)), sub);
+        this.status = `“${words}” selected: fix the edge with 🖌 Brush / 🧽 Erase if needed`;
+      } catch (e) {
+        this.error = "Select by words failed: " + (e.message || e);
       } finally {
         this.objFinding = false;
       }

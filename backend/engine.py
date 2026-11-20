@@ -292,6 +292,20 @@ class Skipped(Exception):
     """The current image was skipped; the job carries on with its next image."""
 
 
+# ✨ FreeU's settings (Si et al. 2023; the values its authors give for each model)
+FREEU = {"sd15": {"s1": 0.9, "s2": 0.2, "b1": 1.5, "b2": 1.6}, "sdxl": {"s1": 0.6, "s2": 0.4, "b1": 1.1, "b2": 1.2}}
+
+
+def ip_scale(family, scale, take=None):
+    """🖼 Image prompt strength, for all of the picture or (SDXL, as InstantStyle does) only its style (the up block that
+    carries style) or only its layout (the down block that carries composition)."""
+    if family == "sdxl" and take == "style":
+        return {"up": {"block_0": [0.0, scale, 0.0]}}
+    if family == "sdxl" and take == "layout":
+        return {"down": {"block_2": [0.0, scale]}}
+    return scale
+
+
 def crop_around(bbox, size, context=0.6, min_side=384, most=0.45):
     """✂ Crop and stitch: the part of the picture to edit around a painted area (bbox), with `context` of its size
     added on each side (so the model sees what's around it), at least `min_side` px, kept inside the picture.
@@ -3154,9 +3168,17 @@ class Engine:
         self._warn_if_short_of_memory(family)
         if ip:
             try:
-                self.pipe.set_ip_adapter_scale(float(ip.get("scale", 0.6)))
+                self.pipe.set_ip_adapter_scale(ip_scale(family, float(ip.get("scale", 0.6)), ip.get("take")))
             except Exception as e:
                 print("[engine] couldn't set image prompt strength:", e, flush=True)
+        if is_sd:  # ✨ FreeU (SD 1.5 / SDXL): a free detail boost inside the model, no extra time
+            try:
+                if args.get("freeu"):
+                    pipe.enable_freeu(**FREEU[family])
+                elif hasattr(pipe, "disable_freeu"):
+                    pipe.disable_freeu()
+            except Exception as e:  # noqa: BLE001
+                print("[engine] FreeU skipped:", e, flush=True)
 
         import prompt_weights
         emb_cache = {}
@@ -3313,6 +3335,12 @@ class Engine:
                     call.update(prompt=prompt, negative_prompt=negative)
                 if family == "ernie":
                     call["use_pe"] = False
+            rescale = float(args.get("cfg_rescale") or 0)
+            if is_sd and rescale > 0 and cfg > 1:
+                # 🎚 CFG rescale (Lin et al. 2023): keeps high guidance from burning colours and contrast
+                import inspect
+                if "guidance_rescale" in inspect.signature(pipe.__call__).parameters:
+                    call["guidance_rescale"] = max(0.0, min(1.0, rescale))
             if family == "other":
                 # newer pipelines differ in which options they take: pass only what this one accepts
                 import inspect
@@ -3431,7 +3459,11 @@ class Engine:
                 settings["control_image"] = str(args.get("control_image") or args.get("init_image"))
             if ip:
                 settings["ip_adapter"] = {"image": str(ip["image"]), "scale": float(ip.get("scale", 0.6)),
-                                          "kind": ip.get("kind", "style")}
+                                          "kind": ip.get("kind", "style"), "take": ip.get("take") or "all"}
+            if is_sd and args.get("freeu"):
+                settings["freeu"] = True
+            if is_sd and float(args.get("cfg_rescale") or 0) > 0:
+                settings["cfg_rescale"] = float(args["cfg_rescale"])
             settings.update(extras_info)
             if face_info:
                 settings["face_restore"] = face_info
@@ -3845,6 +3877,48 @@ class Engine:
         Image.fromarray(rgba, "RGBA").save(buf, "PNG")
         return {"mask": "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(), "found": bool(quads),
                 "count": len(quads)}
+
+    def find_words(self, args):
+        """🔍 Select by words (painting tools): what the words name ("the red shirt") as a selection for the painting
+        area -> {mask, found}. Florence-2's outline of it; when it only gives a box, the outline inside the box is found
+        with ⬚ Object's GrabCut."""
+        import base64
+        import io
+        import numpy as np
+        from PIL import Image, ImageDraw, ImageFilter
+        words = " ".join(str(args.get("words") or "").split())[:120]
+        if not words:
+            raise UserError("Type what to select, e.g. “the red shirt” or “the dog”.")
+        src, image = self._source_picture({"path": args.get("path"), "image_id": args.get("image_id")})
+        image = image.convert("RGB")
+        if 0 < total_ram_gb() < 16:
+            self.unload()  # Florence-2 and an image model don't fit together on small Macs
+        if self.interrogator is None:
+            from postprocess.interrogate import Interrogator
+            self.interrogator = Interrogator(self.device(), emit=self.emit)
+        polys, boxes = self.interrogator.find_words(image, words)
+        W, H = int(args.get("width") or image.width), int(args.get("height") or image.height)
+        sx, sy = W / image.width, H / image.height
+        m = Image.new("L", (W, H), 0)
+        d = ImageDraw.Draw(m)
+        for poly in polys:
+            d.polygon([(poly[i] * sx, poly[i + 1] * sy) for i in range(0, len(poly) - 1, 2)], fill=255)
+        if not polys and boxes:
+            import select_object
+            for x0, y0, x1, y1 in boxes:
+                url, ok = select_object.select(image, [x0 / image.width, y0 / image.height, (x1 - x0) / image.width,
+                                                       (y1 - y0) / image.height], W, H)
+                if ok:
+                    part = Image.open(io.BytesIO(base64.b64decode(url.split(",", 1)[1]))).split()[-1]
+                    m = Image.composite(Image.new("L", (W, H), 255), m, part)
+        if polys:  # Florence's outline is a little tight: a touch wider, soft
+            m = m.filter(ImageFilter.MaxFilter(3))
+        on = np.asarray(m) >= 128
+        rgba = np.zeros((H, W, 4), np.uint8)
+        rgba[on] = (255, 64, 129, 255)
+        buf = io.BytesIO()
+        Image.fromarray(rgba, "RGBA").save(buf, "PNG")
+        return {"mask": "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(), "found": bool(on.any())}
 
     @staticmethod
     def _enhance_area(image, mask_data):

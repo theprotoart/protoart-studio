@@ -81,6 +81,42 @@ class Interrogator:
         got = parsed.get(task, {}) if isinstance(parsed, dict) else {}
         return [list(map(float, q)) for q in (got.get("quad_boxes") or []) if len(q) == 8]
 
+    def find_words(self, image, words):
+        """🔍 Select by words: what `words` names in the picture ("the red shirt", "the dog"), by Florence-2 (the model
+        Quick describe and 🔤 Text already use: no new download). -> (polygons [[x1, y1, x2, y2, …], …], boxes
+        [[x0, y0, x1, y1], …]) in the picture's pixels: its outline (referring segmentation) and, as a fallback, the box
+        around it (phrase grounding)."""
+        import torch
+        if self._florence is None:
+            from transformers import AutoProcessor, Florence2ForConditionalGeneration
+            self.emit({"type": "status", "msg": "Loading Florence-2 (first time downloads ~1.5 GB)…"})
+            dtype = torch.float16 if self.device == "mps" else torch.float32
+            model = Florence2ForConditionalGeneration.from_pretrained(FLORENCE_REPO, torch_dtype=dtype).to(self.device).eval()
+            proc = AutoProcessor.from_pretrained(FLORENCE_REPO)
+            self._florence = (model, proc, dtype)
+        model, proc, dtype = self._florence
+        img = image.convert("RGB")
+        self.emit({"type": "status", "msg": f"Looking for “{words}”…"})
+
+        def run(task):
+            inputs = proc(text=task + words, images=img, return_tensors="pt").to(self.device)
+            if "pixel_values" in inputs:
+                inputs["pixel_values"] = inputs["pixel_values"].to(dtype)
+            with torch.no_grad():
+                ids = model.generate(**inputs, max_new_tokens=1024, num_beams=1)
+            text = proc.batch_decode(ids, skip_special_tokens=False)[0]
+            parsed = proc.post_process_generation(text, task=task, image_size=img.size)
+            return parsed.get(task, {}) if isinstance(parsed, dict) else {}
+
+        polys = []
+        for obj in run("<REFERRING_EXPRESSION_SEGMENTATION>").get("polygons") or []:
+            for poly in obj if obj and isinstance(obj[0], (list, tuple)) else [obj]:
+                if len(poly) >= 6:
+                    polys.append([float(v) for v in poly])
+        boxes = [] if polys else [list(map(float, b)) for b in (run("<CAPTION_TO_PHRASE_GROUNDING>").get("bboxes") or [])
+                                  if len(b) == 4]
+        return polys, boxes
+
     # ------------------------------------------------------------ WD tagger
     def _load_wd(self):
         if self._wd is None:
