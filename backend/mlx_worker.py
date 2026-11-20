@@ -101,6 +101,32 @@ def _make(cls, **kw):
         raise
 
 
+def _saved_copy(repo, bits):
+    """Where a model shrunk on this Mac is kept (fast-copies/<org>--<name>-q<bits>), so it's shrunk only once."""
+    from pathlib import Path
+    home = Path(os.environ.get("PROTOART_HOME") or (Path.home() / ".protoartstudio"))
+    return home / "fast-copies" / f"{repo.replace('/', '--')}-q{int(bits)}"
+
+
+def _save_copy(model, dest, name):
+    """Save the just-shrunk model (mflux's own format) for next time. Best effort: skipped without the space."""
+    import shutil
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if shutil.disk_usage(dest.parent).free < (12 << 30):
+            print(f"[mlx] not enough space to keep a shrunk copy of {name}; it's shrunk again next time", file=sys.stderr, flush=True)
+            return
+        part = dest.with_name(dest.name + ".part")
+        shutil.rmtree(part, ignore_errors=True)
+        send({"type": "status", "msg": f"Saving the shrunk {name} for next time…"})
+        model.save_model(str(part))
+        (part / ".protoart-done").write_text("ok")
+        shutil.rmtree(dest, ignore_errors=True)
+        part.rename(dest)
+    except Exception as e:  # noqa: BLE001  (the picture still gets made; it's just shrunk again next time)
+        print(f"[mlx] couldn't save a shrunk copy of {name}: {e}", file=sys.stderr, flush=True)
+
+
 def _internal_copy(path, name):
     """Small Macs: use a copy on this Mac's own drive of a model kept on an external drive (once).
 
@@ -158,10 +184,10 @@ class Worker:
         self.path = None
 
     def load(self, repo, base="ernie-image-turbo", loras=None, low_ram=False, force=False, allow_download=False,
-             label=None, size_gb=None, revision=None, variant=None, quantize=None, patterns=None, cls=None):
+             label=None, size_gb=None, revision=None, variant=None, quantize=None, patterns=None, cls=None, save_copy=False):
         loras = [tuple(x) for x in (loras or [])]
         variant = variant or None
-        key = (repo, base, tuple(loras), variant)
+        key = (repo, base, tuple(loras), variant, quantize)
         if revision is not None or not force:
             self.revision = revision
         if not force:
@@ -232,8 +258,16 @@ class Worker:
                 raise ValueError(f"{self.cls_path} isn't a fast-engine model class")
             klass = getattr(importlib.import_module(mod), name)
             q = getattr(self, "quantize", None)  # full-size files: shrink while loading
+            saved = _saved_copy(repo, q) if q and save_copy else None
+            if saved and (saved / ".protoart-done").exists():  # shrunk once already: read the saved copy
+                path, q = str(saved), None
+                send({"type": "status", "msg": f"Loading {name} (its {self.quantize}-bit copy on this Mac)…"})
+            elif saved:
+                send({"type": "status", "msg": f"Shrinking {name} to {q}-bit (first time only; it's saved for next time)…"})
             self.model = _make(klass, model_path=path, model_config=ModelConfig.from_name(base),
                                **({"quantize": int(q)} if q else {}), **lora_kw)
+            if saved and q and not loras:
+                _save_copy(self.model, saved, name)
             if self.family == "zimage":
                 self._cache_zimage_prompts(self.model)
         else:
@@ -334,8 +368,8 @@ class Worker:
                 print(f"[mlx] Z-Image text encoder reload failed ({e}); reloading the model", file=sys.stderr, flush=True)
         if missing and cache_key not in prompt_cache:
             # Low-memory mode dropped the text encoder after the last prompt: reload to encode this one.
-            repo, base, loras, variant = self.key
-            self.load(repo, base, list(loras), self.low_ram, force=True, revision=self.revision, variant=variant)
+            repo, base, loras, variant, q = self.key
+            self.load(repo, base, list(loras), self.low_ram, force=True, revision=self.revision, variant=variant, quantize=q)
             m = self.model
         self.hooks_state = {"steps": int(a["steps"]), "preview": bool(a.get("preview")), "last": 0.0,
                             "started": time.time(), "width": int(a["width"]), "height": int(a["height"])}
@@ -480,7 +514,8 @@ def main():
                 worker.load(msg["repo"], msg.get("base", "ernie-image-turbo"), msg.get("loras"), msg.get("low_ram"),
                             allow_download=bool(msg.get("allow_download")), label=msg.get("label"),
                             size_gb=msg.get("size_gb"), revision=msg.get("revision"), variant=msg.get("variant"),
-                            quantize=msg.get("quantize"), patterns=msg.get("patterns"), cls=msg.get("cls"))
+                            quantize=msg.get("quantize"), patterns=msg.get("patterns"), cls=msg.get("cls"),
+                            save_copy=bool(msg.get("save_copy")))
                 send({"type": "loaded"})
             elif cmd == "generate":
                 send({"type": "done", "path": worker.generate(msg)})

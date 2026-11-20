@@ -1147,6 +1147,20 @@
         <p class="hint">🎲 Random prompt fills the picked layout with a new subject that suits it (🎲 any layout: any of them; ✕ None: ordinary prompts).</p>
         <p class="hint">Lettering and small labels come out right at bigger sizes: tick 🧠 Best quality (under the size) for the final picture. Words to show go in "double quotes".</p>
       </div>
+      <button v-if="tab === 'create' && ['zimage', 'flux2', 'flux3'].includes(family) && (opts.hidden_guides || []).includes('zstyles')" class="ghost small h3-presets-show"
+              @click="opts.hidden_guides = opts.hidden_guides.filter((k) => k !== 'zstyles'); saveOpts()" title="Show the 🎨 style presets again">🎨 Show style presets</button>
+      <div v-if="tab === 'create' && ['zimage', 'flux2', 'flux3'].includes(family) && !(opts.hidden_guides || []).includes('zstyles')" class="card cn-guide model-guide h3-presets zstyle-card">
+        <div class="cn-guide-head"><h3>🎨 Style presets <span class="hint">· 123 styles from ZImagePowerNodes (made for Z-Image Turbo, fine with FLUX): type what the picture shows, then pick a style: it goes on top of your prompt · press it again to take it off</span></h3><span class="grow"></span>
+          <button class="ghost small" @click="hideModelGuide('zstyles')" title="Fold the styles away (a small button brings them back)">✕</button></div>
+        <div class="zstyle-top">
+          <div class="seg"><button v-for="c in ['Photo', 'Illustration', 'Wild']" :key="c" :class="{on: zstyle.cat === c && !zstyle.q}" @click="zstyle.cat = c; zstyle.q = ''">{{ c }}</button></div>
+          <input v-model="zstyle.q" type="search" placeholder="Search styles…" class="zstyle-search">
+        </div>
+        <div class="seg seg-wrap edit-recipes zstyle-list">
+          <button v-for="S in zstyleList()" :key="S.name" :class="{on: zstyle.applied && zstyle.applied.name === S.name}" @click="applyZStyle(S.name)" :title="S.pre + '…' + (S.post || '')">{{ S.name }}</button>
+          <button :class="{on: !zstyle.applied}" @click="applyZStyle('')" title="No style: your prompt as written">✕ None</button>
+        </div>
+      </div>
       <div v-if="modelGuide()" class="card cn-guide model-guide">
         <div class="cn-guide-head"><h3>💡 {{ modelGuide().title }} <span class="hint">· suggested settings</span></h3><span class="grow"></span>
           <button class="primary small" @click="applyModelGuide" title="Set the steps, guidance, strength and size this model works best with">Use these settings</button>
@@ -3258,6 +3272,42 @@
           </template>
         </template>
         <template v-else-if="form.i2i_mode === 'edit'">
+          <label class="pair-head">🧩 Two pictures → one <span class="hint">pick a recipe, drop Picture 1 and Picture 2 in their boxes, press Generate (the prompt is written for you; edit it if you like). Some use a community LoRA for FLUX.2 Klein, downloaded the first time</span></label>
+          <div class="seg seg-wrap edit-recipes">
+            <button v-for="r in EDIT_RECIPES()" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
+          </div>
+          <div v-if="editRecipe()" class="recipe-card">
+            <div class="pair-layout" title="Drop a picture on each box (or click to pick one)">
+              <div class="pair-slot" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
+                   @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()">
+                <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt="">
+                <div v-else class="pair-empty"><b>Picture 1</b><span>drop or click</span></div>
+                <span class="pair-cap">1 · {{ pairCap(1) }}</span>
+              </div>
+              <span class="pair-op" aria-hidden="true">＋</span>
+              <div class="pair-slot" :class="{over: pairOver === '2', filled: !!(form.edit_refs || [])[0]}" @dragover.prevent="pairOver = '2'" @dragleave="pairOver = ''"
+                   @drop.prevent="pairDrop($event, 2)" @click="$refs.pairPick.click()">
+                <img v-if="(form.edit_refs || [])[0]" :src="fileUrl(form.edit_refs[0])" alt="">
+                <div v-else class="pair-empty"><b>Picture 2</b><span>drop or click</span></div>
+                <span class="pair-cap">2 · {{ pairCap(2) }}</span>
+              </div>
+              <span class="pair-op arrow" aria-hidden="true">➜</span>
+              <div class="pair-slot result" :title="i2iLatest ? 'The last result (click to open it)' : 'The result appears here'" @click="i2iLatest && openDetail && openDetail(i2iLatest)">
+                <img v-if="i2iLatest && i2iLatest.path" :src="fileUrl(i2iLatest.path)" alt="">
+                <div v-else class="pair-empty"><b>Result</b><span>press Generate</span></div>
+                <span class="pair-cap">the result</span>
+              </div>
+              <input ref="pairPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="pairPicked">
+            </div>
+            <div class="hint">{{ editRecipe().tip }} Keep the prompt's wording{{ editRecipe().files ? ' (the LoRA learned it)' : '' }} and add to it.</div>
+            <div v-if="editRecipe().files" class="hint">LoRA: {{ editRecipe().by }} · {{ editRecipe().licence }}{{ editRecipeFile() === editRecipe().files['9b'] ? ' · the 9B version' : '' }}</div>
+            <div v-if="editRecipe().files" class="row">
+              <span v-if="editRecipeLora()" class="hint ok">✓ Downloaded</span>
+              <button v-else class="ghost small" :disabled="recipeBusy" @click="downloadEditRecipe">{{ recipeBusy ? 'Downloading…' : '⤓ Download it (' + (editRecipeFile().mb ? '~' + editRecipeFile().mb + ' MB, ' : '') + (editRecipeFile().hf ? 'from Hugging Face)' : 'from Civitai)') }}</button>
+              <span v-if="recipeMsg" class="hint">{{ recipeMsg }}</span>
+            </div>
+            <div v-if="!(form.edit_refs || []).length" class="hint warn">Drop Picture 2 in its box above.</div>
+          </div>
           <div class="hint">Describe the change in <b>3 · Prompt</b>. <b>Optional:</b> paint over the part that may change, and
             everything else stays exactly as it is (best for small, precise edits).</div>
           <div class="mask-tools">
@@ -3333,24 +3383,23 @@
           <div class="seg seg-wrap edit-recipes">
             <button v-for="q in EDIT_QUICK()" :key="q.label" @click="useEditQuick(q)" :title="q.prompt">{{ q.label }}</button>
           </div>
-          <label>Two-picture recipes <span class="hint">optional · Picture 1 + Picture 2 → result; some use a community LoRA for FLUX.2 Klein, downloaded the first time</span></label>
-          <div class="seg seg-wrap edit-recipes">
-            <button v-for="r in EDIT_RECIPES()" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
-          </div>
-          <div v-if="editRecipe()" class="recipe-card">
+        </template>
+        <template v-else-if="form.i2i_mode === 'combine'">
+          <label class="pair-head">🧩 Scene ＋ character ➜ result <span class="hint">drop the scene on 1 and the character (or a pet, an object) on 2</span></label>
+          <div class="recipe-card">
             <div class="pair-layout" title="Drop a picture on each box (or click to pick one)">
               <div class="pair-slot" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
                    @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()">
                 <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt="">
                 <div v-else class="pair-empty"><b>Picture 1</b><span>drop or click</span></div>
-                <span class="pair-cap">1 · {{ editRecipe().p1 || 'your picture' }}</span>
+                <span class="pair-cap">1 · {{ pairCap(1) }}</span>
               </div>
               <span class="pair-op" aria-hidden="true">＋</span>
               <div class="pair-slot" :class="{over: pairOver === '2', filled: !!(form.edit_refs || [])[0]}" @dragover.prevent="pairOver = '2'" @dragleave="pairOver = ''"
-                   @drop.prevent="pairDrop($event, 2)" @click="$refs.pairPick.click()">
+                   @drop.prevent="pairDrop($event, 2)" @click="$refs.pairPick2.click()">
                 <img v-if="(form.edit_refs || [])[0]" :src="fileUrl(form.edit_refs[0])" alt="">
                 <div v-else class="pair-empty"><b>Picture 2</b><span>drop or click</span></div>
-                <span class="pair-cap">2 · {{ editRecipe().p2 || 'the second picture' }}</span>
+                <span class="pair-cap">2 · {{ pairCap(2) }}</span>
               </div>
               <span class="pair-op arrow" aria-hidden="true">➜</span>
               <div class="pair-slot result" :title="i2iLatest ? 'The last result (click to open it)' : 'The result appears here'" @click="i2iLatest && openDetail && openDetail(i2iLatest)">
@@ -3358,19 +3407,9 @@
                 <div v-else class="pair-empty"><b>Result</b><span>press Generate</span></div>
                 <span class="pair-cap">the result</span>
               </div>
-              <input ref="pairPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="pairPicked">
+              <input ref="pairPick2" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="pairPicked">
             </div>
-            <div class="hint">{{ editRecipe().tip }} Keep the prompt's wording{{ editRecipe().files ? ' (the LoRA learned it)' : '' }} and add to it.</div>
-            <div v-if="editRecipe().files" class="hint">LoRA: {{ editRecipe().by }} · {{ editRecipe().licence }}{{ editRecipeFile() === editRecipe().files['9b'] ? ' · the 9B version' : '' }}</div>
-            <div v-if="editRecipe().files" class="row">
-              <span v-if="editRecipeLora()" class="hint ok">✓ Downloaded</span>
-              <button v-else class="ghost small" :disabled="recipeBusy" @click="downloadEditRecipe">{{ recipeBusy ? 'Downloading…' : '⤓ Download it (' + (editRecipeFile().mb ? '~' + editRecipeFile().mb + ' MB, ' : '') + (editRecipeFile().hf ? 'from Hugging Face)' : 'from Civitai)') }}</button>
-              <span v-if="recipeMsg" class="hint">{{ recipeMsg }}</span>
-            </div>
-            <div v-if="!(form.edit_refs || []).length" class="hint warn">Drop Picture 2 in its box above.</div>
           </div>
-        </template>
-        <template v-else-if="form.i2i_mode === 'combine'">
           <div class="hint">The picture above is the <b>scene</b>. Add the character (or anything else) below, then say what you
             want in <b>3 · Prompt</b>, e.g. “sitting on the bench, waving” (or leave it empty: it's put in where it fits). Uses
             FLUX.2 Klein, like ✨ Edit with words.</div>

@@ -382,6 +382,10 @@ const EDIT_RECIPES = [
     tip: "Redraws the person in Picture 1 in the drawing style of Picture 2, taking Picture 2's eye colour, hairstyle, hair colour and outfit, while keeping Picture 1's facial expression, pose, face lighting and scene.",
     prompt: "Use the drawing style of Picture 2 and lock the eye colour, hair style, hair colour and outfit style of Picture 2 to redraw Picture 1, while keeping the facial expression, pose and face lighting of Picture 1 unchanged, and change the outfit of the character in Picture 1 to the outfit of Picture 2.",
     licence: "no LoRA: the edit model alone" },
+  { id: "into_scene", label: "🏞 Character into scene", by: "", files: null, p1: "the scene (background)", p2: "the character",
+    tip: "Puts the character from Picture 2 into the scene of Picture 1, in its light and perspective, keeping the character's face, hair, outfit and art style. Say where and what they're doing after the prompt (“sitting on the dock, waving”).",
+    prompt: "Place the character from Picture 2 into the scene of Picture 1. Keep the character's face, hair, eye colour, outfit and art style exactly as in Picture 2, and keep Picture 1's background, lighting, colours and perspective; match the character to the scene's light and shadows so they look like they were always there.",
+    licence: "no LoRA: the edit model alone" },
   { id: "mid_transform", label: "🧬 Mid-transformation", by: "Mid Transformation [2 image input] (Civitai)",
     tip: "A picture of someone halfway through turning into something else: Image 1 changing into Image 2 (a person into a statue, a werewolf, a robot…). It may take a few tries.",
     prompt: "Make image 1 mid-transformation into image 2. Give them a surprised expression.",
@@ -1228,7 +1232,9 @@ const protoartApp = createApp({
               "<b>✨ Flow-DPO for Z-Image Turbo</b>: one click downloads this lighting LoRA (170 MB, Apache-2.0) and adds it at 0.6: richer light, less flat or plastic pictures.",
               "<b>LoRAs for MOSS-Image</b>: MOSS now uses the LoRAs you pick, including <b>LoKr</b> files (like FameGrid's). MOSS LoRAs are recognised automatically and listed when a MOSS model is picked, and <b>Models → Fix a type</b> has a <b>MOSS</b> button (also in Settings → LoRA folders) for any that land under the wrong type.",
               "<b>Fix a type</b> now lists every model type that takes LoRAs (FIBO 2 was missing too), from one list, so new base models get their button automatically.",
-              "<b>🆕 Ideogram 4</b> for Macs with 24 GB or more (Models tab → Ideogram 4): Ideogram's open model for posters, logos, packaging and lettering. Its official files (~18 GB, gated: accept the licence on Hugging Face and save a token in Settings → Models) are made 4-bit as they load. 12 / 20 / 48 steps use Ideogram's own turbo / normal / best settings. Non-commercial licence.",
+              "<b>🆕 Ideogram 4</b> for Macs with 24 GB or more (Models tab → Ideogram 4): Ideogram's open model for posters, logos, packaging and lettering. Its official files (~18 GB, gated: accept the licence on Hugging Face and save a token in Settings → Models) are shrunk to 4-bit once and the shrunk copy is kept, so later starts are quicker. An experimental <b>3-bit</b> build is there too for 16 GB Macs (8 GB Macs can try it with Settings → Load anyway: expect it to be slow). 12 / 20 / 48 steps use Ideogram's own turbo / normal / best settings. Non-commercial licence.",
+              "<b>🎨 Style presets card</b> (Create, with Z-Image, FLUX.2 Klein or FLUX 3, like MiniMax-H3's presets): the 123 ZImagePowerNodes styles right under the model: Photo / Illustration / Wild or search, one press puts the style on top of your prompt, press it again (or ✕ None) to take it off. ✕ folds the card away.",
+              "<b>🧩 Two pictures → one</b> is now at the top of Image to image → ✨ Edit with words: pick 📸 Anime → Real, 🎨 Real → Anime, 🏞 Character into scene (new), 🧑 Head swap (BFS) and the others, then drop Picture 1 ＋ Picture 2 in their boxes ➜ the result shows beside them. <b>🧩 Combine</b> has the same Scene ＋ Character ➜ Result boxes.",
               "<b>📦 Draw your own boxes</b> (Create → 🗺 Regions → <b>📦 Boxes</b>, with FLUX 3, Ideogram 4 or MOSS-Image): drag on the little picture to draw a box anywhere, drag a box to move it, its corner to resize it, and say what goes in each one (up to 8). The boxes go into the prompt in each model's own layout format (the same as ComfyUI's FLUX 3, Ideogram 4 and MOSS box editors), so there's no extra time. Words in quotes in a box become lettering there. ✨ Enhance now rewrites only the main prompt; the boxes are added after it.",
               "<b>🗺 Regions now work with Ideogram 4 and MOSS-Image</b> (columns, rows, grid or your own boxes), and FLUX 3's regions are actually sent (they were left out before).",
               "<b>FLUX 3</b> and <b>MiniMax-H3</b> now have their own buttons above Create's model list and in the Models tab (they were missing).",
@@ -10036,11 +10042,17 @@ const protoartApp = createApp({
         if (p) this.form.edit_refs = [...(this.form.edit_refs || []), p];
       }
     },
+    pairCap(n) {  // the caption under each box of the two-picture layout
+      if (this.form.i2i_mode === "combine") return n === 1 ? "the scene" : "the character (or thing)";
+      const r = this.editRecipe() || {};
+      return n === 1 ? (r.p1 || "your picture") : (r.p2 || "the second picture");
+    },
     pairDrop(e, which) {  // ➕ the two-picture layout: a picture dropped on Picture 1 (your picture) or Picture 2
       this.pairOver = "";
       const file = [...(e.dataTransfer?.files || [])].find(isPicture);
       if (!file) return;
       if (which === 1) return this.onStartDrop(e);
+      if (!(this.form.edit_refs || []).length) return this.addEditRefs([file]);  // (Combine also gets its box)
       this.preparePicture(window.bee.pathForFile(file)).then((p) => {
         if (p) this.form.edit_refs = [p, ...(this.form.edit_refs || []).slice(1)];
       });
@@ -10048,6 +10060,7 @@ const protoartApp = createApp({
     pairPicked(e) {  // Picture 2 picked with the file dialog: it replaces the first More picture
       const file = [...(e.target.files || [])][0];
       e.target.value = "";
+      if (file && !(this.form.edit_refs || []).length) return this.addEditRefs([file]);
       if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) this.form.edit_refs = [p, ...(this.form.edit_refs || []).slice(1)]; });
     },
     onEditRefDrop(e) {

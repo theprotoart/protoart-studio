@@ -30,6 +30,14 @@
   `ideogram-ai/ideogram-4-fp8` files, quantized to 4-bit on load by mflux 0.24's `Ideogram4` (generic fast-engine
   path). 12 / 20 / 48 steps pass Ideogram's sampler presets (V4_TURBO_12 / V4_DEFAULT_20 / V4_QUALITY_48) so its
   guidance schedule is used; other step counts use a constant guidance. Ideogram 4 Non-Commercial licence.
+  `ideogram4_mlx_q3`: the same files at 3-bit (16 GB Macs, experimental). Both are shrunk once and saved with mflux's
+  `save_model` to `fast-copies/<org>--<name>-q<bits>` (`mlx_save_copy`; not with LoRAs, skipped without 12 GB free);
+  the fast engine's load key now includes the bit width, so switching between them reloads.
+- 🎨 Style presets as a card in Create (`zstyle-card`, like the MiniMax-H3 presets; Z-Image, FLUX.2 Klein, FLUX 3;
+  foldable via `hidden_guides` "zstyles"), on top of the 🎨 Styles prompt tool.
+- Image to image: the two-picture recipes moved to the top of ✨ Edit with words ("🧩 Two pictures → one"), new LoRA-free
+  recipe 🏞 Character into scene; 🧩 Combine shows the same Picture 1 ＋ Picture 2 ➜ Result boxes (Scene / Character,
+  `pairCap`); a picture dropped on box 2 with none yet goes through `addEditRefs` (so Combine gets its place box).
 - 📦 Boxes (🗺 Regions layout "free", `regions.boxes` = [x0, y0, x1, y1] fractions): draw / move / resize areas on
   the region map (`regDown`), up to 8. Offered for the models that read layouts from the prompt
   (`regionsLayout`: FLUX 3, Ideogram 4, MOSS-Image); `regions.layout_prompt` writes them after ✨ Enhance (it used to

@@ -69,6 +69,9 @@ def test_ideogram4_entry():
     assert m["family"] == "ideogram4" and m["gated"] and m["min_ram_gb"] >= 24 and m["mlx_quantize"] == 4
     assert mlx_worker._family(m["mlx_base"]) == "ideogram4"
     assert mlx_worker.IDEOGRAM_PRESETS[m["defaults"]["steps"]] == "V4_DEFAULT_20"
+    q3 = engine.MODELS["ideogram4_mlx_q3"]
+    assert q3["mlx_quantize"] == 3 and q3["mlx_save_copy"] and q3["mlx_repo"] == m["mlx_repo"]
+    assert mlx_worker._saved_copy(q3["mlx_repo"], 3).name == "ideogram-ai--ideogram-4-fp8-q3"
 
 
 def test_drawn_boxes_for_flux3_ideogram4_and_moss():

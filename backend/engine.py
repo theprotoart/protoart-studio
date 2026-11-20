@@ -234,7 +234,17 @@ MODELS = {
         "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "ideogram-ai/ideogram-4-fp8", "mlx_base": "ideogram-4-fp8",
         "mlx_class": "mflux.models.ideogram4.variants.txt2img.ideogram4:Ideogram4", "mlx_quantize": 4, "mflux_min": [0, 24],
         "download_gb": 18, "engine_gb": 1.5, "min_ram_gb": 24, "license": "Ideogram 4 Non-Commercial", "gated": True,
-        "defaults": {"width": 1024, "height": 1024, "steps": 20, "cfg": 7.0},
+        "mlx_save_copy": True, "defaults": {"width": 1024, "height": 1024, "steps": 20, "cfg": 7.0},
+    },
+    # The same files shrunk further, to 3-bit (~8 GB in memory with its text encoder): an experiment for 16 GB Macs
+    # (8 GB ones can try it with Settings → Load anyway; expect it to be slow). A little less detail than 4-bit.
+    # Shrunk once and kept in fast-copies (mlx_save_copy), so later loads skip the 18 GB files.
+    "ideogram4_mlx_q3": {
+        "label": "Ideogram 4 · 3-bit · ⚡ fast engine (16 GB Macs, experimental, non-commercial)", "family": "ideogram4",
+        "quant": "Q3 MLX", "engine": "mlx", "mlx_repo": "ideogram-ai/ideogram-4-fp8", "mlx_base": "ideogram-4-fp8",
+        "mlx_class": "mflux.models.ideogram4.variants.txt2img.ideogram4:Ideogram4", "mlx_quantize": 3, "mflux_min": [0, 24],
+        "download_gb": 18, "engine_gb": 1.5, "min_ram_gb": 16, "license": "Ideogram 4 Non-Commercial", "gated": True,
+        "mlx_save_copy": True, "defaults": {"width": 1024, "height": 1024, "steps": 12, "cfg": 7.0},
     },
     # Anima (CircleStone Labs, 2B, anime / illustration; tags or sentences). Official diffusers files; the Turbo
     # build uses the official distilled transformer. CircleStone Labs Non-Commercial License (pictures may be sold).
@@ -2340,6 +2350,7 @@ class Engine:
         self.mlx.request({"cmd": "load", "repo": spec["mlx_repo"], "base": spec.get("mlx_base"),
                           "revision": spec.get("mlx_revision"), "variant": variant,
                           "quantize": spec.get("mlx_quantize"), "patterns": spec.get("mlx_patterns"), "cls": spec.get("mlx_class"),
+                          "save_copy": bool(spec.get("mlx_save_copy")),
                           "label": spec["label"], "size_gb": spec.get("download_gb"),
                           "loras": loras, "low_ram": 0 < ram < 20,
                           "allow_download": bool(allow_download) and net.is_online()},
