@@ -294,7 +294,7 @@ const SAMPLER_PICKS = {  // the 3 fastest and the 3 best-quality samplers for ea
   flux3: { fast: ["flow_euler"], quality: [] },
 };
 const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX 3 Image Klein (Black Forest Labs; 4-bit MLX by mflux-community)", "licence": "FLUX Kommunity License v1.0", "note": "non-commercial use; selling pictures is allowed if you (with your business) make under US$5M a year; text encoder Qwen3-VL-4B (Apache-2.0)"}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}, {"model": "BiRefNet lite (✂ Cut out, 👤 Subject, 📄 Paper cut-out)", "licence": "MIT", "note": ""}, {"model": "MiniMax-H3-Image (MiniMax; INT8 files by Comfy-Org, made 4-bit on your Mac)", "licence": "MiniMax-H3-Image Community License", "note": "not for use in the US, EU, UK or Republic of Korea; pictures may not be used to improve other AI models; commercial products must show its name; written permission over US$1M yearly revenue or as a hosted service. Runs with h3-image-mlx (Apache-2.0)"}, {"model": "MOSS-Image (OpenMOSS; MLX weights by VisualInference, turbo adapters by VisualInference and nynxz)", "licence": "Apache-2.0", "note": "runs with moss-image-mlx (Apache-2.0); text encoder Qwen3.5-9B and FLUX.2 small VAE (Apache-2.0)"}];
-const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677" };
+const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677", zpower: "https://github.com/martin-rizzo/ComfyUI-ZImagePowerNodes" };
 // 📷 Camera angle: the words for each direction (the same 8 × 4 × 3 grid multi-angle tools use)
 const CAM_VIEWS = ["front view", "front-right quarter view", "right side view", "back-right quarter view",
                    "back view", "back-left quarter view", "left side view", "front-left quarter view"];
@@ -372,6 +372,15 @@ const I2I_PICTURE_KEYS = ["init_image", "control_image", "edit_refs"];
 // never bundled). Each takes the picture above as “Image 1” and the first extra picture as “Image 2”.
 const POSE_VIEWS = { front: "Front", diag: "¾ turn", side: "Side", above: "From above", below: "From below" };
 const EDIT_RECIPES = [
+  // two-picture recipes without a LoRA (files: null): they work with any edit model (Klein, FLUX 3, MiniMax-H3)
+  { id: "anime_to_real", label: "📸 Anime → Real", by: "", files: null, p1: "the anime picture", p2: "a real photo (the look)",
+    tip: "Redraws the anime or cartoon character in Picture 1 as a real person, in a real photograph of the same scene and pose, taking the photographic look (skin, light, camera) from the photo in Picture 2.",
+    prompt: "Redraw Picture 1 as a real photograph: keep the character's pose, hair colour and hairstyle, eye colour, outfit and the whole scene and composition of Picture 1, and use the photographic realism, natural skin texture, lighting and camera look of Picture 2. The character becomes a real person cosplaying them, photographed, not a drawing.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "real_to_anime", label: "🎨 Real → Anime", by: "", files: null, p1: "your photo (the pose)", p2: "the anime character (the style)",
+    tip: "Redraws the person in Picture 1 in the drawing style of Picture 2, taking Picture 2's eye colour, hairstyle, hair colour and outfit, while keeping Picture 1's facial expression, pose, face lighting and scene.",
+    prompt: "Use the drawing style of Picture 2 and lock the eye colour, hair style, hair colour and outfit style of Picture 2 to redraw Picture 1, while keeping the facial expression, pose and face lighting of Picture 1 unchanged, and change the outfit of the character in Picture 1 to the outfit of Picture 2.",
+    licence: "no LoRA: the edit model alone" },
   { id: "mid_transform", label: "🧬 Mid-transformation", by: "Mid Transformation [2 image input] (Civitai)",
     tip: "A picture of someone halfway through turning into something else: Image 1 changing into Image 2 (a person into a statue, a werewolf, a robot…). It may take a few tries.",
     prompt: "Make image 1 mid-transformation into image 2. Give them a surprised expression.",
@@ -832,6 +841,7 @@ const MODEL_GUIDES = {
       set: { steps: 9, cfg: 1 }, small: 768,
       tips: ["Describe the picture in full sentences: who, where, the light, the camera. ✨ Enhance writes it that way.",
              "Put any words the picture should show in double quotes: a sign that reads \"OPEN\".",
+             "🎨 Styles (beside 🎞 Film look) wraps your prompt in one of 123 styles made for Z-Image; ✨ Flow-DPO (in the LoRA box) gives it richer light.",
              "Steps 9 and guidance 1 are what it's made for; more steps don't help.",
              "On an 8 GB Mac: Medium (768) takes about 4 minutes; Large (1024) about twice that."] },
     change: { title: "Z-Image Turbo · 🔄 Change it", what: "Redraws your whole picture from a description, keeping its layout.",
@@ -1202,6 +1212,10 @@ const protoartApp = createApp({
               "<b>✨ Edit with words with FLUX 3</b> (Image to image's model list): edit your picture from a sentence, with up to <b>9 More pictures</b> (people, clothes, objects, a style).",
               "<b>🗺 Regions with FLUX 3</b>: your areas become FLUX 3's own <b>layout boxes</b> (in one pass, no extra time): each area's subject is placed in its box.",
               "<b>FLUX 3 LoRAs</b> are recognised and listed for it, with a <b>FLUX 3</b> button in Fix a type.",
+              "<b>🎨 Styles</b> (Create, beside 🎞 Film look): <b>123 styles</b> (photo, illustration and wild looks) that wrap your prompt, made for Z-Image Turbo and fine with any model that reads sentences. Search them or pick by category; click another to swap, the same one to take it off. From ZImagePowerNodes by Martin Rizzo (MIT).",
+              "<b>➕ Two-picture recipes, laid out</b> (Image to image → ✨ Edit with words): <b>Picture 1 ＋ Picture 2 ➜ Result</b>, with big drop boxes for each picture and the result beside them.",
+              "<b>📸 Anime → Real</b> and <b>🎨 Real → Anime</b> (two-picture recipes, no download): turn an anime character into a real photo using a real photo's look, or redraw your photo in an anime character's style, eyes, hair and outfit while keeping your expression, pose and face lighting.",
+              "<b>✨ Flow-DPO for Z-Image Turbo</b>: one click downloads this lighting LoRA (170 MB, Apache-2.0) and adds it at 0.6: richer light, less flat or plastic pictures.",
               "<b>LoRAs for MOSS-Image</b>: MOSS now uses the LoRAs you pick, including <b>LoKr</b> files (like FameGrid's). MOSS LoRAs are recognised automatically and listed when a MOSS model is picked, and <b>Models → Fix a type</b> has a <b>MOSS</b> button (also in Settings → LoRA folders) for any that land under the wrong type.",
               "<b>Fix a type</b> now lists every model type that takes LoRAs (FIBO 2 was missing too), from one list, so new base models get their button automatically.",
             ] },
@@ -2453,6 +2467,9 @@ const protoartApp = createApp({
       localErr: "",
       localOk: "",  // "Model imported" note after Add from your Mac
       film: { applied: null },
+      recLoraBusy: false,
+      pairOver: "",  // ➕ the two-picture layout's drop box under the pointer  // ✨ a recommended LoRA (Flow-DPO) downloading
+      zstyle: { applied: null, cat: "Photo", q: "" },  // 🎨 Styles (ZImagePowerNodes templates)
       relightJob: false,
       txHint: false,  // Image to image: after 🔤 Text selection, point to Tools → Replace text
       m3d: { job: false, accepted: loadJSON("protoart.mesh3d.accepted", false), status: null, last: null },
@@ -5211,6 +5228,24 @@ const protoartApp = createApp({
       if (!(await this.confirmAsk("Stop using this LoRA folder?", d + "\n\nIts LoRAs leave the list; the files stay where they are."))) return;
       this.loraDirs = await call("lora_dirs_set", { dirs: this.loraDirs.dirs.filter((x) => x !== d) });
       await this.refreshLoras();
+    },
+    async useFlowDpo() {  // ✨ Z-Image Turbo's Flow-DPO lighting LoRA (F16, Apache-2.0): download once, add at 0.6
+      if (this.recLoraBusy) return;
+      const name = "zit_fdpo_v1";
+      if (!this.loras.some((l) => l.name === name)) {
+        this.recLoraBusy = true;
+        try {
+          await call("lora_hf_download", { repo: "F16/z-image-turbo-flow-dpo", file: "zit_fdpo_v1.safetensors" });
+          await this.refreshLoras();
+        } catch (e) {
+          if (!e.cancelled) this.error = "Couldn't download Flow-DPO: " + (e.message || e);
+          return;
+        } finally {
+          this.recLoraBusy = false;
+        }
+      }
+      if (!this.form.loras.some((l) => l.name === name)) this.form.loras.push({ name, weight: 0.6 });
+      this.status = "✨ Flow-DPO added at 0.6 (0.6–1.0 works; above 1.5 gets over-sharpened)";
     },
     addLora() {
       if (!this.loraToAdd) return;
@@ -8249,7 +8284,7 @@ const protoartApp = createApp({
     },
     editRecipe() { return EDIT_RECIPES.find((r) => r.id === this.form.edit_recipe) || null; },
     editRecipeFile(r = this.editRecipe()) {  // the LoRA for the Klein model Edit with words uses now (9B when picked and there's one)
-      if (!r) return null;
+      if (!r || !r.files) return null;
       return (this.editModelId() === "flux2_klein9b_mlx_q4" && r.files["9b"]) || r.files["4b"];
     },
     editRecipeLora(r = this.editRecipe()) {  // that LoRA in your LoRA list, if it's downloaded (any letter case)
@@ -8264,7 +8299,7 @@ const protoartApp = createApp({
       const mine = (f.prompt || "").trim() && !(old && f.prompt === old.prompt) && !EDIT_QUICK.some((q) => q.prompt === f.prompt);
       if (r && !mine) f.prompt = r.prompt;
       if (!r && old && f.prompt === old.prompt) f.prompt = "";
-      if (r && !r.files["9b"] && this.form.edit_model === "flux2_klein9b_mlx_q4") this.status = `${r.label} is made for Klein 4B: it uses 4B.`;
+      if (r && r.files && !r.files["9b"] && this.form.edit_model === "flux2_klein9b_mlx_q4") this.status = `${r.label} is made for Klein 4B: it uses 4B.`;
       this.recipeMsg = "";
     },
     async downloadEditRecipe() {  // the recipe's LoRA from Civitai, into your LoRA folder for FLUX.2
@@ -8297,6 +8332,7 @@ const protoartApp = createApp({
     recipeEditArgs() {  // what a recipe adds to the Edit with words job
       const r = this.editRecipe();
       if (!r) return {};
+      if (!r.files) return { recipe: r.id };  // no LoRA: the edit model you picked
       const l = this.editRecipeLora(r), file = this.editRecipeFile(r);
       return { recipe: r.id, loras: l ? [{ name: l.name, weight: 1.0 }] : [],
                edit_model: file === r.files["9b"] ? "flux2_klein9b_mlx_q4" : "flux2_klein_mlx_q4" };
@@ -9570,7 +9606,7 @@ const protoartApp = createApp({
         const rec = this.editRecipe();
         if (rec) {  // 🧬 / 🔁 two-picture recipes
           if (!(f.edit_refs || []).length) return (this.error = `${rec.label} needs a second picture: add it under “More pictures”.`);
-          if (!this.editRecipeLora(rec)) return (this.error = `${rec.label} needs its LoRA first: press ⤓ Download under the recipe.`);
+          if (rec.files && !this.editRecipeLora(rec)) return (this.error = `${rec.label} needs its LoRA first: press ⤓ Download under the recipe.`);
         }
         await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: f.init_image, prompt: f.prompt, mask: painted,
                                           keep_faces: !painted && f.keep_faces !== false && !rec,
@@ -9896,6 +9932,20 @@ const protoartApp = createApp({
         const p = await this.preparePicture(window.bee.pathForFile(file));
         if (p) this.form.edit_refs = [...(this.form.edit_refs || []), p];
       }
+    },
+    pairDrop(e, which) {  // ➕ the two-picture layout: a picture dropped on Picture 1 (your picture) or Picture 2
+      this.pairOver = "";
+      const file = [...(e.dataTransfer?.files || [])].find(isPicture);
+      if (!file) return;
+      if (which === 1) return this.onStartDrop(e);
+      this.preparePicture(window.bee.pathForFile(file)).then((p) => {
+        if (p) this.form.edit_refs = [p, ...(this.form.edit_refs || []).slice(1)];
+      });
+    },
+    pairPicked(e) {  // Picture 2 picked with the file dialog: it replaces the first More picture
+      const file = [...(e.target.files || [])][0];
+      e.target.value = "";
+      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) this.form.edit_refs = [p, ...(this.form.edit_refs || []).slice(1)]; });
     },
     onEditRefDrop(e) {
       this.editRefOver = false;
@@ -10420,6 +10470,28 @@ const protoartApp = createApp({
       if (this.form.prompt.trim()) this.undoPrompt = this.form.prompt;
       this.form.prompt = ex.text;
       this.film.applied = null;
+    },
+    zstyleList() {  // 🎨 the styles in the picked category, or matching the search (any category)
+      const all = window.Z_STYLES || [], q = (this.zstyle.q || "").trim().toLowerCase();
+      return q ? all.filter((S) => S.name.toLowerCase().includes(q)) : all.filter((S) => S.cat === this.zstyle.cat);
+    },
+    applyZStyle(name) {  // 🎨 wraps the prompt in a style (another click swaps it, the same one takes it off)
+      const f = this.form, a = this.zstyle.applied;
+      if (a) {
+        let p = f.prompt;
+        if (p.startsWith(a.pre)) p = p.slice(a.pre.length);
+        if (a.post && p.endsWith(a.post)) p = p.slice(0, -a.post.length);
+        f.prompt = p;
+        this.zstyle.applied = null;
+      }
+      if (!name || (a && a.name === name)) return;
+      const S = (window.Z_STYLES || []).find((x) => x.name === name);
+      if (!S) return;
+      if (!f.prompt.trim()) { this.error = "Type what the picture shows first, then pick a style."; return; }
+      const post = S.post ? "\n" + S.post.trim() : "";
+      f.prompt = S.pre + f.prompt.trim() + post;
+      this.zstyle.applied = { name, pre: S.pre, post };
+      this.status = `🎨 ${name} style on the prompt`;
     },
     applyFilmLook(id) {  // 🎞 wraps the prompt in a film look (another click swaps it, the same one takes it off)
       const f = this.form, a = this.film.applied;

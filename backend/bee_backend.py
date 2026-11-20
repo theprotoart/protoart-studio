@@ -1907,21 +1907,25 @@ def civitai_job(a, eng):
 
 
 # ✨ Edit with words recipes whose LoRA is on Hugging Face: only these files can be fetched this way
+# (repo, file) -> the model type it's for (its LoRA folder and type). Recommended LoRAs (Z-Image's Flow-DPO) too.
 RECIPE_HF_LORAS = {
-    ("Alissonerdx/BFS-Best-Face-Swap", "bfs_head_v1_flux-klein_4b.safetensors"),
-    ("Alissonerdx/BFS-Best-Face-Swap", "bfs_head_v1_flux-klein_9b_step3750_rank64.safetensors"),
+    ("Alissonerdx/BFS-Best-Face-Swap", "bfs_head_v1_flux-klein_4b.safetensors"): "flux2",
+    ("Alissonerdx/BFS-Best-Face-Swap", "bfs_head_v1_flux-klein_9b_step3750_rank64.safetensors"): "flux2",
+    ("F16/z-image-turbo-flow-dpo", "zit_fdpo_v1.safetensors"): "zimage",  # Flow-DPO lighting LoRA, Apache-2.0
 }
 
 
 def lora_hf_job(a, eng):
-    """A recipe's LoRA from Hugging Face, into the LoRA folder for FLUX.2 (like a Civitai download)."""
+    """A recipe's (or a recommended) LoRA from Hugging Face, into the LoRA folder for its model type (like a Civitai
+    download). Only the files listed in RECIPE_HF_LORAS."""
     from engine import UserError
     repo, fname = str(a.get("repo") or ""), str(a.get("file") or "")
     if (repo, fname) not in RECIPE_HF_LORAS:
         raise UserError("That LoRA isn't one of the recipes' LoRAs.")
     if net.strict:
         raise UserError("Strict offline mode is on (Settings → Privacy): turn it off to download the LoRA.")
-    dests = [d["path"] for d in civitai_destinations({"kind": "lora", "family": "flux2"})]
+    family = RECIPE_HF_LORAS[(repo, fname)]
+    dests = [d["path"] for d in civitai_destinations({"kind": "lora", "family": family})]
     if not dests:
         raise UserError("No LoRA folder to save it in.")
     dest = os.path.join(dests[0], fname)
@@ -1941,7 +1945,7 @@ def lora_hf_job(a, eng):
     tmp = dest + ".part"
     shutil.copyfile(src, tmp)
     os.replace(tmp, dest)
-    loras.NAME_FAMILY[os.path.splitext(fname)[0]] = "flux2"
+    loras.NAME_FAMILY[os.path.splitext(fname)[0]] = family
     library.set_setting("lora_families", dict(loras.NAME_FAMILY))
     eng.emit({"type": "status", "msg": f"{fname} downloaded to {dests[0]}"})
     return {"path": dest, "name": os.path.splitext(fname)[0]}

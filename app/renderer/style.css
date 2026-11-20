@@ -531,3 +531,21 @@ details.fine summary { cursor: pointer; }
 .update-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 16px; background: rgba(255, 211, 107, 0.14);
   border-bottom: 1px solid rgba(255, 211, 107, 0.4); font-size: 13px; }
 .update-bar .warn-text { flex-basis: 100%; }
+
+/* 🎨 Styles panel */
+.zstyle-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+.zstyle-search { flex: 1; min-width: 140px; }
+.zstyle-list { display: flex; flex-wrap: wrap; gap: 4px; max-height: 180px; overflow-y: auto; }
+
+/* ➕ two-picture recipes: Picture 1 + Picture 2 → result */
+.pair-layout { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: center; gap: 6px; margin: 4px 0 8px; }
+.pair-slot { position: relative; aspect-ratio: 3 / 4; border: 2px dashed var(--line, #555); border-radius: 8px; overflow: hidden; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .25); min-width: 0; }
+.pair-slot.filled { border-style: solid; }
+.pair-slot.over { border-color: var(--accent, #f5c84c); background: rgba(245, 200, 76, .12); }
+.pair-slot.result { border-color: rgba(245, 200, 76, .55); }
+.pair-slot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pair-empty { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; opacity: .8; text-align: center; padding: 4px; }
+.pair-cap { position: absolute; left: 0; right: 0; bottom: 0; font-size: 10.5px; line-height: 1.2; padding: 3px 5px; background: rgba(0, 0, 0, .6); }
+.pair-op { font-size: 22px; font-weight: 800; color: #e8433a; text-shadow: 0 1px 2px #000; }
+.pair-op.arrow { font-size: 26px; }

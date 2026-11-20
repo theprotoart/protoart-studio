@@ -58,6 +58,8 @@ when you first use them, and each comes with its own licence that you accept by 
 | BFS Best Face Swap (Alissonerdx) FLUX.2 Klein head-swap LoRAs, downloaded by the user on request from Hugging Face, not bundled | MIT (its author asks not to use it with public figures or people who haven't agreed) |
 | Civitai LoRAs for ✨ Edit with words recipes (“Mid Transformation [2 image input] [Klein 4b]”, “Replace Subject [Klein 4B & 9B]”, “Copy Pose [Qwen & Klein]”), downloaded by the user on request, not bundled | each author's Civitai terms (Mid Transformation: any use; Replace Subject and Copy Pose: non-commercial) |
 | FLUX.2 [klein] 9B (Black Forest Labs; 4-bit MLX conversion by mflux-community), optional, 16 GB+ | FLUX Non-Commercial |
+| 🎨 Styles: style templates from ComfyUI-ZImagePowerNodes v1.0 (https://github.com/martin-rizzo/ComfyUI-ZImagePowerNodes), copied into `app/renderer/zimage_styles.js` | MIT, Copyright (c) 2026 Martin Rizzo |
+| Flow-DPO LoRA for Z-Image Turbo (F16/z-image-turbo-flow-dpo, `zit_fdpo_v1`), downloaded by the user on request, not bundled | Apache-2.0 |
 | FLUX 3 Image Klein (Black Forest Labs; 4-bit MLX conversion by mflux-community), optional, downloaded on first use | FLUX Kommunity License v1.0 (non-commercial; commercial output for users under US$5M yearly revenue). Text encoder Qwen3-VL-4B: Apache-2.0 |
 | Z-Image Turbo (Tongyi-MAI; 4-bit MLX conversion by mflux-community), optional, 16 GB+ | Apache-2.0 |
 | Qwen-Image 2.1 and 2.1 Turbo (Qwen; 4-bit MLX conversions by mflux-community), optional, 24 GB+ | Qwen research licence (non-commercial) |

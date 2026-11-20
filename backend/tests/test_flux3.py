@@ -33,3 +33,17 @@ def test_regions_become_layout_boxes():
     assert items[0]["bbox"] == [0, 0, 1000, 500]  # [top, left, bottom, right] on 0-1000
     assert items[1]["bbox"] == [0, 750, 1000, 1000]
     assert regions.flux3_boxes("Just this", "cols", "", ["", ""]) == "Just this"
+
+
+def test_recommended_hf_loras_have_a_type():
+    import bee_backend
+    assert all(f in loras.FAMILIES for f in bee_backend.RECIPE_HF_LORAS.values())
+    assert bee_backend.RECIPE_HF_LORAS[("F16/z-image-turbo-flow-dpo", "zit_fdpo_v1.safetensors")] == "zimage"
+
+
+def test_styles_file():
+    js = (Path(__file__).resolve().parents[2] / "app" / "renderer" / "zimage_styles.js").read_text()
+    data = json.loads(js[js.index("["):js.rindex("]") + 1])
+    assert len(data) >= 100 and {d["cat"] for d in data} == {"Photo", "Illustration", "Wild"}
+    assert all("{$" not in d["pre"] + d["post"] for d in data)  # no template commands left
+    assert "MIT" in js[:600] and "Martin Rizzo" in js[:600]

@@ -7,6 +7,14 @@
   dropped while drawing on small Macs (its own prompt cache keeps the prompt). ✨ Edit with words with up to 9 More
   pictures; 🗺 Regions become its layout boxes in the prompt (`regions.flux3_boxes`, [top, left, bottom, right] on
   0–1000); `flux3` LoRAs (mode_blocks / image_cond / ref_time_in keys). No live preview for it yet.
+- 🎨 Styles (Create's prompt tools): 123 ZImagePowerNodes v1.0 style templates (photo / illustration / wild; MIT,
+  Martin Rizzo) in `app/renderer/zimage_styles.js`, wrapping the prompt like 🎞 Film look (`applyZStyle`); their
+  optional extra-content switch is left out.
+- ✨ Flow-DPO for Z-Image Turbo (F16/z-image-turbo-flow-dpo, `zit_fdpo_v1`, Apache-2.0): downloaded on request and
+  added at 0.6. `RECIPE_HF_LORAS` now maps each allowed Hugging Face LoRA to its model type (folder and type).
+- ➕ Two-picture recipes show Picture 1 ＋ Picture 2 ➜ Result as big drop boxes (`pair-layout`, `pairDrop`); new
+  LoRA-free recipes 📸 Anime → Real and 🎨 Real → Anime (`files: null`, any edit model: Klein, FLUX 3, MiniMax-H3).
+- Z-Image's Qwen3 text encoder is the 4-bit one (2.2 GB, `quantization_level` 4 in the files) — checked, no change.
 - 🧩 LoRAs for MOSS-Image: `loras.FAMILIES` gains `moss` (recognised from `layers.N.proj.(q|k|v|o|ffn_up_gate|ffn_down)`
   keys or a "moss" base model in the metadata; these used to be listed as ERNIE). MOSS pictures attach your LoRAs
   unmerged in their own group (`moss_worker` → `moss_lora.apply`), reading kohya, PEFT and LyCORIS LoKr files (LoKr as

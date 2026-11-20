@@ -375,6 +375,7 @@
             <i class="ptool-lamp" :class="{on: rnd.every}"></i>🎲<b>Random</b></button>
           <button class="ptool" :class="{open: ptool === 'ideas'}" @click="togglePtool('ideas')" title="Ideas: hundreds of tested tags by category (pose, eyes, hair, hats, expressions, outfits, shoes, framing, styles): click one to add it, or 🎲 for a random one">📚<b>Ideas</b></button>
           <button class="ptool" :class="{open: ptool === 'film'}" @click="togglePtool('film')" title="Film look: make the picture look shot on a real film or camera (Portra, CineStill, Tri-X, Polaroid, disposable camera, light leaks…)"><i class="ptool-lamp" :class="{on: film.applied}"></i>🎞<b>Film</b></button>
+          <button class="ptool" :class="{open: ptool === 'zstyle', on: !!zstyle.applied}" @click="togglePtool('zstyle')" title="Styles: wrap your prompt in one of 123 photo, illustration and wild styles (made for Z-Image Turbo; fine with other models that read sentences). Click another to swap, the same one to take it off">🎨<b>Styles</b></button>
           <button class="ptool" :class="{open: ptool === 'convert'}" @click="togglePtool('convert')" title="Convert the prompt: plain sentences ⇄ Stable Diffusion tags, so a prompt you like works with any kind of model">⇄<b>Convert</b></button>
           <button class="ptool" @click="swapGender" title="Swap gender: the women in the prompt become men and the men women (“a woman in a brown outfit” → “a man in a brown outfit”, 1girl → 1boy, her → his). Works on sentences and tags; ↩ undo puts it back">⚥<b>Swap gender</b></button>
           <button class="ptool" :class="{open: wild.open}" @click="togglePtool('wild')" title="Wildcards: {red|blue} picks one per image; __name__ picks a line from a wildcard file">{ }<b>Wildcards</b></button>
@@ -424,6 +425,19 @@
           <div class="hint">Wraps your prompt in the look and adds its opposite to the negative prompt; click another to swap, the same one again to take it off.
             Best with models that read sentences (FLUX, FLUX.2 Klein, Z-Image, Qwen-Image, ERNIE). The negative prompt only counts when Guidance is above 1.
             <button v-if="film.applied" class="link" @click="applyFilmLook('')">✕ no film look</button></div>
+        </div>
+        <div v-if="ptool === 'zstyle'" class="wild-panel ptool-panel zstyle-panel">
+          <div class="zstyle-top">
+            <div class="seg"><button v-for="c in ['Photo', 'Illustration', 'Wild']" :key="c" :class="{on: zstyle.cat === c}" @click="zstyle.cat = c">{{ c }}</button></div>
+            <input v-model="zstyle.q" type="search" placeholder="Search styles…" class="zstyle-search">
+          </div>
+          <div class="zstyle-list">
+            <button v-for="S in zstyleList()" :key="S.name" class="chip trig" :class="{on: zstyle.applied && zstyle.applied.name === S.name}"
+                    @click="applyZStyle(S.name)" :title="(S.pre + '…' + S.post).replace(/\s+/g, ' ').trim().slice(0, 300)">{{ S.name }}</button>
+          </div>
+          <div class="hint">Wraps your prompt in the style's description; click another to swap, the same one again to take it off. Styles from
+            <a href="#" @click.prevent="openLink('zpower')">ZImagePowerNodes</a> (Martin Rizzo, MIT).
+            <button v-if="zstyle.applied" class="link" @click="applyZStyle('')">✕ no style</button></div>
         </div>
         <div v-if="ptool === 'saved'" class="wild-panel ptool-panel">
           <div class="row small prompt-presets">
@@ -620,6 +634,10 @@
             <button class="ghost small" @click="trigEdit.name = ''">Cancel</button>
           </template>
         </div>
+        </div>
+        <div v-if="family === 'zimage' && currentModel?.engine === 'mlx' && !form.loras.some((l) => l.name === 'zit_fdpo_v1')" class="hint rec-lora">
+          ✨ <b>Flow-DPO</b> makes Z-Image Turbo's light richer (less flat or plastic): a 170 MB LoRA (Apache-2.0), at 0.6.
+          <button class="small" :disabled="recLoraBusy" @click="useFlowDpo">{{ loras.some((l) => l.name === 'zit_fdpo_v1') ? '＋ Add it' : recLoraBusy ? 'Downloading…' : '⬇ Download and add' }}</button>
         </div>
         <div class="lora-search-row">
           <input class="lora-search" v-model="loraSearch" @focus="loraOpen = true"
@@ -3311,19 +3329,41 @@
           <div class="seg seg-wrap edit-recipes">
             <button v-for="q in EDIT_QUICK()" :key="q.label" @click="useEditQuick(q)" :title="q.prompt">{{ q.label }}</button>
           </div>
-          <label>Two-picture recipes <span class="hint">optional · community LoRAs for FLUX.2 Klein, downloaded the first time</span></label>
+          <label>Two-picture recipes <span class="hint">optional · Picture 1 + Picture 2 → result; some use a community LoRA for FLUX.2 Klein, downloaded the first time</span></label>
           <div class="seg seg-wrap edit-recipes">
             <button v-for="r in EDIT_RECIPES()" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
           </div>
           <div v-if="editRecipe()" class="recipe-card">
-            <div class="hint">{{ editRecipe().tip }} The picture above is <b>Image 1</b>; the first picture under “More pictures” is <b>Image 2</b>. Keep the prompt's wording (the LoRA learned it) and add to it.</div>
-            <div class="hint">LoRA: {{ editRecipe().by }} · {{ editRecipe().licence }}{{ editRecipeFile() === editRecipe().files['9b'] ? ' · the 9B version' : '' }}</div>
-            <div class="row">
+            <div class="pair-layout" title="Drop a picture on each box (or click to pick one)">
+              <div class="pair-slot" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
+                   @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()">
+                <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt="">
+                <div v-else class="pair-empty"><b>Picture 1</b><span>drop or click</span></div>
+                <span class="pair-cap">1 · {{ editRecipe().p1 || 'your picture' }}</span>
+              </div>
+              <span class="pair-op" aria-hidden="true">＋</span>
+              <div class="pair-slot" :class="{over: pairOver === '2', filled: !!(form.edit_refs || [])[0]}" @dragover.prevent="pairOver = '2'" @dragleave="pairOver = ''"
+                   @drop.prevent="pairDrop($event, 2)" @click="$refs.pairPick.click()">
+                <img v-if="(form.edit_refs || [])[0]" :src="fileUrl(form.edit_refs[0])" alt="">
+                <div v-else class="pair-empty"><b>Picture 2</b><span>drop or click</span></div>
+                <span class="pair-cap">2 · {{ editRecipe().p2 || 'the second picture' }}</span>
+              </div>
+              <span class="pair-op arrow" aria-hidden="true">➜</span>
+              <div class="pair-slot result" :title="i2iLatest ? 'The last result (click to open it)' : 'The result appears here'" @click="i2iLatest && openDetail && openDetail(i2iLatest)">
+                <img v-if="i2iLatest && i2iLatest.path" :src="fileUrl(i2iLatest.path)" alt="">
+                <div v-else class="pair-empty"><b>Result</b><span>press Generate</span></div>
+                <span class="pair-cap">the result</span>
+              </div>
+              <input ref="pairPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="pairPicked">
+            </div>
+            <div class="hint">{{ editRecipe().tip }} Keep the prompt's wording{{ editRecipe().files ? ' (the LoRA learned it)' : '' }} and add to it.</div>
+            <div v-if="editRecipe().files" class="hint">LoRA: {{ editRecipe().by }} · {{ editRecipe().licence }}{{ editRecipeFile() === editRecipe().files['9b'] ? ' · the 9B version' : '' }}</div>
+            <div v-if="editRecipe().files" class="row">
               <span v-if="editRecipeLora()" class="hint ok">✓ Downloaded</span>
               <button v-else class="ghost small" :disabled="recipeBusy" @click="downloadEditRecipe">{{ recipeBusy ? 'Downloading…' : '⤓ Download it (' + (editRecipeFile().mb ? '~' + editRecipeFile().mb + ' MB, ' : '') + (editRecipeFile().hf ? 'from Hugging Face)' : 'from Civitai)') }}</button>
               <span v-if="recipeMsg" class="hint">{{ recipeMsg }}</span>
             </div>
-            <div v-if="!(form.edit_refs || []).length" class="hint warn">Add Image 2 under “More pictures”.</div>
+            <div v-if="!(form.edit_refs || []).length" class="hint warn">Drop Picture 2 in its box above.</div>
           </div>
         </template>
         <template v-else-if="form.i2i_mode === 'combine'">
@@ -5722,6 +5762,7 @@
 <script src="adjust.js"></script>
 <script src="puppet.js"></script>
 <script src="tag_dictionary.js"></script>
+<script src="zimage_styles.js"></script>
 <script src="gender_swap.js"></script>
 <script src="text_tool.js"></script>
 <script src="prompt_generator.js"></script>
