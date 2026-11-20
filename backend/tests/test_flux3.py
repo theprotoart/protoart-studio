@@ -47,3 +47,16 @@ def test_styles_file():
     assert len(data) >= 100 and {d["cat"] for d in data} == {"Photo", "Illustration", "Wild"}
     assert all("{$" not in d["pre"] + d["post"] for d in data)  # no template commands left
     assert "MIT" in js[:600] and "Martin Rizzo" in js[:600]
+
+
+def test_every_model_type_has_a_chip_and_shop_entry():
+    """Each picture-model type in the catalog has a filter chip on Create and a type in the Models tab (FLUX 3 was missing)."""
+    import re
+    root = Path(__file__).resolve().parents[2]
+    e = (root / "backend" / "engine.py").read_text()
+    a = (root / "app" / "renderer" / "app.js").read_text()
+    shop = a[a.index("SHOP_FAMILIES"):a.index("UPSCALER_GROUPS")]
+    chips = a[a.index("    modelFilters() {"):a.index("    detailList()")] + re.search(r"const NEW_FAST = \[(.*?)\]", a).group(1)
+    for f in set(re.findall(r'"family": "(\w+)"', e)):
+        assert f'"{f}"' in shop, f
+        assert f'"{f}"' in chips, f

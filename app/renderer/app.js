@@ -1130,7 +1130,7 @@ const protoartApp = createApp({
       ],
       // Models tab: the model-type list, in two groups (ids as before: fl:… are SDXL-based kinds)
       SHOP_FAMILIES: [
-        { label: "⚡ Fast engine", items: [{ id: "flux", label: "FLUX" }, { id: "flux2", label: "FLUX.2 Klein" }, { id: "zimage", label: "Z-Image" }, { id: "qwen21", label: "Qwen-Image" }, { id: "krea2", label: "Krea 2" }, { id: "fibo2", label: "FIBO 2" }, { id: "ernie", label: "ERNIE" }, { id: "anima", label: "Anima" }, { id: "moss", label: "MOSS" }] },
+        { label: "⚡ Fast engine", items: [{ id: "flux", label: "FLUX" }, { id: "flux2", label: "FLUX.2 Klein" }, { id: "flux3", label: "FLUX 3" }, { id: "zimage", label: "Z-Image" }, { id: "qwen21", label: "Qwen-Image" }, { id: "krea2", label: "Krea 2" }, { id: "fibo2", label: "FIBO 2" }, { id: "ernie", label: "ERNIE" }, { id: "anima", label: "Anima" }, { id: "moss", label: "MOSS" }, { id: "h3", label: "MiniMax-H3" }] },
         { label: "Stable Diffusion", items: [{ id: "sdxl", label: "SDXL" }, { id: "fl:pony", label: "Pony" }, { id: "fl:illustrious", label: "Illustrious" }, { id: "fl:noobai", label: "NoobAI" }, { id: "sd15", label: "SD 1.5" }] },
       ],
       UPSCALER_GROUPS: [
@@ -2701,6 +2701,7 @@ const protoartApp = createApp({
         { id: "all", label: "All", count: this.installedModels.length },
         { id: "fav", label: "★ Favorites", count: count((m) => this.isFav(m)) },
         { id: "flux2", label: "Klein", count: count((m) => m.family === "flux2") },
+        { id: "flux3", label: "FLUX 3", count: count((m) => m.family === "flux3") },
         ...NEW_FAST.map((f) => ({ id: f, label: FAMILY_LABEL[f], count: count((m) => m.family === f) })),
         { id: "flux", label: "FLUX", count: count((m) => m.family === "flux") },
         { id: "ernie", label: "ERNIE", count: count((m) => m.family === "ernie") },
@@ -2786,6 +2787,7 @@ const protoartApp = createApp({
     modelGroups() {
       const groups = [
         { name: "FLUX.2 Klein", models: this.models.filter((m) => m.family === "flux2") },
+        { name: "FLUX 3 Image Klein (makes and edits)", models: this.models.filter((m) => m.family === "flux3") },
         { name: "MiniMax-H3-Image (creates and edits; ~4 min a picture on 8 GB)", models: this.models.filter((m) => m.family === "h3") },
         { name: "Z-Image", models: this.models.filter((m) => m.family === "zimage") },
         { name: "Qwen-Image 2.1", models: this.models.filter((m) => m.family === "qwen21") },
@@ -4790,7 +4792,7 @@ const protoartApp = createApp({
       }
       this.form.clip_skip = this.clipSkipFor(m);
       Object.assign(this.form, { width: m.defaults.width, height: m.defaults.height, steps: m.defaults.steps, cfg: m.defaults.cfg });
-      if (["ernie", "flux", "flux2", "moss", ...NEW_FAST].includes(m.family) && this.sys.ram_gb && this.sys.ram_gb < 12) {
+      if (["ernie", "flux", "flux2", "flux3", "moss", ...NEW_FAST].includes(m.family) && this.sys.ram_gb && this.sys.ram_gb < 12) {
         Object.assign(this.form, { width: 768, height: 768 }); // 8 GB Macs: Medium is ~2x faster than 1024
         this.status = `Size set to Medium (768) for ${FAMILY_LABEL[m.family]} on this Mac; Large (1024) takes about twice as long`;
       }
@@ -10275,7 +10277,7 @@ const protoartApp = createApp({
 
     // -------------------------------------------------------------- random prompt
     naturalPrompts() {  // models that read sentences get sentence prompts from 🎲 Random prompt
-      return ["ernie", "flux", "flux2", "moss", "h3", ...NEW_FAST].includes(this.family);
+      return ["ernie", "flux", "flux2", "flux3", "moss", "h3", ...NEW_FAST].includes(this.family);
     },
     // 📚 a few extra details from the Ideas (safe ones), from categories picked at random.
     // People get pose/expression/hair/clothes/…; animals and scenery only get framing and style.
