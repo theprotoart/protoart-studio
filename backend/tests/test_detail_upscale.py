@@ -5,10 +5,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import pytest  # noqa: E402
-
-np = pytest.importorskip("numpy")
-Image = pytest.importorskip("PIL.Image")
+import numpy as np  # noqa: E402
+from PIL import Image  # noqa: E402
 
 
 def test_detail_upscale_tiles_and_blends():
