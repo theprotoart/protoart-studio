@@ -2090,7 +2090,21 @@ class Engine:
         except h3_engine.H3Error as e:
             raise UserError(str(e))
 
-    def _h3_picture(self, prompt, out, width, height, seed, refs=(), image=1, images=1, extra_steps=0, ref_sides=None):
+    def _family_loras(self, args, family, type_name):
+        """[(file, strength)] for the LoRAs in args, all checked to be of this model family (.safetensors)."""
+        out = []
+        if args.get("loras"):
+            available = {l["name"]: l for l in lora_scan.all_loras(paths.LORAS_DIR)}
+            for r in args["loras"]:
+                info = available.get(r.get("name"))
+                if info is None or info["family"] != family or not info["file"].endswith(".safetensors"):
+                    raise UserError(f"LoRA '{r.get('name')}' wasn't made for this model (if it was, set its type to "
+                                    f"{type_name} in Models → Fix a type).")
+                out.append([info["file"], float(r.get("weight", 1.0))])
+        return out
+
+    def _h3_picture(self, prompt, out, width, height, seed, refs=(), image=1, images=1, extra_steps=0, ref_sides=None,
+                    loras=None):
         """One MiniMax-H3-Image picture into out, with one progress bar for its stages. -> timings"""
         import h3_engine
         py = self._h3_python()
@@ -2115,7 +2129,8 @@ class Engine:
                            "step": state["base"] + min(6, ev["step"]), "steps": total})
 
         try:
-            return h3_engine.picture(py, prompt, out, width, height, seed, refs, on_event, self.cancel_event, ref_sides)
+            return h3_engine.picture(py, prompt, out, width, height, seed, refs, on_event, self.cancel_event, ref_sides,
+                                     loras=loras)
         except h3_engine.Cancelled:
             raise Cancelled()
         except h3_engine.H3Error as e:
@@ -2126,8 +2141,7 @@ class Engine:
         import h3_engine
         import pictures
         from PIL import Image
-        if args.get("loras"):
-            raise UserError("MiniMax-H3-Image can't use LoRAs: take them out of the LoRA list first.")
+        h3_loras = self._family_loras(args, "h3", "MiniMax-H3")  # your MiniMax-H3 LoRAs, beside its weights
         if not h3_engine.licence_accepted():
             raise UserError("MiniMax-H3-Image: accept its licence first (the card under the model in Create).")
         width, height = max(256, int(width) // 32 * 32), max(256, int(height) // 32 * 32)
@@ -2160,7 +2174,8 @@ class Engine:
                 k = (2048 * 2048 / (width * height)) ** 0.5
                 draw_w, draw_h = min(4096, int(width * k) // 32 * 32), min(4096, int(height * k) // 32 * 32)
             timings = self._h3_picture(p_run, out, draw_w, draw_h, img_seed, refs, i + 1, n,
-                                       ref_sides=[min(draw_w, draw_h)] + [512] * (len(refs) - 1) if refs else None)
+                                       ref_sides=[min(draw_w, draw_h)] + [512] * (len(refs) - 1) if refs else None,
+                                       loras=h3_loras)
             image = Image.open(out).convert("RGB")
             if image.size != (width, height):
                 image = image.resize((width, height), Image.LANCZOS)
@@ -2173,7 +2188,9 @@ class Engine:
                   f"stages {timings}", flush=True)
             settings = {"model": model_id, "prompt": p_run, "negative_prompt": "", "width": image.width,
                         "height": image.height, "steps": 6, "cfg": 1.0, "sampler": "flow", "seed": img_seed,
-                        "engine": "h3", "loras": [], "seconds": round(secs, 1)}
+                        "engine": "h3", "seconds": round(secs, 1),
+                        "loras": [{"name": l["name"], "weight": float(l.get("weight", 1.0))}
+                                  for l in args.get("loras") or [] if isinstance(l, dict) and l.get("name")]}
             if (draw_w, draw_h) != (width, height):
                 settings["drawn_at"] = f"{draw_w}x{draw_h}"
             if refs and args.get("init_image"):
@@ -2210,15 +2227,7 @@ class Engine:
         if args.get("init_image"):
             raise UserError("MOSS-Image makes new pictures from a prompt only: for Image to image, pick an SD 1.5 / SDXL "
                             "model or FLUX.2 Klein (Edit with words).")
-        user_loras = []  # your MOSS LoRAs (LoRA or LoKr files; moss_lora.py), attached when the model loads
-        if args.get("loras"):
-            available = {l["name"]: l for l in lora_scan.all_loras(paths.LORAS_DIR)}
-            for r in args["loras"]:
-                info = available.get(r.get("name"))
-                if info is None or info["family"] != "moss" or not info["file"].endswith(".safetensors"):
-                    raise UserError(f"LoRA '{r.get('name')}' wasn't made for MOSS-Image (if it was, set its type to "
-                                    "MOSS in Models → Fix a type).")
-                user_loras.append([info["file"], float(r.get("weight", 1.0))])
+        user_loras = self._family_loras(args, "moss", "MOSS")  # LoRA or LoKr files (moss_lora.py), attached at load
         need = spec.get("min_ram_gb") or 16
         ram = total_ram_gb()
         if ram and ram < 8 and not force:

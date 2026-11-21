@@ -303,7 +303,7 @@ def _cache_key(prompt, refs):
 
 
 def picture(python, prompt, out, width=1024, height=1024, seed=42, refs=(), on_event=lambda ev: None,
-            cancel_event=None, ref_sides=None):
+            cancel_event=None, ref_sides=None, loras=None):
     """One picture -> out (PNG). refs: reference pictures (Edit: "<Picture 1>" is the first); ref_sides: the short side
     each goes in at (each costs as much work as the picture drawn: (side/32)² tokens). Returns the timings."""
     if not ready():
@@ -320,6 +320,7 @@ def picture(python, prompt, out, width=1024, height=1024, seed=42, refs=(), on_e
         work = Path(tmp)
         (work / "request.json").write_text(json.dumps({
             "prompt": prompt, "width": width, "height": height, "seed": int(seed) % 2**31, "refs": refs, "ref_sides": sides,
+            "loras": [[str(f), float(w)] for f, w in (loras or [])],  # your MiniMax-H3 LoRAs: (file, strength)
             "paths": {k: str(v) for k, v in files().items()}}))
         stages = ["text", *(["refs"] if refs else []), "dit", "vae"]
         if cached.exists():

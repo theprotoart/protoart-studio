@@ -93,3 +93,25 @@ def test_fused_lokr_slices_add_up():
     t = (w1 @ (x.reshape(5, 4, 3) @ w2.T)).reshape(5, 24)
     parts = [t[:, s:s + 8] for s in (0, 8, 16)]
     assert np.allclose(np.concatenate(parts, 1), full)
+
+
+def test_minimax_h3_and_new_model_loras_found():
+    h3 = {"__metadata__": {"modelspec.architecture": "minimaxh3image/lora"},
+          "diffusion_model.blocks.0.attn.qkv_proj.lora_A.weight": {}}
+    assert loras.detect_family(h3) == "h3"
+    keys = {"diffusion_model.blocks.0.attn.qkv_proj.lora_A.weight": {}, "diffusion_model.blocks.0.mlp.fc1.lora_A.weight": {},
+            "diffusion_model.token_refiner.blocks.0.attn.out_proj.lora_B.weight": {}}
+    assert loras.detect_family(keys) == "h3"  # by its own layer names, no metadata
+    zimage = {"diffusion_model.layers.0.attention.to_q.lora_A.weight": {}}
+    assert loras.detect_family(zimage, "Me-zimage-epoch-10 (1)") == "zimage"  # the file name tells
+    assert loras.detect_family(zimage, "oksana-ernie-epoch-10") == "ernie"
+    assert loras.detect_family(zimage) == "ernie"
+
+
+def test_every_catalog_model_type_takes_loras_or_is_known_not_to():
+    """A new model added to the catalog gets a LoRA type (FAMILIES, the app's list, Fix a type) at the same time."""
+    import re
+    from pathlib import Path
+    e = (Path(__file__).resolve().parents[1] / "engine.py").read_text()
+    no_loras = {"anima"}
+    assert set(re.findall(r'"family": "(\w+)"', e)) - set(loras.FAMILIES) <= no_loras

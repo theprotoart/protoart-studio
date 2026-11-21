@@ -2,6 +2,12 @@
 
 ## 1.6.25
 
+- LoRAs for MiniMax-H3-Image: new LoRA family `h3` (detected by `modelspec.architecture` "minimaxh3image", or its
+  `blocks.N.attn.qkv_proj` + `mlp.fc1` / `token_refiner` keys), applied in the picture stage through h3-image-mlx's LoRA
+  side path, several at once with their strengths (`h3_worker.use_loras`); recorded in the picture's info.
+- New models' LoRAs: `loras.NAME_HINTS` maps words in a LoRA's metadata or file name to a family (h3, ideogram4, moss,
+  zimage, qwen21, krea2, fibo2, flux3, flux2, ernie); a "diffusion_model." LoRA no longer falls straight to ERNIE.
+  `ideogram4` is a LoRA family; a test checks every catalog model type has a LoRA type (Anima excepted).
 - LoRA strength: the slider goes from −4 to 4 (was −2 to 2) and the number box from −10 to 10 (Create, Image to image
   and Random LoRAs).
 - Fixed: MOSS-Image pictures made with your LoRAs said "LoRAs: none" in their info (the LoRAs were applied, just not

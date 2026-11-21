@@ -12,7 +12,35 @@ import nsfw
 
 # Every model type a LoRA can be made for. The app's "Fix a type" buttons and LoRA lists come from this list
 # (bee_backend "lora_families"), so a new base model only needs adding here (and a label in FAMILY_LABEL in app.js).
-FAMILIES = ("sd15", "sdxl", "flux", "flux2", "flux3", "ernie", "zimage", "qwen21", "krea2", "fibo2", "moss")
+FAMILIES = ("sd15", "sdxl", "flux", "flux2", "flux3", "ernie", "zimage", "qwen21", "krea2", "fibo2", "moss", "h3",
+            "ideogram4")
+
+# Words in a LoRA's metadata (modelspec.architecture, ss_base_model_version) or its file name that name the model it was
+# trained for: the way a new model's LoRAs are recognised before anything else is known about them. Checked in order
+# (more specific first); a new model needs only a line here (and its family in FAMILIES / the app's LORA_FAMILIES).
+NAME_HINTS = (
+    ("h3", ("minimaxh3", "minimax-h3", "minimax_h3", "minimax h3", "h3image", "h3-image", "h3_image")),
+    ("ideogram4", ("ideogram4", "ideogram-4", "ideogram_4", "ideogram 4")),
+    ("moss", ("moss-image", "moss_image", "mossimage", "moss")),
+    ("zimage", ("z-image", "z_image", "zimage", "zit_", "zit-")),
+    ("qwen21", ("qwen-image", "qwen_image", "qwenimage")),
+    ("krea2", ("krea-2", "krea_2", "krea2")),
+    ("fibo2", ("fibo-2", "fibo_2", "fibo2", "fibo")),
+    ("flux3", ("flux3", "flux.3", "flux-3", "flux_3", "flux 3")),
+    ("flux2", ("flux2", "flux.2", "flux-2", "flux_2", "klein")),
+    ("ernie", ("ernie",)),
+)
+
+
+def hint_family(*texts):
+    """The model family named in any of these texts (metadata values, file name), or None."""
+    t = " ".join(str(x).lower() for x in texts if x)
+    if not t:
+        return None
+    for fam, words in NAME_HINTS:
+        if any(w in t for w in words):
+            return fam
+    return None
 
 
 # SDXL "flavours": fine-tuned SDXL families that are used differently from plain SDXL
@@ -52,8 +80,9 @@ def read_safetensors_header(path):
         return json.loads(f.read(n))
 
 
-def detect_family(header):
-    """Return 'sd15', 'sdxl', 'ernie' or 'unknown' for a safetensors header dict."""
+def detect_family(header, name=None):
+    """The model family of a LoRA from its safetensors header (and, when its keys don't tell, its file name `name`):
+    one of FAMILIES, or 'unknown'."""
     meta = header.get("__metadata__") or {}
     explicit = (meta.get("beestudio_family") or "").lower()
     if explicit in FAMILIES:
@@ -63,14 +92,9 @@ def detect_family(header):
         return "sdxl"
     if base.startswith("sd_v1") or "v1" in base and "stable-diffusion" in base:
         return "sd15"
-    if "ernie" in base:
-        return "ernie"
-    if "moss" in base:
-        return "moss"
-    if any(m in base for m in ("flux3", "flux.3", "flux-3", "flux_3", "flux 3")):
-        return "flux3"
-    if any(m in base for m in ("flux2", "flux.2", "flux-2", "flux_2", "klein")):
-        return "flux2"
+    named = hint_family(base)
+    if named:
+        return named
     if "flux" in base:
         return "flux"
 
@@ -95,9 +119,14 @@ def detect_family(header):
     # MOSS-Image's picture model: layers.N.proj.(q|k|v|o|ffn_up_gate|ffn_down) (its own module names)
     if re.search(r"layers[._]\d+[._]proj[._](?:ffn_up_gate|ffn_down|q|k|v|o)\b", joined):
         return "moss"
+    # MiniMax-H3-Image: blocks.N.attn.qkv_proj / out_proj, blocks.N.mlp.fc1 / fc2, and its token_refiner
+    if re.search(r"(?:^|[._])token_refiner[._]blocks", joined) or (
+            re.search(r"blocks[._]\d+[._]attn[._]qkv_proj", joined) and re.search(r"blocks[._]\d+[._]mlp[._]fc1", joined)):
+        return "h3"
     if any(k.startswith(("transformer.", "diffusion_model.", "lora_transformer_")) for k in keys):
-        return "ernie"
-    return "unknown"
+        # a "diffusion_model." LoRA of a newer model: ERNIE unless its file name / title says which ("…-zimage-…")
+        return hint_family(name, meta.get("modelspec.title"), meta.get("ss_output_name")) or "ernie"
+    return hint_family(name, meta.get("modelspec.title"), meta.get("ss_output_name")) or "unknown"
 
 
 def _flux_generation(joined):
@@ -125,7 +154,7 @@ def _file_info(p):
         return c[2], c[3], c[4], st
     try:
         header = read_safetensors_header(p)
-        family = detect_family(header)
+        family = detect_family(header, p.stem)
         meta = header.get("__metadata__") or {}
         is_lora = any(m in k.lower() for k in header if k != "__metadata__" for m in LORA_KEY_MARKERS)
         if not is_lora:

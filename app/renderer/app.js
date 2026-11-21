@@ -587,8 +587,8 @@ const FAMILY_LABEL = { sd15: "SD 1.5", sdxl: "SDXL", ernie: "ERNIE", flux: "FLUX
 // Every model type a LoRA can be made for: the same list as FAMILIES in backend/loras.py (a test keeps them equal).
 // The "Fix a type" and LoRA-folder type buttons are built from it, so a new base model shows up there by adding it
 // to both lists (and a name in FAMILY_LABEL).
-const LORA_FAMILIES = ["sd15", "sdxl", "flux", "flux2", "flux3", "ernie", "zimage", "qwen21", "krea2", "fibo2", "moss"];
-const LORA_TYPE_LABEL = { flux2: "Klein", moss: "MOSS" };  // shorter button names where FAMILY_LABEL is long
+const LORA_FAMILIES = ["sd15", "sdxl", "flux", "flux2", "flux3", "ernie", "zimage", "qwen21", "krea2", "fibo2", "moss", "h3", "ideogram4"];
+const LORA_TYPE_LABEL = { flux2: "Klein", moss: "MOSS", h3: "MiniMax-H3", ideogram4: "Ideogram 4" };  // shorter button names where FAMILY_LABEL is long
 const SD_FAMILIES = ["sd15", "sdxl", "sd2"];
 const NEW_FAST = ["zimage", "qwen21", "krea2", "fibo2", "ideogram4"];  // FLUX.2 [klein] 4B: named by the model, so its LoRAs and models match
 const OPTS_KEY = "beestudio.opts";
@@ -1246,6 +1246,8 @@ const protoartApp = createApp({
           sections: [
             { h: "1.6.25: 📦 boxes for FLUX.1, Klein and ERNIE", items: [
               "<b>📦 Boxes now work with FLUX.1, FLUX.2 Klein and ERNIE</b> (🗺 Regions), not just FLUX 3, Ideogram 4 and MOSS-Image: templates like 🎮 Game cover collage keep their panels and title there instead of turning into thin columns.",
+              "<b>LoRAs for MiniMax-H3-Image</b>: your MiniMax-H3 LoRAs (from ai-toolkit and the like) are now found, listed under a MiniMax-H3 type (Models → Fix a type has it too) and applied when you make a picture with MiniMax-H3. They were being listed as ERNIE.",
+              "<b>LoRAs for new models are recognised better</b>: a LoRA's own description of the model it was made for (and, when that's missing, words in its file name like <i>zimage</i>, <i>minimax-h3</i>, <i>qwen-image</i>, <i>moss</i>) now decides its type, instead of falling back to ERNIE. Ideogram 4 has a LoRA type too.",
               "<b>Stronger LoRAs</b>: each LoRA's slider now goes up to 4 (and down to −4), and you can type up to 10 in its number box.",
               "Fixed: MOSS-Image pictures made with your LoRAs now list them in the picture's info (they were applied, but it said “none”).",
               "While Regions redraws one area at a time, the live preview says which area it's showing (it's just that part of the picture, so it can look like a thin strip).",

@@ -7,6 +7,7 @@ so each stage hands its memory back to macOS when it ends.
 Progress and results are JSON lines on stdout. Inference is h3-image-mlx (vendor/h3_image_mlx, Apache-2.0, unmodified);
 the only addition here is reading the 4-bit projections (patch())."""
 import json
+import os
 import struct
 import sys
 import time
@@ -156,6 +157,31 @@ def patch():
     return core
 
 
+def use_loras(dit_module, items):
+    """Attach LoRAs [(file, strength), …] to the picture model. h3-image-mlx reads one LoRA file (H3_LORA) and adds
+    x·Aᵀ·Bᵀ·alpha/rank beside each projection; this hands it one that sums several, each times its strength."""
+    real = dit_module.Weights
+    files = [(real(str(f)), float(s)) for f, s in items]
+
+    class Several:
+        def delta(self, prefix, x):
+            total = None
+            for w, s in files:
+                d = w.delta(prefix, x)
+                if d is not None:
+                    d = d * s
+                    total = d if total is None else total + d
+            return total
+
+    several = Several()
+
+    def weights(path, *a, **k):
+        return several if path == "__protoart_loras__" else real(path, *a, **k)
+
+    dit_module.Weights = weights
+    os.environ["H3_LORA"] = "__protoart_loras__"
+
+
 def size_refs(sides):
     """Reference pictures go in at the size asked for (h3-image-mlx enlarges each to at least 1024 on its short side:
     six pictures then cost ~6,000 tokens a step, 44 minutes on an 8 GB M1). sides: {path: short side}."""
@@ -205,7 +231,10 @@ def stage(name, work):
             out(type="progress", stage="refs", step=i + 1, steps=len(refs))
         mx.save_safetensors(str(work / "references.safetensors"), zs)
     elif name == "dit":
+        from h3_image_mlx import dit as _dit
         from h3_image_mlx.dit import denoise
+        if req.get("loras"):  # your LoRAs: each runs beside the quantized weights (h3-image-mlx's LoRA path), scaled
+            use_loras(_dit, req["loras"])
         e = mx.load(str(work / "embedding.safetensors"))
         zs = []
         if refs:
