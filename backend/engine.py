@@ -2344,7 +2344,9 @@ class Engine:
                 settings = {"model": model_id, "prompt": p_i, "negative_prompt": n_i, "width": image.width,
                             "height": image.height, "steps": 15 if spec.get("moss_turbo") else steps, "cfg": cfg,
                             "sampler": "flow_euler" + (" · turbo" if spec.get("moss_turbo") else ""), "seed": img_seed,
-                            "engine": "moss", "loras": [], "seconds": round(secs, 1)}
+                            "engine": "moss", "seconds": round(secs, 1),
+                            "loras": [{"name": l["name"], "weight": float(l.get("weight", 1.0))}
+                                      for l in args.get("loras") or [] if isinstance(l, dict) and l.get("name")]}
                 if o_i and o_i != p_i:
                     settings["original_prompt"] = o_i
                 if args.get("restore_faces"):

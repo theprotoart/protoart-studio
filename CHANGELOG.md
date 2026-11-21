@@ -2,6 +2,8 @@
 
 ## 1.6.25
 
+- Fixed: MOSS-Image pictures made with your LoRAs said "LoRAs: none" in their info (the LoRAs were applied, just not
+  written down).
 - 🗺 Regions on FLUX.1 / FLUX.2 Klein / ERNIE (redrawn by parts) take 📦 Boxes too (`area_boxes` with the drawn boxes),
   so templates like 🎮 Game cover collage keep their layout there instead of turning into thin columns. The live
   preview says when it shows one area being redrawn.
