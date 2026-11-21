@@ -1246,6 +1246,7 @@ const protoartApp = createApp({
           sections: [
             { h: "1.6.25: 📦 boxes for FLUX.1, Klein and ERNIE", items: [
               "<b>📦 Boxes now work with FLUX.1, FLUX.2 Klein and ERNIE</b> (🗺 Regions), not just FLUX 3, Ideogram 4 and MOSS-Image: templates like 🎮 Game cover collage keep their panels and title there instead of turning into thin columns.",
+              "<b>Stronger LoRAs</b>: each LoRA's slider now goes up to 4 (and down to −4), and you can type up to 10 in its number box.",
               "Fixed: MOSS-Image pictures made with your LoRAs now list them in the picture's info (they were applied, but it said “none”).",
               "While Regions redraws one area at a time, the live preview says which area it's showing (it's just that part of the picture, so it can look like a thin strip).",
             ] },

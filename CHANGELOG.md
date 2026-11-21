@@ -2,6 +2,8 @@
 
 ## 1.6.25
 
+- LoRA strength: the slider goes from −4 to 4 (was −2 to 2) and the number box from −10 to 10 (Create, Image to image
+  and Random LoRAs).
 - Fixed: MOSS-Image pictures made with your LoRAs said "LoRAs: none" in their info (the LoRAs were applied, just not
   written down).
 - 🗺 Regions on FLUX.1 / FLUX.2 Klein / ERNIE (redrawn by parts) take 📦 Boxes too (`area_boxes` with the drawn boxes),

@@ -594,9 +594,9 @@
           </div>
           <div class="lora-rand-line">
             <span class="hint">each at a strength between</span>
-            <input type="number" min="-2" max="2" step="0.05" v-model.number="loraRand.wmin" class="num" title="Lowest strength a random LoRA gets (1 = full, 0.5 = half)">
+            <input type="number" min="-10" max="10" step="0.05" v-model.number="loraRand.wmin" class="num" title="Lowest strength a random LoRA gets (1 = full, 0.5 = half)">
             <span class="hint">and</span>
-            <input type="number" min="-2" max="2" step="0.05" v-model.number="loraRand.wmax" class="num" title="Highest strength a random LoRA gets (1 = full)">
+            <input type="number" min="-10" max="10" step="0.05" v-model.number="loraRand.wmax" class="num" title="Highest strength a random LoRA gets (1 = full)">
           </div>
           <label class="check lora-rand-every" title="Each time you press Generate, every LoRA in the list is swapped for a new random mix">
             <input type="checkbox" v-model="loraRand.every"> New random mix every time I press Generate</label>
@@ -604,8 +604,8 @@
         <div v-for="(l, i) in form.loras" :key="l.name" class="lora-active" @contextmenu.prevent="menuLora($event, loras.find((x) => x.name === l.name) || l, i)">
         <div class="lora-row">
           <span class="lora-name" :title="l.name">{{ l.name }}</span>
-          <input type="range" min="-2" max="2" step="0.05" v-model.number="l.weight" title="How strongly this LoRA is used (1 = full, 0.5 = half)">
-          <input type="number" min="-5" max="5" step="0.05" v-model.number="l.weight" class="num" title="How strongly this LoRA is used (1 = full, 0.5 = half)">
+          <input type="range" min="-4" max="4" step="0.05" v-model.number="l.weight" title="How strongly this LoRA is used (1 = full, 0.5 = half)">
+          <input type="number" min="-10" max="10" step="0.05" v-model.number="l.weight" class="num" title="How strongly this LoRA is used (1 = full, 0.5 = half)">
           <button class="ghost" @click="form.loras.splice(i,1)" title="Remove">✕</button>
         </div>
         <div class="lora-default-row">
@@ -4085,8 +4085,8 @@
           <button v-if="form.loras.length" class="link small-link" @click="form.loras = []">clear all</button><span class="cfold-chev" aria-hidden="true"></span></h3>
         <div v-for="(l, i) in form.loras" :key="l.name" class="lora-row">
           <span class="lora-name" :title="l.name">{{ l.name }}</span>
-          <input type="range" min="-2" max="2" step="0.05" v-model.number="l.weight">
-          <input type="number" min="-5" max="5" step="0.05" v-model.number="l.weight" class="num">
+          <input type="range" min="-4" max="4" step="0.05" v-model.number="l.weight">
+          <input type="number" min="-10" max="10" step="0.05" v-model.number="l.weight" class="num">
           <button class="ghost" @click="form.loras.splice(i,1)" title="Remove">✕</button>
         </div>
         <div class="lora-search-row">
