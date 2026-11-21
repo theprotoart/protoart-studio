@@ -6274,6 +6274,15 @@ const protoartApp = createApp({
     },
     createArgs(overrides) {
       // everything the Create tab sends; pictures, masks and ControlNet live in the Image to image tab
+      const f0 = this.form;
+      if (Math.min(f0.width, f0.height) < 256 || Math.max(f0.width, f0.height) / Math.min(f0.width, f0.height) > 4) {
+        // a size typed half-way or carried over from somewhere (192 × 1024 made a thin strip): back to a usable one
+        const [w0, h0] = [f0.width, f0.height];
+        if (Math.max(w0, h0) / Math.min(w0, h0) > 4) { const side = this.snap(Math.sqrt(w0 * h0)); f0.width = side; f0.height = side; }
+        f0.width = this.snap(f0.width); f0.height = this.snap(f0.height);
+        if (f0.size_link) f0.size_ratio = f0.width / f0.height;
+        this.status = `The picture size was ${w0} × ${h0} (too thin to make a good picture): made ${f0.width} × ${f0.height} instead. Change it under Size if you like.`;
+      }
       const args = JSON.parse(JSON.stringify(this.form));
       args.init_image = "";
       delete args.control;
