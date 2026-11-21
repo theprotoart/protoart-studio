@@ -1673,7 +1673,7 @@ class Engine:
         rg = args["regions"]
         family = all_models()[args["model"]]["family"]
         rps = [x.strip() for x in rg.get("prompts") or [] if isinstance(x, str) and x.strip()]
-        boxes = regions.parse_layout(rg.get("layout") or "cols", rg.get("ratios") or "", len(rps))
+        boxes = regions.area_boxes(rg.get("layout"), rg.get("ratios"), len(rps), rg.get("boxes"))  # 📦 drawn boxes too
         main = (args.get("prompt") or "").strip().rstrip(".")
         places = [self._region_place(b) for b in boxes]
         composed = ". ".join([main] if main else []) + ("." if main else "")

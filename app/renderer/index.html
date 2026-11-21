@@ -712,7 +712,7 @@
               <button :class="{on: form.regions.layout === 'cols'}" @click="setRegionLayout('cols')" title="Areas side by side, left to right">Columns</button>
               <button :class="{on: form.regions.layout === 'rows'}" @click="setRegionLayout('rows')" title="Areas stacked, top to bottom">Rows</button>
               <button :class="{on: form.regions.layout === 'grid'}" @click="setRegionLayout('grid')" title="Rows of areas: e.g. 1,1;1 = two on top, one below">Grid</button>
-              <button v-if="regionsLayout()" :class="{on: form.regions.layout === 'free'}" @click="setRegionLayout('free')" title="Draw your own boxes anywhere on the picture: drag to draw, drag a box to move it, its corner to resize">📦 Boxes</button>
+              <button v-if="regionsLayout() || regionsByParts()" :class="{on: form.regions.layout === 'free'}" @click="setRegionLayout('free')" title="Draw your own boxes anywhere on the picture: drag to draw, drag a box to move it, its corner to resize">📦 Boxes</button>
             </div>
             <input v-if="form.regions.layout !== 'free'" v-model="form.regions.ratios" class="reg-ratios" :placeholder="form.regions.layout === 'grid' ? '1,1;1' : '1,1'"
                    :title="form.regions.layout === 'grid' ? 'Each row\'s area widths, rows separated by ; (1,1;1 = two on top, one below)' : 'How big each area is: 1,1 = halves, 1,2 = a third and two thirds'">
@@ -1184,6 +1184,7 @@
         <div class="live-caption">
           <span class="live-dot"></span> Live preview<template v-if="progress && progress.job === livePreview.job">
           · image {{ progress.image }}/{{ progress.images }} · step {{ progress.step }}/{{ progress.steps }}</template>
+          <template v-if="(status || '').startsWith('Regions (fast engine)')"> · {{ status.split('·').slice(1).join('·').trim() }} (just that part of the picture)</template>
         </div>
       </div>
       <div v-if="!createSession.length && !busy" class="empty">

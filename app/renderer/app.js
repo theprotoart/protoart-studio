@@ -6314,7 +6314,7 @@ const protoartApp = createApp({
       if (fl && (args.prompt || "").startsWith(fl.pre)) args.film_look = (FILM_LOOKS.find((x) => x.id === fl.id) || {}).name || fl.id;
       const byParts = this.currentModel?.engine === "mlx" && ["flux", "ernie", "flux2"].includes(this.family) || this.regionsLayout();
       if (!(sd || byParts) || !args.regions?.on) delete args.regions;
-      else if (args.regions.layout === "free" && !this.regionsLayout())  // 📦 drawn boxes: FLUX 3, Ideogram 4, MOSS only
+      else if (args.regions.layout === "free" && !this.regionsLayout() && !this.regionsByParts())  // 📦 drawn boxes: not with SD's masks
         args.regions = { ...args.regions, layout: "cols", ratios: args.regions.prompts.map(() => 1).join(",") };
       if (!sd) delete args.seamless;
       return args;

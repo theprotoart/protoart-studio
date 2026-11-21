@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- 🗺 Regions on FLUX.1 / FLUX.2 Klein / ERNIE (redrawn by parts) take 📦 Boxes too (`area_boxes` with the drawn boxes),
+  so templates like 🎮 Game cover collage keep their layout there instead of turning into thin columns. The live
+  preview says when it shows one area being redrawn.
+- Create puts a too-thin size (a side under 256 px, or more than 4:1) back to a usable one before generating.
+
 ## 1.6.24
 
 - 🌴 Crime-game loading-screen art: two of Protoart Studio's own 🎨 style presets (Illustration: Crime Game Loading
