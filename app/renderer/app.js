@@ -843,7 +843,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.24";
+const APP_VERSION = "1.6.25";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1244,6 +1244,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.6.25: 📦 boxes for FLUX.1, Klein and ERNIE", items: [
+              "<b>📦 Boxes now work with FLUX.1, FLUX.2 Klein and ERNIE</b> (🗺 Regions), not just FLUX 3, Ideogram 4 and MOSS-Image: templates like 🎮 Game cover collage keep their panels and title there instead of turning into thin columns.",
+              "While Regions redraws one area at a time, the live preview says which area it's showing (it's just that part of the picture, so it can look like a thin strip).",
+            ] },
             { h: "1.6.24: 🌴 crime-game art & 🎮 game cover, 🕺 character into pose, 🩹 faster Remove", items: [
               "<b>🌴 Crime-game loading-screen art</b>: in Create, 🎨 Style presets → Illustration → <i>Crime Game Loading Screen</i> or <i>Crime Game Character Portrait</i> (bold ink outlines, cel shading, sunset lavender-and-peach palette, palm-tree skyline). In Image to image → ✨ Edit with words → Quick edits, <b>🌴 Crime-game art</b> redraws your photo that way, keeping the face and pose.",
               "<b>🎮 Game cover collage</b>: in Create → 🗺 Regions → templates, 8 illustrated panels and a big title in the middle, as 📦 Boxes (best with FLUX 3: change the title and each panel's scene). Or in ✨ Edit with words, add your pictures under More pictures and press Quick edits → <b>🎮 Game cover collage</b>.",
@@ -6274,15 +6278,6 @@ const protoartApp = createApp({
     },
     createArgs(overrides) {
       // everything the Create tab sends; pictures, masks and ControlNet live in the Image to image tab
-      const f0 = this.form;
-      if (Math.min(f0.width, f0.height) < 256 || Math.max(f0.width, f0.height) / Math.min(f0.width, f0.height) > 4) {
-        // a size typed half-way or carried over from somewhere (192 × 1024 made a thin strip): back to a usable one
-        const [w0, h0] = [f0.width, f0.height];
-        if (Math.max(w0, h0) / Math.min(w0, h0) > 4) { const side = this.snap(Math.sqrt(w0 * h0)); f0.width = side; f0.height = side; }
-        f0.width = this.snap(f0.width); f0.height = this.snap(f0.height);
-        if (f0.size_link) f0.size_ratio = f0.width / f0.height;
-        this.status = `The picture size was ${w0} × ${h0} (too thin to make a good picture): made ${f0.width} × ${f0.height} instead. Change it under Size if you like.`;
-      }
       const args = JSON.parse(JSON.stringify(this.form));
       args.init_image = "";
       delete args.control;
