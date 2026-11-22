@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- MiniMax-H3-Image: ★ best-results shapes 1088 × 1456 (3:4) and 1456 × 1088 (4:3) first in its shape list, shown
+  in gold (`.chip.fav`).
 - Image to image: the ✨ Edit with words and 2 · ControlNet is off panels fold (`i2ifold`, keys `editinfo` / `cnoff`,
   remembered like the others).
 

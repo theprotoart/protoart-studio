@@ -1384,6 +1384,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Next: tidier Image to image", items: [
+              "<b>★ Best-results size for MiniMax-H3-Image</b> (Create → Size): ★ 3:4 (1088 × 1456) and ★ 4:3 (1456 × 1088), the size that's been giving the best pictures, marked in gold in the Medium rows.",
               "The <b>✨ Edit with words</b> and <b>2 · ControlNet is off</b> panels in Image to image fold up like the others: click a title to close or open it, and it stays that way.",
             ] },
             { h: "1.6.26: 🎭 19 Transform a person looks, 🧩 split a character sheet, ✍ touch up cut-outs, shape buttons lined up", items: [
@@ -3799,7 +3800,8 @@ const protoartApp = createApp({
                      ["Portrait 3:4", 864, 1152], ["Landscape 4:3", 1152, 864], ["Tall 9:16", 720, 1280], ["Wide 16:9", 1280, 720],
                      ["Portrait 7:9", 896, 1152], ["Landscape 9:7", 1152, 896], ["Tall 9:21", 576, 1344], ["Cinema 21:9", 1344, 576],
                      ["Large square", 1280, 1280], ["Large 2:3", 1024, 1536], ["Large 3:2", 1536, 1024], ["Best square", 1536, 1536]];
-      sets.h3 = [["Square 1:1", 1024, 1024], ["Portrait 7:9", 896, 1152], ["Landscape 9:7", 1152, 896],  // MiniMax-H3's own list
+      sets.h3 = [["★ Best results: portrait 3:4", 1088, 1456], ["★ Best results: landscape 4:3", 1456, 1088],  // tried and loved
+                 ["Square 1:1", 1024, 1024], ["Portrait 7:9", 896, 1152], ["Landscape 9:7", 1152, 896],  // MiniMax-H3's own list
                  ["Portrait 2:3", 832, 1216], ["Landscape 3:2", 1216, 832], ["Tall 9:16", 768, 1344], ["Wide 16:9", 1344, 768],
                  ["Large square", 1536, 1536], ["Big portrait 3:4", 1536, 2048], ["Big landscape 4:3", 2048, 1536], ["Best square", 2048, 2048]];
       sets.qwen21 = [["Square 1:1", 1024, 1024], ["Portrait 3:4", 896, 1200], ["Landscape 4:3", 1200, 896],  // half of its native 2K list
@@ -3830,7 +3832,7 @@ const protoartApp = createApp({
       const ratioOf = (p) => Math.round((Math.max(p.w, p.h) / Math.min(p.w, p.h)) * 20) / 20;
       const short = (p) => {
         const m = p.label.match(/\d+:\d+/);
-        if (m) return m[0];
+        if (m) return (p.label.startsWith("★") ? "★ " : "") + m[0];
         const g = (a, b) => (b ? g(b, a % b) : a), k = g(p.w, p.h);
         return `${p.w / k}:${p.h / k}`;
       };

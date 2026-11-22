@@ -891,7 +891,7 @@
               <template v-for="r in b.rows" :key="r.key">
                 <span class="shape-row">{{ r.label }}</span>
                 <template v-for="(p, i) in r.cells" :key="r.key + i">
-                  <button v-if="p" class="chip" :class="{on: form.width===p.w && form.height===p.h}"
+                  <button v-if="p" class="chip" :class="{on: form.width===p.w && form.height===p.h, fav: p.label.startsWith('★')}"
                           @click="applySizePreset(p)" :title="p.label + ': ' + p.w + ' × ' + p.h">{{ p.short }}</button>
                   <span v-else></span>
                 </template>

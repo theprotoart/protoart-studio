@@ -2823,3 +2823,5 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .sheet-h { position: absolute; right: -6px; bottom: -6px; width: 12px; height: 12px; background: #f5c04a; border: 2px solid #111; border-radius: 2px; cursor: nwse-resize; }
 .cn-off .cn-off-head { font-size: 12px; margin: 0 0 4px; }
 .i2ifold.shut > h3 { margin-bottom: 0; }
+.shape-grid .chip.fav { border-color: #f5c04a; color: #f5c04a; }
+.shape-grid .chip.fav.on { color: inherit; }
