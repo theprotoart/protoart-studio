@@ -1110,7 +1110,8 @@ const protoartApp = createApp({
       qnt: { model: "", bits: 8, msg: "" },  // Tools → Smaller copy
       tup: { scale: 2, strength: 0.25, steps: 24, prompt: "", engine: "z", flow_dpo: true },  // Tools → Tiled upscale (z: Z-Image Turbo)
       cut: { open: false, busy: false, msg: "", path: "", w: 0, h: 0, view: "result", rev: 0, paperView: false },
-      sheet: { open: false, find: "auto", rows: 4, cols: 4, cut: true, square: false, folder: "" },  // 🧩 Split a character sheet  // ✂ Cut out's live preview
+      sheet: { open: false, find: "auto", rows: 4, cols: 4, cut: true, square: false, folder: "", figures: [] },
+      cutFix: { tool: "", size: 30, undo: 0, any: false, figure: null },  // ✍ Cut out's touch-up: brush / lasso to add to or take from the cut-out  // 🧩 Split a character sheet  // ✂ Cut out's live preview
       paperJob: false,
       i2iInpaintPick: "",
       promptCardOver: false,
@@ -1259,6 +1260,8 @@ const protoartApp = createApp({
           sections: [
             { h: "Next: 🧩 split a character sheet, shape buttons lined up", items: [
               "<b>🧩 Split a character sheet</b> (Tools → ✂ Cut out): drop a sheet of poses, expressions or stickers and press 🧩 Split &amp; save all. Each figure is found (Auto, also when they touch, or Grid with rows and columns), cut out on its own at full detail with bits of its neighbours left out, and saved as a see-through PNG to the Library and together in one folder (📂 Show in Finder). <i>Make them all square</i> gives same-size stickers; switch off <i>Cut out each one</i> to just crop them.",
+              "<b>✍ Touch up a cut-out</b> (Tools → ✂ Cut out, after ✂ Cut out): 🖌 Add / 🧽 Remove brushes and ➰ Add / ➰ Remove lassos, right on the picture, for a hand, a sleeve or a prop the finder missed, or background it kept. ↶ Undo goes back a stroke; switch to Mask to see the edge clearly. 💾 Save uses your touch-ups.",
+              "<b>Fix a figure of a split sheet</b>: after 🧩 Split &amp; save all, the figures show as small pictures under the button. Click one to open it in Cut out (from the sheet itself, with its neighbours left out), touch it up, then 💾 Save: the fixed one goes to the Library and takes the old one's place in the sheet's folder.",
               "<b>Shape buttons lined up</b> (Create → Size): Square, Portrait and Landscape each have their own rows, a row per size (Draft, Medium, Large, Best), and portraits sit right over their landscapes (2:3 over 3:2, 9:16 over 16:9). Point at a button for its exact size.",
             ] },
             { h: "1.6.25: 🎚 Denoise, the right sizes for every model, 📦 boxes for FLUX.1, Klein and ERNIE", items: [
@@ -2028,6 +2031,7 @@ const protoartApp = createApp({
               "Drop a <b>.procreate</b> file onto Tools (or Image to image, or anywhere a picture goes): the finished picture opens, with Procreate's colours (Display P3) turned into the usual sRGB. It's read from inside the file; nothing in it changes.",
               "<b>🗂 Bring in its layers</b> (under the picture in Tools): every layer with something on it is saved to the Library as a see-through PNG the size of the canvas, top layer first, plus the finished picture. Each one notes its layer name, opacity, blend mode and whether it was clipped; hidden layers are left out. A big canvas with many layers takes a minute or so." ] },
             { h: "✂ Cut out and 📄 Paper cut-out", items: [
+              "<b>✍ Touch up</b> (after ✂ Cut out): something missing? Pick 🖌 Add and paint over it, or ➰ Add and draw around it. Background left behind? 🧽 Remove or ➰ Remove. Brush size is in screen pixels, so zoom in for small bits. ↶ Undo takes back a stroke.",
               "<b>🧩 Split a character sheet</b>: drop the sheet on the left, open 🧩 Split a character sheet under the Finder and press 🧩 Split &amp; save all. <i>Auto</i> finds each figure by itself; if it gets the count wrong, pick <i>Grid</i> and type the sheet's rows and columns. Every figure goes to the Library and into one folder (Sheets, next to your pictures), named after the sheet with 01, 02… in reading order.",
               "<b>🗂 Split into layers</b> (in Cut out, after ✂ Cut out): saves the subject on see-through and the background with the subject filled in (Smart fill), as two pictures in the Library, to rearrange in Procreate, Photoshop or Puppet warp.",
               "<b>✂ Cut out: which finder?</b> <b>BiRefNet</b> (default) is best for most photos. <b>Anime</b> is made for drawn and anime characters, <b>People</b> for people only, <b>General</b> and <b>Classic</b> (U²-Net) are alternatives when the edge looks wrong. The four extra finders come from rembg and download once (~170 MB each).",
@@ -5645,6 +5649,7 @@ const protoartApp = createApp({
       if (!s) return;
       this.tool.working = { label: "Splitting the sheet", started: Date.now() };
       sh.folder = "";
+      sh.figures = [];
       try {
         const r = await this.runJob("cutout", { ...this.toolArgs(), mode: "sheet", finder: o.finder || "birefnet", threshold: o.threshold,
                                                  softness: o.softness, grow: o.grow, find: sh.find, rows: sh.rows, cols: sh.cols, cut: sh.cut, square: sh.square });
@@ -5652,6 +5657,8 @@ const protoartApp = createApp({
           this.tool.latest = r.records[r.records.length - 1];
           for (const rec of r.records) this.afterPost(rec);
           sh.folder = r.folder;
+          sh.figures = r.records.map((rec, i) => ({ n: (rec.settings && rec.settings.sheet && rec.settings.sheet.figure) || i + 1, path: rec.path, thumb: rec.thumb || rec.path,
+                                                   ...(r.figures && r.figures[i] ? r.figures[i] : {}), square: sh.square }));
           this.status = `${r.records.length} figure${r.records.length === 1 ? "" : "s"} saved to the Library and to one folder (📂 Show them in Finder)`;
         }
       } finally { this.tool.working = null; }
@@ -5678,7 +5685,9 @@ const protoartApp = createApp({
     },
     toolArgs() {
       const s = this.tool.source;
-      return s.image_id != null ? { image_id: s.image_id } : { path: s.path };
+      const a = s.image_id != null ? { image_id: s.image_id } : { path: s.path };
+      if (s.inner) Object.assign(a, { inner: s.inner, edges: s.edges });  // 🧩 a figure of a sheet: leave its neighbours' bits out
+      return a;
     },
     async toolRun(label, args) {
       this.tool.working = { label, started: Date.now() };
@@ -7641,7 +7650,120 @@ const protoartApp = createApp({
         this.error = "Cut out failed: " + (e.message || e);
       }
     },
-    closeCutout() { this.cut.open = false; cutCache = null; },
+    closeCutout() {
+      if (this.tool.source && this.tool.source.sheetOf) this.tool.source = this.tool.source.sheetOf;  // back to the sheet
+      this.cut.open = false; cutCache = null; this.cutFix.tool = ""; this.cutFix.any = false; this.cutFix.undo = 0; this.cutFix.figure = null; },
+    // ✍ Touch up the cut-out: 🖌 brush or ➰ lasso, adding to it (what was missed) or taking away (bits of background)
+    cutFixLayer() {
+      const c = cutCache;
+      if (!c) return null;
+      if (!c.fix) {
+        const cv = document.createElement("canvas");
+        cv.width = c.w; cv.height = c.h;
+        c.fix = { cv, ctx: cv.getContext("2d", { willReadFrequently: true }), undo: [] };
+      }
+      return c.fix;
+    },
+    cutFixPoint(e) {
+      const cv = this.$refs.cutCanvas, r = cv.getBoundingClientRect();
+      return { x: (e.clientX - r.left) / r.width * cv.width, y: (e.clientY - r.top) / r.height * cv.height };
+    },
+    cutFixDown(e) {
+      const t = this.cutFix.tool, f = this.cutFixLayer();
+      if (!t || !f || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();  // painting, not panning
+      e.target.setPointerCapture?.(e.pointerId);
+      f.undo.push(f.ctx.getImageData(0, 0, f.cv.width, f.cv.height));
+      if (f.undo.length > 20) f.undo.shift();
+      this.cutFix.undo = f.undo.length;
+      const p = this.cutFixPoint(e);
+      this._fixStroke = { pts: [p] };
+      if (t.endsWith("brush")) this.cutFixPaint([p, p]);
+    },
+    cutFixMove(e) {
+      const st = this._fixStroke;
+      if (!st) return;
+      const p = this.cutFixPoint(e), last = st.pts[st.pts.length - 1];
+      st.pts.push(p);
+      if (this.cutFix.tool.endsWith("brush")) this.cutFixPaint([last, p]);
+      else this.cutFixLassoPreview(st.pts);
+    },
+    cutFixUp() {
+      const st = this._fixStroke, f = cutCache && cutCache.fix;
+      this._fixStroke = null;
+      if (!st || !f) return;
+      if (this.cutFix.tool.endsWith("lasso") && st.pts.length > 2) {
+        f.ctx.globalCompositeOperation = "source-over";
+        f.ctx.fillStyle = this.cutFix.tool.startsWith("add") ? "#ff0000" : "#0000ff";
+        f.ctx.beginPath();
+        st.pts.forEach((q, i) => (i ? f.ctx.lineTo(q.x, q.y) : f.ctx.moveTo(q.x, q.y)));
+        f.ctx.closePath();
+        f.ctx.fill();
+      }
+      this.cutFix.any = true;
+      this.cutRender();
+    },
+    cutFixPaint(seg) {
+      const f = cutCache && cutCache.fix;
+      if (!f) return;
+      const ctx = f.ctx, k = cutCache.w / (this.$refs.cutCanvas.getBoundingClientRect().width || cutCache.w);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = this.cutFix.tool.startsWith("add") ? "#ff0000" : "#0000ff";
+      ctx.lineWidth = Math.max(1, this.cutFix.size * k);
+      ctx.lineCap = ctx.lineJoin = "round";
+      ctx.beginPath(); ctx.moveTo(seg[0].x, seg[0].y); ctx.lineTo(seg[1].x, seg[1].y); ctx.stroke();
+      this.cutFix.any = true;
+      this.cutRender();
+    },
+    cutFixLassoPreview(pts) {  // the lasso's line while drawing
+      this.cutRender();
+      requestAnimationFrame(() => {
+        const cv = this.$refs.cutCanvas;
+        if (!cv || !this._fixStroke) return;
+        const ctx = cv.getContext("2d");
+        ctx.save();
+        ctx.lineWidth = Math.max(1.5, cv.width / 500);
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = this.cutFix.tool.startsWith("add") ? "#ff4060" : "#40a0ff";
+        ctx.beginPath();
+        pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+        ctx.stroke();
+        ctx.restore();
+      });
+    },
+    cutFixUndo() {
+      const f = cutCache && cutCache.fix;
+      if (!f || !f.undo.length) return;
+      f.ctx.putImageData(f.undo.pop(), 0, 0);
+      this.cutFix.undo = f.undo.length;
+      this.cutRender();
+    },
+    cutFixClear() {
+      const f = cutCache && cutCache.fix;
+      if (!f) return;
+      f.undo.push(f.ctx.getImageData(0, 0, f.cv.width, f.cv.height));
+      f.ctx.clearRect(0, 0, f.cv.width, f.cv.height);
+      this.cutFix.undo = f.undo.length;
+      this.cutFix.any = false;
+      this.cutRender();
+    },
+    cutFixData() {  // the touch-ups for the engine (red = keep, blue = take away), at preview size
+      const f = cutCache && cutCache.fix;
+      return f && this.cutFix.any ? f.cv.toDataURL("image/png") : null;
+    },
+    async sheetFix(fig) {  // ✍ open one figure of a split sheet in Cut out, from the sheet itself, to touch it up
+      const src = this.tool.source;
+      if (!src || !fig) return;
+      try {
+        const r = await call("sheet_crop", { path: fig.sheet, box: fig.box });
+        if (!r || !r.path) return;
+        this.tool.source = { path: r.path, image_id: null, width: r.width, height: r.height, sheetOf: src.sheetOf || src, inner: fig.inner, edges: fig.edges };
+        await this.toolCutout();
+        this.cutFix.figure = fig;
+        this.cutFix.tool = "add_brush";
+      } catch (e) { this.error = "Couldn't open that figure: " + (e.message || e); }
+    },
     cutAlpha() {  // threshold + softness (smoothstep), then grow / shrink (a square window), like the engine
       const c = cutCache, o = this.post.cut;
       if (!c) return null;
@@ -7657,6 +7779,15 @@ const protoartApp = createApp({
       const g = Math.round(o.grow * c.k);
       if (g) a = window.ProtoPuppet.grow(a, c.w, c.h, g);
       if (o.clean || this.cut.paperView) a = cleanBits(a, c.w, c.h);  // like the engine: small specks dropped
+      if (c.fix && this.cutFix.any) {  // ✍ touch-up: red = keep, blue = take away (the last stroke wins)
+        const f = c.fix.ctx.getImageData(0, 0, c.w, c.h).data;
+        for (let i = 0; i < a.length; i++) {
+          const j = i * 4;
+          if (f[j + 3] < 128) continue;
+          if (f[j] > 128) a[i] = 255;
+          else if (f[j + 2] > 128) a[i] = 0;
+        }
+      }
       return a;
     },
     cutRender() {
@@ -7687,7 +7818,7 @@ const protoartApp = createApp({
           if (col) { for (let q = 0; q < 3; q++) d[j + q] = src[j + q] * al + col[q] * (1 - al); d[j + 3] = 255; }
           else { d[j] = src[j]; d[j + 1] = src[j + 1]; d[j + 2] = src[j + 2]; d[j + 3] = a[i]; }
         }
-        if (o.crop && this.cut.view !== "mask") {  // ✂ Crop to the subject: show only the part that will be kept
+        if (o.crop && this.cut.view !== "mask" && !this.cutFix.tool) {  // ✂ Crop to the subject (not while touching up): show only the part that will be kept
           let x0 = c.w, y0 = c.h, x1 = -1, y1 = -1;
           for (let y = 0; y < c.h; y++) for (let x = 0; x < c.w; x++) if (a[y * c.w + x] > 8) {
             if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
@@ -7735,10 +7866,20 @@ const protoartApp = createApp({
       if (!s) return;
       this.tool.working = { label: "Saving the cut-out", started: Date.now() };
       try {
+        const fig = this.cutFix.figure;
         const rec = await this.runJob("cutout", { ...this.toolArgs(), mode: "save", finder: o.finder || "birefnet", threshold: o.threshold, softness: o.softness, grow: o.grow,
-          clean: o.clean, fix_edges: o.fix_edges, crop: o.crop,
+          clean: o.clean, fix_edges: o.fix_edges, crop: fig ? true : o.crop, fix: this.cutFixData(),
+          replace: fig ? fig.file : null, square: fig ? !!fig.square : false,
           background: o.bg === "transparent" ? "transparent" : o.bg === "white" ? "#ffffff" : o.bg === "black" ? "#000000" : o.color });
-        if (rec) { this.tool.latest = rec; this.afterPost(rec); this.closeCutout(); this.status = "Cut-out saved to the Library" + (o.bg === "transparent" ? " (a see-through PNG)" : ""); }
+        if (rec) {
+          this.tool.latest = rec; this.afterPost(rec);
+          if (fig) {  // back to the sheet, with this figure's fixed version in the list and the folder
+            Object.assign(fig, { thumb: rec.thumb || rec.path, path: rec.path, fixed: true });
+            if (this.tool.source && this.tool.source.sheetOf) this.tool.source = this.tool.source.sheetOf;
+          }
+          this.closeCutout();
+          this.status = fig ? `Figure ${fig.n} fixed: saved to the Library and replaced in the sheet's folder` : "Cut-out saved to the Library" + (o.bg === "transparent" ? " (a see-through PNG)" : "");
+        }
       } finally { this.tool.working = null; }
     },
     cutSelectionDataUrl() {  // the refined cut-out as a selection (for 🪡 Puppet warp's subject)

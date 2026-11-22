@@ -1173,6 +1173,20 @@ def handle_quick(cmd, a):
         return {"id": entry["id"], "old": old_id, "label": entry.get("label")}
     if cmd == "kept_list":  # ⚡ Settings → Models kept on this Mac: downloaded models, most used first
         return kept_list()
+    if cmd == "sheet_crop":  # 🧩 one figure's part of a character sheet, to touch it up in ✂ Cut out
+        from PIL import Image, ImageOps
+        src = Path(str(a.get("path") or ""))
+        if not src.is_file():
+            raise FileNotFoundError("The sheet isn't there any more (moved or deleted).")
+        x0, y0, x1, y1 = (int(v) for v in a.get("box") or (0, 0, 0, 0))
+        import pictures
+        with Image.open(pictures.prepare(str(src))) as im:
+            piece = ImageOps.exif_transpose(im).convert("RGB").crop((x0, y0, x1, y1))
+        tmp = Path(paths.HOME) / "tmp"
+        tmp.mkdir(parents=True, exist_ok=True)
+        out = tmp / f"sheet_figure_{os.getpid()}_{int(_t.time() * 1000)}.png"
+        piece.save(out)
+        return {"path": str(out), "width": piece.width, "height": piece.height}
     if cmd == "auto_keep_set":
         library.set_setting("auto_keep_copies", bool(a.get("on")))
         return {"on": bool(a.get("on"))}
@@ -2219,7 +2233,7 @@ def run_side(mid, cmd, a):
 
 # quick commands that talk to a website (up to ~25 s if it's slow or blocked): run beside the reader, so the
 # app stays responsive (an unanswered Check used to leave every other button waiting)
-NET_QUICK = ("select_object", "kept_list", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
+NET_QUICK = ("select_object", "kept_list", "sheet_crop", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
              "train_square_copies", "poselib_thumbs", "poselib_get")  # (that one isn't online, but can take a while for a big folder)
 
 

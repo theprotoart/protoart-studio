@@ -4304,6 +4304,9 @@ class Engine:
             return self._cut_sheet(src, image, args, emit, started)
         emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
         m = self._cut_matte(src, image, emit, str(args.get("finder") or "birefnet"))
+        if args.get("inner"):  # 🧩 one figure of a character sheet: its neighbours' bits are left out
+            import postprocess.sheet as sheet
+            m = sheet.keep_main(m, tuple(int(v) for v in args["inner"]), tuple(bool(v) for v in (args.get("edges") or (True,) * 4)))
         emit({"type": "progress", "image": 1, "images": 1, "step": 1, "steps": 1})
         if mode == "mask":
             png = cut.selection_png(m, args.get("width") or image.width, args.get("height") or image.height)
@@ -4328,6 +4331,8 @@ class Engine:
                            grow=int(opts["grow"] or 0))
         if args.get("clean", True) is not False:
             alpha = cut.clean_bits(alpha)
+        if args.get("fix"):  # ✍ touch-ups painted on the preview: red = keep, blue = take away
+            alpha = cut.apply_fix(alpha, args["fix"])
         if not (alpha > 0.02).any():
             raise UserError("Nothing is left with these settings: lower the threshold, or grow the edge.")
         out = cut.compose(image, alpha, args.get("background"), fix_edges=args.get("fix_edges", True) is not False)
@@ -4336,14 +4341,28 @@ class Engine:
             pad = max(4, round(max(image.size) * 0.01))
             box = (max(0, xs.min() - pad), max(0, ys.min() - pad), min(image.width, xs.max() + 1 + pad), min(image.height, ys.max() + 1 + pad))
             out = out.crop(box)
+        if args.get("square"):
+            import postprocess.sheet as sheet
+            out = sheet.on_square(out)
         settings = dict(src.get("settings") or {})
         settings.update({k: src.get(k) for k in ("prompt", "negative_prompt", "model", "sampler", "steps", "cfg", "seed")})
         settings["loras"] = src.get("loras") or []
         settings.update(width=out.width, height=out.height, seconds=round(time.time() - started, 1),
                         cutout={**opts, "background": args.get("background") or "transparent", "crop": bool(args.get("crop"))})
+        if args.get("fix"):
+            settings["cutout"]["touched_up"] = True
         path = self._save(out, settings, suffix="cutout")
         record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="cutout")
         record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
+        rp = args.get("replace")  # 🧩 a touched-up figure takes its old file's place in the sheet's folder (only there)
+        if rp:
+            import shutil
+            target = Path(rp).resolve()
+            sheets = (paths.IMAGES_DIR / "Sheets").resolve()
+            if sheets in target.parents and target.exists():
+                shutil.copy2(path, target.with_suffix(Path(path).suffix))
+                if target.suffix != Path(path).suffix:
+                    target.unlink(missing_ok=True)
         emit({"type": "image", "record": record})
         return record
 
@@ -4409,7 +4428,7 @@ class Engine:
         folder.mkdir(parents=True, exist_ok=True)
         cut_out = args.get("cut", True) is not False
         sess = cut.session(finder=finder) if cut_out else None
-        records = []
+        records, figures = [], []
         for n, box in enumerate(boxes, 1):
             emit({"type": "progress", "image": n, "images": len(boxes), "step": 0, "steps": 1})
             emit({"type": "status", "msg": f"Cutting out figure {n} of {len(boxes)}"})
@@ -4435,16 +4454,21 @@ class Engine:
             path = self._save(out, settings, suffix=f"sheet{n:02d}")
             record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="cutout")
             record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
+            copy = folder / f"{stem}_{n:02d}{Path(path).suffix}"
             try:
-                shutil.copy2(path, folder / f"{stem}_{n:02d}{Path(path).suffix}")
+                shutil.copy2(path, copy)
             except OSError as e:
                 print("[sheet] copy to folder failed:", e, flush=True)
             emit({"type": "image", "record": record})
             records.append(record)
+            # for ✍ touching this one up later: where it is on the sheet
+            figures.append({"sheet": str(src.get("path") or ""), "box": list(outer), "file": str(copy),
+                            "inner": [box[0] - outer[0], box[1] - outer[1], box[2] - outer[0], box[3] - outer[1]],
+                            "edges": [outer[0] > 0, outer[1] > 0, outer[2] < w, outer[3] < h]})
             emit({"type": "progress", "image": n, "images": len(boxes), "step": 1, "steps": 1})
         if not records:
             raise UserError("Every piece came out empty: try another Finder, or switch off Cut out each one.")
-        return {"records": records, "folder": str(folder), "found": len(boxes)}
+        return {"records": records, "figures": figures, "folder": str(folder), "found": len(boxes)}
 
     def _cut_layers(self, src, image, m, args, emit, started):
         import net

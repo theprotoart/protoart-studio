@@ -8,6 +8,12 @@
   is matted again at full detail on its own crop, pieces of neighbours dropped (`keep_main`: mostly outside the cell,
   or cut off at the crop's edge), trimmed, optionally centred on a square; saved to the Library and copied to
   `Pictures/Sheets/<sheet> <time>/<sheet>_NN.png`. Test `test_sheet`.
+- ✍ Touch up in ✂ Cut out: 🖌 Add / 🧽 Remove brushes and ➰ Add / Remove lassos on the preview (a red / blue layer at
+  preview size, 20 undo steps), applied live in `cutAlpha` and on 💾 Save (`fix`, `cutout.apply_fix`, after the
+  threshold / clean-up, so touch-ups always win).
+- Split sheets' figures can be fixed one by one: the split returns each figure's box on the sheet; clicking a figure
+  opens that part of the sheet (`sheet_crop`) in Cut out with its neighbours left out (`inner` / `edges` →
+  `keep_main` on the matte); 💾 Save replaces the figure's file in the sheet's folder (only inside Sheets).
 - Create's shape buttons in a grid (`sizeGrid`): Square in one row; Portrait and Landscape share ratio columns (2:3
   over 3:2); a row per size tier by pixel count.
 

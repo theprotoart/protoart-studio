@@ -2807,3 +2807,9 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .sheet-split { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
 .sheet-split .sheet-grid input { width: 56px; margin-left: 4px; }
 .sheet-split .sheet-grid { gap: 12px; align-items: center; }
+.adjust-canvas.cut-fixing { cursor: crosshair; touch-action: none; }
+.sheet-split .sheet-figs { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 4px; }
+.sheet-split .sheet-fig { position: relative; padding: 2px; aspect-ratio: 1; background: repeating-conic-gradient(#555 0 25%, #777 0 50%) 0 0 / 12px 12px; border: 1px solid rgba(255,255,255,.15); border-radius: 4px; }
+.sheet-split .sheet-fig img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.sheet-split .sheet-fig span { position: absolute; left: 3px; top: 1px; font-size: 10px; color: #fff; text-shadow: 0 0 3px #000; }
+.sheet-split .sheet-fig.fixed { border-color: #f5c04a; }

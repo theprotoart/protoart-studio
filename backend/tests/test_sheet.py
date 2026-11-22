@@ -49,3 +49,19 @@ def test_square():
     from PIL import Image
     sq = sh.on_square(Image.new("RGBA", (50, 100)))
     assert sq.width == sq.height
+
+
+def test_touch_ups():
+    import base64
+    import io
+    from PIL import Image
+    import postprocess.cutout as cut
+    a = np.zeros((40, 40), np.float32)
+    a[10:30, 10:30] = 1
+    f = Image.new("RGBA", (20, 20), (0, 0, 0, 0))  # painted at half size on the preview
+    f.putpixel((2, 2), (255, 0, 0, 255))   # add: top-left (4..5, 4..5)
+    f.putpixel((10, 10), (0, 0, 255, 255))  # remove: the middle
+    buf = io.BytesIO()
+    f.save(buf, "PNG")
+    out = cut.apply_fix(a, "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode())
+    assert out[4, 4] == 1 and out[20, 20] == 0 and out[15, 15] == 1 and out[35, 35] == 0

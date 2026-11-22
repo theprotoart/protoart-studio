@@ -1819,7 +1819,8 @@
           <span v-if="tx.busy || tx.msg" class="adjust-badge busy">{{ tx.msg || 'Working…' }}</span>
         </div>
         <div v-else-if="cut.open && !tool.healing" class="adjust-canvas-wrap cut-wrap" @click.stop>
-          <canvas v-show="!cut.busy" ref="cutCanvas" class="adjust-canvas"></canvas>
+          <canvas v-show="!cut.busy" ref="cutCanvas" class="adjust-canvas" :class="{'cut-fixing': !!cutFix.tool}"
+                  @pointerdown="cutFixDown" @pointermove="cutFixMove" @pointerup="cutFixUp" @pointercancel="cutFixUp"></canvas>
           <span class="adjust-badge">{{ cut.view === 'mask' ? 'CUT OUT · MASK' : cut.paperView ? 'PAPER CUT-OUT · PREVIEW' : 'CUT OUT' }}</span>
           <span v-if="cut.busy || cut.msg" class="adjust-badge busy">{{ cut.msg || 'Working…' }}</span>
         </div>
@@ -2642,6 +2643,22 @@
               <button :class="{on: cut.view === 'result'}" @click="cut.view = 'result'" title="Show the cut-out">Result</button>
               <button :class="{on: cut.view === 'mask'}" @click="cut.view = 'mask'" title="Show the mask: white = kept, black = gone (easier to judge the edge)">Mask</button>
             </div>
+            <label title="Paint or draw around what the finder missed (Add) or the background it kept (Remove), right on the picture">✍ Touch up</label>
+            <div class="seg mod-seg seg-wrap cut-fix-tools">
+              <button :class="{on: !cutFix.tool}" @click="cutFix.tool = ''" title="Stop touching up">Off</button>
+              <button :class="{on: cutFix.tool === 'add_brush'}" @click="cutFix.tool = 'add_brush'" title="Paint over a part of the character that was left out">🖌 Add</button>
+              <button :class="{on: cutFix.tool === 'remove_brush'}" @click="cutFix.tool = 'remove_brush'" title="Paint over background (or a neighbour's bit) that should go">🧽 Remove</button>
+              <button :class="{on: cutFix.tool === 'add_lasso'}" @click="cutFix.tool = 'add_lasso'" title="Draw around a part to keep: it's filled in when you let go">➰ Add</button>
+              <button :class="{on: cutFix.tool === 'remove_lasso'}" @click="cutFix.tool = 'remove_lasso'" title="Draw around a part to take away">➰ Remove</button>
+            </div>
+            <template v-if="cutFix.tool">
+              <template v-if="cutFix.tool.endsWith('brush')">
+                <label>Brush size <span class="mod-val">{{ cutFix.size }} px</span></label>
+                <input type="range" min="4" max="160" step="1" v-model.number="cutFix.size">
+              </template>
+              <div class="mod-links"><button class="link" :disabled="!cutFix.undo" @click="cutFixUndo">↶ Undo</button> · <button class="link" :disabled="!cutFix.any" @click="cutFixClear">clear the touch-ups</button>
+                <span class="hint">· switch to Mask to see the edge clearly</span></div>
+            </template>
             <label class="check" title="Drop small separate specks of background that were picked up"><input type="checkbox" v-model="post.cut.clean"> Clean up small bits</label>
             <label class="check" title="Take the edge's colours from inside the subject, so no fringe of the old background is left around it"><input type="checkbox" v-model="post.cut.fix_edges"> Fix edge colours</label>
             <label class="check" title="Trim the empty space around the subject"><input type="checkbox" v-model="post.cut.crop"> Crop to the subject</label>
@@ -2669,6 +2686,14 @@
                 <button class="primary small" :disabled="!tool.source || !!tool.working" @click="cutSplitSheet" title="Each figure is saved to the Library, and all of them together in one folder">🧩 Split &amp; save all</button>
                 <button v-if="sheet.folder" class="ghost small" @click="showInFolder(sheet.folder)" title="Open the folder with all the figures">📂 Show in Finder</button>
               </div>
+              <template v-if="sheet.figures.length">
+                <span class="hint">Something missing or extra? Click a figure to touch it up (🖌 brush or ➰ lasso), then 💾 Save.</span>
+                <div class="sheet-figs">
+                  <button v-for="f in sheet.figures" :key="'fig' + f.n" class="sheet-fig" :class="{fixed: f.fixed}" :disabled="!f.box || !!tool.working"
+                          @click="sheetFix(f)" :title="'Figure ' + f.n + (f.fixed ? ' (touched up)' : '') + ': click to touch it up'">
+                    <img :src="fileUrl(f.thumb)" :alt="'Figure ' + f.n"><span>{{ f.n }}</span></button>
+                </div>
+              </template>
             </template>
           </div>
           <div class="mod-foot">

@@ -185,6 +185,22 @@ def clean_bits(a, keep_frac=0.004):
     return a * (1 - gone)
 
 
+def apply_fix(alpha, data_url):
+    """✍ Cut out's touch-ups (a PNG painted on the preview, any size): red = keep, blue = take away"""
+    import base64
+    import io
+    h, w = alpha.shape
+    raw = base64.b64decode(str(data_url).split(",", 1)[-1])
+    f = np.asarray(Image.open(io.BytesIO(raw)).convert("RGBA").resize((w, h), Image.NEAREST))
+    on = f[..., 3] > 127
+    keep = on & (f[..., 0] > 127)
+    gone = on & (f[..., 2] > 127) & ~keep
+    out = alpha.copy()
+    out[keep] = 1.0
+    out[gone] = 0.0
+    return out
+
+
 def fix_edge_colours(rgb, a, radius=6):
     """In the see-through edge, use colours from inside the subject (spread outwards), so no fringe of the old
     background stays around it."""
