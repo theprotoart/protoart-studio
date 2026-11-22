@@ -247,6 +247,7 @@ function defaultForm() {
     fast: false, fast_prev: null, i2i_use_init: true, control_image: "",
     control: { type: "", scale: 1.0, start: 0.0, end: 1.0, already_map: false },
     cc: { image: "", type: "", scale: 0.8, start: 0.0, end: 0.8, already_map: false, ernie_change: 0.55 },  // 🦴 Create's own ControlNet (a pose…)
+    dn: { image: "", value: 0.6, use_size: true },  // 🎚 Denoise (like ComfyUI's KSampler): start Create from a picture; 1.00 = from scratch
     hires: { on: false, scale: 1.5, strength: 0.45, steps: 15 },
     face_detailer: { on: false, strength: 0.4, prompt: "", max_faces: 4, min_face_pct: 0, confidence: 0.6, mask_grow: 0.18, mask_blur: 1, hair: false },
     ip_adapter: { image: "", kind: "style", scale: 0.6, take: "all" },  // take: all / style / layout (SDXL)
@@ -296,7 +297,16 @@ const SAMPLER_PICKS = {  // the 3 fastest and the 3 best-quality samplers for ea
   flux2: { fast: ["flow_euler"], quality: [] },
   flux3: { fast: ["flow_euler"], quality: [] },
   ideogram4: { fast: ["flow_euler"], quality: [] },
+  // these run one flow sampler (Euler, the way each model was made); MiniMax-H3 always uses its own 6-step schedule
+  zimage: { fast: ["flow_euler"], quality: [] },
+  qwen21: { fast: ["flow_euler"], quality: [] },
+  krea2: { fast: ["flow_euler"], quality: [] },
+  fibo2: { fast: ["flow_euler"], quality: [] },
+  moss: { fast: ["flow_euler"], quality: [] },
+  h3: { fast: ["flow_euler"], quality: [] },
 };
+// 🎚 Denoise in Create works with the model types that can start from a picture
+const DENOISE_FAMILIES = ["sd15", "sdxl", "anima", "zimage", "ernie", "flux", "qwen21", "krea2"];
 const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX 3 Image Klein (Black Forest Labs; 4-bit MLX by mflux-community)", "licence": "FLUX Kommunity License v1.0", "note": "non-commercial use; selling pictures is allowed if you (with your business) make under US$5M a year; text encoder Qwen3-VL-4B (Apache-2.0)"}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}, {"model": "BiRefNet lite (✂ Cut out, 👤 Subject, 📄 Paper cut-out)", "licence": "MIT", "note": ""}, {"model": "MiniMax-H3-Image (MiniMax; INT8 files by Comfy-Org, made 4-bit on your Mac)", "licence": "MiniMax-H3-Image Community License", "note": "not for use in the US, EU, UK or Republic of Korea; pictures may not be used to improve other AI models; commercial products must show its name; written permission over US$1M yearly revenue or as a hosted service. Runs with h3-image-mlx (Apache-2.0)"}, {"model": "Ideogram 4 (Ideogram; official FP8 files, made 4-bit as they load)", "licence": "Ideogram 4 Non-Commercial License", "note": "non-commercial; gated: accept the licence on Hugging Face first"}, {"model": "MOSS-Image (OpenMOSS; MLX weights by VisualInference, turbo adapters by VisualInference and nynxz)", "licence": "Apache-2.0", "note": "runs with moss-image-mlx (Apache-2.0); text encoder Qwen3.5-9B and FLUX.2 small VAE (Apache-2.0)"}];
 const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677", zpower: "https://github.com/martin-rizzo/ComfyUI-ZImagePowerNodes" };
 // 📷 Camera angle: the words for each direction (the same 8 × 4 × 3 grid multi-angle tools use)
@@ -1042,13 +1052,14 @@ const protoartApp = createApp({
       engineExits: [],       // when the engine stopped unexpectedly (to avoid restart loops)
       cmp: { open: false, x: "cfg", xv: "4, 6, 8, 10", y: "", yv: "", lora: "" },
       cmpAxes: { cfg: "Guidance (CFG)", steps: "Steps", sampler: "Sampler", seed: "Seed", clip_skip: "CLIP skip",
-                 lora_weight: "LoRA weight", lora: "Which LoRA", strength: "Change strength (Image to image)" },
+                 lora_weight: "LoRA weight", lora: "Which LoRA", strength: "Denoise / change strength (Image to image)" },
       form: (() => {
         const f = mergeDefaults(defaultForm(), loadJSON(FORM_KEY, {}));
         f.regions = { ...defaultForm().regions, ...(f.regions || {}) };
         f.swap = { ...defaultForm().swap, ...(f.swap || {}), consent: false };
         f.cam = { ...defaultForm().cam, ...(f.cam || {}) };
         f.combine = { ...defaultForm().combine, ...(f.combine || {}) };
+        f.dn = { ...defaultForm().dn, ...(f.dn || {}) };
         f.cc = { ...defaultForm().cc, ...(f.cc || {}) };  // permission is asked again each time the app opens
         if (!loadJSON("protoart.cfDefault", false)) {  // 1.2: CodeFormer became the default face model (once)
           f.face_model = "codeformer";
@@ -1056,7 +1067,8 @@ const protoartApp = createApp({
         }
         return f;
       })(),
-      dims: [512, 576, 640, 704, 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344, 1536],
+      dims: [512, 576, 640, 704, 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344, 1456, 1536, 1792, 2048],
+      dnDragOver: false,  // Create → 🎚 Denoise picture
       queue: [],          // jobs from the backend: running first, then queued
       progress: null,
       status: "Starting…",
@@ -1244,7 +1256,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.25: 📦 boxes for FLUX.1, Klein and ERNIE", items: [
+            { h: "1.6.25: 🎚 Denoise, the right sizes for every model, 📦 boxes for FLUX.1, Klein and ERNIE", items: [
+              "<b>🎚 Denoise in Create</b> (like ComfyUI's KSampler denoise): open 🎚 Denoise, drop a picture (or ↩ Use my last picture) and set how much is redrawn: 0.30 light touch, 0.50 restyle, 0.75 mostly new, 1.00 from scratch. Your prompt, LoRAs, sampler and steps all apply. Works with SD 1.5, SDXL, Anima, Z-Image Turbo, ERNIE, FLUX.1, Qwen-Image 2.1 and Krea 2. Image to image's Change strength is the same thing, now labelled Denoise too.",
+              "<b>The right sizes for every model</b>: the Max size switch and the shape buttons now use each model's own published sizes for Z-Image Turbo (up to Best 1536), Ideogram 4 (up to Best 2048, plus banners), Qwen-Image 2.1 (up to its native 2048), MiniMax-H3-Image (its own shape list), MOSS-Image (up to 1456), FIBO 2 and Krea 2 (up to 2K) and FLUX 3, instead of SDXL's.",
+              "<b>Sampler picks for the new models</b>: Z-Image, Qwen-Image 2.1, Krea 2, FIBO 2, MOSS-Image, MiniMax-H3, FLUX 3 and Ideogram 4 now show their sampler (Flow Euler, the one each was made with) instead of an empty list. These models have one sampler each, so there's nothing else to pick; MiniMax-H3 always runs its own 6-step schedule.",
               "<b>📦 Boxes now work with FLUX.1, FLUX.2 Klein and ERNIE</b> (🗺 Regions), not just FLUX 3, Ideogram 4 and MOSS-Image: templates like 🎮 Game cover collage keep their panels and title there instead of turning into thin columns.",
               "<b>LoRAs for MiniMax-H3-Image</b>: your MiniMax-H3 LoRAs (from ai-toolkit and the like) are now found, listed under a MiniMax-H3 type (Models → Fix a type has it too) and applied when you make a picture with MiniMax-H3. They were being listed as ERNIE.",
               "<b>LoRAs for new models are recognised better</b>: a LoRA's own description of the model it was made for (and, when that's missing, words in its file name like <i>zimage</i>, <i>minimax-h3</i>, <i>qwen-image</i>, <i>moss</i>) now decides its type, instead of falling back to ERNIE. Ideogram 4 has a LoRA type too.",
@@ -1790,7 +1805,8 @@ const protoartApp = createApp({
               "<b>Embeddings</b> (textual inversions like <i>EasyNegative</i>) work with SD 1.5 and SDXL models (Pony / Illustrious / NoobAI too): click one above the negative prompt, or type its name in either prompt. Only embeddings made for the chosen model's type are shown.",
               "Add embeddings in <b>Settings → Embeddings</b>: <i>Add embedding files…</i> copies .safetensors / .pt files in, <i>Add folders…</i> uses a folder where they are, and <b>From Civitai</b> (Models tab) downloads them (Civitai calls them “Textual Inversion”). Embeddings in your LoRA folders and DiffusionBee's are found too." ] },
             { h: "Size, steps & speed", items: [
-              "The <b>Max size</b> switch (Small / Medium / Large) sets the size for the model; presets set the shape; 🔗 links width and height.",
+              "The <b>Max size</b> switch (Small / Medium / Large, and Best for models made for big pictures) sets the size for the model; presets set the shape (each model's own published sizes); 🔗 links width and height.",
+              "<b>🎚 Denoise</b> (Create, under the pose and image prompt sections): drop a picture to start from, or ↩ Use my last picture, and set Denoise: 0.2–0.35 adds detail and keeps the picture, 0.5–0.6 keeps the layout and colours and redraws the rest, 0.75+ keeps only the rough layout, 1.00 ignores the picture (a new picture from noise, as without one). Only steps × denoise steps run, so lower is quicker. <i>Use the picture's size</i> keeps its shape. It's the same as ComfyUI's KSampler denoise and as Image to image's Change strength.",
               "Each sampler shows its <b>recommended steps</b>; picking one sets them for you. Under the Sampler list, <b>⚡ Fastest</b> and <b>★ Best quality</b> show the recommended samplers for the chosen model's type (outlined in faint blue; Pony / Illustrious models lead with Euler a). The list itself is grouped the same way.",
               "<b>⚡ Fast mode</b> (SD 1.5 / SDXL) makes images in 6 steps. <b>Presets</b> (at the top of the window in Create) save a whole setup, LoRAs included; switch on <i>prompt</i> to save the prompt too.",
               "<b>❚❚ Pause</b> holds the picture being made at its next step (and the queue); <b>▶ Resume</b> carries on where it was, nothing lost. Memory stays in use while paused, so on an 8 GB Mac Stop frees more if you need the Mac for something else.",
@@ -3454,6 +3470,9 @@ const protoartApp = createApp({
       if (names.length) out.push("LoRAs made for another model type: " + names.join(", "));
       return out;
     },
+    denoiseOk() {  // 🎚 Denoise: model types that can start from a picture (the others make pictures from a prompt only)
+      return DENOISE_FAMILIES.includes(this.family);
+    },
     poseFast() {  // 🦴 Follow a pose without ControlNet: FLUX.2 Klein on the fast engine, and ERNIE through Klein
       return this.currentModel?.engine === "mlx" && ["flux2", "ernie"].includes(this.family);
     },
@@ -3590,11 +3609,21 @@ const protoartApp = createApp({
     },
     sizeTiers() {
       // Small / Medium / Large for each model type (side of an equivalent square).
-      const t = { sd15: [512, 640, 768], sdxl: [768, 1024, 1280], anima: [768, 1024, 1280], ernie: [640, 768, 1024], flux: [512, 768, 1024], flux2: [512, 768, 1024], flux3: [768, 1024, 1280], other: [512, 768, 1024] };
+      const t = { sd15: [512, 640, 768], sdxl: [768, 1024, 1280], anima: [768, 1024, 1280], ernie: [640, 768, 1024], flux: [512, 768, 1024], flux2: [512, 768, 1024], flux3: [768, 1024, 1280],
+                  moss: [768, 1024, 1456], fibo2: [1024, 1536, 2048], krea2: [1024, 1536, 2048], other: [512, 768, 1024] };
       const [s, m, l] = t[this.family] || t.other;
       if (this.family === "h3")  // MiniMax-H3-Image is made for big pictures: up to 2048 (about 4 / 6 / 9 / 13 min on 8 GB)
         return [{ id: "s", label: "Draft", side: 1024 }, { id: "m", label: "Medium", side: 1280 }, { id: "l", label: "Large", side: 1536 },
                 { id: "xl", label: "Best", side: 2048 }];
+      // models made for bigger pictures get a fourth button at their published best size
+      if (this.family === "zimage")  // Z-Image Turbo: the official demo's 1024 / 1280 / 1536 sizes (768 for quick drafts)
+        return [{ id: "s", label: "Draft", side: 768 }, { id: "m", label: "Medium", side: 1024 }, { id: "l", label: "Large", side: 1280 },
+                { id: "xl", label: "Best", side: 1536 }];
+      if (this.family === "ideogram4")  // Ideogram 4: 256–2048 px, best at 2048 × 2048 (its own README)
+        return [{ id: "s", label: "Draft", side: 768 }, { id: "m", label: "Medium", side: 1024 }, { id: "l", label: "Large", side: 1536 },
+                { id: "xl", label: "Best", side: 2048 }];
+      if (this.family === "qwen21")  // Qwen-Image 2.1: native 2K (2048 × 2048 is its default)
+        return [{ id: "s", label: "Draft", side: 1024 }, { id: "m", label: "Medium", side: 1536 }, { id: "xl", label: "Best", side: 2048 }];
       if (this.family === "sd15")  // SD 1.5 also gets 704: a little more detail than 640, still quick on 8 GB
         return [{ id: "s", label: "Small", side: 512 }, { id: "m", label: "Medium", side: 640 }, { id: "m2", label: "Med+", side: 704 }, { id: "l", label: "Large", side: 768 }];
       return [{ id: "s", label: "Small", side: s }, { id: "m", label: "Medium", side: m }, { id: "l", label: "Large", side: l }];
@@ -3621,7 +3650,31 @@ const protoartApp = createApp({
       // FLUX: the SDXL shapes (all multiples of 16 too)
       sets.flux = sets.sdxl.map(([l, w, h]) => [l === "Small square" ? "Medium square" : l, w, h]);
       sets.flux2 = sets.flux;
+      sets.flux3 = sets.flux;
       sets.anima = sets.sdxl;  // Anima: the SDXL shapes (multiples of 16)
+      // the shapes each model's makers publish (looked up, not guessed)
+      sets.zimage = [["Square 1:1", 1024, 1024], ["Portrait 2:3", 832, 1248], ["Landscape 3:2", 1248, 832],  // the official demo's 1024 set
+                     ["Portrait 3:4", 864, 1152], ["Landscape 4:3", 1152, 864], ["Tall 9:16", 720, 1280], ["Wide 16:9", 1280, 720],
+                     ["Portrait 7:9", 896, 1152], ["Landscape 9:7", 1152, 896], ["Tall 9:21", 576, 1344], ["Cinema 21:9", 1344, 576],
+                     ["Large square", 1280, 1280], ["Large 2:3", 1024, 1536], ["Large 3:2", 1536, 1024], ["Best square", 1536, 1536]];
+      sets.h3 = [["Square 1:1", 1024, 1024], ["Portrait 7:9", 896, 1152], ["Landscape 9:7", 1152, 896],  // MiniMax-H3's own list
+                 ["Portrait 2:3", 832, 1216], ["Landscape 3:2", 1216, 832], ["Tall 9:16", 768, 1344], ["Wide 16:9", 1344, 768],
+                 ["Large square", 1536, 1536], ["Big portrait 3:4", 1536, 2048], ["Big landscape 4:3", 2048, 1536], ["Best square", 2048, 2048]];
+      sets.qwen21 = [["Square 1:1", 1024, 1024], ["Portrait 3:4", 896, 1200], ["Landscape 4:3", 1200, 896],  // half of its native 2K list
+                     ["Portrait 2:3", 848, 1264], ["Landscape 3:2", 1264, 848], ["Tall 9:16", 768, 1376], ["Wide 16:9", 1376, 768],
+                     ["Large square", 1536, 1536], ["2K square (native)", 2048, 2048]];
+      sets.ideogram4 = [["Square 1:1", 1024, 1024], ["Portrait 2:3", 832, 1248], ["Landscape 3:2", 1248, 832],  // any size, multiples of 16
+                        ["Portrait 3:4", 864, 1152], ["Landscape 4:3", 1152, 864], ["Poster 4:5", 896, 1120], ["Tall 9:16", 768, 1360],
+                        ["Wide 16:9", 1360, 768], ["Banner 3:1", 1776, 592], ["Tall banner 1:3", 592, 1776],
+                        ["Large square", 1536, 1536], ["Best square", 2048, 2048]];
+      sets.fibo2 = [["Square 1:1", 1024, 1024], ["Portrait 2:3", 832, 1248], ["Landscape 3:2", 1248, 832],  // Bria's published sizes
+                    ["Portrait 3:4", 864, 1152], ["Landscape 4:3", 1152, 864], ["Portrait 4:5", 896, 1120], ["Landscape 5:4", 1120, 896],
+                    ["Tall 9:16", 792, 1408], ["Wide 16:9", 1408, 792], ["Tall 9:21", 672, 1568], ["Cinema 21:9", 1568, 672],
+                    ["2K square", 2048, 2048], ["2K 3:4", 1536, 2048], ["2K 4:3", 2048, 1536], ["2K 9:16", 1152, 2048], ["2K 16:9", 2048, 1152]];
+      sets.krea2 = [["Square 1:1", 1024, 1024], ["Portrait 2:3", 1024, 1536], ["Landscape 3:2", 1536, 1024],  // 1024–2048 px a side
+                    ["Portrait 3:4", 1024, 1360], ["Landscape 4:3", 1360, 1024], ["Tall 9:16", 1024, 1824], ["Wide 16:9", 1824, 1024],
+                    ["Large square", 1536, 1536], ["2K square", 2048, 2048], ["2K 9:16", 1152, 2048], ["2K 16:9", 2048, 1152]];
+      sets.moss = [...sets.sdxl.filter(([l]) => l !== "Small square"), ["Small square", 768, 768], ["Large square", 1456, 1456]];  // 1456: its README's example
       return (sets[this.family] || sets.sdxl).map(([label, w, h]) => ({ label, w, h }));
     },
     livePreviewShown() {
@@ -6298,6 +6351,14 @@ const protoartApp = createApp({
       }
       delete args.outpaint;
       delete args.inpaint;
+      const dn = this.form.dn || {};
+      delete args.dn;
+      if (dn.image && this.denoiseOk && Number(dn.value) < 1) {  // 🎚 Denoise below 1: start from the picture
+        Object.assign(args, { init_image: dn.image, strength: Math.max(0.01, Number(dn.value)), use_init_size: dn.use_size !== false,
+                              i2i_mode: "change", i2i_use_init: true, denoise: Number(dn.value) });
+        delete args.regions;  // regions and poses are for pictures made from scratch
+        delete args.pose_image;
+      }
       this.cleanExtras(args);
       return Object.assign(args, overrides || {});
     },
@@ -6700,6 +6761,27 @@ const protoartApp = createApp({
       this.form.cc.image = path;
       this.ccMap = null;
       this.ccDefaultType();
+    },
+    // 🎚 Denoise (Create): the picture to start from, like a ComfyUI KSampler fed a picture instead of an empty latent
+    dnSet(p) {
+      if (!p) return;
+      this.form.dn.image = p;
+      if (!(this.form.dn.value < 1)) this.form.dn.value = 0.6;
+    },
+    dnUseLast() {
+      const last = this.session[0];
+      if (!last || !last.path) return (this.error = "Make a picture first, or drop one here.");
+      this.dnSet(last.path);
+    },
+    onDnDrop(e) {
+      this.dnDragOver = false;
+      const file = [...(e.dataTransfer?.files || [])].find(isPicture);
+      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => this.dnSet(p));
+    },
+    onDnPicked(e) {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => this.dnSet(p));
     },
     onCcDrop(e) {
       this.ccDragOver = false;
@@ -11267,12 +11349,13 @@ const protoartApp = createApp({
     },
     // -------------------------------------------------------------- Create: fold sections down (like DiffusionBee)
     cfShut(k) {
+      if (k === "dn") return this.cfolds.dn !== false;  // 🎚 Denoise starts folded (most pictures start from noise)
       return !!this.cfolds[k];
     },
     cfToggle(k, ev) {
       // clicks on the label's own buttons, links and fields do their own thing
       if (ev && ev.target && ev.target.closest("button, a, input, select, textarea")) return;
-      this.cfolds = { ...this.cfolds, [k]: !this.cfolds[k] };
+      this.cfolds = { ...this.cfolds, [k]: !this.cfShut(k) };
       saveJSON("protoart.createFolds", this.cfolds);
     },
     cfAll(shut) {

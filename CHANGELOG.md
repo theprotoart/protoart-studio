@@ -2,6 +2,19 @@
 
 ## 1.6.25
 
+- 🎚 Denoise in Create (ComfyUI KSampler denoise): `form.dn` {image, value, use_size}; below 1.00 the picture is sent
+  as `init_image` with `strength` = denoise (and `use_init_size`), for `DENOISE_FAMILIES` (sd15, sdxl, anima, zimage,
+  ernie, flux, qwen21, krea2). Drop a picture or ↩ Use my last picture; chips 0.30 / 0.50 / 0.75 / 1.00; starts folded.
+  Image to image's Change strength is labelled Denoise and steps by 0.01.
+- Sizes for every model type: `sizeTiers` and `sizePresets` from each model's published sizes: Z-Image Turbo (its
+  demo's 1024 set; Draft 768 → Best 1536), Ideogram 4 (256–2048, multiples of 16; Best 2048; banners), Qwen-Image 2.1
+  (half its native-2K list, plus 1536 and 2048), MiniMax-H3 (`h3_engine.SIZES`), MOSS-Image (SDXL shapes + 1456),
+  FIBO 2 (Bria's 1K list + 2K), Krea 2 (1024–2048 a side), FLUX 3 (FLUX's). The width / height list gains 1456, 1792
+  and 2048.
+- Samplers: `samplers.ONE_FLOW` (flux, flux2, flux3, zimage, qwen21, krea2, fibo2, ideogram4, moss, h3) offer Flow
+  Euler with model-default steps (they listed only "Model default", so FLUX 3 / Ideogram 4's picks never showed);
+  `SAMPLER_PICKS` entries for each. Test `test_model_sizes`: every catalog model type has sizes, shapes and sampler
+  picks; shapes stay within 256–2048 and multiples of 8; Denoise is wired.
 - LoRAs for MiniMax-H3-Image: new LoRA family `h3` (detected by `modelspec.architecture` "minimaxh3image", or its
   `blocks.N.attn.qkv_proj` + `mlp.fc1` / `token_refiner` keys), applied in the picture stage through h3-image-mlx's LoRA
   side path, several at once with their strengths (`h3_worker.use_loras`); recorded in the picture's info.

@@ -810,6 +810,32 @@
         </div>
         <input ref="ccPickFast" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="onCcPicked">
       </section>
+
+      <!-- 🎚 Denoise, like ComfyUI's KSampler: 1.00 = a new picture from noise; lower starts from a picture and keeps more of it -->
+      <section v-if="denoiseOk" class="cc-sec ipa cfold dn-sec" :class="{shut: cfShut('dn')}">
+        <label @click="cfToggle('dn', $event)">🎚 Denoise <span class="hint">start from a picture, like ComfyUI's KSampler denoise</span><span v-if="cfShut('dn')" class="cfold-sum">{{ form.dn.image && form.dn.value < 1 ? Number(form.dn.value).toFixed(2) : '1.00 · off' }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <div v-if="!form.dn.image" class="ipa-drop" :class="{over: dnDragOver}" @dragover.prevent="dnDragOver = true"
+             @dragleave="dnDragOver = false" @drop.prevent="onDnDrop" @click="$refs.dnPick.click()">
+          Drop a picture to start from <span class="hint">(or click to choose) · without one, every picture starts from noise (denoise 1.00)</span></div>
+        <div v-if="!form.dn.image" class="row"><button class="ghost small" :disabled="!session.length" @click="dnUseLast" title="Start from the last picture you made">↩ Use my last picture</button></div>
+        <div v-else class="ipa-on">
+          <img :src="fileUrl(form.dn.image)" alt="The picture to start from">
+          <div class="ipa-opts">
+            <label>Denoise <span class="mod-val">{{ Number(form.dn.value).toFixed(2) }}</span>
+              <span class="hint">{{ form.dn.value >= 1 ? 'from scratch: the picture is ignored' : form.dn.value <= 0.35 ? 'light touch: same picture, new detail' : form.dn.value <= 0.6 ? 'keeps the layout and colours, redraws the rest' : 'mostly new: keeps the rough layout' }}</span></label>
+            <input type="range" min="0.05" max="1" step="0.01" v-model.number="form.dn.value"
+                   title="How much of the picture is redrawn: 0.2–0.35 adds detail, 0.5–0.6 restyles, 0.75+ mostly new, 1.00 ignores the picture">
+            <div class="chips">
+              <button v-for="d in [[0.3, 'Light touch'], [0.5, 'Restyle'], [0.75, 'Mostly new'], [1, 'From scratch']]" :key="'dn' + d[0]" class="chip"
+                      :class="{on: Math.abs(form.dn.value - d[0]) < 0.005}" @click="form.dn.value = d[0]">{{ d[1] }} {{ d[0].toFixed(2) }}</button>
+            </div>
+            <label class="check" title="On: the new picture takes this picture's shape (made smaller if it's very big). Off: your size above is used and the picture is stretched to fit."><input type="checkbox" v-model="form.dn.use_size"> Use the picture's size</label>
+            <div class="hint">Your prompt, LoRAs, sampler and steps all apply. Only part of the steps run (steps × denoise), so it's quicker too.</div>
+            <div class="row"><button class="link" @click="form.dn.image = ''">remove</button></div>
+          </div>
+        </div>
+        <input ref="dnPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="onDnPicked">
+      </section>
       <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="cc-sec ipa cfold" :class="{shut: cfShut('cc')}">
         <label @click="cfToggle('cc', $event)">🎛 ControlNet <span class="hint">follow a picture's pose, drawing, outlines or layout</span><span v-if="cfShut('cc')" class="cfold-sum">{{ form.cc.image && form.cc.type ? ((ccTypes.find((t) => t.id === form.cc.type) || {}).label || form.cc.type) : 'off' }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <div v-if="!ccTypes.length" class="hint">No ControlNet for {{ family === 'sdxl' ? 'SDXL' : 'SD 1.5' }} models yet: download one in Models → ControlNet{{ family === 'sdxl' ? ' (Union ProMax covers every type)' : '' }}.</div>
@@ -3285,8 +3311,8 @@
         <template v-if="form.i2i_mode === 'change'">
           <label class="check"><input type="checkbox" v-model="form.i2i_use_init"> Start from this picture (image-to-image)</label>
           <template v-if="form.i2i_use_init">
-            <label>Change strength <span class="hint">{{ form.strength.toFixed(2) }} · low = keep more of the original</span></label>
-            <input type="range" min="0.05" max="1" step="0.05" v-model.number="form.strength">
+            <label title="The same as ComfyUI's KSampler denoise">Denoise (change strength) <span class="hint">{{ form.strength.toFixed(2) }} · low = keep more of the original, 1.00 = from scratch</span></label>
+            <input type="range" min="0.05" max="1" step="0.01" v-model.number="form.strength">
           </template>
         </template>
         <template v-else-if="form.i2i_mode === 'edit'">
