@@ -3408,8 +3408,12 @@
             <button v-for="r in EDIT_RECIPES().filter((x) => !x.slots)" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
           </div>
           <label class="pair-head">🎭 Transform a person <span class="hint">pick a look, drop a photo of the person, and optionally a style picture and the items it asks for (a picture, words, or both)</span></label>
-          <div class="seg seg-wrap edit-recipes">
-            <button v-for="r in EDIT_RECIPES().filter((x) => x.slots)" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
+          <div class="tf-tiles">
+            <button v-for="r in EDIT_RECIPES().filter((x) => x.slots)" :key="r.id" class="tf-tile" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">
+              <img v-if="tfThumb(r.id)" :src="tfThumb(r.id)" alt="" loading="lazy">
+              <span v-else class="tf-tile-icon">{{ r.label.split(' ')[0] }}</span>
+              <span class="tf-tile-name">{{ r.label.split(' ').slice(1).join(' ') }}</span>
+            </button>
           </div>
           <div v-if="editRecipe() && editRecipe().slots" class="recipe-card">
             <div class="tf-layout">

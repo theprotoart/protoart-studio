@@ -386,6 +386,8 @@ const I2I_PICTURE_KEYS = ["init_image", "control_image", "edit_refs"];
 // ✨ Edit with words → two-picture recipes: community FLUX.2 Klein LoRAs from Civitai (downloaded when first used,
 // never bundled). Each takes the picture above as “Image 1” and the first extra picture as “Image 2”.
 const POSE_VIEWS = { front: "Front", diag: "¾ turn", side: "Side", above: "From above", below: "From below" };
+// 🎭 Transform a person: example pictures for the preset tiles (made with the presets themselves, in assets/presets)
+const TF_THUMBS = new Set(["tf_action_figure", "tf_claymation", "tf_crime_game", "tf_pixel_sprite", "tf_fighter_select", "tf_movie_hero", "tf_oil_portrait"]);
 const EDIT_RECIPES = [
   // two-picture recipes without a LoRA (files: null): they work with any edit model (Klein, FLUX 3, MiniMax-H3)
   { id: "anime_to_real", label: "📸 Anime → Real", by: "", files: null, p1: "the anime picture", p2: "a real photo (the look)",
@@ -1445,6 +1447,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.27: every panel folds, 📝 ERNIE-Image presets, ★ best MiniMax-H3 size", items: [
+              "<b>🎭 Transform a person shows example pictures</b>: the looks are now picture tiles, with an example of what each one makes (action figure, claymation, crime-game cover art, 16-bit pixel sprite, fighting-game select, animated-movie hero and oil-painting portrait so far; the rest show their emoji until they get one).",
               "<b>Every panel folds</b>: click any panel's title (Tools, Train, Models, Settings, Image to image…) to fold it down to its title; it stays folded until you click it again.",
               "<b>📝 ERNIE-Image presets</b> (Create, with an ERNIE model): type a subject and pick 📊 Infographic, 🍳 Recipe card, 🏙 Isometric street, 🧸 Felt miniature, 🗺 3D map city, 😊 Sticker sheet, ✈ Vintage travel poster, 🖍 Crayon travel diary, 🧊 3D icon set, 🔤 Word made of it, 🎞 Film still or 📐 Blueprint vs real; switching keeps your subject. A link opens the ERNIE-Image prompt gallery for more ideas.",
               "<b>MOSS-Image follows its own guide</b>: a standard negative prompt (no watermarks, bad anatomy, JPEG artifacts) when you leave it empty, and its tips in the guide card (English prompts, CFG 3–6, 1–2 million pixels, tag order, line breaks for lettering).",
@@ -10779,6 +10782,7 @@ const protoartApp = createApp({
       }
     },
     // 🎭 Transform a person: the boxes of a recipe with slots (Picture 1 = the person, then a style picture and items)
+    tfThumb(id) { return TF_THUMBS.has(id) ? `assets/presets/${id}.jpg` : ""; },
     tfSlotLabel(sl) { return sl.label || (sl.kind === "style" ? "Style reference" : "An item"); },
     tfDrop(e, sl) {
       this.pairOver = "";

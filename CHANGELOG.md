@@ -2,6 +2,8 @@
 
 ## 1.6.27
 
+- 🎭 Transform a person: the presets are picture tiles; 7 have an example made with the preset (`assets/presets/<id>.jpg`,
+  240 × 320 JPEG, `TF_THUMBS`), the rest show their emoji.
 - Every panel with a title folds (`setupPanelFolds`: `.card > h3`, `.cn-guide-head > h3`, `.mod-head > h3`; a data
   attribute and a MutationObserver, remembered by title in `protoart.panelFolds`; `.i2ifold`, Create's sections and
   `data-nofold` keep their own).
