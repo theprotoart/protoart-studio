@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.26
 
 - 🧩 Split a character sheet (✂ Cut out, `cutout` mode "sheet", `engine._cut_sheet`, `postprocess/sheet.py`): figures
   are found on the sheet's matte (connected pieces, joined when close; touching figures parted by the sheet's rows and
