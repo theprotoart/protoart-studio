@@ -363,6 +363,10 @@ class JobQueue:
     def _public(j):
         a = j.get("args") or {}
         info = {"id": j["id"], "cmd": j["cmd"], "label": j["label"], "model": j.get("model")}
+        if isinstance(a.get("prompt"), str) and a.get("prompt").strip():  # 🔽 the whole prompt, to read in the queue
+            info["prompt"] = a["prompt"].strip()[:4000]
+        if a.get("recipe"):
+            info["recipe"] = str(a["recipe"])
         if j["cmd"] in ("edit_words", "heal", "peel") and a.get("init_image") and not a.get("from_tools"):
             info["i2i"] = True  # Edit with words / Remove: progress shows in Image to image, where they were started
         if j["cmd"] == "generate":  # what the UI needs to estimate how long the job will take

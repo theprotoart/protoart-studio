@@ -1258,7 +1258,8 @@ const protoartApp = createApp({
         return f;
       })(),
       dims: [512, 576, 640, 704, 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344, 1456, 1536, 1792, 2048],
-      dnDragOver: false,  // Create → 🎚 Denoise picture
+      dnDragOver: false,
+      jobOpen: {},  // 🔽 queue rows showing their whole prompt  // Create → 🎚 Denoise picture
       queue: [],          // jobs from the backend: running first, then queued
       progress: null,
       status: "Starting…",
@@ -1450,6 +1451,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.27: every panel folds, 📝 ERNIE-Image presets, ★ best MiniMax-H3 size", items: [
+              "<b>Read the whole prompt in the queue</b>: click a job's name (or its ▾) to open its full prompt underneath, with 📋 copy; the row itself stays one tidy line. Transform-a-person jobs are named after their look (🦸 Action figure · …).",
               "<b>🎬 Storyboard sketch</b> preset (Create, ERNIE-Image and MiniMax-H3-Image): a vertical pencil storyboard page on sepia paper with a handwritten title and three framed shots (wide, medium, low angle), each with its scene note. Type your scene, or press it with an empty prompt to try the wasteland-arena example.",
               "<b>🎭 Transform a person shows example pictures</b>: the looks are now picture tiles, with an example of what each one makes (action figure, claymation, crime-game cover art, 16-bit pixel sprite, fighting-game select, animated-movie hero and oil-painting portrait so far; the rest show their emoji until they get one).",
               "<b>Every panel folds</b>: click any panel's title (Tools, Train, Models, Settings, Image to image…) to fold it down to its title; it stays folded until you click it again.",
@@ -10788,6 +10790,10 @@ const protoartApp = createApp({
       }
     },
     // 🎭 Transform a person: the boxes of a recipe with slots (Picture 1 = the person, then a style picture and items)
+    jobTitle(j) {  // a queue row's name: the look's name for a ✨ recipe, otherwise the job's own label
+      const r = j.recipe && EDIT_RECIPES.find((x) => x.id === j.recipe);
+      return r ? `${r.label}${j.prompt ? " · " + j.prompt.replace(/^Picture 1 is[^\n]*\n/, "").slice(0, 70) : ""}` : j.label;
+    },
     tfThumb(id) { return TF_THUMBS.has(id) ? `assets/presets/${id}.jpg` : ""; },
     tfSlotLabel(sl) { return sl.label || (sl.kind === "style" ? "Style reference" : "An item"); },
     tfDrop(e, sl) {

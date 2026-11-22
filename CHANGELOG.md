@@ -2,6 +2,8 @@
 
 ## 1.6.27
 
+- Queue: a job sends its whole prompt (`_public` → `prompt`, `recipe`); click its name or ▾ to read it underneath
+  (wrapped, scrolls past 220 px, 📋 copy); recipe jobs are named after their look (`jobTitle`).
 - 🎬 Storyboard sketch preset (ERNIE_PRESETS and H3_PRESETS): pencil storyboard page, title, three framed shots with
   notes; ERNIE presets can carry an `example` subject and `title` ({T}) used when the prompt is empty.
 - 🎭 Transform a person: the presets are picture tiles; 7 have an example made with the preset (`assets/presets/<id>.jpg`,

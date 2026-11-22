@@ -1140,9 +1140,13 @@
         <div v-for="(j, i) in queueHere" :key="j.id" class="job" :class="j.state" @contextmenu.prevent="menuJob($event, j)">
           <div class="job-main">
             <span class="job-state">{{ j.state==='running' ? '▶' : i }}</span>
-            <span class="job-label" :title="j.label">{{ j.label }}</span>
+            <span class="job-label" :class="{openable: !!j.prompt}" :title="j.prompt ? 'Click to read the whole prompt' : j.label"
+                  @click="j.prompt && (jobOpen = {...jobOpen, [j.id]: !jobOpen[j.id]})">{{ jobTitle(j) }}</span>
+            <button v-if="j.prompt" class="ghost job-more" @click="jobOpen = {...jobOpen, [j.id]: !jobOpen[j.id]}" :title="jobOpen[j.id] ? 'Hide the prompt' : 'Show the whole prompt'">{{ jobOpen[j.id] ? '▴' : '▾' }}</button>
             <span class="hint" v-if="j.model">{{ modelLabel(j.model) }}</span>
           </div>
+          <div v-if="j.prompt && jobOpen[j.id]" class="job-prompt">{{ j.prompt }}
+            <button class="link" @click="copyText(j.prompt)" title="Copy this prompt">📋 copy</button></div>
           <div v-if="j.loras && j.loras.length" class="job-loras">
             <span v-for="l in j.loras" :key="l.name" class="chip static job-lora" :title="l.name + ' at weight ' + l.weight">
               {{ l.name }} <small>{{ Number(l.weight).toFixed(2).replace(/\.?0+$/, '') }}</small></span>
@@ -4542,9 +4546,13 @@
         <div v-for="(j, i) in queueHere" :key="j.id" class="job" :class="j.state" @contextmenu.prevent="menuJob($event, j)">
           <div class="job-main">
             <span class="job-state">{{ j.state==='running' ? '▶' : i }}</span>
-            <span class="job-label" :title="j.label">{{ j.label }}</span>
+            <span class="job-label" :class="{openable: !!j.prompt}" :title="j.prompt ? 'Click to read the whole prompt' : j.label"
+                  @click="j.prompt && (jobOpen = {...jobOpen, [j.id]: !jobOpen[j.id]})">{{ jobTitle(j) }}</span>
+            <button v-if="j.prompt" class="ghost job-more" @click="jobOpen = {...jobOpen, [j.id]: !jobOpen[j.id]}" :title="jobOpen[j.id] ? 'Hide the prompt' : 'Show the whole prompt'">{{ jobOpen[j.id] ? '▴' : '▾' }}</button>
             <span class="hint" v-if="j.model">{{ modelLabel(j.model) }}</span>
           </div>
+          <div v-if="j.prompt && jobOpen[j.id]" class="job-prompt">{{ j.prompt }}
+            <button class="link" @click="copyText(j.prompt)" title="Copy this prompt">📋 copy</button></div>
           <div v-if="j.loras && j.loras.length" class="job-loras">
             <span v-for="l in j.loras" :key="l.name" class="chip static job-lora" :title="l.name + ' at weight ' + l.weight">
               {{ l.name }} <small>{{ Number(l.weight).toFixed(2).replace(/\.?0+$/, '') }}</small></span>

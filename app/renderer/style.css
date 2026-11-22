@@ -567,3 +567,10 @@ details.fine summary { cursor: pointer; }
 .tf-tile:hover { border-color: rgba(245, 192, 74, .6); }
 .tf-tile.on { border-color: #f5c04a; box-shadow: 0 0 0 2px rgba(245, 192, 74, .35); }
 .tf-tile-name { white-space: normal; overflow-wrap: anywhere; }
+/* 🔽 queue rows: click the name (or ▾) to read the whole prompt; the row itself stays one line */
+.job-label.openable { cursor: pointer; }
+.job-label.openable:hover { text-decoration: underline dotted; }
+.job-more { flex: none; padding: 0 6px; font-size: 11px; line-height: 18px; min-height: 0; }
+.job-prompt { margin: 6px 0 2px; padding: 8px 10px; font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: 220px; overflow-y: auto; background: rgba(0, 0, 0, .25); border-radius: 6px; color: var(--text, #ddd); }
+.job-prompt .link { margin-left: 6px; font-size: 11px; }
