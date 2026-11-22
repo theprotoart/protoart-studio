@@ -107,6 +107,53 @@ def profile_boxes(mask):
     return boxes
 
 
+def _period(prof, lo_frac=0.08, hi_frac=0.7):
+    """the repeat distance of a sheet's rows (or columns), from how the figure coverage repeats -> (lag, strength)"""
+    x = prof - prof.mean()
+    n = len(x)
+    if n < 16 or not x.any():
+        return 0, 0.0
+    ac = np.correlate(x, x, mode="full")[n - 1:]
+    ac = ac / max(1e-9, ac[0])
+    lo, hi = max(2, int(n * lo_frac)), max(3, int(n * hi_frac))
+    best, score = 0, 0.0
+    for lag in range(lo, min(hi, n - 1)):
+        if ac[lag] >= ac[lag - 1] and ac[lag] >= ac[lag + 1] and ac[lag] > score:
+            best, score = lag, float(ac[lag])
+    return best, score
+
+
+def grid_cuts(mask, axis, strong=0.25):
+    """the sheet's even rows (axis 1) or columns (axis 0): how many there are from the repeat distance, each cut moved
+    to the emptiest line near where it's expected. Works when the figures overlap their neighbours (no clear gap)."""
+    prof = (mask > 0.5).mean(axis=axis).astype(np.float64)
+    n = len(prof)
+    win = max(3, int(n * 0.01))
+    prof = np.convolve(prof, np.ones(win) / win, mode="same")
+    lag, score = _period(prof)
+    if not lag or score < strong:
+        return []
+    k = int(round(n / lag))
+    if k < 2:
+        return []
+    cuts = []
+    for i in range(1, k):
+        c = int(round(i * n / k))
+        r = max(1, int(n / k * 0.2))
+        a, b = max(1, c - r), min(n - 1, c + r)
+        cuts.append(a + int(np.argmin(prof[a:b])))
+    return cuts
+
+
+def grid_boxes_auto(mask):
+    """the cells of the sheet's own grid (found from its repeat), empty ones left out"""
+    h, w = mask.shape
+    xs = [0] + grid_cuts(mask, 0) + [w]
+    ys = [0] + grid_cuts(mask, 1) + [h]
+    return [(x0, y0, x1, y1) for y0, y1 in zip(ys, ys[1:]) for x0, x1 in zip(xs, xs[1:])
+            if (mask[y0:y1, x0:x1] > 0.5).mean() > 0.03]
+
+
 def find_figures(mask, min_frac=0.15):
     """mask: (h, w) 0..1, 1 = a figure. Returns one box per figure, in reading order. Bits smaller than min_frac of the
     biggest figure (specks, stray marks) are dropped; bits close together (a detached hand, a mug) are joined."""
@@ -126,9 +173,11 @@ def find_figures(mask, min_frac=0.15):
         med = float(np.median([(b[2] - b[0]) * (b[3] - b[1]) for b in boxes]))
         boxes = [b for b in boxes if (b[2] - b[0]) * (b[3] - b[1]) >= med * min_frac]
     boxes = split_big(boxes)
-    cells = profile_boxes(mask)  # figures that touch merge into one piece: the sheet's rows and columns part them
-    if len(cells) > len(boxes) * 1.5:
-        boxes = cells
+    # figures that touch merge into one piece: the sheet's own rows and columns part them (its gaps, or else how
+    # its figures repeat across and down); a grid that finds more figures than the pieces wins
+    for cells in (profile_boxes(mask), grid_boxes_auto(mask)):
+        if len(cells) > len(boxes) * 1.2:
+            boxes = cells
     return reading_order(boxes)
 
 
@@ -162,14 +211,31 @@ def keep_main(alpha, inner, edges=(True, True, True, True)):
         # a piece cut off at the crop's edge goes on outside it: a neighbour's hand or sleeve reaching in
         l, t, cw, ch = stats[i, 0], stats[i, 1], stats[i, 2], stats[i, 3]
         at_edge = (l == 0 and edges[0]) or (t == 0 and edges[1]) or (l + cw >= solid.shape[1] and edges[2]) or (t + ch >= solid.shape[0] and edges[3])
-        if within >= area * 0.5 and area >= solid.size * 0.002 and not at_edge:
+        # the figure's own detached bits (a mug, a hand) are inside its cell; a piece that crosses the cell's edge is
+        # a neighbour reaching in
+        if within >= area * 0.9 and area >= solid.size * 0.002 and not at_edge:
             keep[i] = True
     keep[best] = True
     gone = (~keep[labels]) & (labels > 0)
     gone = cv2.dilate(gone.astype(np.uint8), np.ones((5, 5), np.uint8)).astype(bool)
     # don't eat into what we keep with the dilation
     gone &= ~keep[labels]
-    return alpha * (~gone)
+    out = alpha * (~gone)
+    # a neighbour that touches the figure is joined to it: what's outside the cell and runs on to the crop's edge is
+    # the neighbour's (the figure's own hand or hair sticking out stops before the edge)
+    outside = np.ones_like(solid)
+    outside[y0:y1, x0:x1] = 0
+    bits = ((out > 0.5) & outside.astype(bool)).astype(np.uint8)
+    n2, lab2, st2, _ = cv2.connectedComponentsWithStats(bits, 8)
+    H, W = solid.shape
+    for i in range(1, n2):
+        l, t, cw, ch = st2[i, 0], st2[i, 1], st2[i, 2], st2[i, 3]
+        if (l == 0 and edges[0]) or (t == 0 and edges[1]) or (l + cw >= W and edges[2]) or (t + ch >= H and edges[3]):
+            out[lab2 == i] = 0
+    # faint see-through leftovers (below the 0.5 the pieces are counted at) away from what's kept: slivers of the
+    # neighbours' soft edges along the crop
+    kept = cv2.dilate((out > 0.5).astype(np.uint8), np.ones((7, 7), np.uint8)).astype(bool)
+    return out * kept
 
 
 def tight_box(alpha, pad):

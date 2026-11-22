@@ -1833,6 +1833,17 @@
           <i v-show="brush.show && ['brush', 'erase'].includes(mask.tool || 'brush')" class="brush-ring" :class="{erase: mask.erase}"
              :style="{width: brushRingPx() + 'px', height: brushRingPx() + 'px'}"></i>
         </div>
+        <div v-else-if="sheetBoxesShown() && !tool.working" class="adjust-canvas-wrap sheet-wrap" @click.stop>
+          <div class="sheet-map" ref="sheetMap" @pointerdown="sheetDown($event, -1, 'new')">
+            <img :src="fileUrl(tool.source.path)" alt="" draggable="false">
+            <div v-for="(b, i) in sheet.boxes" :key="'sb' + i" class="sheet-box" :style="sheetBoxStyle(b)" @pointerdown="sheetDown($event, i, 'move')" title="Drag to move · corner to resize">
+              <span class="sheet-n">{{ i + 1 }}</span>
+              <button class="sheet-x" @pointerdown.stop @click.stop="sheetRemove(i)" title="Take this one out">✕</button>
+              <i class="sheet-h" @pointerdown="sheetDown($event, i, 'size')"></i>
+            </div>
+          </div>
+          <span class="adjust-badge">🧩 {{ sheet.boxes.length }} FIGURES · EDIT THE BOXES</span>
+        </div>
         <div v-else-if="tool.source && tool.working && opts.previews !== false && livePreview && toolPreviewMine()" class="tool-live" @click.stop>
           <img :src="livePreview.src" alt=""><span class="cmp-tag left">● live preview</span>
         </div>
@@ -2681,6 +2692,14 @@
                 <span class="hint">{{ (sheet.rows || 1) * (sheet.cols || 1) }} pictures</span>
               </div>
               <label class="check" title="Remove the background around each figure (see-through PNGs) with the Finder above. Off: each figure is just cropped out"><input type="checkbox" v-model="sheet.cut"> Cut out each one (see-through)</label>
+              <template v-if="sheet.cut">
+                <label title="Takes a few pixels off every figure's edge, so no dark halo or coloured fringe of the sheet's background is left around it">Shrink the edge <span class="mod-val">{{ sheet.shrink }} px</span></label>
+                <input type="range" min="0" max="12" step="1" v-model.number="sheet.shrink" title="2–3 px clears most halos; more for a thick dark outline you don't want">
+              </template>
+              <div class="row">
+                <button class="ghost small" :disabled="!tool.source || sheet.finding || !!tool.working" @click="sheetFind" title="Find the figures and show their boxes on the sheet, to check and fix them before splitting">{{ sheet.finding ? 'Finding…' : '🔍 Find the figures' }}</button>
+                <span v-if="sheetBoxesShown()" class="hint">{{ sheet.boxes.length }} boxes on the sheet: move, resize, ✕ or draw more · <button class="link" @click="sheet.boxes = []">forget them</button></span>
+              </div>
               <label class="check" title="Put each figure in the middle of a square, all the same shape (stickers, emoji packs)"><input type="checkbox" v-model="sheet.square"> Make them all square</label>
               <div class="row">
                 <button class="primary small" :disabled="!tool.source || !!tool.working" @click="cutSplitSheet" title="Each figure is saved to the Library, and all of them together in one folder">🧩 Split &amp; save all</button>

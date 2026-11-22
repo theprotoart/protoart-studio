@@ -16,6 +16,16 @@
   (picture and / or words) that fill the prompt's [PLACEHOLDERS] or add a line (`tfBuild`); the pictures go in as
   Picture 2… in order; too many for the edit model is caught before running. Recorded as the picture's recipe.
   Test `test_transform_recipes`.
+- 🧩 Split a character sheet, fixed and checkable: figures that overlap their neighbours came out two to a picture;
+  the sheet's grid is now also found from how its figures repeat (`grid_cuts`, autocorrelation of the coverage
+  profile), and a joined neighbour's slice outside the figure's cell that runs to the crop's edge is trimmed
+  (`keep_main`). 🔍 Find the figures (`cutout` mode "sheet_find") shows the boxes on the sheet to move, resize,
+  remove or add; the split uses them (`boxes`). Shrink the edge (default 2 px, `shrink`), a crisper edge (softness
+  ≤ 0.06) and specks cleaned, against the halo / coloured fringe; touching a figure up starts with the same shrink.
+- A sheet that's already see-through (a PNG with transparency) keeps its own edges: its alpha finds the figures and
+  cuts them out (no finder, so no redrawn outline or fringe); faint leftover slivers along the crop and neighbours'
+  bits that cross the figure's cell are dropped. Each figure is cut from a crop 35 % wider than its cell (was 4–8 %),
+  so hands reaching past the cell aren't cut off. Tried on two real 4 × 4 sheets: 16 figures each.
 - ✍ Touch up in ✂ Cut out: 🖌 Add / 🧽 Remove brushes and ➰ Add / Remove lassos on the preview (a red / blue layer at
   preview size, 20 undo steps), applied live in `cutAlpha` and on 💾 Save (`fix`, `cutout.apply_fix`, after the
   threshold / clean-up, so touch-ups always win).

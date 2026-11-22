@@ -65,3 +65,23 @@ def test_touch_ups():
     f.save(buf, "PNG")
     out = cut.apply_fix(a, "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode())
     assert out[4, 4] == 1 and out[20, 20] == 0 and out[15, 15] == 1 and out[35, 35] == 0
+
+
+def test_touching_rows_are_parted():
+    """every figure's raised hands touch the one above: the pieces are whole columns, the sheet's repeat parts them"""
+    m = _sheet(rows=4, cols=3)
+    for r in range(3):
+        for c in range(3):
+            y, x = r * 100, c * 100
+            m[y + 80:y + 110, x + 30:x + 70] = 1  # overlapping into the next row
+    boxes = sh.find_figures(m)
+    assert len(boxes) == 12, len(boxes)
+
+
+def test_neighbour_slice_trimmed():
+    a = np.zeros((140, 100), np.float32)
+    a[20:100, 20:80] = 1      # the figure (cell 10..110 tall)
+    a[100:140, 40:60] = 1     # the neighbour below, joined to it, running on to the crop's bottom edge
+    a[15:25, 80:90] = 1       # the figure's own hand sticking out of the cell, not reaching the edge
+    out = sh.keep_main(a, (10, 10, 90, 110))
+    assert out[130, 50] == 0 and out[60, 50] == 1 and out[20, 85] == 1

@@ -1234,7 +1234,8 @@ const protoartApp = createApp({
       qnt: { model: "", bits: 8, msg: "" },  // Tools → Smaller copy
       tup: { scale: 2, strength: 0.25, steps: 24, prompt: "", engine: "z", flow_dpo: true },  // Tools → Tiled upscale (z: Z-Image Turbo)
       cut: { open: false, busy: false, msg: "", path: "", w: 0, h: 0, view: "result", rev: 0, paperView: false },
-      sheet: { open: false, find: "auto", rows: 4, cols: 4, cut: true, square: false, folder: "", figures: [] },
+      sheet: { open: false, find: "auto", rows: 4, cols: 4, cut: true, square: false, folder: "", figures: [], shrink: 1,
+               boxes: [], boxesFor: "", W: 0, H: 0, finding: false },  // 🔍 the figures' boxes, checked before splitting
       cutFix: { tool: "", size: 30, undo: 0, any: false, figure: null },  // ✍ Cut out's touch-up: brush / lasso to add to or take from the cut-out  // 🧩 Split a character sheet  // ✂ Cut out's live preview
       paperJob: false,
       i2iInpaintPick: "",
@@ -1386,6 +1387,8 @@ const protoartApp = createApp({
               "<b>🧩 Split a character sheet</b> (Tools → ✂ Cut out): drop a sheet of poses, expressions or stickers and press 🧩 Split &amp; save all. Each figure is found (Auto, also when they touch, or Grid with rows and columns), cut out on its own at full detail with bits of its neighbours left out, and saved as a see-through PNG to the Library and together in one folder (📂 Show in Finder). <i>Make them all square</i> gives same-size stickers; switch off <i>Cut out each one</i> to just crop them.",
               "<b>🎭 Transform a person</b> (Image to image → ✨ Edit with words): 🦸 Action figure, 🧸 Claymation, 🗿 Figurine on a desk, 🎎 Vinyl art toy, 🧱 Brick minifigure, 🤪 3D caricature, 🌸 Anime character, 📼 1990s film snapshot and 🔍 Tiny human diorama, 🌴 Crime-game cover art, 🕹 Retro 32-bit game, 📇 Trading card, 👾 16-bit pixel sprite, 🦸 Comic book cover, 🎮 Fighting-game select, 🪆 Bobblehead, 🧶 Crochet doll, 🎬 Animated-movie hero and 🖼 Oil-painting portrait. Each has its own boxes: the person, an optional style picture, and the items its prompt asks for (the action figure's 3 accessories, the diorama's giant object…). Drop a picture, type it, or both; empty ones are filled in for you.",
               "<b>✍ Touch up a cut-out</b> (Tools → ✂ Cut out, after ✂ Cut out): 🖌 Add / 🧽 Remove brushes and ➰ Add / ➰ Remove lassos, right on the picture, for a hand, a sleeve or a prop the finder missed, or background it kept. ↶ Undo goes back a stroke; switch to Mask to see the edge clearly. 💾 Save uses your touch-ups.",
+              "<b>🔍 Check the figures before splitting</b>: 🔍 Find the figures shows a numbered box on the sheet for each figure it found. Drag a box to move it, its corner to resize it, ✕ to take one out, or drag on an empty spot to add one; 🧩 Split &amp; save all then uses your boxes. Sheets whose figures overlap their neighbours (hands over the next head) are now parted by the sheet's own rows and columns, so you get one figure per picture.",
+              "<b>See-through sheets keep their own edges</b>: a sheet saved with a transparent background (PNG) is split along its own transparency, so the outlines stay exactly as drawn. <b>Shrink the edge</b> (🧩 Split a character sheet): takes 1 px (or up to 12) off every figure's edge, so no dark halo or coloured fringe of the sheet's background is left around it. The edge is also kept crisper for stickers.",
               "<b>Fix a figure of a split sheet</b>: after 🧩 Split &amp; save all, the figures show as small pictures under the button. Click one to open it in Cut out (from the sheet itself, with its neighbours left out), touch it up, then 💾 Save: the fixed one goes to the Library and takes the old one's place in the sheet's folder.",
               "<b>Shape buttons lined up</b> (Create → Size): Square, Portrait and Landscape each have their own rows, a row per size (Draft, Medium, Large, Best), and portraits sit right over their landscapes (2:3 over 3:2, 9:16 over 16:9). Point at a button for its exact size.",
             ] },
@@ -5777,8 +5780,10 @@ const protoartApp = createApp({
       sh.folder = "";
       sh.figures = [];
       try {
+        const boxes = this.sheetBoxesShown() ? sh.boxes.map((b) => b.slice(0, 4)) : null;
         const r = await this.runJob("cutout", { ...this.toolArgs(), mode: "sheet", finder: o.finder || "birefnet", threshold: o.threshold,
-                                                 softness: o.softness, grow: o.grow, find: sh.find, rows: sh.rows, cols: sh.cols, cut: sh.cut, square: sh.square });
+                                                 softness: o.softness, grow: 0, shrink: sh.shrink, find: sh.find, rows: sh.rows, cols: sh.cols,
+                                                 cut: sh.cut, square: sh.square, boxes });
         if (r && r.records) {
           this.tool.latest = r.records[r.records.length - 1];
           for (const rec of r.records) this.afterPost(rec);
@@ -7878,6 +7883,54 @@ const protoartApp = createApp({
       const f = cutCache && cutCache.fix;
       return f && this.cutFix.any ? f.cv.toDataURL("image/png") : null;
     },
+    // 🔍 find the figures first and show their boxes on the sheet: move one, take one out (✕), or draw a missing one
+    sheetBoxesShown() { const s = this.tool.source; return !!(s && this.sheet.open && this.sheet.boxes.length && this.sheet.boxesFor === s.path); },
+    async sheetFind() {
+      const s = this.tool.source, sh = this.sheet, o = this.post.cut;
+      if (!s || sh.finding) return;
+      sh.finding = true;
+      try {
+        const r = await this.runJob("cutout", { ...this.toolArgs(), mode: "sheet_find", finder: o.finder || "birefnet", find: sh.find, rows: sh.rows, cols: sh.cols });
+        if (r && r.boxes) {
+          Object.assign(sh, { boxes: r.boxes, W: r.width, H: r.height, boxesFor: s.path });
+          this.tool.latest = null;  // show the sheet with its boxes
+          this.status = `${r.boxes.length} figure${r.boxes.length === 1 ? "" : "s"} found: drag a box to move it, its corner to resize it, ✕ to take it out, or drag on an empty spot to add one`;
+        }
+      } finally { sh.finding = false; }
+    },
+    sheetBoxStyle(b) {
+      const sh = this.sheet;
+      return { left: b[0] / sh.W * 100 + "%", top: b[1] / sh.H * 100 + "%", width: (b[2] - b[0]) / sh.W * 100 + "%", height: (b[3] - b[1]) / sh.H * 100 + "%" };
+    },
+    sheetDown(e, i, how) {  // how: "move" a box, "size" from its corner, or "new" on an empty spot
+      const sh = this.sheet, el = this.$refs.sheetMap;
+      if (!el || e.button !== 0) return;
+      e.preventDefault(); e.stopPropagation();
+      const r = el.getBoundingClientRect(), kx = sh.W / r.width, ky = sh.H / r.height;
+      const px = (ev) => [Math.max(0, Math.min(sh.W, (ev.clientX - r.left) * kx)), Math.max(0, Math.min(sh.H, (ev.clientY - r.top) * ky))];
+      const [x0, y0] = px(e);
+      if (how === "new") { sh.boxes.push([x0, y0, x0, y0]); i = sh.boxes.length - 1; how = "size"; }
+      const start = sh.boxes[i].slice();
+      const move = (ev) => {
+        const [x, y] = px(ev), b = sh.boxes[i];
+        if (how === "move") {
+          const dx = Math.max(-start[0], Math.min(sh.W - start[2], x - x0)), dy = Math.max(-start[1], Math.min(sh.H - start[3], y - y0));
+          sh.boxes[i] = [start[0] + dx, start[1] + dy, start[2] + dx, start[3] + dy];
+        } else {
+          const ax = how === "size" && start[2] === start[0] ? start[0] : start[0], ay = start[1];
+          sh.boxes[i] = [Math.min(ax, x), Math.min(ay, y), Math.max(ax, x), Math.max(ay, y)];
+        }
+        void b;
+      };
+      const up = () => {
+        window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+        const b = sh.boxes[i];
+        if (b && (b[2] - b[0] < 12 || b[3] - b[1] < 12)) sh.boxes.splice(i, 1);  // a click, not a box
+        else if (b) sh.boxes[i] = b.map(Math.round);
+      };
+      window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+    },
+    sheetRemove(i) { this.sheet.boxes.splice(i, 1); },
     async sheetFix(fig) {  // ✍ open one figure of a split sheet in Cut out, from the sheet itself, to touch it up
       const src = this.tool.source;
       if (!src || !fig) return;
@@ -7885,6 +7938,7 @@ const protoartApp = createApp({
         const r = await call("sheet_crop", { path: fig.sheet, box: fig.box });
         if (!r || !r.path) return;
         this.tool.source = { path: r.path, image_id: null, width: r.width, height: r.height, sheetOf: src.sheetOf || src, inner: fig.inner, edges: fig.edges };
+        this.post.cut.grow = -(this.sheet.shrink || 0);  // the same edge as the split
         await this.toolCutout();
         this.cutFix.figure = fig;
         this.cutFix.tool = "add_brush";

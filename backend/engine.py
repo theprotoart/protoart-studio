@@ -4297,11 +4297,25 @@ class Engine:
         import postprocess.cutout as cut
         emit = emit or self.emit
         src, image = self._source_picture(args)
+        own_alpha = None  # 🧩 a sheet that's already see-through: its own edges are the best ones
+        if args.get("mode") in ("sheet", "sheet_find") and ("A" in image.getbands() or "transparency" in image.info):
+            import numpy as np
+            a = np.asarray(image.convert("RGBA").getchannel("A"), np.float32) / 255.0
+            if (a < 0.05).mean() > 0.05:
+                own_alpha = a
         image = image.convert("RGB")
         mode = args.get("mode") or "save"
         started = time.time()
         if mode == "sheet":  # 🧩 Split a character sheet into one picture per figure
-            return self._cut_sheet(src, image, args, emit, started)
+            return self._cut_sheet(src, image, args, emit, started, own_alpha)
+        if mode == "sheet_find":  # 🧩 just find the figures (boxes to check and fix before splitting)
+            import postprocess.sheet as sheet
+            if args.get("find") == "grid":
+                boxes = sheet.grid_boxes(image.width, image.height, args.get("rows") or 1, args.get("cols") or 1)
+            else:
+                emit({"type": "status", "msg": "Finding the figures on the sheet"})
+                boxes = sheet.find_figures(own_alpha if own_alpha is not None else self._cut_matte(src, image, emit, str(args.get("finder") or "birefnet")))
+            return {"own_alpha": own_alpha is not None, "boxes": [list(map(int, b)) for b in boxes], "width": image.width, "height": image.height}
         emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
         m = self._cut_matte(src, image, emit, str(args.get("finder") or "birefnet"))
         if args.get("inner"):  # 🧩 one figure of a character sheet: its neighbours' bits are left out
@@ -4404,7 +4418,7 @@ class Engine:
             emit({"type": "progress", "image": 1, "images": 1, "step": i + 1, "steps": total})
         return {"records": records, "name": doc["name"], "layers": len(layers)}
 
-    def _cut_sheet(self, src, image, args, emit, started):
+    def _cut_sheet(self, src, image, args, emit, started, own_alpha=None):
         """🧩 A character sheet (a grid of poses, expressions, stickers…) -> each figure as its own picture: found on the
         sheet (args find "auto", or "grid" with rows / cols), cut out at full detail one by one (see-through PNGs, or
         just cropped with args cut False), saved to the Library and together in one folder -> {records, folder}"""
@@ -4414,11 +4428,14 @@ class Engine:
         import postprocess.sheet as sheet
         finder = str(args.get("finder") or "birefnet")
         w, h = image.size
-        if args.get("find") == "grid":
+        if args.get("boxes"):  # the boxes as you checked them (🔍 Find the figures, then moved / removed / drawn)
+            boxes = [tuple(max(0, min(lim, int(v))) for v, lim in zip(b, (w, h, w, h))) for b in args["boxes"]]
+            boxes = sheet.reading_order([b for b in boxes if b[2] - b[0] > 8 and b[3] - b[1] > 8])
+        elif args.get("find") == "grid":
             boxes = sheet.grid_boxes(w, h, args.get("rows") or 1, args.get("cols") or 1)
         else:
             emit({"type": "status", "msg": "Finding the figures on the sheet"})
-            boxes = sheet.find_figures(self._cut_matte(src, image, emit, finder))
+            boxes = sheet.find_figures(own_alpha if own_alpha is not None else self._cut_matte(src, image, emit, finder))
             if not boxes:
                 raise UserError("No figures were found on this sheet: try Grid and set the rows and columns.")
         if len(boxes) > 200:
@@ -4427,30 +4444,44 @@ class Engine:
         folder = paths.IMAGES_DIR / "Sheets" / f"{stem} {datetime.now().strftime('%Y-%m-%d %H.%M.%S')}"
         folder.mkdir(parents=True, exist_ok=True)
         cut_out = args.get("cut", True) is not False
-        sess = cut.session(finder=finder) if cut_out else None
+        # a see-through sheet keeps its own edges (no finder: the model would redraw the outline and leave a fringe)
+        sess = cut.session(finder=finder) if cut_out and own_alpha is None else None
         records, figures = [], []
         for n, box in enumerate(boxes, 1):
             emit({"type": "progress", "image": n, "images": len(boxes), "step": 0, "steps": 1})
             emit({"type": "status", "msg": f"Cutting out figure {n} of {len(boxes)}"})
-            outer = sheet.grow_box(box, w, h, 0.08 if args.get("find") == "grid" else 0.04)
+            # a wide margin, so hands and arms that reach past the figure's cell aren't cut off (keep_main then drops
+            # the neighbours that come into it)
+            outer = sheet.grow_box(box, w, h, 0.35)
             piece = image.crop(outer)
             if cut_out:
-                m = cut.matte(piece, sess, finder)
-                alpha = cut.refine(m, threshold=float(args.get("threshold") if args.get("threshold") is not None else 0.5),
-                                   softness=float(args.get("softness") if args.get("softness") is not None else 0.1),
-                                   grow=int(args.get("grow") or 0))
+                m = own_alpha[outer[1]:outer[3], outer[0]:outer[2]] if own_alpha is not None else cut.matte(piece, sess, finder)
+                # sheets often have a dark halo or a coloured fringe around each figure: shrink the edge a little
+                # (args shrink, px) and keep it fairly hard, so stickers come out clean
+                if own_alpha is not None:  # its own soft edge as it is, only shrunk if asked
+                    alpha = m.astype(np.float32).copy()
+                    g = int(args.get("shrink") or 0)
+                    if g:
+                        alpha = cut._slide(cut._slide(alpha, g, "min", 1), g, "min", 0)
+                else:
+                    alpha = cut.refine(m, threshold=float(args.get("threshold") if args.get("threshold") is not None else 0.5),
+                                       softness=min(0.06, float(args.get("softness") if args.get("softness") is not None else 0.06)),
+                                       grow=int(args.get("grow") or 0) - int(args.get("shrink") or 0))
                 inner = (box[0] - outer[0], box[1] - outer[1], box[2] - outer[0], box[3] - outer[1])
                 alpha = sheet.keep_main(alpha, inner, (outer[0] > 0, outer[1] > 0, outer[2] < w, outer[3] < h))
+                alpha = cut.clean_bits(alpha)  # specks of the halo left after shrinking
                 tight = sheet.tight_box(alpha, max(4, round(max(piece.size) * 0.02)))
                 if tight is None:
                     continue  # an empty cell
-                out = cut.compose(piece, alpha, None, fix_edges=True).crop(tight)
+                out = cut.compose(piece, alpha, None, fix_edges=own_alpha is None).crop(tight)
             else:
                 out = image.crop(box)
             if args.get("square"):
                 out = sheet.on_square(out)
             settings = {"width": out.width, "height": out.height, "seconds": round(time.time() - started, 1),
-                        "sheet": {"figure": n, "of": len(boxes), "find": args.get("find") or "auto", "cut": cut_out}}
+                        "sheet": {"figure": n, "of": len(boxes), "find": "checked" if args.get("boxes") else args.get("find") or "auto",
+                                  "own_edges": own_alpha is not None,
+                                  "cut": cut_out, "shrink": int(args.get("shrink") or 0)}}
             path = self._save(out, settings, suffix=f"sheet{n:02d}")
             record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="cutout")
             record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
