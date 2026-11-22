@@ -8,9 +8,10 @@
   is matted again at full detail on its own crop, pieces of neighbours dropped (`keep_main`: mostly outside the cell,
   or cut off at the crop's edge), trimmed, optionally centred on a square; saved to the Library and copied to
   `Pictures/Sheets/<sheet> <time>/<sheet>_NN.png`. Test `test_sheet`.
-- 🎭 Transform a person (✨ Edit with words): 11 presets (`EDIT_RECIPES` with `group: "transform"` and `slots`):
+- 🎭 Transform a person (✨ Edit with words): 19 presets (`EDIT_RECIPES` with `group: "transform"` and `slots`):
   action figure, claymation, figurine on a desk, vinyl art toy, brick minifigure, 3D caricature, anime character,
-  1990s film snapshot, tiny human diorama, crime-game cover art, retro 32-bit game (named by the look, no
+  1990s film snapshot, tiny human diorama, crime-game cover art, retro 32-bit game, trading card, 16-bit pixel sprite, comic book cover,
+  fighting-game select screen, bobblehead, crochet doll, animated-movie hero, oil-painting portrait (named by the look, no
   trademarks). Boxes: the person (Picture 1), an optional style picture, and item boxes
   (picture and / or words) that fill the prompt's [PLACEHOLDERS] or add a line (`tfBuild`); the pictures go in as
   Picture 2… in order; too many for the edit model is caught before running. Recorded as the picture's recipe.
