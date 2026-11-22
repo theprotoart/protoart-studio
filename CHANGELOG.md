@@ -2,6 +2,8 @@
 
 ## 1.6.27
 
+- 📓 Manga draft page preset (ERNIE and H3): original characters and lines (the example given named a real series and its
+  characters, so it was rewritten generically); ERNIE presets can carry speech-bubble `lines` ({L1}…).
 - Queue: a job sends its whole prompt (`_public` → `prompt`, `recipe`); click its name or ▾ to read it underneath
   (wrapped, scrolls past 220 px, 📋 copy); recipe jobs are named after their look (`jobTitle`).
 - 🎬 Storyboard sketch preset (ERNIE_PRESETS and H3_PRESETS): pencil storyboard page, title, three framed shots with
