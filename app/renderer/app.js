@@ -1109,7 +1109,8 @@ const protoartApp = createApp({
       promptIoMsg: "",
       qnt: { model: "", bits: 8, msg: "" },  // Tools → Smaller copy
       tup: { scale: 2, strength: 0.25, steps: 24, prompt: "", engine: "z", flow_dpo: true },  // Tools → Tiled upscale (z: Z-Image Turbo)
-      cut: { open: false, busy: false, msg: "", path: "", w: 0, h: 0, view: "result", rev: 0, paperView: false },  // ✂ Cut out's live preview
+      cut: { open: false, busy: false, msg: "", path: "", w: 0, h: 0, view: "result", rev: 0, paperView: false },
+      sheet: { open: false, find: "auto", rows: 4, cols: 4, cut: true, square: false, folder: "" },  // 🧩 Split a character sheet  // ✂ Cut out's live preview
       paperJob: false,
       i2iInpaintPick: "",
       promptCardOver: false,
@@ -1256,6 +1257,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Next: 🧩 split a character sheet, shape buttons lined up", items: [
+              "<b>🧩 Split a character sheet</b> (Tools → ✂ Cut out): drop a sheet of poses, expressions or stickers and press 🧩 Split &amp; save all. Each figure is found (Auto, also when they touch, or Grid with rows and columns), cut out on its own at full detail with bits of its neighbours left out, and saved as a see-through PNG to the Library and together in one folder (📂 Show in Finder). <i>Make them all square</i> gives same-size stickers; switch off <i>Cut out each one</i> to just crop them.",
+              "<b>Shape buttons lined up</b> (Create → Size): Square, Portrait and Landscape each have their own rows, a row per size (Draft, Medium, Large, Best), and portraits sit right over their landscapes (2:3 over 3:2, 9:16 over 16:9). Point at a button for its exact size.",
+            ] },
             { h: "1.6.25: 🎚 Denoise, the right sizes for every model, 📦 boxes for FLUX.1, Klein and ERNIE", items: [
               "<b>🎚 Denoise in Create</b> (like ComfyUI's KSampler denoise): open 🎚 Denoise, drop a picture (or ↩ Use my last picture) and set how much is redrawn: 0.30 light touch, 0.50 restyle, 0.75 mostly new, 1.00 from scratch. Your prompt, LoRAs, sampler and steps all apply. Works with SD 1.5, SDXL, Anima, Z-Image Turbo, ERNIE, FLUX.1, Qwen-Image 2.1 and Krea 2. Image to image's Change strength is the same thing, now labelled Denoise too.",
               "<b>The right sizes for every model</b>: the Max size switch and the shape buttons now use each model's own published sizes for Z-Image Turbo (up to Best 1536), Ideogram 4 (up to Best 2048, plus banners), Qwen-Image 2.1 (up to its native 2048), MiniMax-H3-Image (its own shape list), MOSS-Image (up to 1456), FIBO 2 and Krea 2 (up to 2K) and FLUX 3, instead of SDXL's.",
@@ -2023,6 +2028,7 @@ const protoartApp = createApp({
               "Drop a <b>.procreate</b> file onto Tools (or Image to image, or anywhere a picture goes): the finished picture opens, with Procreate's colours (Display P3) turned into the usual sRGB. It's read from inside the file; nothing in it changes.",
               "<b>🗂 Bring in its layers</b> (under the picture in Tools): every layer with something on it is saved to the Library as a see-through PNG the size of the canvas, top layer first, plus the finished picture. Each one notes its layer name, opacity, blend mode and whether it was clipped; hidden layers are left out. A big canvas with many layers takes a minute or so." ] },
             { h: "✂ Cut out and 📄 Paper cut-out", items: [
+              "<b>🧩 Split a character sheet</b>: drop the sheet on the left, open 🧩 Split a character sheet under the Finder and press 🧩 Split &amp; save all. <i>Auto</i> finds each figure by itself; if it gets the count wrong, pick <i>Grid</i> and type the sheet's rows and columns. Every figure goes to the Library and into one folder (Sheets, next to your pictures), named after the sheet with 01, 02… in reading order.",
               "<b>🗂 Split into layers</b> (in Cut out, after ✂ Cut out): saves the subject on see-through and the background with the subject filled in (Smart fill), as two pictures in the Library, to rearrange in Procreate, Photoshop or Puppet warp.",
               "<b>✂ Cut out: which finder?</b> <b>BiRefNet</b> (default) is best for most photos. <b>Anime</b> is made for drawn and anime characters, <b>People</b> for people only, <b>General</b> and <b>Classic</b> (U²-Net) are alternatives when the edge looks wrong. The four extra finders come from rembg and download once (~170 MB each).",
               "<b>✂ Cut out</b> removes the background: people, animals (dogs, cats, horses, birds…) and objects. Drop a picture on the left of Tools (or pick one from the Library) and press <b>✂ Cut out</b>. The first time it downloads its model (BiRefNet, MIT licence, ~224 MB); after that it works offline, in a few seconds.",
@@ -3676,6 +3682,40 @@ const protoartApp = createApp({
                     ["Large square", 1536, 1536], ["2K square", 2048, 2048], ["2K 9:16", 1152, 2048], ["2K 16:9", 2048, 1152]];
       sets.moss = [...sets.sdxl.filter(([l]) => l !== "Small square"), ["Small square", 768, 768], ["Large square", 1456, 1456]];  // 1456: its README's example
       return (sets[this.family] || sets.sdxl).map(([label, w, h]) => ({ label, w, h }));
+    },
+    sizeGrid() {  // the shape buttons lined up: Portrait and Landscape share columns (2:3 over 3:2…), a row per size (Draft, Medium…)
+      const tiers = this.sizeTiers;
+      const tierOf = (p) => {
+        const side = Math.sqrt(p.w * p.h);
+        let best = tiers[0], d = Infinity;
+        for (const t of tiers) { const dd = Math.abs(Math.log(side / t.side)); if (dd < d) { d = dd; best = t; } }
+        return best;
+      };
+      const ratioOf = (p) => Math.round((Math.max(p.w, p.h) / Math.min(p.w, p.h)) * 20) / 20;
+      const short = (p) => {
+        const m = p.label.match(/\d+:\d+/);
+        if (m) return m[0];
+        const g = (a, b) => (b ? g(b, a % b) : a), k = g(p.w, p.h);
+        return `${p.w / k}:${p.h / k}`;
+      };
+      const ratios = [...new Set(this.sizePresets.filter((p) => p.w !== p.h).map(ratioOf))].sort((a, b) => a - b);
+      const order = tiers.map((t) => t.id);
+      const squares = [], groups = { Portrait: {}, Landscape: {} };
+      for (const p of this.sizePresets) {
+        const t = tierOf(p);
+        if (p.w === p.h) {
+          if (!squares.some((q) => q.tier === t.id)) squares.push({ ...p, tier: t.id, short: t.label });
+          continue;
+        }
+        const g = groups[p.h > p.w ? "Portrait" : "Landscape"];
+        const row = (g[t.id] = g[t.id] || { tier: t, cells: ratios.map(() => null) });
+        const i = ratios.indexOf(ratioOf(p));
+        if (!row.cells[i]) row.cells[i] = { ...p, short: short(p) };
+      }
+      squares.sort((a, b) => order.indexOf(a.tier) - order.indexOf(b.tier));
+      const block = (name) => Object.values(groups[name]).sort((a, b) => order.indexOf(a.tier.id) - order.indexOf(b.tier.id))
+        .map((r) => ({ key: name + r.tier.id, label: r.tier.label, cells: r.cells }));
+      return { cols: ratios.length, squares, blocks: [{ name: "Portrait", rows: block("Portrait") }, { name: "Landscape", rows: block("Landscape") }].filter((b) => b.rows.length) };
     },
     livePreviewShown() {
       const lp = this.livePreview;
@@ -5599,6 +5639,22 @@ const protoartApp = createApp({
         const r = await this.runJob("procreate_layers", { path: src });
         if (r) this.status = `${r.layers} layer${r.layers === 1 ? "" : "s"} of “${r.name}” saved to the Library (plus the finished picture), top layer first`;
       } finally { this.procreateJob = false; }
+    },
+    async cutSplitSheet() {  // 🧩 a character sheet -> one picture per figure (Library + one folder)
+      const s = this.tool.source, o = this.post.cut, sh = this.sheet;
+      if (!s) return;
+      this.tool.working = { label: "Splitting the sheet", started: Date.now() };
+      sh.folder = "";
+      try {
+        const r = await this.runJob("cutout", { ...this.toolArgs(), mode: "sheet", finder: o.finder || "birefnet", threshold: o.threshold,
+                                                 softness: o.softness, grow: o.grow, find: sh.find, rows: sh.rows, cols: sh.cols, cut: sh.cut, square: sh.square });
+        if (r && r.records) {
+          this.tool.latest = r.records[r.records.length - 1];
+          for (const rec of r.records) this.afterPost(rec);
+          sh.folder = r.folder;
+          this.status = `${r.records.length} figure${r.records.length === 1 ? "" : "s"} saved to the Library and to one folder (📂 Show them in Finder)`;
+        }
+      } finally { this.tool.working = null; }
     },
     async cutSplitLayers() {  // 🗂 the subject (see-through) and the background (filled in) as two pictures
       const s = this.tool.source, o = this.post.cut;

@@ -4300,6 +4300,8 @@ class Engine:
         image = image.convert("RGB")
         mode = args.get("mode") or "save"
         started = time.time()
+        if mode == "sheet":  # 🧩 Split a character sheet into one picture per figure
+            return self._cut_sheet(src, image, args, emit, started)
         emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
         m = self._cut_matte(src, image, emit, str(args.get("finder") or "birefnet"))
         emit({"type": "progress", "image": 1, "images": 1, "step": 1, "steps": 1})
@@ -4382,6 +4384,67 @@ class Engine:
             emit({"type": "image", "record": rec})
             emit({"type": "progress", "image": 1, "images": 1, "step": i + 1, "steps": total})
         return {"records": records, "name": doc["name"], "layers": len(layers)}
+
+    def _cut_sheet(self, src, image, args, emit, started):
+        """🧩 A character sheet (a grid of poses, expressions, stickers…) -> each figure as its own picture: found on the
+        sheet (args find "auto", or "grid" with rows / cols), cut out at full detail one by one (see-through PNGs, or
+        just cropped with args cut False), saved to the Library and together in one folder -> {records, folder}"""
+        import shutil
+        import numpy as np
+        import postprocess.cutout as cut
+        import postprocess.sheet as sheet
+        finder = str(args.get("finder") or "birefnet")
+        w, h = image.size
+        if args.get("find") == "grid":
+            boxes = sheet.grid_boxes(w, h, args.get("rows") or 1, args.get("cols") or 1)
+        else:
+            emit({"type": "status", "msg": "Finding the figures on the sheet"})
+            boxes = sheet.find_figures(self._cut_matte(src, image, emit, finder))
+            if not boxes:
+                raise UserError("No figures were found on this sheet: try Grid and set the rows and columns.")
+        if len(boxes) > 200:
+            raise UserError(f"That's {len(boxes)} pieces: use Grid with the sheet's rows and columns instead.")
+        stem = Path(src.get("path") or "sheet").stem[:60] or "sheet"
+        folder = paths.IMAGES_DIR / "Sheets" / f"{stem} {datetime.now().strftime('%Y-%m-%d %H.%M.%S')}"
+        folder.mkdir(parents=True, exist_ok=True)
+        cut_out = args.get("cut", True) is not False
+        sess = cut.session(finder=finder) if cut_out else None
+        records = []
+        for n, box in enumerate(boxes, 1):
+            emit({"type": "progress", "image": n, "images": len(boxes), "step": 0, "steps": 1})
+            emit({"type": "status", "msg": f"Cutting out figure {n} of {len(boxes)}"})
+            outer = sheet.grow_box(box, w, h, 0.08 if args.get("find") == "grid" else 0.04)
+            piece = image.crop(outer)
+            if cut_out:
+                m = cut.matte(piece, sess, finder)
+                alpha = cut.refine(m, threshold=float(args.get("threshold") if args.get("threshold") is not None else 0.5),
+                                   softness=float(args.get("softness") if args.get("softness") is not None else 0.1),
+                                   grow=int(args.get("grow") or 0))
+                inner = (box[0] - outer[0], box[1] - outer[1], box[2] - outer[0], box[3] - outer[1])
+                alpha = sheet.keep_main(alpha, inner, (outer[0] > 0, outer[1] > 0, outer[2] < w, outer[3] < h))
+                tight = sheet.tight_box(alpha, max(4, round(max(piece.size) * 0.02)))
+                if tight is None:
+                    continue  # an empty cell
+                out = cut.compose(piece, alpha, None, fix_edges=True).crop(tight)
+            else:
+                out = image.crop(box)
+            if args.get("square"):
+                out = sheet.on_square(out)
+            settings = {"width": out.width, "height": out.height, "seconds": round(time.time() - started, 1),
+                        "sheet": {"figure": n, "of": len(boxes), "find": args.get("find") or "auto", "cut": cut_out}}
+            path = self._save(out, settings, suffix=f"sheet{n:02d}")
+            record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="cutout")
+            record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
+            try:
+                shutil.copy2(path, folder / f"{stem}_{n:02d}{Path(path).suffix}")
+            except OSError as e:
+                print("[sheet] copy to folder failed:", e, flush=True)
+            emit({"type": "image", "record": record})
+            records.append(record)
+            emit({"type": "progress", "image": n, "images": len(boxes), "step": 1, "steps": 1})
+        if not records:
+            raise UserError("Every piece came out empty: try another Finder, or switch off Cut out each one.")
+        return {"records": records, "folder": str(folder), "found": len(boxes)}
 
     def _cut_layers(self, src, image, m, args, emit, started):
         import net

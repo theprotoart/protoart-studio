@@ -2794,3 +2794,16 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .sd-boost input[type=range] { flex: 1; min-width: 100px; }
 .kept-table td { padding: 3px 8px 3px 0; }
 .ok-tag { color: #8fd18f; }
+
+/* Create: the shape buttons lined up (Portrait over Landscape in the same ratio columns, a row per size) */
+.shape-grid { display: grid; gap: 4px; align-items: center; margin-top: 4px; width: 100%; }
+.shape-grid .chip { margin: 0; padding: 4px 2px; min-width: 0; font-size: 12px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.shape-grid .shape-row { font-size: 11px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.shape-grid .shape-head { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; opacity: .7; margin-top: 4px;
+  border-bottom: 1px solid rgba(255,255,255,.15); padding-bottom: 2px; }
+.shape-grid .shape-squares { display: flex; flex-wrap: wrap; gap: 4px; }
+.shape-grid .shape-squares .chip { flex: 1 1 0; }
+/* ✂ Cut out → 🧩 Split a character sheet */
+.sheet-split { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.sheet-split .sheet-grid input { width: 56px; margin-left: 4px; }
+.sheet-split .sheet-grid { gap: 12px; align-items: center; }

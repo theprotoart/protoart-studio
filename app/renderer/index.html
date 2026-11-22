@@ -880,9 +880,23 @@
                          :model-value="currentTier" @update:model-value="id => applyTier(sizeTiers.find(t => t.id === id))"
                          off-label="custom size"></rack-switch>
             <div class="size-side">
-          <div class="chips">
-            <button v-for="p in sizePresets" :key="p.label" class="chip" :class="{on: form.width===p.w && form.height===p.h}"
-                    @click="applySizePreset(p)" :title="p.w + ' × ' + p.h">{{ p.label }}</button>
+          <div class="shape-grid" :style="{gridTemplateColumns: '4.6em repeat(' + Math.max(1, sizeGrid.cols) + ', minmax(0, 1fr))'}">
+            <span class="shape-row">Square</span>
+            <div class="shape-squares" :style="{gridColumn: 'span ' + Math.max(1, sizeGrid.cols)}">
+              <button v-for="p in sizeGrid.squares" :key="'sq' + p.tier" class="chip" :class="{on: form.width===p.w && form.height===p.h}"
+                      @click="applySizePreset(p)" :title="p.label + ': ' + p.w + ' × ' + p.h">{{ p.short }}</button>
+            </div>
+            <template v-for="b in sizeGrid.blocks" :key="'sb' + b.name">
+              <span class="shape-head" :style="{gridColumn: 'span ' + (Math.max(1, sizeGrid.cols) + 1)}">{{ b.name }}</span>
+              <template v-for="r in b.rows" :key="r.key">
+                <span class="shape-row">{{ r.label }}</span>
+                <template v-for="(p, i) in r.cells" :key="r.key + i">
+                  <button v-if="p" class="chip" :class="{on: form.width===p.w && form.height===p.h}"
+                          @click="applySizePreset(p)" :title="p.label + ': ' + p.w + ' × ' + p.h">{{ p.short }}</button>
+                  <span v-else></span>
+                </template>
+              </template>
+            </template>
           </div>
             </div>
           </div>
@@ -2635,6 +2649,28 @@
               · <button class="link" :disabled="!!tool.working" @click="cutSplitLayers" title="Save two layers to the Library: the subject on see-through, and the background with the subject filled in (Smart fill). Open both in Procreate or Photoshop to rearrange them">🗂 Split into layers</button>
               · <button class="link" @click="closeCutout" title="Close the cut-out preview">close</button></div>
           </template>
+          <!-- 🧩 Split a character sheet: each figure on its own, in one go -->
+          <div v-if="!cut.open" class="sheet-split">
+            <button class="link" @click="sheet.open = !sheet.open" title="A sheet of poses, expressions or stickers: each figure is found and cut out as its own picture">🧩 Split a character sheet {{ sheet.open ? '▴' : '▾' }}</button>
+            <template v-if="sheet.open">
+              <label>Find the figures</label>
+              <div class="seg mod-seg">
+                <button :class="{on: sheet.find === 'auto'}" @click="sheet.find = 'auto'" title="Finds each figure by itself (figures that touch are split by their size)">Auto</button>
+                <button :class="{on: sheet.find === 'grid'}" @click="sheet.find = 'grid'" title="The sheet is an even grid: set its rows and columns">Grid</button>
+              </div>
+              <div v-if="sheet.find === 'grid'" class="row sheet-grid">
+                <label>Rows <input type="number" min="1" max="20" v-model.number="sheet.rows"></label>
+                <label>Columns <input type="number" min="1" max="20" v-model.number="sheet.cols"></label>
+                <span class="hint">{{ (sheet.rows || 1) * (sheet.cols || 1) }} pictures</span>
+              </div>
+              <label class="check" title="Remove the background around each figure (see-through PNGs) with the Finder above. Off: each figure is just cropped out"><input type="checkbox" v-model="sheet.cut"> Cut out each one (see-through)</label>
+              <label class="check" title="Put each figure in the middle of a square, all the same shape (stickers, emoji packs)"><input type="checkbox" v-model="sheet.square"> Make them all square</label>
+              <div class="row">
+                <button class="primary small" :disabled="!tool.source || !!tool.working" @click="cutSplitSheet" title="Each figure is saved to the Library, and all of them together in one folder">🧩 Split &amp; save all</button>
+                <button v-if="sheet.folder" class="ghost small" @click="showInFolder(sheet.folder)" title="Open the folder with all the figures">📂 Show in Finder</button>
+              </div>
+            </template>
+          </div>
           <div class="mod-foot">
             <button v-if="!cut.open" class="primary mod-go" :disabled="!tool.source || cut.busy" @click="toolCutout">✂ Cut out</button>
             <button v-else class="primary mod-go" :disabled="cut.busy || !!tool.working" @click="cutSave" title="Save the cut-out to the Library (a see-through PNG when the background is None)">💾 Save</button>

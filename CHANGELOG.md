@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- 🧩 Split a character sheet (✂ Cut out, `cutout` mode "sheet", `engine._cut_sheet`, `postprocess/sheet.py`): figures
+  are found on the sheet's matte (connected pieces, joined when close; touching figures parted by the sheet's rows and
+  columns from its coverage profile, `profile_cuts`, odd narrow strips joined, `_even`), or on an even Grid. Each
+  is matted again at full detail on its own crop, pieces of neighbours dropped (`keep_main`: mostly outside the cell,
+  or cut off at the crop's edge), trimmed, optionally centred on a square; saved to the Library and copied to
+  `Pictures/Sheets/<sheet> <time>/<sheet>_NN.png`. Test `test_sheet`.
+- Create's shape buttons in a grid (`sizeGrid`): Square in one row; Portrait and Landscape share ratio columns (2:3
+  over 3:2); a row per size tier by pixel count.
+
 ## 1.6.25
 
 - 🎚 Denoise in Create (ComfyUI KSampler denoise): `form.dn` {image, value, use_size}; below 1.00 the picture is sent
