@@ -4159,8 +4159,8 @@
         <label v-if="form.i2i_mode !== 'edit' && !(form.i2i_mode === 'outpaint' && form.outpaint_engine !== 'model')" class="check"><input type="checkbox" v-model="form.use_init_size"> Use the picture's size (otherwise the size from Create)</label>
       </div>
 
-      <div v-if="form.i2i_mode === 'edit'" class="card edit-model-card">
-        <h3>✨ Edit with words <span class="hint">FLUX.2 Klein 4B · ⚡ fast engine · whatever model Create has</span></h3>
+      <div v-if="form.i2i_mode === 'edit'" class="card edit-model-card i2ifold" :class="{shut: i2iShut('editinfo')}">
+        <h3 @click="i2iFoldToggle('editinfo', $event)">✨ Edit with words <span class="hint">FLUX.2 Klein 4B · ⚡ fast engine · whatever model Create has</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <p class="hint">Say what to change and it changes just that, keeping the rest of the picture: “make the jacket red”,
           “add sunglasses”, “replace the sky with a sunset”, “turn it into a watercolour painting”, “remove the people in the background”.</p>
         <p v-if="editModel() && !editModel().cached" class="hint warn">The first edit downloads FLUX.2 Klein (~{{ editModel().download_gb }} GB), then it works offline.</p>
@@ -4315,8 +4315,9 @@
         </div>
         <p v-if="!chainModels().length" class="hint">Download SD 1.5, SDXL, Anima, FLUX.1 Schnell or ERNIE in the Models tab first.</p>
       </div>
-      <div v-if="!['change', 'faceswap', 'text', 'relight'].includes(form.i2i_mode)" class="card hint cn-off">
-        <div>2 · ControlNet is off while {{ form.i2i_mode === 'camera' ? 'changing the camera angle' : form.i2i_mode === 'combine' ? 'combining' : form.i2i_mode === 'peel' ? 'peeling layers' : form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'faceswap' ? 'swapping faces' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
+      <div v-if="!['change', 'faceswap', 'text', 'relight'].includes(form.i2i_mode)" class="card hint cn-off i2ifold" :class="{shut: i2iShut('cnoff')}">
+        <h3 class="cn-off-head" @click="i2iFoldToggle('cnoff', $event)">2 · ControlNet is off <span class="cfold-chev" aria-hidden="true"></span></h3>
+        <div>ControlNet is off while {{ form.i2i_mode === 'camera' ? 'changing the camera angle' : form.i2i_mode === 'combine' ? 'combining' : form.i2i_mode === 'peel' ? 'peeling layers' : form.i2i_mode === 'remove' ? 'removing' : form.i2i_mode === 'faceswap' ? 'swapping faces' : form.i2i_mode === 'edit' ? 'editing with words' : 'inpainting or expanding' }}.</div>
         <div v-if="form.i2i_mode === 'edit'" class="cn-off-tips">Edit with words already keeps the layout, and <b>More pictures</b> above lend it a style, an outfit or a face.
           To make a new picture that follows this one's <b>structure</b> instead, use ControlNet with an SD 1.5 model:
           <b>Canny</b> (outlines), <b>Depth</b> (3-D layout), <b>Line art</b> (colour a drawing), <b>OpenPose</b> (copy a pose), <b>Tile</b> (add detail)<template v-if="userControlnets.length">, or one of yours ({{ userControlnets.slice(0, 3).map((u) => u.name).join(', ') }}{{ userControlnets.length > 3 ? '…' : '' }})</template>.

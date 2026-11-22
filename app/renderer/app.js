@@ -1383,6 +1383,9 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Next: tidier Image to image", items: [
+              "The <b>✨ Edit with words</b> and <b>2 · ControlNet is off</b> panels in Image to image fold up like the others: click a title to close or open it, and it stays that way.",
+            ] },
             { h: "1.6.26: 🎭 19 Transform a person looks, 🧩 split a character sheet, ✍ touch up cut-outs, shape buttons lined up", items: [
               "<b>🧩 Split a character sheet</b> (Tools → ✂ Cut out): drop a sheet of poses, expressions or stickers and press 🧩 Split &amp; save all. Each figure is found (Auto, also when they touch, or Grid with rows and columns), cut out on its own at full detail with bits of its neighbours left out, and saved as a see-through PNG to the Library and together in one folder (📂 Show in Finder). <i>Make them all square</i> gives same-size stickers; switch off <i>Cut out each one</i> to just crop them.",
               "<b>🎭 Transform a person</b> (Image to image → ✨ Edit with words): 🦸 Action figure, 🧸 Claymation, 🗿 Figurine on a desk, 🎎 Vinyl art toy, 🧱 Brick minifigure, 🤪 3D caricature, 🌸 Anime character, 📼 1990s film snapshot and 🔍 Tiny human diorama, 🌴 Crime-game cover art, 🕹 Retro 32-bit game, 📇 Trading card, 👾 16-bit pixel sprite, 🦸 Comic book cover, 🎮 Fighting-game select, 🪆 Bobblehead, 🧶 Crochet doll, 🎬 Animated-movie hero and 🖼 Oil-painting portrait. Each has its own boxes: the person, an optional style picture, and the items its prompt asks for (the action figure's 3 accessories, the diorama's giant object…). Drop a picture, type it, or both; empty ones are filled in for you.",

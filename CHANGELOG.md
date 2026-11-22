@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Image to image: the ✨ Edit with words and 2 · ControlNet is off panels fold (`i2ifold`, keys `editinfo` / `cnoff`,
+  remembered like the others).
+
 ## 1.6.26
 
 - 🧩 Split a character sheet (✂ Cut out, `cutout` mode "sheet", `engine._cut_sheet`, `postprocess/sheet.py`): figures
