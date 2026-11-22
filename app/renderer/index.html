@@ -3379,9 +3379,43 @@
         <template v-else-if="form.i2i_mode === 'edit'">
           <label class="pair-head">🧩 Two pictures → one <span class="hint">pick a recipe, drop Picture 1 and Picture 2 in their boxes, press Generate (the prompt is written for you; edit it if you like). Some use a community LoRA for FLUX.2 Klein, downloaded the first time</span></label>
           <div class="seg seg-wrap edit-recipes">
-            <button v-for="r in EDIT_RECIPES()" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
+            <button v-for="r in EDIT_RECIPES().filter((x) => !x.slots)" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
           </div>
-          <div v-if="editRecipe()" class="recipe-card">
+          <label class="pair-head">🎭 Transform a person <span class="hint">pick a look, drop a photo of the person, and optionally a style picture and the items it asks for (a picture, words, or both)</span></label>
+          <div class="seg seg-wrap edit-recipes">
+            <button v-for="r in EDIT_RECIPES().filter((x) => x.slots)" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
+          </div>
+          <div v-if="editRecipe() && editRecipe().slots" class="recipe-card">
+            <div class="tf-layout">
+              <div class="pair-slot" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
+                   @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()" title="A clear photo of the person (face visible)">
+                <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt="">
+                <div v-else class="pair-empty"><b>The person</b><span>drop or click</span></div>
+                <span class="pair-cap">1 · the person</span>
+              </div>
+              <div v-for="sl in editRecipe().slots" :key="sl.id" class="tf-slot">
+                <div class="pair-slot" :class="{over: pairOver === sl.id, filled: !!form.tf.pics[sl.id]}" @dragover.prevent="pairOver = sl.id" @dragleave="pairOver = ''"
+                     @drop.prevent="tfDrop($event, sl)" @click="tfPick(sl)" :title="sl.kind === 'style' ? 'Optional: a picture whose look (style, colours, finish) to follow' : 'Optional: a picture of it (and / or type it below)'">
+                  <img v-if="form.tf.pics[sl.id]" :src="fileUrl(form.tf.pics[sl.id])" alt="">
+                  <div v-else class="pair-empty"><b>{{ tfSlotLabel(sl) }}</b><span>optional · drop or click</span></div>
+                  <span class="pair-cap">{{ tfSlotLabel(sl) }}</span>
+                  <button v-if="form.tf.pics[sl.id]" class="tf-x" @click.stop="tfClear(sl)" title="Take this picture out">✕</button>
+                </div>
+                <input v-if="sl.kind === 'item'" type="text" v-model="form.tf.words[sl.id]" :placeholder="sl.dflt ? 'e.g. ' + sl.dflt.replace(/^an? /, '') : 'type it (optional)'"
+                       :title="'Say what it is (works with or without a picture)' + (sl.dflt ? '. Left empty: ' + sl.dflt : '')">
+              </div>
+              <div class="pair-slot result" :title="i2iLatest ? 'The last result (click to open it)' : 'The result appears here'" @click="i2iLatest && openDetail && openDetail(i2iLatest)">
+                <img v-if="i2iLatest && i2iLatest.path" :src="fileUrl(i2iLatest.path)" alt="">
+                <div v-else class="pair-empty"><b>Result</b><span>press Generate</span></div>
+                <span class="pair-cap">the result</span>
+              </div>
+              <input ref="tfPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="tfPicked">
+            </div>
+            <div class="hint">{{ editRecipe().tip }} The words in [BRACKETS] in the prompt are filled in from the boxes when you press Generate; edit the rest of the prompt as you like.</div>
+            <div v-if="tfBuild().refs.length > editRefMax()" class="hint warn">{{ tfBuild().refs.length }} pictures in the boxes, and this edit model takes {{ editRefMax() }}: type some items instead, or pick FLUX 3 or MiniMax-H3 as the edit model.</div>
+            <div v-if="!form.init_image" class="hint warn">Drop a photo of the person in the first box.</div>
+          </div>
+          <div v-if="editRecipe() && !editRecipe().slots" class="recipe-card">
             <div class="pair-layout" title="Drop a picture on each box (or click to pick one)">
               <div class="pair-slot" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
                    @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()">

@@ -255,6 +255,7 @@ function defaultForm() {
     cfg_rescale: 0,  // 🎚 CFG rescale (SD 1.5 / SDXL)
     heal_method: "lama",
     edit_recipe: "",    // ✨ Edit with words: a two-picture recipe (EDIT_RECIPES), or "" for none
+    tf: { pics: {}, words: {} },  // 🎭 Transform a person: each box's picture and words (by the recipe's slot id)
     edit_refs: [],      // ✨ Edit with words: extra pictures to take a style, object or outfit from (🧩 Combine: what to add)
     keep_faces: true,  // ✨ Edit with words: each face redone close-up so it stays like the original
     match_colors: false,  // ✨ Edit with words: 🎨 the result's colours moved back to the original's (Color Match)
@@ -426,6 +427,76 @@ const EDIT_RECIPES = [
     licence: "MIT; only with people's consent, never public figures",
     files: { "4b": { hf: { repo: "Alissonerdx/BFS-Best-Face-Swap", file: "bfs_head_v1_flux-klein_4b.safetensors" }, name: "bfs_head_v1_flux-klein_4b", mb: 0 },
              "9b": { hf: { repo: "Alissonerdx/BFS-Best-Face-Swap", file: "bfs_head_v1_flux-klein_9b_step3750_rank64.safetensors" }, name: "bfs_head_v1_flux-klein_9b_step3750_rank64", mb: 0 } } },
+  // 🎭 Transform a person: one photo of the person (Picture 1), an optional style picture, and boxes for the items the
+  // prompt asks for (a picture, words, or both). The prompt's [PLACEHOLDERS] are filled in when you press Generate.
+  { id: "tf_action_figure", label: "🦸 Action figure", group: "transform", by: "", files: null, p1: "the person",
+    tip: "Turns the person into an articulated collectible action figure in a blister pack, with three accessories in their own compartments. Drop pictures of the accessories, type them, or both.",
+    slots: [{ id: "style", kind: "style" },
+            { id: "acc1", kind: "item", label: "Accessory 1", ph: "[ACCESSORY 1]", dflt: "a miniature accessory that suits their personality" },
+            { id: "acc2", kind: "item", label: "Accessory 2", ph: "[ACCESSORY 2]", dflt: "a second miniature accessory that suits their interests" },
+            { id: "acc3", kind: "item", label: "Accessory 3", ph: "[ACCESSORY 3]", dflt: "a third miniature accessory that suits their style" }],
+    prompt: "Transform the person in the reference image into a highly detailed, realistic collectible action figure. Preserve the person's recognizable facial features, hairstyle, skin tone, and distinctive appearance.\nConstruct the figure as a premium articulated plastic toy with clearly visible mechanical ball joints at the shoulders, elbows, wrists, hips, knees, and ankles. Include realistic joint connectors, movable limbs, molded plastic details, and subtle seams where the body components connect.\nDress the figure in an outfit inspired by the original photograph. Display the complete figure standing in a dynamic heroic pose inside premium transparent blister packaging with a colorful collectible backing card.\nInclude three miniature accessories arranged in separate molded compartments that reflect the person's personality or interests: [ACCESSORY 1], [ACCESSORY 2], [ACCESSORY 3].\nProfessional toy product photography, realistic molded plastic surfaces, glossy highlights, detailed mechanical articulation, dramatic studio lighting, sharp focus, front-facing three-quarter camera angle.\nThe final image should look like an actual manufactured collectible action figure photographed for a premium toy catalog.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_claymation", label: "🧸 Claymation", group: "transform", by: "", files: null, p1: "the person",
+    tip: "A handmade plasticine puppet of the person on a miniature stop-motion set: fingerprints, clay hair, soft theatrical light. Add props for the set if you like.",
+    slots: [{ id: "style", kind: "style" },
+            { id: "prop", kind: "item", label: "A prop for the set", add: "Include this on the miniature set, made of clay: {x}." }],
+    prompt: "Transform the person in the reference photograph into an adorable handcrafted claymation character.\nPreserve their recognizable facial structure, hairstyle, skin tone, and defining physical characteristics while translating their appearance into a fully sculpted plasticine puppet.\nCreate a tactile handmade appearance with visible fingerprints, subtle clay imperfections, rounded sculpted features, slightly oversized expressive eyes, sculpted eyebrows, and individually shaped strands of clay hair.\nRecreate their clothing using colorful molded clay with realistic folds and handmade surface details.\nPlace the character inside a charming miniature stop-motion animation set with handcrafted clay furniture, miniature props, colorful scenery, and soft theatrical lighting.\nUse rich colors, playful proportions, detailed clay textures, warm cinematic lighting, shallow depth of field, and the unmistakable appearance of a professionally produced stop-motion animation film.\nThe result should look physically sculpted by a stop-motion animation artist, not like a digital cartoon or a smooth plastic toy.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_figurine_desk", label: "🗿 Figurine on a desk", group: "transform", by: "", files: null, p1: "the person",
+    tip: "A 1:7 scale collectible statue of the person on an artist's desk, with its retail box beside it and its 3D sculpt on the monitor behind.",
+    slots: [{ id: "style", kind: "style" },
+            { id: "desk", kind: "item", label: "Something on the desk", add: "Also on the desk: {x}." }],
+    prompt: "Create a photorealistic 3D collectible figurine based on the person in the reference image.\nPreserve their recognizable face, hairstyle, clothing, skin tone, and distinctive appearance. Reimagine them as a professionally manufactured, approximately 1:7 scale collectible statue.\nThe figurine should have carefully sculpted facial features, realistic painted details, finely textured clothing, and a premium semi-matte collectible finish.\nPosition the figurine standing on a circular display base atop a modern creative workstation desk.\nPlace its matching retail collectible box beside it, featuring artwork of the same character. Include a computer monitor in the background displaying a detailed 3D digital sculpt of the figurine.\nProfessional product photography, realistic miniature proportions, soft cinematic studio lighting, natural shadows, detailed materials, three-quarter camera angle, premium collectible presentation.\nThe final image should resemble a real photograph of a manufactured designer collectible displayed on an artist's desk.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_vinyl_toy", label: "🎎 Vinyl art toy", group: "transform", by: "", files: null, p1: "the person",
+    tip: "A designer vinyl art toy of the person: big rounded head, compact body, semi-gloss finish, on a clean colourful studio background.",
+    slots: [{ id: "style", kind: "style" }],
+    prompt: "Transform the person in the reference image into a premium designer vinyl art toy.\nMaintain their recognizable facial identity, hairstyle, skin tone, and signature clothing, translating their features into a stylized collectible character.\nGive the character an oversized rounded head, compact simplified body, short sculpted limbs, expressive eyes, and distinctive toy-like proportions.\nUse smooth molded vinyl construction with a beautiful semi-gloss finish, subtle molded seams, carefully painted facial details, and vibrant coordinated colors.\nCreate an original designer toy aesthetic with a distinctive silhouette and premium collectible craftsmanship.\nPosition the figure standing upright against a clean colorful studio background with a soft circular shadow beneath it.\nHigh-end designer toy photography, controlled studio lighting, realistic vinyl material, crisp sculptural details, centered full-body composition.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_brick_fig", label: "🧱 Brick minifigure", group: "transform", by: "", files: null, p1: "the person",
+    tip: "The person as a construction-brick minifigure in a small brick-built scene. Add the themed accessories they should hold or have around them.",
+    slots: [{ id: "style", kind: "style" },
+            { id: "acc1", kind: "item", label: "Accessory 1", add: "Give the minifigure this accessory, made as a small plastic toy piece: {x}." },
+            { id: "acc2", kind: "item", label: "Accessory 2", add: "Also include this accessory, made as a small plastic toy piece: {x}." }],
+    prompt: "Recreate the person in the reference photograph as a highly detailed interlocking plastic brick-built minifigure.\nTranslate their recognizable hairstyle, clothing colors, facial expression, and signature accessories into a miniature toy character constructed from colorful plastic building bricks.\nGive the character a cylindrical head, simple printed facial expression, curved C-shaped hands, compact articulated arms, and short block-shaped legs.\nReproduce the person's clothing using printed patterns and molded brick details. Preserve their recognizable appearance through the hairstyle, color palette, and distinctive clothing.\nPlace the minifigure inside a miniature brick-built environment with a matching display platform and small themed accessories.\nRealistic injection-molded plastic, visible connection studs, smooth plastic surfaces, precise toy construction, bright studio lighting, sharp product photography, three-quarter view.\nThe final result should look like a professionally manufactured miniature construction-brick collectible.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_caricature", label: "🤪 3D caricature", group: "transform", by: "", files: null, p1: "the person",
+    tip: "A funny but flattering animated-movie caricature: bigger head, exaggerated features, expressive face, same hair and clothes.",
+    slots: [{ id: "style", kind: "style" }],
+    prompt: "Transform the person in the reference photograph into a humorous, highly expressive 3D caricature.\nPreserve their identity and recognizable facial characteristics while artistically exaggerating their most distinctive features.\nCreate a slightly oversized head, exaggerated facial proportions, expressive eyebrows, enlarged eyes, a distinctive nose, and an amusing facial expression that gives the character personality.\nKeep the original hairstyle, skin tone, and recognizable clothing.\nRender the character as a beautifully sculpted 3D animated figure with smooth skin shading, detailed hair, realistic fabric, expressive facial muscles, and carefully controlled exaggeration.\nUse a colorful cinematic studio background, professional character-rendering lighting, subtle depth of field, and a three-quarter portrait composition.\nThe final image should resemble an expertly crafted animated movie caricature with a humorous but flattering interpretation of the original person.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_anime", label: "🌸 Anime character", group: "transform", by: "", files: null, p1: "the person",
+    tip: "The person as an original character from a premium anime film, in a cinematic anime setting. Drop an anime picture as the style reference to follow its drawing style.",
+    slots: [{ id: "style", kind: "style", label: "Anime style to follow" },
+            { id: "place", kind: "item", label: "The setting", add: "Set the scene here: {x}." }],
+    prompt: "Transform the person in the reference photograph into an original high-quality anime character.\nPreserve their recognizable facial structure, hairstyle, skin tone, and distinctive features while translating their appearance into a polished hand-drawn Japanese animation aesthetic.\nCreate expressive detailed eyes, clean character linework, beautifully layered hair, carefully shaded facial features, and stylized clothing based on the original outfit.\nGive the character a confident and engaging expression with a dynamic natural pose.\nPlace them in a cinematic anime environment with atmospheric depth, detailed background elements, soft environmental lighting, and a carefully coordinated color palette.\nUse refined cel shading, subtle painted gradients, intricate highlights, expressive character design, and professional animation illustration quality.\nThe result should look like an original character from a premium animated feature film.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_90s_film", label: "📼 1990s film snapshot", group: "transform", by: "", files: null, p1: "the person",
+    tip: "A candid 1990s disposable-camera snapshot of the person: on-camera flash, film grain, faded colours, 90s clothes and setting.",
+    slots: [{ id: "style", kind: "style", label: "A photo look to follow" },
+            { id: "place", kind: "item", label: "Where it was taken", add: "The snapshot was taken here: {x}." }],
+    prompt: "Recreate the person in the reference photograph as though they were photographed using a disposable 35mm film camera during the 1990s.\nPreserve their recognizable facial features, hairstyle, skin tone, and natural appearance.\nGive the photograph an authentic candid snapshot aesthetic with direct on-camera flash, slightly imperfect exposure, visible analog film grain, subtle color shifts, soft image imperfections, and natural photographic texture.\nDress and style the scene with authentic 1990s fashion, accessories, and environmental details.\nUse warm nostalgic color tones, slightly faded highlights, deep natural shadows, subtle lens imperfections, and the characteristic appearance of inexpensive consumer film photography.\nFrame the image like a spontaneous photograph taken by a friend rather than a professional studio portrait.\nThe finished photograph should feel like a genuine rediscovered memory from a family photo album, complete with authentic analog film character.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_miniature", label: "🔍 Tiny human diorama", group: "transform", by: "", files: null, p1: "the person",
+    tip: "The person shrunk to miniature size in a world of giant everyday objects, shot like macro / tilt-shift photography. Drop or type the giant object or place.",
+    slots: [{ id: "style", kind: "style" },
+            { id: "giant", kind: "item", label: "The giant object or place", ph: "[OVERSIZED OBJECT OR ENVIRONMENT]", dflt: "a giant coffee cup and a huge open book on a kitchen table" }],
+    prompt: "Transform the person in the reference photograph into a tiny miniature human character living inside an imaginative oversized everyday environment.\nPreserve their recognizable face, hairstyle, clothing, skin tone, and distinctive appearance.\nShrink the person to miniature scale while maintaining believable human proportions and recognizable facial characteristics.\nPlace the tiny character interacting with enormous everyday objects: [OVERSIZED OBJECT OR ENVIRONMENT].\nCreate a richly detailed miniature diorama with realistic environmental textures, tiny accessories, miniature furniture, small environmental details, and carefully constructed scenery.\nUse macro photography with shallow depth of field, realistic miniature scale, tilt-shift visual characteristics, cinematic lighting, and carefully composed perspective.\nThe person should appear physically present inside a real miniature environment, not simply enlarged or digitally pasted onto a background.\nProfessional macro product photography, tactile materials, detailed miniature craftsmanship, atmospheric depth, and whimsical visual storytelling.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_crime_game", label: "🌴 Crime-game cover art", group: "transform", by: "", files: null, p1: "the person",
+    tip: "The person as a character on an open-world crime-game loading screen: bold ink outlines, cel shading, sunset palm-city colours, attitude pose. Add a prop and the place behind them. Only Protoart's own look: no game names or logos.",
+    slots: [{ id: "style", kind: "style", label: "Loading-art style to follow" },
+            { id: "prop", kind: "item", label: "What they hold", ph: "[PROP]", dflt: "a pair of aviator sunglasses in one hand" },
+            { id: "place", kind: "item", label: "The place behind", ph: "[LOCATION]", dflt: "a sunset beach boulevard lined with palm trees and neon signs" }],
+    prompt: "Transform the person in the reference photograph into a character illustration in the style of an open-world crime video game loading screen.\nPreserve their recognizable face, hairstyle, skin tone, and distinctive appearance, with a confident, slightly cocky expression.\nDraw them as bold digital illustration art: thick black ink outlines, flat cel-shaded colors with hard-edged shadows, saturated warm highlights, and crisp graphic detail on the face, clothes, and accessories.\nGive them a stylish streetwear outfit inspired by the original photograph and a dynamic attitude pose, holding [PROP].\nBehind them: [LOCATION], painted in a sunset palette of orange, pink, purple and teal with strong rim light on the character.\nComposition like a vertical game loading-screen panel: the character large in the foreground, cropped at the thighs, with the scene behind.\nNo logos, no game titles, no text.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_retro_console", label: "🕹 Retro 32-bit game", group: "transform", by: "", files: null, p1: "the person",
+    tip: "The person as a late-1990s 32-bit console game character: low-poly model, blurry low-res textures, wobbly polygons, a game scene behind. Add what the game is about.",
+    slots: [{ id: "style", kind: "style", label: "A retro game look to follow" },
+            { id: "scene", kind: "item", label: "The game's scene", ph: "[GAME SCENE]", dflt: "a foggy city street at night from an adventure game" }],
+    prompt: "Recreate the person in the reference photograph as a playable character in a late-1990s 32-bit home console video game.\nKeep their recognizable hairstyle, skin tone, clothing colors and overall look, translated into a low-polygon 3D character model with visibly faceted shapes, simple angular hands, and a face painted onto a low-resolution texture.\nUse authentic 32-bit era rendering: low-resolution blurry textures with no filtering, slight texture warping and wobbly vertices, affine texture distortion, limited color depth with subtle dithering, flat vertex lighting, and short draw distance fading into fog.\nPlace the character standing in the game world: [GAME SCENE], built from the same low-poly geometry and pixelated textures.\nFrame it like an in-game screenshot at 320 x 240 resolution upscaled, slightly soft, with the character in a typical third-person game pose.\nThe result should look like a real screenshot from a 1990s console game, not a modern remake. No logos, no on-screen text.",
+    licence: "no LoRA: the edit model alone" },
 ];
 // ✨ Edit with words: ready-made instructions (no download), e.g. old photo repair
 // 🧠 MiniMax-H3-Image's multi-picture edits (shown when it's the edit model): your picture is <Picture 1>, More pictures are <Picture 2>…
@@ -1060,6 +1131,7 @@ const protoartApp = createApp({
         f.cam = { ...defaultForm().cam, ...(f.cam || {}) };
         f.combine = { ...defaultForm().combine, ...(f.combine || {}) };
         f.dn = { ...defaultForm().dn, ...(f.dn || {}) };
+        f.tf = { pics: {}, words: {}, ...(f.tf || {}) };
         f.cc = { ...defaultForm().cc, ...(f.cc || {}) };  // permission is asked again each time the app opens
         if (!loadJSON("protoart.cfDefault", false)) {  // 1.2: CodeFormer became the default face model (once)
           f.face_model = "codeformer";
@@ -1260,6 +1332,7 @@ const protoartApp = createApp({
           sections: [
             { h: "Next: 🧩 split a character sheet, shape buttons lined up", items: [
               "<b>🧩 Split a character sheet</b> (Tools → ✂ Cut out): drop a sheet of poses, expressions or stickers and press 🧩 Split &amp; save all. Each figure is found (Auto, also when they touch, or Grid with rows and columns), cut out on its own at full detail with bits of its neighbours left out, and saved as a see-through PNG to the Library and together in one folder (📂 Show in Finder). <i>Make them all square</i> gives same-size stickers; switch off <i>Cut out each one</i> to just crop them.",
+              "<b>🎭 Transform a person</b> (Image to image → ✨ Edit with words): 🦸 Action figure, 🧸 Claymation, 🗿 Figurine on a desk, 🎎 Vinyl art toy, 🧱 Brick minifigure, 🤪 3D caricature, 🌸 Anime character, 📼 1990s film snapshot and 🔍 Tiny human diorama, 🌴 Crime-game cover art and 🕹 Retro 32-bit game. Each has its own boxes: the person, an optional style picture, and the items its prompt asks for (the action figure's 3 accessories, the diorama's giant object…). Drop a picture, type it, or both; empty ones are filled in for you.",
               "<b>✍ Touch up a cut-out</b> (Tools → ✂ Cut out, after ✂ Cut out): 🖌 Add / 🧽 Remove brushes and ➰ Add / ➰ Remove lassos, right on the picture, for a hand, a sleeve or a prop the finder missed, or background it kept. ↶ Undo goes back a stroke; switch to Mask to see the edge clearly. 💾 Save uses your touch-ups.",
               "<b>Fix a figure of a split sheet</b>: after 🧩 Split &amp; save all, the figures show as small pictures under the button. Click one to open it in Cut out (from the sheet itself, with its neighbours left out), touch it up, then 💾 Save: the fixed one goes to the Library and takes the old one's place in the sheet's folder.",
               "<b>Shape buttons lined up</b> (Create → Size): Square, Portrait and Landscape each have their own rows, a row per size (Draft, Medium, Large, Best), and portraits sit right over their landscapes (2:3 over 3:2, 9:16 over 16:9). Point at a button for its exact size.",
@@ -2522,6 +2595,7 @@ const protoartApp = createApp({
               "Checkpoints smaller than 1.5 GB are treated as LoRAs/embeddings, not base models. Watched folders are re-checked every few seconds; switch tabs to refresh the list.",
               "ERNIE and other newer models need their whole model folder (the one with <i>model_index.json</i>), or add them from Hugging Face." ] },
             { h: "Image to image, inpainting and ControlNet", items: [
+              "<b>🎭 Transform a person</b> (✨ Edit with words): pick a look, drop a clear photo of the person in the first box, then optionally a style picture and the items (pictures, words or both). The [BRACKETS] in the prompt are filled in from the boxes when you press Generate. FLUX.2 Klein takes 3 extra pictures; for more, type some items or pick FLUX 3 (9) or MiniMax-H3 (15) as the edit model.",
               "ControlNet works with <b>SD 1.5</b> models (built-in and your own) and <b>SDXL</b> models (your own SDXL ControlNets from Civitai); image to image and inpainting work with SD 1.5 and SDXL (not ERNIE).",
               "Inpainting/Expand and ControlNet can't be used together yet: the app tells you to switch one off.",
               "<b>“Paint over the part you want to change first”</b>: paint on the picture in Inpaint mode (pink = will be redrawn). <b>OpenPose “no people found”</b>: use a picture where the whole person is clearly visible." ] },
@@ -10186,14 +10260,17 @@ const protoartApp = createApp({
         this.error = "";
         const painted = this.maskIsFor("i2i", f.init_image) ? this.mask.data : null;
         const rec = this.editRecipe();
-        if (rec) {  // 🧬 / 🔁 two-picture recipes
+        const tfb = rec && rec.slots ? this.tfBuild(rec) : null;  // 🎭 Transform a person: its boxes
+        if (tfb && tfb.refs.length > this.editRefMax())
+          return (this.error = `${rec.label}: this edit model takes ${this.editRefMax()} extra pictures and there are ${tfb.refs.length}. Type some of the items instead of dropping a picture, or pick FLUX 3 (9) or MiniMax-H3 (15) as the edit model.`);
+        if (rec && !rec.slots) {  // 🧬 / 🔁 two-picture recipes
           if (!(f.edit_refs || []).length) return (this.error = `${rec.label} needs a second picture: add it under “More pictures”.`);
           if (rec.files && !this.editRecipeLora(rec)) return (this.error = `${rec.label} needs its LoRA first: press ⤓ Download under the recipe.`);
         }
-        await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: f.init_image, prompt: f.prompt, mask: painted,
+        await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: f.init_image, prompt: tfb ? tfb.prompt : f.prompt, mask: painted,
                                           keep_faces: !painted && f.keep_faces !== false && !rec, match_colors: !painted && !!f.match_colors,
                                           move_boxes: this.editModelId() === "flux3_klein_mlx_q4" && this.mvReady().length ? this.mvReady() : null,
-                                          refs: (f.edit_refs || []).slice(0, this.editRefMax()), seed: f.seed, ...this.recipeEditArgs() });
+                                          refs: tfb ? tfb.refs : (f.edit_refs || []).slice(0, this.editRefMax()), seed: f.seed, ...this.recipeEditArgs() });
         return;
       }
       if (f.i2i_mode === "outpaint" && f.outpaint_engine !== "model") {  // ↔ Expand with FLUX.2 Klein + outpaint LoRA
@@ -10515,6 +10592,40 @@ const protoartApp = createApp({
         const p = await this.preparePicture(window.bee.pathForFile(file));
         if (p) this.form.edit_refs = [...(this.form.edit_refs || []), p];
       }
+    },
+    // 🎭 Transform a person: the boxes of a recipe with slots (Picture 1 = the person, then a style picture and items)
+    tfSlotLabel(sl) { return sl.label || (sl.kind === "style" ? "Style reference" : "An item"); },
+    tfDrop(e, sl) {
+      this.pairOver = "";
+      const file = [...(e.dataTransfer?.files || [])].find(isPicture);
+      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) this.form.tf.pics = { ...this.form.tf.pics, [sl.id]: p }; });
+    },
+    tfPick(sl) { this._tfSlot = sl; this.$refs.tfPick.click(); },
+    tfPicked(e) {
+      const file = [...(e.target.files || [])][0], sl = this._tfSlot;
+      e.target.value = "";
+      if (file && sl) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) this.form.tf.pics = { ...this.form.tf.pics, [sl.id]: p }; });
+    },
+    tfClear(sl) { const { [sl.id]: _, ...rest } = this.form.tf.pics; this.form.tf.pics = rest; },
+    tfBuild(r = this.editRecipe(), prompt = this.form.prompt) {  // -> {prompt, refs}: the pictures in order and the prompt filled in
+      const pics = this.form.tf.pics || {}, words = this.form.tf.words || {}, refs = [], adds = [], roles = [];
+      let text = String(prompt || "");
+      for (const sl of r.slots || []) {
+        const pic = pics[sl.id], w = String(words[sl.id] || "").trim();
+        let n = 0;
+        if (pic) { refs.push(pic); n = refs.length + 1; }
+        if (sl.kind === "style") {
+          if (n) adds.push(`Follow the visual style, colour palette, materials and finish of Picture ${n} (a style reference only: don't copy its subject).`);
+          if (n) roles.push(`Picture ${n} is the style reference`);
+          continue;
+        }
+        const what = w && n ? `${w} (as shown in Picture ${n})` : w || (n ? `the object shown in Picture ${n}` : "");
+        if (n) roles.push(`Picture ${n} shows ${w || "an item to include"}`);
+        if (sl.ph && text.includes(sl.ph)) text = text.split(sl.ph).join(what || sl.dflt || "");
+        else if (what && sl.add) adds.push(sl.add.replace("{x}", what));
+      }
+      const head = refs.length ? `Picture 1 is the reference photo of the person. ${roles.join(". ")}.\n` : "";
+      return { prompt: head + text + (adds.length ? "\n" + adds.join("\n") : ""), refs };
     },
     pairCap(n) {  // the caption under each box of the two-picture layout
       if (this.form.i2i_mode === "combine") return n === 1 ? "the scene" : "the character (or thing)";

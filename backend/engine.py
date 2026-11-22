@@ -5509,7 +5509,8 @@ class Engine:
                                    "match_light": combine.get("match_light") is not False}
         if args.get("loras"):
             settings["loras"] = [{"name": l["name"], "weight": float(l.get("weight", 1.0))} for l in args["loras"] if isinstance(l, dict) and l.get("name")]
-        recipe = args.get("recipe") if args.get("recipe") in ("mid_transform", "replace_subject", "copy_pose", "head_swap") else None
+        recipe = args.get("recipe") if (args.get("recipe") in ("mid_transform", "replace_subject", "copy_pose", "head_swap")
+                                          or str(args.get("recipe") or "").startswith("tf_")) else None  # 🎭 Transform a person
         if recipe:
             settings["recipe"] = recipe
         if recipe in ("replace_subject", "head_swap"):
