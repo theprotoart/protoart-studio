@@ -976,7 +976,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.26";
+const APP_VERSION = "1.6.27";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1383,7 +1383,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Next: tidier Image to image", items: [
+            { h: "1.6.27: ★ best MiniMax-H3 size, foldable Image to image panels", items: [
               "<b>★ Best-results size for MiniMax-H3-Image</b> (Create → Size): ★ 3:4 (1088 × 1456) and ★ 4:3 (1456 × 1088), the size that's been giving the best pictures, marked in gold in the Medium rows.",
               "The <b>✨ Edit with words</b> and <b>2 · ControlNet is off</b> panels in Image to image fold up like the others: click a title to close or open it, and it stays that way.",
             ] },

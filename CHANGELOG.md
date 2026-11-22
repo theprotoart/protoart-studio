@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.27
 
 - MiniMax-H3-Image: ★ best-results shapes 1088 × 1456 (3:4) and 1456 × 1088 (4:3) first in its shape list, shown
   in gold (`.chip.fav`).
