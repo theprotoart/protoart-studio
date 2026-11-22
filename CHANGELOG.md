@@ -2,6 +2,8 @@
 
 ## 1.6.27
 
+- 🎬 Storyboard sketch preset (ERNIE_PRESETS and H3_PRESETS): pencil storyboard page, title, three framed shots with
+  notes; ERNIE presets can carry an `example` subject and `title` ({T}) used when the prompt is empty.
 - 🎭 Transform a person: the presets are picture tiles; 7 have an example made with the preset (`assets/presets/<id>.jpg`,
   240 × 320 JPEG, `TF_THUMBS`), the rest show their emoji.
 - Every panel with a title folds (`setupPanelFolds`: `.card > h3`, `.cn-guide-head > h3`, `.mod-head > h3`; a data
