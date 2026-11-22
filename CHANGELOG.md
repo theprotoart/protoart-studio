@@ -2,6 +2,15 @@
 
 ## 1.6.27
 
+- Every panel with a title folds (`setupPanelFolds`: `.card > h3`, `.cn-guide-head > h3`, `.mod-head > h3`; a data
+  attribute and a MutationObserver, remembered by title in `protoart.panelFolds`; `.i2ifold`, Create's sections and
+  `data-nofold` keep their own).
+- 📝 ERNIE-Image presets (`ERNIE_PRESETS`, 12 of Protoart's own prompts in the spirit of ernieimageprompt.com's
+  categories; the gallery's prompts are by many different authors with no licence given, so they're linked, not
+  copied). Switching presets keeps the subject.
+- MOSS-Image, from its USERGUIDE: the guide's negative prompt when none is given; tips for English prompts, CFG 3–6,
+  1–2 MP, tag order and line breaks. (Its skip-layer guidance isn't in the MLX build used here.)
+
 - MiniMax-H3-Image: ★ best-results shapes 1088 × 1456 (3:4) and 1456 × 1088 (4:3) first in its shape list, shown
   in gold (`.chip.fav`).
 - Image to image: the ✨ Edit with words and 2 · ControlNet is off panels fold (`i2ifold`, keys `editinfo` / `cnoff`,

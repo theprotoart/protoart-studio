@@ -2825,3 +2825,12 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .i2ifold.shut > h3 { margin-bottom: 0; }
 .shape-grid .chip.fav { border-color: #f5c04a; color: #f5c04a; }
 .shape-grid .chip.fav.on { color: inherit; }
+/* 📁 every titled panel folds (setupPanelFolds) */
+.card[data-foldable] > [data-foldhead] { cursor: pointer; user-select: none; position: relative; padding-right: 20px; }
+.card[data-foldable] > h3[data-foldhead]::after, .card[data-foldable] > [data-foldhead] > h3::after {
+  content: ""; position: absolute; right: 4px; top: 6px; width: 7px; height: 7px; border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor; transform: rotate(45deg); opacity: .55; }
+.card[data-foldable] > [data-foldhead] > h3 { position: relative; padding-right: 18px; }
+.card[data-folded] > [data-foldhead] h3::after, .card[data-folded] > h3[data-foldhead]::after { transform: rotate(-45deg); }
+.card[data-folded] > :not([data-foldhead]) { display: none !important; }
+.card[data-folded] > [data-foldhead] { margin-bottom: 0; }

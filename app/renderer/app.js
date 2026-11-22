@@ -309,7 +309,7 @@ const SAMPLER_PICKS = {  // the 3 fastest and the 3 best-quality samplers for ea
 // 🎚 Denoise in Create works with the model types that can start from a picture
 const DENOISE_FAMILIES = ["sd15", "sdxl", "anima", "zimage", "ernie", "flux", "qwen21", "krea2"];
 const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX 3 Image Klein (Black Forest Labs; 4-bit MLX by mflux-community)", "licence": "FLUX Kommunity License v1.0", "note": "non-commercial use; selling pictures is allowed if you (with your business) make under US$5M a year; text encoder Qwen3-VL-4B (Apache-2.0)"}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}, {"model": "BiRefNet lite (✂ Cut out, 👤 Subject, 📄 Paper cut-out)", "licence": "MIT", "note": ""}, {"model": "MiniMax-H3-Image (MiniMax; INT8 files by Comfy-Org, made 4-bit on your Mac)", "licence": "MiniMax-H3-Image Community License", "note": "not for use in the US, EU, UK or Republic of Korea; pictures may not be used to improve other AI models; commercial products must show its name; written permission over US$1M yearly revenue or as a hosted service. Runs with h3-image-mlx (Apache-2.0)"}, {"model": "Ideogram 4 (Ideogram; official FP8 files, made 4-bit as they load)", "licence": "Ideogram 4 Non-Commercial License", "note": "non-commercial; gated: accept the licence on Hugging Face first"}, {"model": "MOSS-Image (OpenMOSS; MLX weights by VisualInference, turbo adapters by VisualInference and nynxz)", "licence": "Apache-2.0", "note": "runs with moss-image-mlx (Apache-2.0); text encoder Qwen3.5-9B and FLUX.2 small VAE (Apache-2.0)"}];
-const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677", zpower: "https://github.com/martin-rizzo/ComfyUI-ZImagePowerNodes" };
+const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677", zpower: "https://github.com/martin-rizzo/ComfyUI-ZImagePowerNodes", ernie_gallery: "https://ernieimageprompt.com" };
 // 📷 Camera angle: the words for each direction (the same 8 × 4 × 3 grid multi-angle tools use)
 const CAM_VIEWS = ["front view", "front-right quarter view", "right side view", "back-right quarter view",
                    "back view", "back-left quarter view", "left side view", "front-left quarter view"];
@@ -590,6 +590,24 @@ const H3_COMPOSE = [
     tip: "Picture 1 is kept; picture 2 gives the art style, picture 3 the lighting." },
 ];
 // 🧠 Create presets for MiniMax-H3-Image: layouts it follows well ({s} = your subject)
+// 📝 ERNIE-Image presets: Protoart's own prompts for what ERNIE-Image is good at (lettering, infographics, posters,
+// miniatures, sticker sheets), in the spirit of the ERNIE-Image gallery (ernieimageprompt.com, linked, not copied).
+// {s} is your subject.
+const ERNIE_PRESETS = [
+  { label: "📊 Infographic", text: "A clean portrait infographic poster explaining {s}. A bold title at the top in large rounded letters, a big central illustration, and six numbered sections around it, each with a small flat icon, a short heading and one line of text. Soft pastel palette on a warm off-white background, neat grid layout, crisp vector style, every word spelled correctly." },
+  { label: "🍳 Recipe card", text: "A recipe infographic for {s}: the finished dish photographed from above at the top, the title in elegant serif letters, an ingredients list with small hand-drawn icons on the left, and five numbered steps with tiny illustrations on the right. Cosy kitchen colours, paper texture, clear readable text." },
+  { label: "🏙 Isometric street", text: "A hand-drawn isometric illustration of {s}, seen from above at a 30-degree angle with no vanishing point: neat ink outlines, soft watercolour fills, tiny people, signs with short readable words, trees and street details, on a plain cream background with a small title in the corner." },
+  { label: "🧸 Felt miniature", text: "A handmade needle-felted wool miniature scene of {s}: fuzzy wool textures with visible fibres, tiny felt props, soft rounded shapes, a little diorama on a wooden table, warm window light, macro photo with shallow depth of field." },
+  { label: "🗺 3D map city", text: "A paper street map lying on a desk with a photorealistic miniature of {s} rising out of it in 3D: little buildings, landmarks, trees and vehicles growing from the map, soft studio light, cinematic depth of field, tilt-shift look." },
+  { label: "😊 Sticker sheet", text: "A 3 by 3 sheet of nine cute chibi stickers of {s}, each with a different expression or pose (happy, laughing, surprised, sleepy, angry, love, thumbs up, crying, waving) and a short caption word under it, thick white sticker borders, bright flat colours, plain light background." },
+  { label: "✈ Vintage travel poster", text: "A 1950s vintage travel poster for {s}: bold flat shapes, limited screen-print colours, a strong sunny sky, a stylised landmark, and the place name in large hand-lettered retro letters at the bottom with a small tagline, slightly worn paper texture." },
+  { label: "🖍 Crayon travel diary", text: "A child's crayon drawing of a travel diary page about {s}: a winding dotted route with arrows between little drawn places, cute doodles of food and landmarks, short handwritten labels, bright crayon colours on pale yellow paper, a title written at the top." },
+  { label: "🧊 3D icon set", text: "A set of nine glossy 3D icons about {s}, arranged in a neat 3 by 3 grid: soft rounded clay-like shapes, matching pastel colours, gentle shadows, the same lighting and camera angle for each, on a plain light background, product-catalogue style." },
+  { label: "🔤 Word made of it", text: "The word \"{s}\" spelled in huge 3D letters made out of the thing itself, each letter built from real materials and objects related to it, standing on a clean studio floor, soft shadows, playful and crisp, photorealistic render." },
+  { label: "🎞 Film still", text: "A cinematic 35mm film still of {s}: natural light, gentle film grain, rich muted colours, shallow depth of field, an off-centre composition with room to breathe, a quiet story moment, anamorphic lens flare." },
+  { label: "📐 Blueprint vs real", text: "A split image of {s}: the left half a white-on-blue engineering blueprint with dimension lines and short labels, the right half the same view as a photorealistic photo, joined by a clean vertical line, a small title block at the bottom." },
+];
+
 const H3_PRESETS = [
   { label: "🔩 Exploded view", kind: "machine", text: "An isometric exploded-view technical illustration of {s}: every part separated along its assembly direction and floating in order, true colours and materials, thin leader lines to neat ALL-CAPS part labels, two round magnified detail insets, on a dark grey engineering grid background." },
   { label: "📐 Blueprint poster", kind: "machine", text: "An engineering blueprint poster of {s} on deep blue paper with white line work: a large side view, a top view and a cross-section with dimension lines and numbers, a parts list in a box at the right, and a centred title in bold capitals at the top." },
@@ -1037,6 +1055,9 @@ const MODEL_GUIDES = {
       tips: ["Put every word the picture must show in double quotes, exactly as it should be spelled.",
              "Say where the text goes and how it looks: “at the top in bold red brush letters”. ✨ Enhance adds this for you.",
              "Turbo: about 6 minutes at Medium (768) on an 8 GB Mac. Best quality is about 7 times slower.",
+             "From MOSS-Image's guide: write in English, CFG 3 for long prompts (up to 6 for short ones), 1–2 million pixels (1024 × 1024 up to about 1456 × 1456), any shape in multiples of 16.",
+             "For anime-style tag prompts, keep this order: quality, character, series, artist, then the rest (“best quality, 1girl, blue hair, …”).",
+             "Long lettering: put a line break where a new line should start; the model guesses otherwise.",
              "A new prompt is read once (a few seconds extra); more pictures of the same prompt skip that.",
              "MOSS LoRAs work (LoRA and LoKr files, e.g. from Civitai): they show in the LoRA list when a MOSS model is picked. One listed under the wrong type? Models → Fix a type → MOSS."] },
   },
@@ -1050,6 +1071,46 @@ function loadJSON(key, fallback) {
     return fallback;
   }
 }
+// 📁 Every panel with a title folds down to that title: click it to close or open (remembered). Panels with their own
+// folding (.i2ifold, Create's sections) and ones marked data-nofold keep theirs. Done on the page itself (a data
+// attribute Vue leaves alone), so new panels fold too without each needing its own code.
+function setupPanelFolds() {
+  const KEY = "protoart.panelFolds";
+  let shut = new Set(loadJSON(KEY, []));
+  const heads = () => document.querySelectorAll(".card > h3, .card > .cn-guide-head > h3, .card > .mod-head > h3");
+  const keyOf = (h3) => {
+    const first = [...h3.childNodes].map((n) => (n.nodeType === 3 ? n.textContent : "")).join("").replace(/\s+/g, " ").trim();
+    return (first || h3.textContent.replace(/\s+/g, " ").trim()).slice(0, 48);
+  };
+  const apply = () => {
+    for (const h3 of heads()) {
+      const card = h3.closest(".card");
+      if (!card || card.matches(".i2ifold, [data-nofold]") || card.closest(".cfold, .tool-stage, .preview")) continue;
+      const head = h3.parentElement === card ? h3 : h3.parentElement;
+      const k = keyOf(h3);
+      if (!k) continue;
+      head.dataset.foldhead = "1";
+      card.dataset.foldable = k;
+      if (shut.has(k)) card.dataset.folded = "1";
+      else delete card.dataset.folded;
+    }
+  };
+  let queued = false;
+  new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; apply(); }); } })
+    .observe(document.body, { childList: true, subtree: true });
+  document.addEventListener("click", (e) => {
+    const head = e.target.closest("[data-foldhead]");
+    if (!head || e.target.closest("button, a, input, select, label, textarea, summary")) return;
+    const card = head.closest(".card[data-foldable]");
+    if (!card) return;
+    const k = card.dataset.foldable;
+    if (shut.has(k)) shut.delete(k); else shut.add(k);
+    saveJSON(KEY, [...shut]);
+    apply();
+  });
+  apply();
+}
+
 function saveJSON(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -1162,7 +1223,7 @@ const protoartApp = createApp({
       selWords: "",        // 🔍 Select by words: what to select
       soundsOn: window.ProtoSound ? window.ProtoSound.enabled : true,
       TAG_DICT: window.TAG_DICT || {}, ideas: { cat: Object.keys(window.TAG_DICT || {})[0] || "", q: "" },
-      FAMILY_LABEL, LICENCES, TILED_PRESETS, EXAMPLE_PROMPTS, H3_ROLES, H3_COMPOSE, H3_PRESETS, EXAMPLE_GROUPS, FILM_LOOKS, FILM_GROUPS, APP_VERSION, CAM_VIEWS, CAM_ELEV, CAM_DIST,
+      FAMILY_LABEL, LICENCES, TILED_PRESETS, EXAMPLE_PROMPTS, H3_ROLES, H3_COMPOSE, H3_PRESETS, ERNIE_PRESETS, EXAMPLE_GROUPS, FILM_LOOKS, FILM_GROUPS, APP_VERSION, CAM_VIEWS, CAM_ELEV, CAM_DIST,
       loraSort: loadJSON("protoart.loraSort", "az"),   // LoRA list order
       modelKind: loadJSON("protoart.modelKind", ""),  // Create's model list filter ('' = all kinds)
       loraKind: "",                                      // LoRA list filter ('' = all)   // the brush-size ring that follows the pointer while painting
@@ -1383,7 +1444,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.27: ★ best MiniMax-H3 size, foldable Image to image panels", items: [
+            { h: "1.6.27: every panel folds, 📝 ERNIE-Image presets, ★ best MiniMax-H3 size", items: [
+              "<b>Every panel folds</b>: click any panel's title (Tools, Train, Models, Settings, Image to image…) to fold it down to its title; it stays folded until you click it again.",
+              "<b>📝 ERNIE-Image presets</b> (Create, with an ERNIE model): type a subject and pick 📊 Infographic, 🍳 Recipe card, 🏙 Isometric street, 🧸 Felt miniature, 🗺 3D map city, 😊 Sticker sheet, ✈ Vintage travel poster, 🖍 Crayon travel diary, 🧊 3D icon set, 🔤 Word made of it, 🎞 Film still or 📐 Blueprint vs real; switching keeps your subject. A link opens the ERNIE-Image prompt gallery for more ideas.",
+              "<b>MOSS-Image follows its own guide</b>: a standard negative prompt (no watermarks, bad anatomy, JPEG artifacts) when you leave it empty, and its tips in the guide card (English prompts, CFG 3–6, 1–2 million pixels, tag order, line breaks for lettering).",
               "<b>★ Best-results size for MiniMax-H3-Image</b> (Create → Size): ★ 3:4 (1088 × 1456) and ★ 4:3 (1456 × 1088), the size that's been giving the best pictures, marked in gold in the Medium rows.",
               "The <b>✨ Edit with words</b> and <b>2 · ControlNet is off</b> panels in Image to image fold up like the others: click a title to close or open it, and it stays that way.",
             ] },
@@ -4157,6 +4221,7 @@ const protoartApp = createApp({
   },
 
   async mounted() {
+    setupPanelFolds();  // every panel with a title folds (click the title)
     installTypeIn();  // double-click a slider's number (Tools' modules) to type an exact value
     // while you paint, drag or draw on a picture, the holiday looks' animations hold still (every frame for the brush)
     const still = (on) => document.documentElement.classList.toggle("hd-still", on);
@@ -8748,6 +8813,15 @@ const protoartApp = createApp({
       this.form.prompt = text;
       this.form.h3_last_compose = text;
       this.status = "🧩 Prompt written from the pictures' roles: add details (what they do, the mood, the camera) and press ✨ Edit";
+    },
+    erniePreset(pr) {  // 📝 an ERNIE-Image preset around your subject (what's in the prompt, if short)
+      const mine = (this.form.prompt || "").trim();
+      const last = this._ernieLast;  // switching presets keeps the same subject
+      const subject = last && mine === last.prompt ? last.subject : mine && mine.length <= 120 ? mine.replace(/[.\s]+$/, "") : "your subject here";
+      if (mine) this.undoPrompt = mine;
+      this.form.prompt = pr.text.split("{s}").join(subject);
+      this._ernieLast = { prompt: this.form.prompt, subject };
+      this.status = `${pr.label}: ${subject === "your subject here" ? "replace “your subject here” with what you want" : "made around “" + subject + "”"} (↶ in the prompt box undoes it)`;
     },
     h3Preset(pr) {  // 🧠 Create preset: the layout, around your subject (what's in the prompt, if short)
       if (pr === "any") {  // 🎲 any layout: Random picks a layout too

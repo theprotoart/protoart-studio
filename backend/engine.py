@@ -2333,7 +2333,9 @@ class Engine:
 
                 self.skip_event.clear()
                 try:
-                    self.moss.request({"cmd": "generate", "prompt": p_i, "negative_prompt": n_i or "", "width": width,
+                    # MOSS-Image's own guide: this negative prompt when none is given
+                    self.moss.request({"cmd": "generate", "prompt": p_i,
+                                       "negative_prompt": n_i or "nsfw, worst quality, bad anatomy, watermark, jpeg artifact", "width": width,
                                        "height": height, "steps": steps, "cfg": cfg, "seed": img_seed, "out": str(out)},
                                       on_event=on_event, skip_event=self.skip_event)
                 except moss_engine.CancelledError:

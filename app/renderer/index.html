@@ -1185,6 +1185,13 @@
         <label class="check"><input type="checkbox" v-model="h3Tick"> I accept this licence, and I'm not in one of the places it excludes</label>
         <button class="primary small" :disabled="!h3Tick" @click="h3Accept">Accept</button>
       </div>
+      <div v-if="tab === 'create' && family === 'ernie'" class="card cn-guide model-guide h3-presets ernie-presets">
+        <div class="cn-guide-head"><h3>📝 ERNIE-Image presets <span class="hint">· type a subject (“a cat café”, “Lisbon”), then pick one; ↶ undoes it</span></h3></div>
+        <div class="seg seg-wrap edit-recipes">
+          <button v-for="pr in ERNIE_PRESETS" :key="pr.label" @click="erniePreset(pr)" :title="pr.text">{{ pr.label }}</button>
+        </div>
+        <p class="hint">ERNIE-Image is great at lettering: words in "double quotes" come out spelled right. More ideas: <a href="https://ernieimageprompt.com" @click.prevent="openLink('ernie_gallery')">the ERNIE-Image prompt gallery</a>.</p>
+      </div>
       <button v-if="tab === 'create' && family === 'h3' && (opts.hidden_guides || []).includes('h3:presets')" class="ghost small h3-presets-show"
               @click="opts.hidden_guides = opts.hidden_guides.filter((k) => k !== 'h3:presets'); saveOpts()" title="Show MiniMax-H3-Image's layout presets again">🧠 Show H3 presets</button>
       <div v-if="tab === 'create' && family === 'h3' && !(opts.hidden_guides || []).includes('h3:presets')" class="card cn-guide model-guide h3-presets">
