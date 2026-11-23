@@ -295,6 +295,7 @@
   <main v-if="tab==='create'" class="create">
     <aside class="controls">
       <div class="cfold-all">
+        <button class="link small watch" @click="openLink('tut_create')" title="Part 1 on YouTube: an introduction to the Create page">▶ Watch the tutorial</button>
         <button class="link small" @click="cfAll(true)" title="Fold every section down to one line (or click a section's name to fold just that one)">collapse all</button> ·
         <button class="link small" @click="cfAll(false)" title="Open every section (or click a section's name to open just that one)">expand all</button>
         <span class="spacer"></span>
@@ -2002,6 +2003,7 @@
     </section>
 
     <section class="tool-actions">
+      <div class="tools-watch"><button class="link watch" @click="openLink('tut_tools')" title="Part 3 on YouTube: an introduction to the Tools window">▶ Watch the Tools tutorial</button></div>
       <div class="reset-all-row">
         <button class="patch-toggle" :class="{on: patch.on}" @click="patchToggle"
                 :title="patch.on ? 'Hide the patchbay (your cables are kept)' : 'Show the patchbay: wire the tools together with cables to run them one after another, in the order you choose'">
@@ -3356,7 +3358,7 @@
   <!-- ============================ IMAGE TO IMAGE ============================ -->
   <main v-if="tab==='i2i'" class="i2i">
     <section class="i2i-left">
-      <div class="i2i-foldall"><button class="link" @click="i2iFoldAll(true)" title="Fold every card down to its title">collapse all</button> · <button class="link" @click="i2iFoldAll(false)">expand all</button></div>
+      <div class="i2i-foldall"><button class="link watch" @click="openLink('tut_i2i')" title="Part 2 on YouTube: Image to image">▶ Watch the tutorial</button> · <button class="link" @click="i2iFoldAll(true)" title="Fold every card down to its title">collapse all</button> · <button class="link" @click="i2iFoldAll(false)">expand all</button></div>
       <div class="card i2ifold" :class="{shut: i2iShut('picture')}">
         <h3 @click="i2iFoldToggle('picture', $event)">1 · Picture <span v-if="i2iShut('picture')" class="cfold-sum">{{ form.init_image ? form.init_image.split('/').pop() : 'none yet' }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <div v-if="!form.init_image" class="start-drop" :class="{over: startDragOver}"
@@ -5153,6 +5155,32 @@
         <h1>Protoart Studio</h1>
         <p class="hint">Version {{ APP_VERSION }} · AI image making that runs entirely on your Mac</p>
       </div>
+    </div>
+
+    <div class="card help-videos" id="help-videos">
+      <h3>▶ Video tutorials <span class="hint">on YouTube (open in your web browser)</span></h3>
+      <div class="support-buttons">
+        <button @click="openLink('tut_create')">▶ Part 1 · The Create page</button>
+        <button @click="openLink('tut_i2i')">▶ Part 2 · Image to image</button>
+        <button @click="openLink('tut_tools')">▶ Part 3 · The Tools window</button>
+        <button @click="openLink('youtube')">📺 All videos: the Protoart channel</button>
+      </div>
+    </div>
+
+    <div class="card help-shortcuts" id="help-shortcuts">
+      <h3>⌨ Keyboard shortcuts</h3>
+      <table class="shortcut-table">
+        <tr><td>⌘ ↵</td><td>Generate (or add to the queue)</td></tr>
+        <tr><td>← →</td><td>Previous / next picture in the picture window</td></tr>
+        <tr><td>Esc</td><td>Close the picture window, a menu or a selection</td></tr>
+        <tr><td>⌘ Z · ⇧ ⌘ Z</td><td>Undo / redo in 🎚 Adjust and 🪡 Puppet warp</td></tr>
+        <tr><td>[ · ]</td><td>Smaller / bigger brush while painting in 🎚 Adjust</td></tr>
+        <tr><td>\</td><td>Flip between edited and original in 🎚 Adjust</td></tr>
+        <tr><td>⌥ (hold)</td><td>Hide the paint while painting in 🎚 Adjust</td></tr>
+        <tr><td>↵</td><td>Close a polygon selection</td></tr>
+        <tr><td>⌘ + · ⌘ − · ⌘ 0</td><td>Zoom the window in / out / back to normal</td></tr>
+        <tr><td>⌘ C · ⌘ V · ⌘ A</td><td>Copy, paste, select all in the prompt boxes</td></tr>
+      </table>
     </div>
 
     <div class="card support-card">

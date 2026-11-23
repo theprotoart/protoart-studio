@@ -2850,3 +2850,9 @@ section.cfold.shut .cfold-chev, .i2ifold.shut > h3 .cfold-chev { top: 5px; }
 .card[data-foldable] > [data-foldhead] > h3 { position: static; }
 .card[data-foldable] > [data-foldhead] { position: relative; }
 section.cfold > label:first-child:hover .cfold-chev, .i2ifold > h3:hover .cfold-chev { opacity: 1; }
+.link.watch { color: var(--amber); font-weight: 600; }
+.cfold-all .watch { margin-right: auto; }
+.tools-watch { display: flex; justify-content: flex-end; margin: -2px 0 4px; font-size: 12px; }
+.shortcut-table { border-collapse: collapse; font-size: 13px; }
+.shortcut-table td { padding: 4px 14px 4px 0; vertical-align: top; }
+.shortcut-table td:first-child { font-family: var(--f-mono, monospace); color: var(--amber); white-space: nowrap; }

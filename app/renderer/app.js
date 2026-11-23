@@ -309,7 +309,9 @@ const SAMPLER_PICKS = {  // the 3 fastest and the 3 best-quality samplers for ea
 // 🎚 Denoise in Create works with the model types that can start from a picture
 const DENOISE_FAMILIES = ["sd15", "sdxl", "anima", "zimage", "ernie", "flux", "qwen21", "krea2"];
 const LICENCES = [{"model": "Stable Diffusion 1.5", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "Stable Diffusion XL", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "ERNIE-Image (and its community builds)", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX.1 [schnell]", "licence": "Apache-2.0", "note": ""}, {"model": "FLUX 3 Image Klein (Black Forest Labs; 4-bit MLX by mflux-community)", "licence": "FLUX Kommunity License v1.0", "note": "non-commercial use; selling pictures is allowed if you (with your business) make under US$5M a year; text encoder Qwen3-VL-4B (Apache-2.0)"}, {"model": "FLUX.2 [klein] 4B", "licence": "Apache-2.0", "note": "the 4-bit build's page also carries a non-commercial tag: check it before selling pictures"}, {"model": "Qwen3.5 4B (picture reader)", "licence": "Apache-2.0", "note": ""}, {"model": "Qwen2.5 (prompt enhancer)", "licence": "Apache-2.0", "note": ""}, {"model": "Florence-2 (Quick describe)", "licence": "MIT", "note": ""}, {"model": "WD v3 tagger (Danbooru tags)", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Small", "licence": "Apache-2.0", "note": ""}, {"model": "Depth Anything V2 Base / Large", "licence": "CC BY-NC 4.0", "note": "non-commercial"}, {"model": "CodeFormer (face restore)", "licence": "S-Lab License 1.0", "note": "non-commercial"}, {"model": "RestoreFormer (face restore)", "licence": "see the GFPGAN repository", "note": ""}, {"model": "LaMa (Smart fill)", "licence": "Apache-2.0", "note": ""}, {"model": "Juggernaut Reborn (Enhance)", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "4x-UltraSharp (Enhance upscaler)", "licence": "CC BY-NC-SA 4.0", "note": "non-commercial"}, {"model": "IP-Adapter", "licence": "Apache-2.0", "note": ""}, {"model": "ControlNet 1.1", "licence": "CreativeML OpenRAIL-M", "note": ""}, {"model": "LCM-LoRA (⚡ fast mode)", "licence": "CreativeML OpenRAIL++-M", "note": ""}, {"model": "Anima / Anima Turbo (CircleStone Labs)", "licence": "CircleStone Labs Non-Commercial License + NVIDIA Open Model License", "note": "non-commercial: the model may not be used commercially; pictures made with it may"}, {"model": "Xinsir ControlNet Union ProMax (SDXL)", "licence": "Apache-2.0", "note": ""}, {"model": "inswapper_128 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial; only faces you have permission to use"}, {"model": "ArcFace w600k_r50 (Face swap)", "licence": "InsightFace: non-commercial research only", "note": "non-commercial"}, {"model": "Models and LoRAs from Civitai or your own files", "licence": "whatever their authors chose", "note": "check each model's page"}, {"model": "BiRefNet lite (✂ Cut out, 👤 Subject, 📄 Paper cut-out)", "licence": "MIT", "note": ""}, {"model": "MiniMax-H3-Image (MiniMax; INT8 files by Comfy-Org, made 4-bit on your Mac)", "licence": "MiniMax-H3-Image Community License", "note": "not for use in the US, EU, UK or Republic of Korea; pictures may not be used to improve other AI models; commercial products must show its name; written permission over US$1M yearly revenue or as a hosted service. Runs with h3-image-mlx (Apache-2.0)"}, {"model": "Ideogram 4 (Ideogram; official FP8 files, made 4-bit as they load)", "licence": "Ideogram 4 Non-Commercial License", "note": "non-commercial; gated: accept the licence on Hugging Face first"}, {"model": "MOSS-Image (OpenMOSS; MLX weights by VisualInference, turbo adapters by VisualInference and nynxz)", "licence": "Apache-2.0", "note": "runs with moss-image-mlx (Apache-2.0); text encoder Qwen3.5-9B and FLUX.2 small VAE (Apache-2.0)"}];
-const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677", zpower: "https://github.com/martin-rizzo/ComfyUI-ZImagePowerNodes", ernie_gallery: "https://ernieimageprompt.com" };
+const LINKS = { discord: "https://discord.gg/zRC6zrufYE", issues: "https://github.com/theprotoart/protoart-studio/issues/new", repo: "https://github.com/theprotoart/protoart-studio", notices: "https://github.com/theprotoart/protoart-studio/blob/main/THIRD_PARTY_NOTICES.md", civitai: "https://civitai.com/user/theprotoartent677", zpower: "https://github.com/martin-rizzo/ComfyUI-ZImagePowerNodes", ernie_gallery: "https://ernieimageprompt.com",
+  youtube: "https://www.youtube.com/@theprotoart", tut_create: "https://www.youtube.com/watch?v=rqVMhQy5Jf4",
+  tut_i2i: "https://www.youtube.com/watch?v=nylugZEY3oM", tut_tools: "https://www.youtube.com/watch?v=7hDtAgGweO4" };
 // 📷 Camera angle: the words for each direction (the same 8 × 4 × 3 grid multi-angle tools use)
 const CAM_VIEWS = ["front view", "front-right quarter view", "right side view", "back-right quarter view",
                    "back view", "back-left quarter view", "left side view", "front-left quarter view"];
@@ -388,7 +390,7 @@ const I2I_PICTURE_KEYS = ["init_image", "control_image", "edit_refs"];
 const POSE_VIEWS = { front: "Front", diag: "¾ turn", side: "Side", above: "From above", below: "From below" };
 // 🎭 Transform a person: example pictures for the preset tiles (made with the presets themselves, in assets/presets)
 const TF_THUMBS = new Set(["tf_action_figure", "tf_claymation", "tf_crime_game", "tf_pixel_sprite", "tf_fighter_select", "tf_movie_hero", "tf_oil_portrait", "tf_trading_card", "tf_retro_console",
-  "tf_crochet", "tf_vinyl_toy", "tf_figurine_desk", "tf_caricature", "tf_anime", "tf_sticker_pack", "tf_half_anime", "tf_90s_film", "tf_anime_still", "tf_comic_cover"]);
+  "tf_crochet", "tf_vinyl_toy", "tf_figurine_desk", "tf_caricature", "tf_anime", "tf_sticker_pack", "tf_half_anime", "tf_90s_film", "tf_anime_still", "tf_comic_cover", "tf_bobblehead"]);
 const EDIT_RECIPES = [
   // two-picture recipes without a LoRA (files: null): they work with any edit model (Klein, FLUX 3, MiniMax-H3)
   { id: "anime_to_real", label: "📸 Anime → Real", by: "", files: null, p1: "the anime picture", p2: "a real photo (the look)",
@@ -1483,6 +1485,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.27: every panel folds, 📝 ERNIE-Image presets, ★ best MiniMax-H3 size", items: [
+              "<b>▶ Video tutorials</b>: a ▶ Watch link at the top of Create, Image to image and Tools opens that part's tutorial on YouTube, and How to has all the videos. The Mac menu bar has a new <b>Help</b> menu: Getting Started, Video Tutorials, What's New, Keyboard Shortcuts and the YouTube channel.",
               "<b>Clearer lettering in the presets</b>: Trading card, Comic book cover, Fighting-game select and Bobblehead now print real words when their boxes are left empty (THE CHAMPION, THE MIGHTY ONE, SHADOW, No. 1…) instead of garbled text. Type your own in the box to change it.",
               "<b>Fold arrows on the left</b>: every folding section and panel now shows its arrow at the left of its title, in gold (pointing right = folded, down = open), so they're easy to spot.",
               "<b>Read the whole prompt in the queue</b>: click a job's name (or its ▾) to open its full prompt underneath, with 📋 copy; the row itself stays one tidy line. Transform-a-person jobs are named after their look (🦸 Action figure · …).",
@@ -1496,7 +1499,7 @@ const protoartApp = createApp({
               "<b>🪞 Anime vs real split</b> preset (Create, ERNIE-Image and MiniMax-H3-Image): one wide picture split down the middle, the character as anime art on the left (“2D ORIGINAL”) and as a real person on the right (“LIVE ACTION”), matched 1:1. Describe your character, or press it with an empty prompt for the cyberpunk-girl example. To turn a picture you already have into a real person, use 📸 Anime → Real in Image to image.",
               "<b>📓 Manga draft page</b> preset (Create, ERNIE-Image and MiniMax-H3-Image): a black-and-white raw manga draft page, three panels read right to left (a close-up with a speech bubble, the opponent with a sound effect and a shout, a wide action panel with narration and the move's name in huge letters). Type your story, or press it with an empty prompt for the courier-and-golem example; change the words in the quotes to change the bubbles.",
               "<b>🎬 Storyboard sketch</b> preset (Create, ERNIE-Image and MiniMax-H3-Image): a vertical pencil storyboard page on sepia paper with a handwritten title and three framed shots (wide, medium, low angle), each with its scene note. Type your scene, or press it with an empty prompt to try the wasteland-arena example.",
-              "<b>🎭 Transform a person shows example pictures</b>: the looks are now picture tiles, with an example of what each one makes (19 of the 22 so far; the rest show their emoji until they get one).",
+              "<b>🎭 Transform a person shows example pictures</b>: the looks are now picture tiles, with an example of what each one makes (20 of the 22 so far; the rest show their emoji until they get one).",
               "<b>Every panel folds</b>: click any panel's title (Tools, Train, Models, Settings, Image to image…) to fold it down to its title; it stays folded until you click it again.",
               "<b>📝 ERNIE-Image presets</b> (Create, with an ERNIE model): type a subject and pick 📊 Infographic, 🍳 Recipe card, 🏙 Isometric street, 🧸 Felt miniature, 🗺 3D map city, 😊 Sticker sheet, ✈ Vintage travel poster, 🖍 Crayon travel diary, 🧊 3D icon set, 🔤 Word made of it, 🎞 Film still or 📐 Blueprint vs real; switching keeps your subject. A link opens the ERNIE-Image prompt gallery for more ideas.",
               "<b>MOSS-Image follows its own guide</b>: a standard negative prompt (no watermarks, bad anatomy, JPEG artifacts) when you leave it empty, and its tips in the guide card (English prompts, CFG 3–6, 1–2 million pixels, tag order, line breaks for lettering).",
@@ -4273,6 +4276,7 @@ const protoartApp = createApp({
   },
 
   async mounted() {
+    window.bee.onMenu && window.bee.onMenu((what) => this.menuAction(what));  // Help menu in the Mac menu bar
     setupPanelFolds();  // every panel with a title folds (click the title)
     installTypeIn();  // double-click a slider's number (Tools' modules) to type an exact value
     // while you paint, drag or draw on a picture, the holiday looks' animations hold still (every frame for the brush)
@@ -13842,6 +13846,13 @@ const protoartApp = createApp({
     },
     openFolder(p) {
       if (p) window.bee.openFolder(p);
+    },
+    menuAction(what) {  // from the Help menu in the Mac menu bar
+      if (what === "start" || what === "shortcuts") {
+        this.tab = "help";
+        this.$nextTick(() => document.getElementById(what === "start" ? "help-videos" : "help-shortcuts")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      } else if (what === "whatsnew") this.updateOpenPage();
+      else if (LINKS[what]) this.openLink(what);
     },
     openLink(key) {  // opens in your web browser (needs the internet)
       const url = LINKS[key];

@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld("bee", {
   updateInstall: (p) => ipcRenderer.invoke("update:install", p),
   updateOpenPage: () => ipcRenderer.invoke("update:openPage"),
   onUpdateProgress: (fn) => ipcRenderer.on("update:progress", (_e, m) => fn(m)),
+  onMenu: (fn) => ipcRenderer.on("menu:action", (_e, what) => fn(what)),  // Help menu in the Mac menu bar
   // Forget the saved window size/position (Settings -> Reset settings).
   resetWindow: () => ipcRenderer.invoke("window:reset"),
   // Real filesystem path of a dragged-in file (File.path was removed in recent Electron).

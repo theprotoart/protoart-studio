@@ -629,6 +629,20 @@ function setAppMenu() {
       { role: "pasteAndMatchStyle" }, { role: "delete" }, { role: "selectAll" }] },
     { label: "View", submenu: view },
     { label: "Window", submenu: [{ role: "minimize" }, { role: "zoom" }, ...(isMac ? [{ type: "separator" }, { role: "front" }] : [{ role: "close" }])] },
+    { role: "help", submenu: [  // the app's own pages and the YouTube tutorials
+      { label: "Getting Started", click: () => send("menu:action", "start") },
+      { label: "Video Tutorials", submenu: [
+        { label: "Part 1 · The Create Page", click: () => shell.openExternal("https://www.youtube.com/watch?v=rqVMhQy5Jf4") },
+        { label: "Part 2 · Image to Image", click: () => shell.openExternal("https://www.youtube.com/watch?v=nylugZEY3oM") },
+        { label: "Part 3 · The Tools Window", click: () => shell.openExternal("https://www.youtube.com/watch?v=7hDtAgGweO4") },
+        { type: "separator" },
+        { label: "All Videos on YouTube", click: () => shell.openExternal("https://www.youtube.com/@theprotoart") }] },
+      { label: "What's New", click: () => send("menu:action", "whatsnew") },
+      { label: "Keyboard Shortcuts", click: () => send("menu:action", "shortcuts") },
+      { type: "separator" },
+      { label: "Protoart on YouTube", click: () => shell.openExternal("https://www.youtube.com/@theprotoart") },
+      { label: "Join the Discord", click: () => send("menu:action", "discord") },
+      { label: "Report a Problem", click: () => send("menu:action", "issues") }] },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }

@@ -20,6 +20,8 @@
 - 🪞 Anime vs real split preset (ERNIE and H3): a 16:9 two-halves comparison, anime on the left, live action on the right.
 - 📓 Manga draft page preset (ERNIE and H3): original characters and lines (the example given named a real series and its
   characters, so it was rewritten generically); ERNIE presets can carry speech-bubble `lines` ({L1}…).
+- ▶ Tutorials: Watch links at the top of Create, Image to image and Tools (YouTube parts 1–3), a Video tutorials and
+  a Keyboard shortcuts card in How to, and a Help menu in the Mac menu bar (`menu:action` → `menuAction`).
 - Lettering presets: empty name / title boxes default to real words (the descriptions were being printed as text).
 - Fold arrows moved to the left of every title (Create sections, Image to image panels, every folding panel), in
   the accent colour.
@@ -27,7 +29,7 @@
   (wrapped, scrolls past 220 px, 📋 copy); recipe jobs are named after their look (`jobTitle`).
 - 🎬 Storyboard sketch preset (ERNIE_PRESETS and H3_PRESETS): pencil storyboard page, title, three framed shots with
   notes; ERNIE presets can carry an `example` subject and `title` ({T}) used when the prompt is empty.
-- 🎭 Transform a person: the presets are picture tiles; 19 have an example made with the preset (`assets/presets/<id>.jpg`,
+- 🎭 Transform a person: the presets are picture tiles; 20 have an example made with the preset (`assets/presets/<id>.jpg`,
   240 × 320 JPEG, `TF_THUMBS`), the rest show their emoji.
 - Every panel with a title folds (`setupPanelFolds`: `.card > h3`, `.cn-guide-head > h3`, `.mod-head > h3`; a data
   attribute and a MutationObserver, remembered by title in `protoart.panelFolds`; `.i2ifold`, Create's sections and
