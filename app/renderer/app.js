@@ -1497,6 +1497,9 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Next: honest time left for MiniMax-H3-Image", items: [
+              "<b>MiniMax-H3-Image's time left no longer jumps</b>: the progress bar now counts only its 6 drawing steps. Reading the prompt and pictures was counted as a step, so the time first read about 3 minutes and then jumped to the real figure (about 20 minutes for an Edit with words at 1280 on an 8 GB Mac), which made a working edit look stuck. Until two steps are timed, the queue shows the typical time of the last edits.",
+            ] },
             { h: "1.6.27: every panel folds, 📝 ERNIE-Image presets, ★ best MiniMax-H3 size", items: [
               "<b>Basic / Advanced</b> (top of Create): Basic shows the essentials (model, prompt and its helpers, presets, size, steps, guidance, images, Generate); Advanced adds the negative prompt, seed, LoRAs, Regions, Image prompt, Denoise, ControlNet, sampler, seamless, FreeU, CFG rescale, Extras and Compare. Switching only changes what's shown: if an advanced setting is on while in Basic, a note above Generate says so, with a button to show it. New installs start in Basic, existing ones in Advanced.",
               "<b>A tidier Create page</b>: the model sources are behind one ＋ Add a model button, Regions starts folded, and Size &amp; steps keeps its reset / ★ recommended / save-defaults buttons and the knob help under “More”.",
@@ -2598,6 +2601,7 @@ const protoartApp = createApp({
               "<b>📷 Camera angle barely turned</b>: the words now describe what the new side shows, which turns it much further than 1.6.1 did. If it still keeps the angle: Klein sometimes keeps the original angle; try another seed, or a bigger change (a side view instead of a quarter view). <b>The character changed when seen from the back</b>: the back is invented; add details in the prompt (“long braid down her back”).",
               "<b>Peel left an outline behind</b>: select a little past the edge (Grow the selection, or paint over it), or turn on ✂ Follow the edge exactly. <b>The .psd won't open</b>: it's a standard 8-bit RGB Photoshop file; a very big picture with many layers can be several hundred MB." ] },
             { h: "New in 1.5.1: if something doesn't work", items: [
+              "<b>A MiniMax-H3-Image edit seems stuck on step 1 or 2</b>: it isn't. Each of its 6 drawing steps takes about 3 minutes on an 8 GB Mac (an Edit with words at 1280 takes about 20 minutes in all), so the step count moves slowly; leave it running. Pick a smaller size (768 or 1024) under the model for a quicker edit.",
               "<b>Training says it will take 16 hours</b>: on an 8 GB Mac that's about right for ERNIE (each step works through a very big model, and memory spills onto the disk). Use ★ Recommended (fewer steps for ERNIE), or train on an SD 1.5 model, which takes minutes to a few hours. The estimate becomes a measurement after the first steps.",
               "<b>MOSS-Image is very slow or the Mac stalls</b>: it's a big model; on Macs under 14 GB it uses its own <b>8 GB version</b> (downloaded ready-made the first time, ~10.5 GB, and copied to the Mac's own drive once if your models are on an external drive). Close other apps (web browsers especially), use Medium (768) size and Turbo, and make one picture at a time. <b>“MOSS-Image isn't on this Mac yet”</b> with Strict offline on: turn it off for the one-time download (~13 GB).",
               "<b>MOSS-Image misspells a word</b>: put the exact words in quotes and say where they go (“at the top, in large letters”); shorter text works best. Try another seed." ] },
@@ -4158,7 +4162,9 @@ const protoartApp = createApp({
           const pr = this.progress;
           if (pr && pr.job === j.id && pr.steps > 0 && pr.step > 0) {
             const left = this.genLeft(pr);
-            est = elapsed + (left ? left.seconds : (elapsed * (pr.steps - pr.step)) / pr.step);
+            // until two steps have been timed, the typical time of this kind of job (the time before the first
+            // step, e.g. reading a big model's prompt, isn't a step and made the guess swing)
+            est = left ? elapsed + left.seconds : Math.max(est, elapsed + 1);
           }
         }
         const remaining = Math.max(1, est - elapsed);

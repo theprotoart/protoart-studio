@@ -2108,25 +2108,19 @@ class Engine:
         """One MiniMax-H3-Image picture into out, with one progress bar for its stages. -> timings"""
         import h3_engine
         py = self._h3_python()
-        weights = {"text": 1, "refs": 1, "dit": 6, "vae": 1}
-        order = ["text", *(["refs"] if refs else []), "dit", "vae"]
-        total = sum(weights[s] for s in order) + extra_steps
-        state = {"base": 0, "stage": None}
+        # the bar counts only the 6 drawing steps: reading the prompt and pictures takes seconds to minutes and
+        # finishing the picture under a minute, so counting them as steps made the time left read ~3 min at first
+        # (a quick stage measured as one step) and then jump to the real ~20 min (1.6.27)
+        total = 6 + extra_steps
         names = {"text": "reading the prompt", "refs": "reading the pictures", "dit": "drawing",
                  "vae": "finishing the picture"}
 
         def on_event(ev):
             if ev.get("type") == "stage":
-                if state["stage"] is None and ev["stage"] != "text":
-                    state["base"] = weights["text"]  # the prompt was read before (same prompt and pictures)
-                elif state["stage"] is not None:
-                    state["base"] += weights[state["stage"]]
-                state["stage"] = ev["stage"]
                 self.emit({"type": "status", "msg": f"MiniMax-H3-Image ({image} of {images}): {names[ev['stage']]}…"})
-                self.emit({"type": "progress", "image": image, "images": images, "step": state["base"], "steps": total})
             elif ev.get("type") == "progress" and ev.get("stage") == "dit":
                 self.emit({"type": "progress", "image": image, "images": images,
-                           "step": state["base"] + min(6, ev["step"]), "steps": total})
+                           "step": min(6, ev["step"]), "steps": total})
 
         try:
             return h3_engine.picture(py, prompt, out, width, height, seed, refs, on_event, self.cancel_event, ref_sides,
