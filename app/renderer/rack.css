@@ -2834,3 +2834,5 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .card[data-folded] > [data-foldhead] h3::after, .card[data-folded] > h3[data-foldhead]::after { transform: rotate(-45deg); }
 .card[data-folded] > :not([data-foldhead]) { display: none !important; }
 .card[data-folded] > [data-foldhead] { margin-bottom: 0; }
+.dn-word { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.dn-word input[type=text] { flex: 1; min-width: 0; text-transform: uppercase; }

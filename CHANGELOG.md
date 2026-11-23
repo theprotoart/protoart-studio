@@ -2,6 +2,10 @@
 
 ## 1.6.27
 
+- 🎞 Hand-drawn anime still: Create preset (ERNIE, H3) and Transform-a-person look (`tf_anime_still`, 22 looks), described
+  by its look (no studio name).
+- 🔤 A word as the shape (Create → 🎚 Denoise, `dnWord`): the word drawn in big letters (one line or stacked and staggered,
+  dark or light) at the picture's size, saved (`save_drawing`) and used as the starting picture at Denoise 0.85.
 - 🍝 Food lettering preset (ERNIE and H3): a word built of a cuisine's foods, letter by letter.
 - 🌗 Half anime, half real face: as a Create preset (ERNIE, H3, original character) and a Transform-a-person look
   (`tf_half_anime`, 21 looks now).

@@ -1177,6 +1177,19 @@ def handle_quick(cmd, a):
         return {"id": entry["id"], "old": old_id, "label": entry.get("label")}
     if cmd == "kept_list":  # ⚡ Settings → Models kept on this Mac: downloaded models, most used first
         return kept_list()
+    if cmd == "save_drawing":  # 🔤 a picture drawn in the app (the word shape) -> a PNG file to start from
+        import base64
+        import io
+        from PIL import Image
+        raw = base64.b64decode(str(a.get("data") or "").split(",", 1)[-1])
+        if len(raw) > 40_000_000:
+            raise ValueError("That picture is too big.")
+        im = Image.open(io.BytesIO(raw)).convert("RGB")
+        tmp = Path(paths.HOME) / "tmp"
+        tmp.mkdir(parents=True, exist_ok=True)
+        out = tmp / f"{str(a.get('name') or 'drawing')[:20]}_{os.getpid()}_{int(_t.time() * 1000)}.png"
+        im.save(out)
+        return {"path": str(out), "width": im.width, "height": im.height}
     if cmd == "sheet_crop":  # 🧩 one figure's part of a character sheet, to touch it up in ✂ Cut out
         from PIL import Image, ImageOps
         src = Path(str(a.get("path") or ""))
@@ -2237,7 +2250,7 @@ def run_side(mid, cmd, a):
 
 # quick commands that talk to a website (up to ~25 s if it's slow or blocked): run beside the reader, so the
 # app stays responsive (an unanswered Check used to leave every other button waiting)
-NET_QUICK = ("select_object", "kept_list", "sheet_crop", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
+NET_QUICK = ("select_object", "kept_list", "sheet_crop", "save_drawing", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
              "train_square_copies", "poselib_thumbs", "poselib_get")  # (that one isn't online, but can take a while for a big folder)
 
 

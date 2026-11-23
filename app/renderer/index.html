@@ -818,6 +818,17 @@
              @dragleave="dnDragOver = false" @drop.prevent="onDnDrop" @click="$refs.dnPick.click()">
           Drop a picture to start from <span class="hint">(or click to choose) · without one, every picture starts from noise (denoise 1.00)</span></div>
         <div v-if="!form.dn.image" class="row"><button class="ghost small" :disabled="!session.length" @click="dnUseLast" title="Start from the last picture you made">↩ Use my last picture</button></div>
+        <div v-if="!form.dn.image || /word_/.test(form.dn.image)" class="dn-word">
+          <label>🔤 A word as the shape <span class="hint">the letters become the outline: type a word, make the shape, then say what it's made of</span></label>
+          <div class="row">
+            <input type="text" v-model="form.dn.word" placeholder="ITALY" maxlength="24" @keydown.enter.prevent="dnWord">
+            <button class="ghost small" :disabled="!String(form.dn.word || '').trim()" @click="dnWord" title="Draw the word in big letters at the picture's size and start from it">🔤 Make the shape</button>
+          </div>
+          <div class="row">
+            <label class="check" title="One letter per line, staggered left and right (like a poster)"><input type="checkbox" v-model="form.dn.stack"> Letters stacked</label>
+            <label class="check" title="Light letters on a dark background (best for food, neon, fire); off: black letters on white"><input type="checkbox" v-model="form.dn.dark"> Dark background</label>
+          </div>
+        </div>
         <div v-else class="ipa-on">
           <img :src="fileUrl(form.dn.image)" alt="The picture to start from">
           <div class="ipa-opts">
