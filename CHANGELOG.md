@@ -4,6 +4,8 @@
 
 - 🎞 Hand-drawn anime still: Create preset (ERNIE, H3) and Transform-a-person look (`tf_anime_still`, 22 looks), described
   by its look (no studio name).
+- ↔ Invert in ✂ Cut out (`invert`): keeps the background and takes the subject out, in the preview and when saved;
+  touch-ups apply after it.
 - ⬛ Any picture as the shape (`make_shape`): a see-through picture's outline, or its dark (or light) parts, filled solid
   at the picture's size, as the starting picture in Create; ⬛ Use as a shape in the picture window and after a Tools
   result, 📂 Import a shape in Create → 🎚 Denoise.

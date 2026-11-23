@@ -208,7 +208,7 @@ function defaultPost() {  // Tools settings on a fresh install
     vec: { colors: 8, detail: "medium", smooth: true },   // ✒️ Vectorize
     det: { model: "", lora: "", weight: 0.8, strength: 0.35, steps: 20 },  // model "": Create's (if SD) or the first SD 1.5  // 🔎 Detail with a LoRA (patchbay module)
     // ✂ Cut out: threshold / softness on the model's matte, grow (+) or shrink (−) in px, then the clean-ups
-    cut: { threshold: 0.5, softness: 0.1, grow: 0, bg: "transparent", color: "#ffffff", clean: true, fix_edges: true, crop: false, finder: "birefnet" },
+    cut: { threshold: 0.5, softness: 0.1, grow: 0, bg: "transparent", color: "#ffffff", clean: true, fix_edges: true, crop: false, finder: "birefnet", invert: false },
     // 📄 Paper cut-out: border width (% of the shorter side), its paper, torn-ness, shadow, print look, background
     paper: { edge: 2, edge_colour: "white", rough: 0.5, shadow: 0.6, print_as: "photo", background: "transparent" },
     harmonize: { direction: "subject", strength: 70, light: 50, ref: "" },  // 🎯 Match colours (Tools)
@@ -1484,6 +1484,7 @@ const protoartApp = createApp({
             { h: "1.6.27: every panel folds, 📝 ERNIE-Image presets, ★ best MiniMax-H3 size", items: [
               "<b>Read the whole prompt in the queue</b>: click a job's name (or its ▾) to open its full prompt underneath, with 📋 copy; the row itself stays one tidy line. Transform-a-person jobs are named after their look (🦸 Action figure · …).",
               "<b>🎞 Hand-drawn anime still</b>: a soft hand-drawn animation film frame (pencil lines, watercolour backgrounds, golden-hour light, film grain). In Create (ERNIE-Image, MiniMax-H3-Image) for a scene you describe, and in 🎭 Transform a person made of you, with a box for where you are.",
+              "<b>↔ Invert the cut-out</b> (Tools → ✂ Cut out): keep the background and take the subject out instead (a see-through hole where the person was), for backgrounds, frames and shapes. Touch-ups still work on top.",
               "<b>⬛ Any picture as the shape</b>: a cut-out, logo, silhouette or drawing becomes a solid shape to fill with anything. Use ⬛ Use as a shape on a picture (its window, or after ✂ Cut out in Tools), or 📂 Import a shape in Create → 🎚 Denoise. See-through pictures use their outline; others use their dark parts (tick Light parts are the shape for the opposite). Then say what it's made of and Generate.",
               "<b>🔤 A word as the shape</b> (Create → 🎚 Denoise): type a word, press 🔤 Make the shape, then describe what the letters are made of (“made of Italian food”, “made of clouds”, “carved from ice”) and Generate. ★ Recommended settings (press it first) sets Denoise, steps and a tall or wide shape to suit the model and the layout. The app draws the word in big letters at your picture's size and starts from it, so the letters stay readable. One line or one letter per line (staggered), on a dark or light background. Works with SD 1.5, SDXL, Z-Image, ERNIE, FLUX.1, Qwen-Image 2.1 and Krea 2.",
               "<b>🍝 Food lettering</b> preset (Create, ERNIE-Image and MiniMax-H3-Image): a word in big 3D letters, each letter built from a different local food, on a dark background, shot like editorial food photography. Type a place or cuisine (“Japan”, “Mexican food”): the word is the first words you type in capitals. Empty prompt: “ITALY” in Italian food.",
@@ -8147,6 +8148,7 @@ const protoartApp = createApp({
       const g = Math.round(o.grow * c.k);
       if (g) a = window.ProtoPuppet.grow(a, c.w, c.h, g);
       if (o.clean || this.cut.paperView) a = cleanBits(a, c.w, c.h);  // like the engine: small specks dropped
+      if (o.invert && !this.cut.paperView) for (let i = 0; i < a.length; i++) a[i] = 255 - a[i];  // ↔ keep the background instead
       if (c.fix && this.cutFix.any) {  // ✍ touch-up: red = keep, blue = take away (the last stroke wins)
         const f = c.fix.ctx.getImageData(0, 0, c.w, c.h).data;
         for (let i = 0; i < a.length; i++) {
@@ -8236,7 +8238,7 @@ const protoartApp = createApp({
       try {
         const fig = this.cutFix.figure;
         const rec = await this.runJob("cutout", { ...this.toolArgs(), mode: "save", finder: o.finder || "birefnet", threshold: o.threshold, softness: o.softness, grow: o.grow,
-          clean: o.clean, fix_edges: o.fix_edges, crop: fig ? true : o.crop, fix: this.cutFixData(),
+          clean: o.clean, fix_edges: o.fix_edges, crop: fig ? true : o.crop, fix: this.cutFixData(), invert: !fig && !!o.invert,
           replace: fig ? fig.file : null, square: fig ? !!fig.square : false,
           background: o.bg === "transparent" ? "transparent" : o.bg === "white" ? "#ffffff" : o.bg === "black" ? "#000000" : o.color });
         if (rec) {

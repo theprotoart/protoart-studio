@@ -4347,6 +4347,8 @@ class Engine:
                            grow=int(opts["grow"] or 0))
         if args.get("clean", True) is not False:
             alpha = cut.clean_bits(alpha)
+        if args.get("invert"):  # ↔ keep the background, take the subject out
+            alpha = 1.0 - alpha
         if args.get("fix"):  # ✍ touch-ups painted on the preview: red = keep, blue = take away
             alpha = cut.apply_fix(alpha, args["fix"])
         if not (alpha > 0.02).any():

@@ -2702,6 +2702,7 @@
               <div class="mod-links"><button class="link" :disabled="!cutFix.undo" @click="cutFixUndo">↶ Undo</button> · <button class="link" :disabled="!cutFix.any" @click="cutFixClear">clear the touch-ups</button>
                 <span class="hint">· switch to Mask to see the edge clearly</span></div>
             </template>
+            <label class="check" title="Swap what's kept: keep the background and take the subject out (a see-through hole where it was)"><input type="checkbox" v-model="post.cut.invert" @change="cutRender()"> ↔ Invert: keep the background, remove the subject</label>
             <label class="check" title="Drop small separate specks of background that were picked up"><input type="checkbox" v-model="post.cut.clean"> Clean up small bits</label>
             <label class="check" title="Take the edge's colours from inside the subject, so no fringe of the old background is left around it"><input type="checkbox" v-model="post.cut.fix_edges"> Fix edge colours</label>
             <label class="check" title="Trim the empty space around the subject"><input type="checkbox" v-model="post.cut.crop"> Crop to the subject</label>
