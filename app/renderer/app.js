@@ -388,7 +388,7 @@ const I2I_PICTURE_KEYS = ["init_image", "control_image", "edit_refs"];
 const POSE_VIEWS = { front: "Front", diag: "¾ turn", side: "Side", above: "From above", below: "From below" };
 // 🎭 Transform a person: example pictures for the preset tiles (made with the presets themselves, in assets/presets)
 const TF_THUMBS = new Set(["tf_action_figure", "tf_claymation", "tf_crime_game", "tf_pixel_sprite", "tf_fighter_select", "tf_movie_hero", "tf_oil_portrait", "tf_trading_card", "tf_retro_console",
-  "tf_crochet", "tf_vinyl_toy", "tf_figurine_desk", "tf_caricature", "tf_anime", "tf_sticker_pack", "tf_half_anime"]);
+  "tf_crochet", "tf_vinyl_toy", "tf_figurine_desk", "tf_caricature", "tf_anime", "tf_sticker_pack", "tf_half_anime", "tf_90s_film", "tf_anime_still"]);
 const EDIT_RECIPES = [
   // two-picture recipes without a LoRA (files: null): they work with any edit model (Klein, FLUX 3, MiniMax-H3)
   { id: "anime_to_real", label: "📸 Anime → Real", by: "", files: null, p1: "the anime picture", p2: "a real photo (the look)",
@@ -1483,6 +1483,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.27: every panel folds, 📝 ERNIE-Image presets, ★ best MiniMax-H3 size", items: [
+              "<b>Fold arrows on the left</b>: every folding section and panel now shows its arrow at the left of its title, in gold (pointing right = folded, down = open), so they're easy to spot.",
               "<b>Read the whole prompt in the queue</b>: click a job's name (or its ▾) to open its full prompt underneath, with 📋 copy; the row itself stays one tidy line. Transform-a-person jobs are named after their look (🦸 Action figure · …).",
               "<b>🎞 Hand-drawn anime still</b>: a soft hand-drawn animation film frame (pencil lines, watercolour backgrounds, golden-hour light, film grain). In Create (ERNIE-Image, MiniMax-H3-Image) for a scene you describe, and in 🎭 Transform a person made of you, with a box for where you are.",
               "<b>↔ Invert the cut-out</b> (Tools → ✂ Cut out): keep the background and take the subject out instead (a see-through hole where the person was), for backgrounds, frames and shapes. Touch-ups still work on top.",
@@ -1494,7 +1495,7 @@ const protoartApp = createApp({
               "<b>🪞 Anime vs real split</b> preset (Create, ERNIE-Image and MiniMax-H3-Image): one wide picture split down the middle, the character as anime art on the left (“2D ORIGINAL”) and as a real person on the right (“LIVE ACTION”), matched 1:1. Describe your character, or press it with an empty prompt for the cyberpunk-girl example. To turn a picture you already have into a real person, use 📸 Anime → Real in Image to image.",
               "<b>📓 Manga draft page</b> preset (Create, ERNIE-Image and MiniMax-H3-Image): a black-and-white raw manga draft page, three panels read right to left (a close-up with a speech bubble, the opponent with a sound effect and a shout, a wide action panel with narration and the move's name in huge letters). Type your story, or press it with an empty prompt for the courier-and-golem example; change the words in the quotes to change the bubbles.",
               "<b>🎬 Storyboard sketch</b> preset (Create, ERNIE-Image and MiniMax-H3-Image): a vertical pencil storyboard page on sepia paper with a handwritten title and three framed shots (wide, medium, low angle), each with its scene note. Type your scene, or press it with an empty prompt to try the wasteland-arena example.",
-              "<b>🎭 Transform a person shows example pictures</b>: the looks are now picture tiles, with an example of what each one makes (16 of the 22 so far; the rest show their emoji until they get one).",
+              "<b>🎭 Transform a person shows example pictures</b>: the looks are now picture tiles, with an example of what each one makes (18 of the 22 so far; the rest show their emoji until they get one).",
               "<b>Every panel folds</b>: click any panel's title (Tools, Train, Models, Settings, Image to image…) to fold it down to its title; it stays folded until you click it again.",
               "<b>📝 ERNIE-Image presets</b> (Create, with an ERNIE model): type a subject and pick 📊 Infographic, 🍳 Recipe card, 🏙 Isometric street, 🧸 Felt miniature, 🗺 3D map city, 😊 Sticker sheet, ✈ Vintage travel poster, 🖍 Crayon travel diary, 🧊 3D icon set, 🔤 Word made of it, 🎞 Film still or 📐 Blueprint vs real; switching keeps your subject. A link opens the ERNIE-Image prompt gallery for more ideas.",
               "<b>MOSS-Image follows its own guide</b>: a standard negative prompt (no watermarks, bad anatomy, JPEG artifacts) when you leave it empty, and its tips in the guide card (English prompts, CFG 3–6, 1–2 million pixels, tag order, line breaks for lettering).",

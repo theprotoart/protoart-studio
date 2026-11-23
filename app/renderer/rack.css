@@ -2836,3 +2836,17 @@ input[type=range].adj-hue { background: linear-gradient(90deg, #f00, #ff0 17%, #
 .card[data-folded] > [data-foldhead] { margin-bottom: 0; }
 .dn-word { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .dn-word input[type=text] { flex: 1; min-width: 0; text-transform: uppercase; }
+
+/* ▸ Every fold arrow sits on the LEFT of its title, in the accent colour (pointing right = folded, down = open) */
+section.cfold > label:first-child { padding-left: 20px; padding-right: 0; }
+.cfold-chev { left: 3px; right: auto; top: 3px; color: var(--amber); opacity: .9; border-width: 0 2.5px 2.5px 0; }
+section.cfold.shut .cfold-chev, .i2ifold.shut > h3 .cfold-chev { top: 5px; }
+.i2ifold > h3 { padding-left: 22px; padding-right: 0; }
+.i2ifold > h3 .cfold-chev { left: 4px; right: auto; }
+.card[data-foldable] > [data-foldhead] { padding-left: 22px; padding-right: 0; }
+.card[data-foldable] > [data-foldhead] > h3 { padding-right: 0; }
+.card[data-foldable] > h3[data-foldhead]::after, .card[data-foldable] > [data-foldhead] > h3::after {
+  left: 4px; right: auto; top: 6px; color: var(--amber); opacity: .9; border-right-width: 2.5px; border-bottom-width: 2.5px; }
+.card[data-foldable] > [data-foldhead] > h3 { position: static; }
+.card[data-foldable] > [data-foldhead] { position: relative; }
+section.cfold > label:first-child:hover .cfold-chev, .i2ifold > h3:hover .cfold-chev { opacity: 1; }
