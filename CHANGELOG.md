@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.28
 
 - ⏱ MiniMax-H3-Image progress (`_h3_picture`): the bar counts only the 6 drawing steps (the prompt, pictures and
   finishing stages show as status text), so the time left no longer starts at ~3 min and jumps to ~20 min; for other

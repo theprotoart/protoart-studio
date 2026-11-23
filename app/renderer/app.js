@@ -1045,7 +1045,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.27";
+const APP_VERSION = "1.6.28";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1497,7 +1497,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Next: honest time left for MiniMax-H3-Image", items: [
+            { h: "1.6.28: honest time left for MiniMax-H3-Image", items: [
               "<b>MiniMax-H3-Image's time left no longer jumps</b>: the progress bar now counts only its 6 drawing steps. Reading the prompt and pictures was counted as a step, so the time first read about 3 minutes and then jumped to the real figure (about 20 minutes for an Edit with words at 1280 on an 8 GB Mac), which made a working edit look stuck. Until two steps are timed, the queue shows the typical time of the last edits.",
             ] },
             { h: "1.6.27: every panel folds, 📝 ERNIE-Image presets, ★ best MiniMax-H3 size", items: [
