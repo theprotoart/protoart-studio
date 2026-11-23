@@ -2,6 +2,7 @@
 
 ## 1.6.27
 
+- 🪞 Anime vs real split preset (ERNIE and H3): a 16:9 two-halves comparison, anime on the left, live action on the right.
 - 📓 Manga draft page preset (ERNIE and H3): original characters and lines (the example given named a real series and its
   characters, so it was rewritten generically); ERNIE presets can carry speech-bubble `lines` ({L1}…).
 - Queue: a job sends its whole prompt (`_public` → `prompt`, `recipe`); click its name or ▾ to read it underneath
