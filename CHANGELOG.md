@@ -2,6 +2,7 @@
 
 ## 1.6.27
 
+- 🍝 Food lettering preset (ERNIE and H3): a word built of a cuisine's foods, letter by letter.
 - 🌗 Half anime, half real face: as a Create preset (ERNIE, H3, original character) and a Transform-a-person look
   (`tf_half_anime`, 21 looks now).
 - 💬 Chat sticker pack: 24 captioned chibi stickers in a 4 × 6 grid, as a Create preset (ERNIE, H3) and a Transform-a-person look
