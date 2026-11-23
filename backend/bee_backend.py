@@ -1177,6 +1177,42 @@ def handle_quick(cmd, a):
         return {"id": entry["id"], "old": old_id, "label": entry.get("label")}
     if cmd == "kept_list":  # ⚡ Settings → Models kept on this Mac: downloaded models, most used first
         return kept_list()
+    if cmd == "make_shape":  # ⬛ any picture -> a solid shape to start from (its see-through outline, or its dark parts)
+        import numpy as np
+        import pictures
+        from PIL import Image, ImageOps
+        src = Path(str(a.get("path") or ""))
+        if not src.is_file():
+            raise FileNotFoundError("That picture isn't there any more (moved or deleted).")
+        with Image.open(pictures.prepare(str(src))) as im:
+            im = ImageOps.exif_transpose(im).convert("RGBA")
+        alpha = np.asarray(im.getchannel("A"), np.float32) / 255
+        if (alpha < 0.05).mean() > 0.05:  # a cut-out / PNG with transparency: its outline is the shape
+            shape = alpha > 0.5
+            how = "its outline"
+        else:  # a drawing or logo: the dark parts are the shape (or the light ones, inverted)
+            lum = np.asarray(im.convert("L"), np.float32)
+            shape = lum < 128
+            how = "its dark parts"
+            if a.get("invert"):
+                shape = ~shape
+                how = "its light parts"
+        if not shape.any() or shape.all():
+            raise ValueError("No shape found in that picture: try ‘Light parts are the shape’, or a picture with a see-through background.")
+        ys, xs = np.nonzero(shape)
+        mask = Image.fromarray((shape[ys.min():ys.max() + 1, xs.min():xs.max() + 1] * 255).astype(np.uint8))
+        W, H = max(256, int(a.get("width") or 1024)), max(256, int(a.get("height") or 1024))
+        k = min(W * 0.86 / mask.width, H * 0.86 / mask.height)
+        mask = mask.resize((max(1, round(mask.width * k)), max(1, round(mask.height * k))), Image.LANCZOS)
+        dark = a.get("dark", True) is not False
+        out = Image.new("RGB", (W, H), (30, 30, 30) if dark else (255, 255, 255))
+        fill = Image.new("RGB", mask.size, (200, 200, 200) if dark else (0, 0, 0))
+        out.paste(fill, ((W - mask.width) // 2, (H - mask.height) // 2), mask)
+        tmp = Path(paths.HOME) / "tmp"
+        tmp.mkdir(parents=True, exist_ok=True)
+        dest = tmp / f"shape_{os.getpid()}_{int(_t.time() * 1000)}.png"
+        out.save(dest)
+        return {"path": str(dest), "width": W, "height": H, "how": how}
     if cmd == "save_drawing":  # 🔤 a picture drawn in the app (the word shape) -> a PNG file to start from
         import base64
         import io
@@ -2250,7 +2286,7 @@ def run_side(mid, cmd, a):
 
 # quick commands that talk to a website (up to ~25 s if it's slow or blocked): run beside the reader, so the
 # app stays responsive (an unanswered Check used to leave every other button waiting)
-NET_QUICK = ("select_object", "kept_list", "sheet_crop", "save_drawing", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
+NET_QUICK = ("select_object", "kept_list", "sheet_crop", "save_drawing", "make_shape", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
              "train_square_copies", "poselib_thumbs", "poselib_get")  # (that one isn't online, but can take a while for a big folder)
 
 

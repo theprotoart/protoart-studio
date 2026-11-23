@@ -4,6 +4,9 @@
 
 - 🎞 Hand-drawn anime still: Create preset (ERNIE, H3) and Transform-a-person look (`tf_anime_still`, 22 looks), described
   by its look (no studio name).
+- ⬛ Any picture as the shape (`make_shape`): a see-through picture's outline, or its dark (or light) parts, filled solid
+  at the picture's size, as the starting picture in Create; ⬛ Use as a shape in the picture window and after a Tools
+  result, 📂 Import a shape in Create → 🎚 Denoise.
 - 🔤 A word as the shape (Create → 🎚 Denoise, `dnWord`): the word drawn in big letters (one line or stacked and staggered,
   dark or light) at the picture's size, saved (`save_drawing`) and used as the starting picture. ★ Recommended
   settings (`dnWordRec` / `dnWordApply`): Denoise 0.8–0.85, steps / CFG per model, a 2:3 (stacked) or 3:2 shape.

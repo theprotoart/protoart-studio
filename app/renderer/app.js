@@ -247,7 +247,7 @@ function defaultForm() {
     fast: false, fast_prev: null, i2i_use_init: true, control_image: "",
     control: { type: "", scale: 1.0, start: 0.0, end: 1.0, already_map: false },
     cc: { image: "", type: "", scale: 0.8, start: 0.0, end: 0.8, already_map: false, ernie_change: 0.55 },  // 🦴 Create's own ControlNet (a pose…)
-    dn: { image: "", value: 0.6, use_size: true, word: "", stack: false, dark: true },  // + 🔤 a word as the shape  // 🎚 Denoise (like ComfyUI's KSampler): start Create from a picture; 1.00 = from scratch
+    dn: { image: "", value: 0.6, use_size: true, word: "", stack: false, dark: true, invert: false },  // + 🔤 a word as the shape  // 🎚 Denoise (like ComfyUI's KSampler): start Create from a picture; 1.00 = from scratch
     hires: { on: false, scale: 1.5, strength: 0.45, steps: 15 },
     face_detailer: { on: false, strength: 0.4, prompt: "", max_faces: 4, min_face_pct: 0, confidence: 0.6, mask_grow: 0.18, mask_blur: 1, hair: false },
     ip_adapter: { image: "", kind: "style", scale: 0.6, take: "all" },  // take: all / style / layout (SDXL)
@@ -1484,6 +1484,7 @@ const protoartApp = createApp({
             { h: "1.6.27: every panel folds, 📝 ERNIE-Image presets, ★ best MiniMax-H3 size", items: [
               "<b>Read the whole prompt in the queue</b>: click a job's name (or its ▾) to open its full prompt underneath, with 📋 copy; the row itself stays one tidy line. Transform-a-person jobs are named after their look (🦸 Action figure · …).",
               "<b>🎞 Hand-drawn anime still</b>: a soft hand-drawn animation film frame (pencil lines, watercolour backgrounds, golden-hour light, film grain). In Create (ERNIE-Image, MiniMax-H3-Image) for a scene you describe, and in 🎭 Transform a person made of you, with a box for where you are.",
+              "<b>⬛ Any picture as the shape</b>: a cut-out, logo, silhouette or drawing becomes a solid shape to fill with anything. Use ⬛ Use as a shape on a picture (its window, or after ✂ Cut out in Tools), or 📂 Import a shape in Create → 🎚 Denoise. See-through pictures use their outline; others use their dark parts (tick Light parts are the shape for the opposite). Then say what it's made of and Generate.",
               "<b>🔤 A word as the shape</b> (Create → 🎚 Denoise): type a word, press 🔤 Make the shape, then describe what the letters are made of (“made of Italian food”, “made of clouds”, “carved from ice”) and Generate. ★ Recommended settings (press it first) sets Denoise, steps and a tall or wide shape to suit the model and the layout. The app draws the word in big letters at your picture's size and starts from it, so the letters stay readable. One line or one letter per line (staggered), on a dark or light background. Works with SD 1.5, SDXL, Z-Image, ERNIE, FLUX.1, Qwen-Image 2.1 and Krea 2.",
               "<b>🍝 Food lettering</b> preset (Create, ERNIE-Image and MiniMax-H3-Image): a word in big 3D letters, each letter built from a different local food, on a dark background, shot like editorial food photography. Type a place or cuisine (“Japan”, “Mexican food”): the word is the first words you type in capitals. Empty prompt: “ITALY” in Italian food.",
               "<b>🌗 Half anime, half real</b>: a close-up face split down the middle, anime on the left and photoreal on the right, lined up as one face. In Create (ERNIE-Image, MiniMax-H3-Image) for a character you describe, and in 🎭 Transform a person made of you from your photo.",
@@ -7131,6 +7132,25 @@ const protoartApp = createApp({
         this.cfolds = { ...this.cfolds, dn: false };
         this.status = `“${word}” is the shape: now say what the letters are made of in the prompt (e.g. “the word ${word} made of Italian food on a dark background”), then Generate. Lower Denoise keeps the letters sharper, higher lets the food spill over.`;
       } catch (e) { this.error = "Couldn't make the word picture: " + (e.message || e); }
+    },
+    async useAsShape(rec) {  // ⬛ a picture (a cut-out, logo, silhouette, drawing) -> a solid shape to start a picture from in Create
+      const p = rec && (rec.path || rec);
+      if (!p) return;
+      const d = this.form.dn;
+      try {
+        const r = await call("make_shape", { path: p, width: this.form.width, height: this.form.height, dark: d.dark, invert: d.invert });
+        if (!r || !r.path) return;
+        Object.assign(d, { image: r.path, value: this.dnWordRec().denoise, use_size: true });
+        if (this.detail) this.detail = null;
+        this.tab = "create";
+        this.cfolds = { ...this.cfolds, dn: false };
+        this.status = `⬛ The shape is ${r.how} of that picture, filled in solid. Now say what it's made of in the prompt (“made of flowers”, “a neon sign”, “carved in marble”) and Generate. The model must be one that can start from a picture (see 🎚 Denoise).`;
+      } catch (e) { this.error = "Couldn't make a shape from that picture: " + (e.message || e); }
+    },
+    onShapePicked(e) {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => p && this.useAsShape(p));
     },
     dnUseLast() {
       const last = this.session[0];
