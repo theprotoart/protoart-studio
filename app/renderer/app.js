@@ -388,7 +388,7 @@ const I2I_PICTURE_KEYS = ["init_image", "control_image", "edit_refs"];
 const POSE_VIEWS = { front: "Front", diag: "¾ turn", side: "Side", above: "From above", below: "From below" };
 // 🎭 Transform a person: example pictures for the preset tiles (made with the presets themselves, in assets/presets)
 const TF_THUMBS = new Set(["tf_action_figure", "tf_claymation", "tf_crime_game", "tf_pixel_sprite", "tf_fighter_select", "tf_movie_hero", "tf_oil_portrait", "tf_trading_card", "tf_retro_console",
-  "tf_crochet", "tf_vinyl_toy", "tf_figurine_desk", "tf_caricature", "tf_anime", "tf_sticker_pack", "tf_half_anime", "tf_90s_film", "tf_anime_still"]);
+  "tf_crochet", "tf_vinyl_toy", "tf_figurine_desk", "tf_caricature", "tf_anime", "tf_sticker_pack", "tf_half_anime", "tf_90s_film", "tf_anime_still", "tf_comic_cover"]);
 const EDIT_RECIPES = [
   // two-picture recipes without a LoRA (files: null): they work with any edit model (Klein, FLUX 3, MiniMax-H3)
   { id: "anime_to_real", label: "📸 Anime → Real", by: "", files: null, p1: "the anime picture", p2: "a real photo (the look)",
@@ -520,8 +520,8 @@ const EDIT_RECIPES = [
   { id: "tf_trading_card", label: "📇 Trading card", group: "transform", by: "", files: null, p1: "the person",
     tip: "A holographic collectible trading card of the person: full-art character, foil frame, name banner and a stats panel. Type their name, a title and a special move.",
     slots: [{ id: "style", kind: "style", label: "A card design to follow" },
-            { id: "name", kind: "item", label: "Name on the card", ph: "[NAME]", dflt: "their first name in bold capitals" },
-            { id: "power", kind: "item", label: "Special move or power", ph: "[SPECIAL MOVE]", dflt: "a special move that suits their personality" }],
+            { id: "name", kind: "item", label: "Name on the card", ph: "[NAME]", dflt: "THE CHAMPION" },
+            { id: "power", kind: "item", label: "Special move or power", ph: "[SPECIAL MOVE]", dflt: "THUNDER STRIKE" }],
     prompt: "Transform the person in the reference photograph into the hero of a premium holographic collectible trading card.\nPreserve their recognizable face, hairstyle, skin tone, and distinctive appearance, shown from the waist up in a confident, dynamic pose that breaks slightly out of the frame.\nDesign the full card: an ornate metallic foil border with rainbow holographic shimmer, a bold name banner at the top reading [NAME], a rarity emblem in the corner, and a stats panel at the bottom listing strength, speed and style ratings and the special move [SPECIAL MOVE].\nPaint the character as polished fantasy-collectible illustration art with dramatic rim lighting, energy effects behind them, and a vivid colorful background.\nPhotograph the card as a real physical object: lying on a dark surface at a slight angle, with glossy reflections, holographic light glints, sharp printed detail, and the thin edge of the card stock visible.\nThe result should look like a rare, real collectible card fresh out of a booster pack. No brand names or logos.",
     licence: "no LoRA: the edit model alone" },
   { id: "tf_pixel_sprite", label: "👾 16-bit pixel sprite", group: "transform", by: "", files: null, p1: "the person",
@@ -533,21 +533,21 @@ const EDIT_RECIPES = [
   { id: "tf_comic_cover", label: "🦸 Comic book cover", group: "transform", by: "", files: null, p1: "the person",
     tip: "The person as the hero on the cover of a vintage-style comic book: dynamic pose, halftone print, bold title. Type the comic's title and the villain or scene.",
     slots: [{ id: "style", kind: "style", label: "A comic art style to follow" },
-            { id: "title", kind: "item", label: "The comic's title", ph: "[TITLE]", dflt: "a short punchy title with their name" },
+            { id: "title", kind: "item", label: "The comic's title", ph: "[TITLE]", dflt: "THE MIGHTY ONE" },
             { id: "scene", kind: "item", label: "The scene / villain", ph: "[SCENE]", dflt: "a giant robot attacking the city at night" }],
     prompt: "Transform the person in the reference photograph into the superhero star of a classic American comic book cover.\nPreserve their recognizable face, hairstyle, skin tone and distinctive features, and give them an original hero costume inspired by the clothes in the photograph.\nDraw them in a powerful foreshortened action pose leaping toward the viewer, in the middle of [SCENE].\nUse bold inked comic art: confident thick and thin brush outlines, dramatic shadows with solid black spotting, vivid primary colors, and visible halftone dot printing on aged, slightly yellowed paper.\nDesign the full cover: a large hand-lettered title logo across the top reading [TITLE], an issue number and price box in the top corner, a small corner box with the hero's face, and a dramatic caption burst.\nThe result should look like a real vintage comic book cover photographed flat, with slight print misregistration and worn paper edges. No real publisher names or logos.",
     licence: "no LoRA: the edit model alone" },
   { id: "tf_fighter_select", label: "🎮 Fighting-game select", group: "transform", by: "", files: null, p1: "the person",
     tip: "The person as a fighter on an arcade fighting-game character select screen: a big portrait card, a fighting stance, their stage behind. Type their fighter name and home stage.",
     slots: [{ id: "style", kind: "style", label: "A game art style to follow" },
-            { id: "name", kind: "item", label: "Fighter name", ph: "[FIGHTER NAME]", dflt: "a cool one-word fighter nickname" },
+            { id: "name", kind: "item", label: "Fighter name", ph: "[FIGHTER NAME]", dflt: "SHADOW" },
             { id: "stage", kind: "item", label: "Their home stage", ph: "[STAGE]", dflt: "a rainy neon-lit street market at night" }],
     prompt: "Transform the person in the reference photograph into a playable fighter on an arcade fighting game's character select screen.\nPreserve their recognizable face, hairstyle, skin tone and distinctive look, with a fighting outfit inspired by their clothes and a signature fighting stance full of attitude.\nRender them as polished, high-detail 2D game key art: sharp painted shading, strong rim light, and energy aura effects around their fists.\nDesign the screen: a large character portrait on one side with the fighter name [FIGHTER NAME] in bold stylized lettering, a grid of small locked character portrait tiles along the bottom with theirs highlighted, a 'PLAYER 1' selection frame, and their home stage behind them: [STAGE].\nUse saturated arcade colors, dramatic diagonal composition, glowing interface elements and a slight scanline glow, like a real screenshot from an arcade fighting game. No real game titles or logos.",
     licence: "no LoRA: the edit model alone" },
   { id: "tf_bobblehead", label: "🪆 Bobblehead", group: "transform", by: "", files: null, p1: "the person",
     tip: "A hand-painted resin bobblehead of the person: oversized head on a spring, little body, a name plaque on the base, standing on a desk or shelf.",
     slots: [{ id: "style", kind: "style" },
-            { id: "plaque", kind: "item", label: "Words on the base", ph: "[PLAQUE]", dflt: "their first name" },
+            { id: "plaque", kind: "item", label: "Words on the base", ph: "[PLAQUE]", dflt: "No. 1" },
             { id: "holding", kind: "item", label: "What it holds", add: "The bobblehead holds this, sculpted in painted resin: {x}." }],
     prompt: "Transform the person in the reference photograph into a collectible hand-painted bobblehead figure.\nPreserve their recognizable face, hairstyle, skin tone and signature clothing, with a big friendly smile.\nSculpt a hugely oversized head on a tiny compact body, the head attached by a visible spring at the neck, tilted slightly as if it has just been tapped.\nUse glossy painted polyresin with slightly imperfect hand-painted details, sculpted hair, small painted eyes with catchlights, and a sturdy base with a raised plaque that reads [PLAQUE].\nPlace it on a wooden office desk or shelf next to everyday objects for scale, with a softly blurred background.\nRealistic product photography, warm soft lighting, shallow depth of field, glossy highlights, three-quarter view. The result should look like a real souvenir bobblehead photographed at home.",
     licence: "no LoRA: the edit model alone" },
@@ -1483,6 +1483,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.27: every panel folds, 📝 ERNIE-Image presets, ★ best MiniMax-H3 size", items: [
+              "<b>Clearer lettering in the presets</b>: Trading card, Comic book cover, Fighting-game select and Bobblehead now print real words when their boxes are left empty (THE CHAMPION, THE MIGHTY ONE, SHADOW, No. 1…) instead of garbled text. Type your own in the box to change it.",
               "<b>Fold arrows on the left</b>: every folding section and panel now shows its arrow at the left of its title, in gold (pointing right = folded, down = open), so they're easy to spot.",
               "<b>Read the whole prompt in the queue</b>: click a job's name (or its ▾) to open its full prompt underneath, with 📋 copy; the row itself stays one tidy line. Transform-a-person jobs are named after their look (🦸 Action figure · …).",
               "<b>🎞 Hand-drawn anime still</b>: a soft hand-drawn animation film frame (pencil lines, watercolour backgrounds, golden-hour light, film grain). In Create (ERNIE-Image, MiniMax-H3-Image) for a scene you describe, and in 🎭 Transform a person made of you, with a box for where you are.",
@@ -1495,7 +1496,7 @@ const protoartApp = createApp({
               "<b>🪞 Anime vs real split</b> preset (Create, ERNIE-Image and MiniMax-H3-Image): one wide picture split down the middle, the character as anime art on the left (“2D ORIGINAL”) and as a real person on the right (“LIVE ACTION”), matched 1:1. Describe your character, or press it with an empty prompt for the cyberpunk-girl example. To turn a picture you already have into a real person, use 📸 Anime → Real in Image to image.",
               "<b>📓 Manga draft page</b> preset (Create, ERNIE-Image and MiniMax-H3-Image): a black-and-white raw manga draft page, three panels read right to left (a close-up with a speech bubble, the opponent with a sound effect and a shout, a wide action panel with narration and the move's name in huge letters). Type your story, or press it with an empty prompt for the courier-and-golem example; change the words in the quotes to change the bubbles.",
               "<b>🎬 Storyboard sketch</b> preset (Create, ERNIE-Image and MiniMax-H3-Image): a vertical pencil storyboard page on sepia paper with a handwritten title and three framed shots (wide, medium, low angle), each with its scene note. Type your scene, or press it with an empty prompt to try the wasteland-arena example.",
-              "<b>🎭 Transform a person shows example pictures</b>: the looks are now picture tiles, with an example of what each one makes (18 of the 22 so far; the rest show their emoji until they get one).",
+              "<b>🎭 Transform a person shows example pictures</b>: the looks are now picture tiles, with an example of what each one makes (19 of the 22 so far; the rest show their emoji until they get one).",
               "<b>Every panel folds</b>: click any panel's title (Tools, Train, Models, Settings, Image to image…) to fold it down to its title; it stays folded until you click it again.",
               "<b>📝 ERNIE-Image presets</b> (Create, with an ERNIE model): type a subject and pick 📊 Infographic, 🍳 Recipe card, 🏙 Isometric street, 🧸 Felt miniature, 🗺 3D map city, 😊 Sticker sheet, ✈ Vintage travel poster, 🖍 Crayon travel diary, 🧊 3D icon set, 🔤 Word made of it, 🎞 Film still or 📐 Blueprint vs real; switching keeps your subject. A link opens the ERNIE-Image prompt gallery for more ideas.",
               "<b>MOSS-Image follows its own guide</b>: a standard negative prompt (no watermarks, bad anatomy, JPEG artifacts) when you leave it empty, and its tips in the guide card (English prompts, CFG 3–6, 1–2 million pixels, tag order, line breaks for lettering).",
