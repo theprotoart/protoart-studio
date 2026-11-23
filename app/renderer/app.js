@@ -356,8 +356,9 @@ function camPrompt(az, el, zoom, extra, layout, expressions) {
   if (layout === "comic")
     return `Turn this into a comic book page with 3 to 4 panels showing the subject from different camera angles (one of them the ${w.view}, ${w.elev.say}). ` + add + same;
   if (layout === "sheet")
-    return "Turn this into a character turnaround sheet: the same character shown full body from the front, the side and the back, " +
-      "standing side by side on a plain light background, evenly spaced. " + add + same;
+    return "Turn this into a character turnaround sheet: four full-body views of the same character in one row, each the same size and height, " +
+      "evenly spaced and never overlapping, on a plain light background: from the front facing the camera, a three-quarter view, a strict side profile, " +
+      "and from the back (the face not visible). " + add + same;
   const ex = (expressions && expressions.length ? expressions : EXPR_DEFAULT).slice(0, 12);
   const sameFace = "Same character: the same face, hair, eyes, outfit, colours and art style in every panel; only the facial expression changes.";
   if (layout === "expressions")
@@ -365,7 +366,7 @@ function camPrompt(az, el, zoom, extra, layout, expressions) {
       `each the same size and framing, facing the viewer, on a plain light background, evenly spaced. The expressions, in order: ${exprList(ex)}. ` +
       "Each expression is clear and readable, with matching eyes, eyebrows and mouth. " + add + sameFace;
   if (layout === "turn_expr")
-    return "Turn this into a character model sheet on a plain light background. Top row: the same character shown full body from the front, the side and the back, standing side by side. " +
+    return "Turn this into a character model sheet on a plain light background. Top row: the same character shown full body from the front, a three-quarter view, the side and the back, standing side by side, each the same size and never overlapping. " +
       `Bottom row: ${Math.min(ex.length, 6)} head-and-shoulders close-ups of the same character's face, each with a different expression: ${exprList(ex.slice(0, 6))}. ` +
       "Everything evenly spaced and clearly separated. " + add + sameFace;
   if (layout === "devboard")  // 🎬 a feature-film character development board (our short wording of a full art-direction brief)
@@ -518,6 +519,13 @@ const EDIT_RECIPES = [
     slots: [{ id: "style", kind: "style", label: "An animation style to follow" },
             { id: "scene", kind: "item", label: "Where they are", ph: "[SCENE]", dflt: "a sunlit meadow full of wildflowers" }],
     prompt: "Turn the person in the reference photo into a character in a soft 2D hand-drawn animation cel film still. Keep their recognizable face, hairstyle, skin tone, facial hair and clothes, drawn with visible pencil lines, clean flat cel colours, large expressive eyes and a warm natural expression. Place them in [SCENE], painted with gentle watercolour washes, warm golden-hour light and soft clouds, a palette of warm amber, soft greens and gentle sky blue, a subtle film grain over everything, like a frame from a classic hand-crafted Japanese animated film.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_turnaround", label: "🧍 Character turnaround", group: "transform", by: "", files: null, p1: "the person",
+    tip: "A model sheet of the person from four sides: front, three-quarter, side and back, head to toe, in one row. Say what the photo doesn't show (the legs and shoes, for a half-body photo). Best with MiniMax-H3 or FLUX 3, at a wide size.",
+    slots: [{ id: "style", kind: "style", label: "An art style to follow" },
+            { id: "bg", kind: "item", label: "Background", ph: "[BACKGROUND]", dflt: "a plain white background" },
+            { id: "unseen", kind: "item", label: "What the photo doesn't show", ph: "[UNSEEN]", dflt: "trousers and shoes that match their outfit" }],
+    prompt: "Make a character turnaround sheet of the person in the reference photo: four full-body pictures of them, head to toe, side by side in one row, each the same size and height, evenly spaced and never overlapping, on [BACKGROUND]. From left to right: seen straight from the front, facing the camera; a three-quarter view with the face turned toward the left; a strict side profile with the nose pointing left; and from the back, the face not visible. Keep them exactly the same in every view: the same face, hairstyle, skin tone, facial hair, body, clothes, accessories and colours. Where the photo doesn't show them, they wear [UNSEEN], the same in every view. Even, soft studio lighting with no harsh shadows, a clean professional model-sheet look, sharp detail.",
     licence: "no LoRA: the edit model alone" },
   { id: "tf_trading_card", label: "📇 Trading card", group: "transform", by: "", files: null, p1: "the person",
     tip: "A holographic collectible trading card of the person: full-art character, foil frame, name banner and a stats panel. Type their name, a title and a special move.",
@@ -1489,6 +1497,7 @@ const protoartApp = createApp({
               "<b>Basic / Advanced</b> (top of Create): Basic shows the essentials (model, prompt and its helpers, presets, size, steps, guidance, images, Generate); Advanced adds the negative prompt, seed, LoRAs, Regions, Image prompt, Denoise, ControlNet, sampler, seamless, FreeU, CFG rescale, Extras and Compare. Switching only changes what's shown: if an advanced setting is on while in Basic, a note above Generate says so, with a button to show it. New installs start in Basic, existing ones in Advanced.",
               "<b>A tidier Create page</b>: the model sources are behind one ＋ Add a model button, Regions starts folded, and Size &amp; steps keeps its reset / ★ recommended / save-defaults buttons and the knob help under “More”.",
               "<b>▶ Video tutorials</b>: a ▶ Watch link at the top of Create, Image to image and Tools opens that part's tutorial on YouTube, and How to has all the videos. The Mac menu bar has a new <b>Help</b> menu: Getting Started, Video Tutorials, What's New, Keyboard Shortcuts and the YouTube channel.",
+              "<b>🧍 Character turnaround</b> (🎭 Transform a person): you from four sides (front, three-quarter, side, back), head to toe in one row, with boxes for the background and for what the photo doesn't show (legs and shoes from a half-body photo). 📷 Camera angle → Character sheet now draws four views too, the same size and never overlapping.",
               "<b>🔍 Tiny human diorama, stronger</b>: the person now really comes out tiny (about 3 cm tall, full body, standing among giant everyday objects), instead of full size next to a normal cup.",
               "<b>Clearer lettering in the presets</b>: Trading card, Comic book cover, Fighting-game select and Bobblehead now print real words when their boxes are left empty (THE CHAMPION, THE MIGHTY ONE, SHADOW, No. 1…) instead of garbled text. Type your own in the box to change it.",
               "<b>Fold arrows on the left</b>: every folding section and panel now shows its arrow at the left of its title, in gold (pointing right = folded, down = open), so they're easy to spot.",
