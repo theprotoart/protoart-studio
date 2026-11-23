@@ -1484,7 +1484,7 @@ const protoartApp = createApp({
             { h: "1.6.27: every panel folds, 📝 ERNIE-Image presets, ★ best MiniMax-H3 size", items: [
               "<b>Read the whole prompt in the queue</b>: click a job's name (or its ▾) to open its full prompt underneath, with 📋 copy; the row itself stays one tidy line. Transform-a-person jobs are named after their look (🦸 Action figure · …).",
               "<b>🎞 Hand-drawn anime still</b>: a soft hand-drawn animation film frame (pencil lines, watercolour backgrounds, golden-hour light, film grain). In Create (ERNIE-Image, MiniMax-H3-Image) for a scene you describe, and in 🎭 Transform a person made of you, with a box for where you are.",
-              "<b>🔤 A word as the shape</b> (Create → 🎚 Denoise): type a word, press 🔤 Make the shape, then describe what the letters are made of (“made of Italian food”, “made of clouds”, “carved from ice”) and Generate. The app draws the word in big letters at your picture's size and starts from it, so the letters stay readable. One line or one letter per line (staggered), on a dark or light background. Works with SD 1.5, SDXL, Z-Image, ERNIE, FLUX.1, Qwen-Image 2.1 and Krea 2.",
+              "<b>🔤 A word as the shape</b> (Create → 🎚 Denoise): type a word, press 🔤 Make the shape, then describe what the letters are made of (“made of Italian food”, “made of clouds”, “carved from ice”) and Generate. ★ Recommended settings (press it first) sets Denoise, steps and a tall or wide shape to suit the model and the layout. The app draws the word in big letters at your picture's size and starts from it, so the letters stay readable. One line or one letter per line (staggered), on a dark or light background. Works with SD 1.5, SDXL, Z-Image, ERNIE, FLUX.1, Qwen-Image 2.1 and Krea 2.",
               "<b>🍝 Food lettering</b> preset (Create, ERNIE-Image and MiniMax-H3-Image): a word in big 3D letters, each letter built from a different local food, on a dark background, shot like editorial food photography. Type a place or cuisine (“Japan”, “Mexican food”): the word is the first words you type in capitals. Empty prompt: “ITALY” in Italian food.",
               "<b>🌗 Half anime, half real</b>: a close-up face split down the middle, anime on the left and photoreal on the right, lined up as one face. In Create (ERNIE-Image, MiniMax-H3-Image) for a character you describe, and in 🎭 Transform a person made of you from your photo.",
               "<b>💬 Chat sticker pack</b>: 24 chibi chat stickers in a 4 × 6 grid, each with its own expression and caption (Good morning!, Thank you!, Waaah..., Leave it to me, Good night…). In Create (ERNIE-Image, MiniMax-H3-Image) describe a character; in 🎭 Transform a person it's made of you from your photo. Then 🧩 Split a character sheet (Tools → ✂ Cut out) cuts them into separate stickers.",
@@ -7081,6 +7081,26 @@ const protoartApp = createApp({
       this.form.dn.image = p;
       if (!(this.form.dn.value < 1)) this.form.dn.value = 0.6;
     },
+    dnWordRec() {  // 🔤 recommended settings for a word shape with this model: {denoise, steps, cfg, note}
+      const f = this.family, id = String((this.currentModel || {}).id || ""), def = (this.currentModel || {}).defaults || {};
+      if (f === "sd15" || f === "sdxl") return { denoise: 0.8, steps: 30, cfg: 7, note: "30 steps, CFG 7" };
+      if (f === "flux" && /schnell/.test(id)) return { denoise: 0.85, steps: 4, note: "4 steps" };
+      if (f === "flux") return { denoise: 0.8, steps: 20, note: "20 steps" };
+      if (f === "zimage") return { denoise: 0.8, steps: def.steps || 8, note: `${def.steps || 8} steps` };
+      if (f === "ernie") return { denoise: 0.85, steps: def.steps, note: def.steps ? `${def.steps} steps` : "its usual steps" };
+      return { denoise: 0.8, steps: def.steps, note: def.steps ? `${def.steps} steps` : "its usual steps" };
+    },
+    dnWordApply() {  // ★ the recommended settings: denoise, steps / CFG, and a shape that fits the word (tall when stacked)
+      const r = this.dnWordRec(), d = this.form.dn;
+      d.value = r.denoise;
+      if (r.steps) this.form.steps = r.steps;
+      if (r.cfg) this.form.cfg = r.cfg;
+      const side = Math.sqrt((this.form.width || 1024) * (this.form.height || 1024));
+      const want = (p) => (d.stack ? p.h > p.w : p.w > p.h) && Math.abs(Math.max(p.w, p.h) / Math.min(p.w, p.h) - 1.5) < 0.12;
+      const shapes = this.sizePresets.filter(want).sort((a, b) => Math.abs(Math.sqrt(a.w * a.h) - side) - Math.abs(Math.sqrt(b.w * b.h) - side));
+      if (shapes[0]) this.applySizePreset(shapes[0]);
+      this.status = `★ Recommended for a word shape: Denoise ${r.denoise.toFixed(2)}, ${r.note}, ${shapes[0] ? shapes[0].w + " × " + shapes[0].h + (d.stack ? " (tall, for stacked letters)" : " (wide, for one line)") : "your size"}. Make the shape again if you changed the size.`;
+    },
     async dnWord() {  // 🔤 draw the word as plain letters at the picture's size, then start from it (the letters become the shape)
       const d = this.form.dn, word = String(d.word || "").trim().toUpperCase();
       if (!word) return (this.error = "Type a word first.");
@@ -7107,7 +7127,7 @@ const protoartApp = createApp({
       try {
         const r = await call("save_drawing", { data: cv.toDataURL("image/png"), name: "word" });
         if (!r || !r.path) return;
-        Object.assign(d, { image: r.path, value: 0.85, use_size: true });
+        Object.assign(d, { image: r.path, value: this.dnWordRec().denoise, use_size: true });
         this.cfolds = { ...this.cfolds, dn: false };
         this.status = `“${word}” is the shape: now say what the letters are made of in the prompt (e.g. “the word ${word} made of Italian food on a dark background”), then Generate. Lower Denoise keeps the letters sharper, higher lets the food spill over.`;
       } catch (e) { this.error = "Couldn't make the word picture: " + (e.message || e); }

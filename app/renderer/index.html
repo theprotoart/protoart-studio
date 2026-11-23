@@ -828,6 +828,10 @@
             <label class="check" title="One letter per line, staggered left and right (like a poster)"><input type="checkbox" v-model="form.dn.stack"> Letters stacked</label>
             <label class="check" title="Light letters on a dark background (best for food, neon, fire); off: black letters on white"><input type="checkbox" v-model="form.dn.dark"> Dark background</label>
           </div>
+          <div class="row">
+            <button class="chip rec" @click="dnWordApply" title="Set Denoise, steps and a picture shape that suit a word shape with this model (press before 🔤 Make the shape)">★ Recommended settings</button>
+            <span class="hint">{{ currentModel ? currentModel.label.split(' · ')[0] : 'this model' }}: Denoise {{ dnWordRec().denoise.toFixed(2) }} · {{ dnWordRec().note }} · {{ form.dn.stack ? 'a tall 2:3 picture' : 'a wide 3:2 picture' }} · prompt: what the letters are made of + the background</span>
+          </div>
         </div>
         <div v-else class="ipa-on">
           <img :src="fileUrl(form.dn.image)" alt="The picture to start from">
