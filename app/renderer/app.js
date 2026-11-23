@@ -1293,7 +1293,8 @@ const protoartApp = createApp({
       })(),
       dims: [512, 576, 640, 704, 768, 832, 896, 960, 1024, 1088, 1152, 1216, 1280, 1344, 1456, 1536, 1792, 2048],
       dnDragOver: false,
-      jobOpen: {},  // 🔽 queue rows showing their whole prompt  // Create → 🎚 Denoise picture
+      jobOpen: {},
+      showAddModel: false,  // Create → ＋ Add a model  // 🔽 queue rows showing their whole prompt  // Create → 🎚 Denoise picture
       queue: [],          // jobs from the backend: running first, then queued
       progress: null,
       status: "Starting…",
@@ -1485,6 +1486,8 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.27: every panel folds, 📝 ERNIE-Image presets, ★ best MiniMax-H3 size", items: [
+              "<b>Basic / Advanced</b> (top of Create): Basic shows the essentials (model, prompt and its helpers, presets, size, steps, guidance, images, Generate); Advanced adds the negative prompt, seed, LoRAs, Regions, Image prompt, Denoise, ControlNet, sampler, seamless, FreeU, CFG rescale, Extras and Compare. Switching only changes what's shown: if an advanced setting is on while in Basic, a note above Generate says so, with a button to show it. New installs start in Basic, existing ones in Advanced.",
+              "<b>A tidier Create page</b>: the model sources are behind one ＋ Add a model button, Regions starts folded, and Size &amp; steps keeps its reset / ★ recommended / save-defaults buttons and the knob help under “More”.",
               "<b>▶ Video tutorials</b>: a ▶ Watch link at the top of Create, Image to image and Tools opens that part's tutorial on YouTube, and How to has all the videos. The Mac menu bar has a new <b>Help</b> menu: Getting Started, Video Tutorials, What's New, Keyboard Shortcuts and the YouTube channel.",
               "<b>Clearer lettering in the presets</b>: Trading card, Comic book cover, Fighting-game select and Bobblehead now print real words when their boxes are left empty (THE CHAMPION, THE MIGHTY ONE, SHADOW, No. 1…) instead of garbled text. Type your own in the box to change it.",
               "<b>Fold arrows on the left</b>: every folding section and panel now shows its arrow at the left of its title, in gold (pointing right = folded, down = open), so they're easy to spot.",
@@ -3732,6 +3735,23 @@ const protoartApp = createApp({
       if (names.length) out.push("LoRAs made for another model type: " + names.join(", "));
       return out;
     },
+    basicMode() { return this.opts.ui_mode === "basic"; },
+    advOn() {  // ⚙ advanced settings that are on while Basic hides them (so nothing changes a picture unseen)
+      const f = this.form, on = [];
+      if ((f.loras || []).length) on.push(f.loras.length + " LoRA" + (f.loras.length === 1 ? "" : "s"));
+      if (String(f.negative_prompt || "").trim()) on.push("negative prompt");
+      if (f.seed !== -1 && f.seed != null) on.push("fixed seed");
+      if (f.var_strength > 0) on.push("small change");
+      if (f.regions && f.regions.on) on.push("regions");
+      if (f.ip_adapter && f.ip_adapter.image) on.push("image prompt");
+      if (f.dn && f.dn.image && f.dn.value < 1) on.push("denoise");
+      if (f.cc && f.cc.image) on.push("pose / ControlNet");
+      if (f.freeu) on.push("FreeU");
+      if (f.cfg_rescale > 0) on.push("CFG rescale");
+      if (f.seamless) on.push("seamless");
+      if (f.hires && f.hires.on) on.push("hi-res fix");
+      return on;
+    },
     denoiseOk() {  // 🎚 Denoise: model types that can start from a picture (the others make pictures from a prompt only)
       return DENOISE_FAMILIES.includes(this.family);
     },
@@ -4276,6 +4296,12 @@ const protoartApp = createApp({
   },
 
   async mounted() {
+    if (!this.opts.ui_mode) {  // new here: Basic; already using the app: Advanced (nothing disappears)
+      let had = {};
+      try { had = JSON.parse(localStorage.getItem(OPTS_KEY) || "{}") || {}; } catch (e) { had = {}; }
+      this.opts.ui_mode = Object.keys(had).length ? "advanced" : "basic";
+      saveJSON(OPTS_KEY, this.opts);
+    }
     window.bee.onMenu && window.bee.onMenu((what) => this.menuAction(what));  // Help menu in the Mac menu bar
     setupPanelFolds();  // every panel with a title folds (click the title)
     installTypeIn();  // double-click a slider's number (Tools' modules) to type an exact value
@@ -11978,7 +12004,7 @@ const protoartApp = createApp({
     },
     // -------------------------------------------------------------- Create: fold sections down (like DiffusionBee)
     cfShut(k) {
-      if (k === "dn") return this.cfolds.dn !== false;  // 🎚 Denoise starts folded (most pictures start from noise)
+      if (k === "dn" || k === "regions") return this.cfolds[k] !== false;  // these start folded  // 🎚 Denoise starts folded (most pictures start from noise)
       return !!this.cfolds[k];
     },
     cfToggle(k, ev) {
@@ -13846,6 +13872,11 @@ const protoartApp = createApp({
     },
     openFolder(p) {
       if (p) window.bee.openFolder(p);
+    },
+    setUiMode(m) {  // Basic / Advanced: only what's shown changes, never a setting
+      this.opts.ui_mode = m;
+      this.saveOpts();
+      this.status = m === "basic" ? "Basic: the essentials. LoRAs, seeds, samplers, ControlNet and the rest are under Advanced (still there, and still used if on)." : "Advanced: every control is shown.";
     },
     menuAction(what) {  // from the Help menu in the Mac menu bar
       if (what === "start" || what === "shortcuts") {

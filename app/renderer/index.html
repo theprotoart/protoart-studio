@@ -292,10 +292,17 @@
   </div>
 
   <!-- ============================ CREATE ============================ -->
-  <main v-if="tab==='create'" class="create">
+  <main v-if="tab==='create'" class="create" :class="{basic: basicMode}">
     <aside class="controls">
+      <div class="mode-row">
+        <div class="seg mode-seg" title="Basic shows the essentials; Advanced adds LoRAs, samplers, seeds, ControlNet and more. Nothing is lost when you switch.">
+          <button :class="{on: basicMode}" @click="setUiMode('basic')">Basic</button>
+          <button :class="{on: !basicMode}" @click="setUiMode('advanced')">Advanced</button>
+        </div>
+        <span class="hint">{{ basicMode ? 'the essentials' : 'every control' }}</span>
+        <button class="link small watch" @click="openLink('tut_create')" title="Part 1 on YouTube: an introduction to the Create page">▶ Tutorial</button>
+      </div>
       <div class="cfold-all">
-        <button class="link small watch" @click="openLink('tut_create')" title="Part 1 on YouTube: an introduction to the Create page">▶ Watch the tutorial</button>
         <button class="link small" @click="cfAll(true)" title="Fold every section down to one line (or click a section's name to fold just that one)">collapse all</button> ·
         <button class="link small" @click="cfAll(false)" title="Open every section (or click a section's name to open just that one)">expand all</button>
         <span class="spacer"></span>
@@ -308,8 +315,9 @@
 
       <section class="cfold" :class="{shut: cfShut('model')}">
         <label @click="cfToggle('model', $event)">Model <span class="hint">{{ currentModel ? currentModel.label : '' }}<template v-if="currentModel && preloading === currentModel.id"> · <span class="ready-note">getting ready…</span></template><template v-else-if="currentModel && readyModel === currentModel.id"> · <span class="ready-note on">● loaded, ready</span></template></span><span v-if="cfShut('model')" class="cfold-sum">{{ cfSummary('model') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
-        <div class="row small add-model">
-          <span class="hint">+ Add a base model:</span>
+        <div class="row small add-model-btn"><button class="link" @click="showAddModel = !showAddModel" :title="showAddModel ? 'Hide' : 'Add a model from your Mac, Hugging Face or Civitai; manage, refresh or fix a type'">＋ Add a model {{ showAddModel ? '▴' : '▾' }}</button></div>
+        <div v-if="showAddModel" class="row small add-model">
+          <span class="hint">From:</span>
           <button class="link" @click="addLocalModels" title="Checkpoint files (.safetensors / .ckpt) or model folders already on this Mac, used where they are (offline)">from your Mac…</button>
           <button class="link" @click="openModelSettings('hub')" title="Download a new model from Hugging Face (Models tab)">from Hugging Face…</button>
           <button class="link" @click="openModelSettings('civitai')" title="Download a model or LoRA from civitai.com (Models tab)">from Civitai…</button>
@@ -539,14 +547,14 @@
           <button v-for="e in posEmbeddings" :key="'p' + e.name" class="chip trig" :class="{on: inPrompt(e.name)}"
                   @click="togglePromptWord(e.name)" @contextmenu.prevent="setEmbeddingRole(e, 'negative')" title="Click to add to / remove from the prompt · right-click: it belongs in the negative prompt">{{ e.name }}</button>
         </div>
-        <div class="neg-head">
+        <div class="neg-head adv">
           <span class="neg-title">Negative prompt <span v-if="['flux', 'flux2'].includes(family)" class="hint">· FLUX mostly ignores it</span></span>
           <span class="grow"></span>
           <button class="link" @click="suggestNegative(false)" :title="'Write a negative prompt that fits this prompt and ' + familyLabel + ' (' + (naturalPrompts() ? 'plain words' : 'tags') + '): low-quality tags plus the opposite of the style you asked for'">✨ suggest</button>
           <button class="link" @click="suggestNegative(true)" title="Like suggest, plus a few random extra fixes each time">🎲 random</button>
           <button v-if="undoNegative != null" class="link" @click="form.negative_prompt = undoNegative; undoNegative = null">↩ undo</button>
         </div>
-        <div class="row small neg-presets">
+        <div class="row small neg-presets adv">
           <span class="hint">📒</span>
           <select :value="''" @change="applyPromptPreset($event.target.value); $event.target.value = ''" title="Put a saved negative prompt in the box">
             <option value="">{{ negPresets.length ? 'use a saved negative prompt…' : 'no negative prompts saved yet' }}</option>
@@ -554,16 +562,16 @@
           </select>
           <button class="link" @click="savePromptPreset('negative')" :disabled="!(form.negative_prompt || '').trim()" title="Keep this negative prompt under a name, to use again with any prompt">＋ save</button>
         </div>
-        <div v-if="negEmbeddings.length" class="trig-row emb-row">
+        <div v-if="negEmbeddings.length" class="trig-row emb-row adv">
           <span class="hint">Negative embeddings:</span>
           <button v-for="e in negEmbeddings" :key="e.name" class="chip trig" :class="{on: inNegative(e.name) || inPrompt(e.name)}"
                   @click="toggleNegativeWord(e.name)" @contextmenu.prevent="setEmbeddingRole(e, 'prompt')" title="Click to add to / remove from the negative prompt · right-click: it belongs in the prompt">{{ e.name }}</button>
         </div>
-        <textarea class="tape tape-neg" v-model="form.negative_prompt" rows="2" placeholder="What to avoid…"></textarea>
-        <div class="seed-row neg-seed"><label>Seed <span class="hint">-1 = random · the same seed and settings make the same picture</span></label>
+        <textarea class="tape tape-neg adv" v-model="form.negative_prompt" rows="2" placeholder="What to avoid…"></textarea>
+        <div class="seed-row neg-seed adv"><label>Seed <span class="hint">-1 = random · the same seed and settings make the same picture</span></label>
           <input title="Seed: the same seed and settings make the same picture. -1 = a new random one each time" type="number" class="amber-num" v-model.number="form.seed">
           <button class="link" v-if="form.seed !== -1" @click="form.seed = -1" title="Back to a new random seed each time">🎲 random</button></div>
-        <div v-if="['sd15', 'sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="seed-row var-row">
+        <div v-if="['sd15', 'sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="adv seed-row var-row">
           <label title="A variation seed: keeps the picture (same seed) and changes small details. 0 = off; 0.05–0.2 small changes; higher changes more">Small change
             <span class="hint">{{ form.var_strength > 0 ? 'variation seed nudges the picture' : 'off' }}</span></label>
           <input type="range" min="0" max="0.6" step="0.01" v-model.number="form.var_strength" title="How much the variation seed changes: 0 = off, 0.05–0.2 small details">
@@ -577,7 +585,7 @@
         <button class="link" @click="tab='i2i'">🖼 Start from a picture or use ControlNet → Image to image tab</button>
       </section>
 
-      <section class="loras cfold" :class="{shut: cfShut('loras')}">
+      <section class="loras cfold adv" :class="{shut: cfShut('loras')}">
         <label @click="cfToggle('loras', $event)">LoRAs
           <span class="hint">{{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · no limit</span>
           <button v-if="form.loras.length" class="link small-link" @click="form.loras = []">clear all</button>
@@ -685,12 +693,12 @@
         </div>
       </section>
 
-      <section v-if="family === 'anima' || (['sd15', 'sdxl'].includes(family) && currentModel?.engine === 'mlx')" class="regions cfold" :class="{shut: cfShut('regions')}">
+      <section v-if="family === 'anima' || (['sd15', 'sdxl'].includes(family) && currentModel?.engine === 'mlx')" class="regions cfold adv" :class="{shut: cfShut('regions')}">
         <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">not with this model</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <p class="hint">Regional prompts work with SD 1.5, SDXL, FLUX.1, FLUX.2 Klein, FLUX 3, ERNIE, Ideogram 4 and MOSS-Image. {{ familyLabel }} understands positions in plain words, though:
           “on the left a woman in a red coat, in the middle a man with an umbrella, on the right a small dog”.</p>
       </section>
-      <section v-if="(['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx') || regionsByParts() || regionsLayout()" class="regions cfold" :class="{shut: cfShut('regions')}">
+      <section v-if="(['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx') || regionsByParts() || regionsLayout()" class="regions cfold adv" :class="{shut: cfShut('regions')}">
         <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">a different prompt for each part of the picture</span><span v-if="cfShut('regions')" class="cfold-sum">{{ cfSummary('regions') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <label class="check"><input type="checkbox" v-model="form.regions.on"> Use regional prompts
           <span class="hint">· {{ regionsLayout() ? familyLabel + ' places each area’s subject in its box (one pass: the boxes go into the prompt as its layout)' : 'each area draws its own prompt; the main prompt above sets the scene around them' }}</span></label>
@@ -752,7 +760,7 @@
           <p class="hint">Tips: describe each area fully (“a woman in a red coat, full body”), keep the main prompt to the setting (“a city street, photo”), and use a size wide enough for the areas (768 × 512 for three columns).</p>
         </template>
       </section>
-      <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="ipa cfold" :class="{shut: cfShut('ipa')}">
+      <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="ipa cfold adv" :class="{shut: cfShut('ipa')}">
         <label @click="cfToggle('ipa', $event)">Image prompt <span class="hint">IP-Adapter · borrow the look, style or face of a picture · {{ ipReadyText }}</span><span v-if="cfShut('ipa')" class="cfold-sum">{{ cfSummary('ipa') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <details class="which-one">
           <summary>Which one should I use?</summary>
@@ -790,7 +798,7 @@
       </section>
 
       <!-- 🦴 Follow a pose without ControlNet: FLUX.2 Klein reads the pose picture; ERNIE redraws Klein's picture -->
-      <section v-if="poseFast" class="cc-sec ipa cfold" :class="{shut: cfShut('cc')}">
+      <section v-if="poseFast" class="cc-sec ipa cfold adv" :class="{shut: cfShut('cc')}">
         <label @click="cfToggle('cc', $event)">🦴 Follow a pose <span class="hint">{{ family === 'ernie' ? 'Klein draws the pose, ERNIE redraws it' : 'FLUX.2 Klein copies the pose of a picture' }}</span><span v-if="cfShut('cc')" class="cfold-sum">{{ form.cc.image ? 'on' : 'off' }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <button class="ghost small pose-lib-btn" @click="openPoseLib" title="Ready-made poses (standing, sitting, kneeling, lying…) from five angles">🧍 Pose library</button>
         <div v-if="!form.cc.image" class="ipa-drop" :class="{over: ccDragOver}" @dragover.prevent="ccDragOver = true"
@@ -813,7 +821,7 @@
       </section>
 
       <!-- 🎚 Denoise, like ComfyUI's KSampler: 1.00 = a new picture from noise; lower starts from a picture and keeps more of it -->
-      <section v-if="denoiseOk" class="cc-sec ipa cfold dn-sec" :class="{shut: cfShut('dn')}">
+      <section v-if="denoiseOk" class="cc-sec ipa cfold adv dn-sec" :class="{shut: cfShut('dn')}">
         <label @click="cfToggle('dn', $event)">🎚 Denoise <span class="hint">start from a picture, like ComfyUI's KSampler denoise</span><span v-if="cfShut('dn')" class="cfold-sum">{{ form.dn.image && form.dn.value < 1 ? Number(form.dn.value).toFixed(2) : '1.00 · off' }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <div v-if="!form.dn.image" class="ipa-drop" :class="{over: dnDragOver}" @dragover.prevent="dnDragOver = true"
              @dragleave="dnDragOver = false" @drop.prevent="onDnDrop" @click="$refs.dnPick.click()">
@@ -857,7 +865,7 @@
         </div>
         <input ref="dnPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="onDnPicked">
       </section>
-      <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="cc-sec ipa cfold" :class="{shut: cfShut('cc')}">
+      <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="cc-sec ipa cfold adv" :class="{shut: cfShut('cc')}">
         <label @click="cfToggle('cc', $event)">🎛 ControlNet <span class="hint">follow a picture's pose, drawing, outlines or layout</span><span v-if="cfShut('cc')" class="cfold-sum">{{ form.cc.image && form.cc.type ? ((ccTypes.find((t) => t.id === form.cc.type) || {}).label || form.cc.type) : 'off' }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <div v-if="!ccTypes.length" class="hint">No ControlNet for {{ family === 'sdxl' ? 'SDXL' : 'SD 1.5' }} models yet: download one in Models → ControlNet{{ family === 'sdxl' ? ' (Union ProMax covers every type)' : '' }}.</div>
         <template v-else>
@@ -942,11 +950,11 @@
           <label class="check"><input type="checkbox" :checked="form.fast" @change="toggleFast($event.target.checked)">
             ⚡ Fast mode <span class="hint">LCM speed LoRA · 6 steps instead of 25–30 (≈3–5× faster, slightly softer detail)</span></label>
         </div>
-        <div v-if="['sd15', 'sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="span2 fast-row seamless-row" :class="{on: form.seamless}">
+        <div v-if="['sd15', 'sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="span2 adv fast-row seamless-row" :class="{on: form.seamless}">
           <label class="check" title="Every edge wraps around, so copies of the picture fit together with no seam: textures, patterns, wallpapers, game tiles">
             <input type="checkbox" v-model="form.seamless"> 🧱 Seamless <span class="hint">the picture tiles with no seam (textures, patterns)</span></label>
         </div>
-        <div class="span2"><label>Sampler <span v-if="form.fast && currentModel?.fast_mode" class="hint">· LCM is used in fast mode</span></label>
+        <div class="span2 adv"><label>Sampler <span v-if="form.fast && currentModel?.fast_mode" class="hint">· LCM is used in fast mode</span></label>
           <select title="The sampler: how the picture is worked out step by step. ⚡ ones need fewer steps, ★ ones give the most detail" v-model="form.sampler" @change="onSamplerChange" :disabled="form.fast && currentModel?.fast_mode"
                   :class="{'rec-sampler': samplerIsPick(form.sampler)}">
             <template v-if="samplerPicks().fast.length">
@@ -971,12 +979,13 @@
                      :default-value="currentModel?.defaults?.cfg ?? 7"></rack-knob>
           <rack-fader v-model.number="form.num_images" :min="1" :max="16" :step="1" label="Images" :marks="[1, 2, 4, 8, 12, 16]"
                       :height="118" title="How many images to make (click the number under it to type any amount up to 64)" :default-value="1" :type-max="64"></rack-fader>
-          <div v-if="['sd15', 'sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="sd-boost">
+          <div v-if="['sd15', 'sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="sd-boost adv">
             <label class="check" title="FreeU (Si et al. 2023): turns up the model's own detail and turns down its blur inside the image model, for crisper texture and richer colour. No extra time. Turn it off if pictures look over-sharpened or too saturated">
               <input type="checkbox" v-model="form.freeu"> ✨ FreeU <span class="hint">(more detail, no extra time)</span></label>
             <label title="CFG rescale: keeps high guidance (8+) from burning the colours and contrast. 0 = off; 0.3–0.5 for most models, 0.7 for v-prediction ones (some NoobAI / Illustrious)">🎚 CFG rescale <span class="mod-val">{{ Number(form.cfg_rescale || 0).toFixed(2) }}</span></label>
             <input type="range" min="0" max="1" step="0.05" v-model.number="form.cfg_rescale">
           </div>
+          <details class="size-more"><summary>More: reset, ★ recommended steps, save as this model's defaults, how the knobs work</summary>
           <div class="hint knob-hint">Turn a knob (drag or scroll), click its number to type an exact value, or double-click a knob to put it back to the default. The same goes for the Images fader: click the number under it to type any amount up to 64.</div>
           <div class="reset-row">
             <button class="ghost" @click="resetCreate" :disabled="!currentModel"
@@ -994,6 +1003,7 @@
               <button v-if="currentModel && modelDefaults[currentModel.id]" class="link small" @click="forgetModelDefaults" title="Forget the defaults you saved for this model">forget</button>
             </span>
           </div>
+          </details>
         </div>
         <div>
           <div v-if="recSteps" class="hint step-hint">
@@ -1006,7 +1016,7 @@
 
       </section>
 
-      <section class="cfold" :class="{shut: cfShut('extras')}">
+      <section class="cfold adv" :class="{shut: cfShut('extras')}">
         <label @click="cfToggle('extras', $event)">Extras <span class="hint">CLIP skip, Hi-res fix, faces</span><span v-if="cfShut('extras')" class="cfold-sum">{{ cfSummary('extras') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <div v-if="clipSkipOk" class="clip-skip">
           <span class="clip-label" title="CLIP skip: stop reading the prompt this many layers before the text encoder's last one. 1 = normal. 2 is what many anime-style SD 1.5 models and LoRAs were made with; it can make them follow the prompt in their intended style.">CLIP skip</span>
@@ -1091,7 +1101,8 @@
         </div>
       </section>
 
-      <section class="compare">
+      <div v-if="basicMode && advOn.length" class="adv-on hint warn">⚙ {{ advOn.length }} advanced setting{{ advOn.length === 1 ? '' : 's' }} on: {{ advOn.join(', ') }} · <button class="link" @click="setUiMode('advanced')">show</button></div>
+      <section class="compare adv">
         <details :open="cmp.open" @toggle="cmp.open = $event.target.open">
           <summary><span class="sum-toggle" :class="{on: cmp.open}" aria-hidden="true"></span><b>🔬 Compare settings</b>
             <span class="hint">{{ cmp.open ? 'on · click here to turn it off' : 'off · same picture, different settings, side by side' }}</span></summary>

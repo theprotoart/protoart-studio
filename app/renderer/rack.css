@@ -2856,3 +2856,22 @@ section.cfold > label:first-child:hover .cfold-chev, .i2ifold > h3:hover .cfold-
 .shortcut-table { border-collapse: collapse; font-size: 13px; }
 .shortcut-table td { padding: 4px 14px 4px 0; vertical-align: top; }
 .shortcut-table td:first-child { font-family: var(--f-mono, monospace); color: var(--amber); white-space: nowrap; }
+
+/* Basic / Advanced (Create): Basic only hides, never removes */
+.create.basic .adv { display: none !important; }
+.mode-seg { margin-right: 8px; }
+.mode-seg button { padding: 2px 10px; font-size: 11px; }
+.adv-on { margin: 6px 0; font-size: 12px; }
+.add-model-btn { margin: 2px 0 4px; }
+.size-more { margin-top: 6px; }
+.size-more > summary { cursor: pointer; font-size: 12px; color: var(--amber); list-style: none; padding-left: 16px; position: relative; }
+.size-more > summary::-webkit-details-marker { display: none; }
+.size-more > summary::before { content: "▸"; position: absolute; left: 2px; }
+.size-more[open] > summary::before { content: "▾"; }
+.cfold-all { flex-wrap: wrap; row-gap: 4px; }
+.cfold-all .mode-seg { display: inline-flex; flex-direction: row; flex: none; }
+.cfold-all .mode-seg button { white-space: nowrap; }
+.cfold-all .watch, .cfold-all > .link { white-space: nowrap; }
+.mode-row { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 12px; }
+.mode-row .watch { margin-left: auto; white-space: nowrap; }
+.mode-row .mode-seg { display: inline-flex; margin: 0; }

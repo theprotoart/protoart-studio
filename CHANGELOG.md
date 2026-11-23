@@ -20,6 +20,10 @@
 - 🪞 Anime vs real split preset (ERNIE and H3): a 16:9 two-halves comparison, anime on the left, live action on the right.
 - 📓 Manga draft page preset (ERNIE and H3): original characters and lines (the example given named a real series and its
   characters, so it was rewritten generically); ERNIE presets can carry speech-bubble `lines` ({L1}…).
+- Basic / Advanced mode for Create (`opts.ui_mode`, `.create.basic .adv` hidden; `advOn` lists advanced settings that
+  are on but hidden, above Generate). New installs start Basic, existing ones Advanced.
+- Create tidy-up: ＋ Add a model button for the model sources; Regions starts folded; Size & steps' reset / recommended /
+  save-defaults and knob help under “More”.
 - ▶ Tutorials: Watch links at the top of Create, Image to image and Tools (YouTube parts 1–3), a Video tutorials and
   a Keyboard shortcuts card in How to, and a Help menu in the Mac menu bar (`menu:action` → `menuAction`).
 - Lettering presets: empty name / title boxes default to real words (the descriptions were being printed as text).
