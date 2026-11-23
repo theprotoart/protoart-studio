@@ -2,6 +2,10 @@
 
 ## 1.6.27
 
+- 🌗 Half anime, half real face: as a Create preset (ERNIE, H3, original character) and a Transform-a-person look
+  (`tf_half_anime`, 21 looks now).
+- 💬 Chat sticker pack: 24 captioned chibi stickers in a 4 × 6 grid, as a Create preset (ERNIE, H3) and a Transform-a-person look
+  (`tf_sticker_pack`); captions written for the app, in English.
 - 🪞 Anime vs real split preset (ERNIE and H3): a 16:9 two-halves comparison, anime on the left, live action on the right.
 - 📓 Manga draft page preset (ERNIE and H3): original characters and lines (the example given named a real series and its
   characters, so it was rewritten generically); ERNIE presets can carry speech-bubble `lines` ({L1}…).

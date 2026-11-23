@@ -12,12 +12,12 @@ def _presets():
 
 def test_presets():
     ids = [p[0] for p in _presets()]
-    assert len(ids) == 19 and len(set(ids)) == 19
+    assert len(ids) == 21 and len(set(ids)) == 21
     for pid, slots, prompt in _presets():
         assert 'kind: "style"' in slots, pid
         for ph in re.findall(r"\[[A-Z0-9 ]+\]", prompt):
             assert f'ph: "{ph}"' in slots, f"{pid}: {ph} has no box"
         for m in re.finditer(r'kind: "item"[^}]*', slots):
             assert "ph:" in m.group(0) or "add:" in m.group(0), f"{pid}: an item box that goes nowhere"
-    for tm in ("lego", "gta", "grand theft", "rockstar", "playstation", "sony", "pixar", "disney", "marvel", "street fighter", "pokemon", "funko"):  # no trademark names
+    for tm in ("lego", "gta", "grand theft", "rockstar", "playstation", "sony", "pixar", "disney", "marvel", "street fighter", "pokemon", "funko", "naruto", "demon slayer", "tanjiro"):  # no trademark names
         assert tm not in BLOCK.lower(), tm
