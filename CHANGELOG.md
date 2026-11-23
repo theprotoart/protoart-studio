@@ -26,7 +26,7 @@
   save-defaults and knob help under “More”.
 - ▶ Tutorials: Watch links at the top of Create, Image to image and Tools (YouTube parts 1–3), a Video tutorials and
   a Keyboard shortcuts card in How to, and a Help menu in the Mac menu bar (`menu:action` → `menuAction`).
-- 🧍 Character turnaround look (`tf_turnaround`, 23 looks): four views head to toe, background and "what the photo
+- 🧍 Character turnaround look (`tf_turnaround`, 23 looks): four views plus four expression close-ups, background, expression and "what the photo
   doesn't show" boxes (idea from a community ComfyUI workflow, our own wording); Camera angle's sheet layouts now use
   four views (front, three-quarter, side, back), same size, never overlapping.
 - 🔍 Tiny human diorama: rewritten to force a new tiny-scale picture (edit models were keeping the photo's framing and size).
