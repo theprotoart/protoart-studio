@@ -302,8 +302,26 @@ def _cache_key(prompt, refs):
     return h.hexdigest()[:32]
 
 
+# ⚡ Fast / Balanced: the pDMD few-step LoRA (Apache-2.0; ComfyUI-layout conversion, the one h3-image-mlx tested), downloaded
+# once into the Hugging Face cache. With it the picture model runs 2 (Fast) or 3 (Balanced) steps instead of 6.
+FAST_REPO = "akhaliq/minimax-h3-image-pdmd-2step"
+FAST_FILE = "minimax_h3_pdmd_2nfe_comfyui.safetensors"
+FAST_GB = 2.0
+
+
+def fast_lora(download=False):
+    """The few-step LoRA's file, or None (download=True fetches it, ~2 GB, once)."""
+    from huggingface_hub import hf_hub_download
+    try:
+        return hf_hub_download(FAST_REPO, FAST_FILE, local_files_only=True)
+    except Exception:
+        if not download:
+            return None
+    return hf_hub_download(FAST_REPO, FAST_FILE)
+
+
 def picture(python, prompt, out, width=1024, height=1024, seed=42, refs=(), on_event=lambda ev: None,
-            cancel_event=None, ref_sides=None, loras=None):
+            cancel_event=None, ref_sides=None, loras=None, steps=6):
     """One picture -> out (PNG). refs: reference pictures (Edit: "<Picture 1>" is the first); ref_sides: the short side
     each goes in at (each costs as much work as the picture drawn: (side/32)² tokens). Returns the timings."""
     if not ready():
@@ -321,6 +339,7 @@ def picture(python, prompt, out, width=1024, height=1024, seed=42, refs=(), on_e
         (work / "request.json").write_text(json.dumps({
             "prompt": prompt, "width": width, "height": height, "seed": int(seed) % 2**31, "refs": refs, "ref_sides": sides,
             "loras": [[str(f), float(w)] for f, w in (loras or [])],  # your MiniMax-H3 LoRAs: (file, strength)
+            "steps": int(steps),  # 6, or 2 / 3 with the few-step LoRA among the loras
             "paths": {k: str(v) for k, v in files().items()}}))
         stages = ["text", *(["refs"] if refs else []), "dit", "vae"]
         if cached.exists():

@@ -235,13 +235,16 @@ def stage(name, work):
         from h3_image_mlx.dit import denoise
         if req.get("loras"):  # your LoRAs: each runs beside the quantized weights (h3-image-mlx's LoRA path), scaled
             use_loras(_dit, req["loras"])
+        steps = int(req.get("steps") or 6)
+        if steps < 6:  # ⚡ the few-step LoRA is among the loras: h3-image-mlx's few-step grid (shift 12, as tested)
+            os.environ["H3_STEPS"], os.environ["H3_SHIFT"] = str(steps), "12"
         e = mx.load(str(work / "embedding.safetensors"))
         zs = []
         if refs:
             images = mx.load(str(work / "references.safetensors"))
             zs = [images[str(i)] for i in range(len(refs))]
         z, _ = denoise(p["dit"], e["embedding"], req["width"], req["height"], req["seed"], False, zs, e["tags"],
-                       progress=lambda step, secs: out(type="progress", stage="dit", step=step, steps=6,
+                       progress=lambda step, secs: out(type="progress", stage="dit", step=step, steps=steps,
                                                        seconds=round(secs, 1)))
         mx.save_safetensors(str(work / "latent.safetensors"), {"latent": z})
     elif name == "vae":

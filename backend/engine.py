@@ -2103,15 +2103,41 @@ class Engine:
                 out.append([info["file"], float(r.get("weight", 1.0))])
         return out
 
+    @staticmethod
+    def _h3_steps(args):
+        """⚡ MiniMax-H3-Image's speed: "fast" 2 steps, "balanced" 3 (both with the few-step LoRA), else the usual 6."""
+        return {"fast": 2, "balanced": 3}.get(str((args or {}).get("h3_speed") or ""), 6)
+
+    def _h3_fast_lora(self):
+        """The few-step LoRA's file, downloaded once (~2 GB) when it isn't here yet."""
+        import h3_engine
+        import net
+        have = h3_engine.fast_lora()
+        if have:
+            return have
+        if net.strict:
+            raise UserError("⚡ Fast needs a one-time download (~2 GB), and Strict offline mode is on. Turn it off in "
+                            "Settings → Privacy, or pick ★ Best quality.")
+        self.emit({"type": "status", "msg": f"MiniMax-H3-Image ⚡: downloading the few-step LoRA (~{h3_engine.FAST_GB:.0f} GB, first time only)…"})
+        net.set_online(True)
+        try:
+            return h3_engine.fast_lora(download=True)
+        except Exception as e:
+            raise UserError(f"Couldn't download the ⚡ Fast LoRA ({e}). Check the internet connection, or pick ★ Best quality.")
+        finally:
+            net.set_online(False)
+
     def _h3_picture(self, prompt, out, width, height, seed, refs=(), image=1, images=1, extra_steps=0, ref_sides=None,
-                    loras=None):
+                    loras=None, steps=6):
         """One MiniMax-H3-Image picture into out, with one progress bar for its stages. -> timings"""
         import h3_engine
         py = self._h3_python()
         # the bar counts only the 6 drawing steps: reading the prompt and pictures takes seconds to minutes and
         # finishing the picture under a minute, so counting them as steps made the time left read ~3 min at first
         # (a quick stage measured as one step) and then jump to the real ~20 min (1.6.27)
-        total = 6 + extra_steps
+        if steps < 6:  # ⚡ Fast / Balanced: the few-step LoRA joins your LoRAs at full strength
+            loras = list(loras or []) + [(self._h3_fast_lora(), 1.0)]
+        total = steps + extra_steps
         names = {"text": "reading the prompt", "refs": "reading the pictures", "dit": "drawing",
                  "vae": "finishing the picture"}
 
@@ -2120,11 +2146,11 @@ class Engine:
                 self.emit({"type": "status", "msg": f"MiniMax-H3-Image ({image} of {images}): {names[ev['stage']]}…"})
             elif ev.get("type") == "progress" and ev.get("stage") == "dit":
                 self.emit({"type": "progress", "image": image, "images": images,
-                           "step": min(6, ev["step"]), "steps": total})
+                           "step": min(steps, ev["step"]), "steps": total})
 
         try:
             return h3_engine.picture(py, prompt, out, width, height, seed, refs, on_event, self.cancel_event, ref_sides,
-                                     loras=loras)
+                                     loras=loras, steps=steps)
         except h3_engine.Cancelled:
             raise Cancelled()
         except h3_engine.H3Error as e:
@@ -2169,7 +2195,7 @@ class Engine:
                 draw_w, draw_h = min(4096, int(width * k) // 32 * 32), min(4096, int(height * k) // 32 * 32)
             timings = self._h3_picture(p_run, out, draw_w, draw_h, img_seed, refs, i + 1, n,
                                        ref_sides=[min(draw_w, draw_h)] + [512] * (len(refs) - 1) if refs else None,
-                                       loras=h3_loras)
+                                       loras=h3_loras, steps=self._h3_steps(args))
             image = Image.open(out).convert("RGB")
             if image.size != (width, height):
                 image = image.resize((width, height), Image.LANCZOS)
@@ -2181,7 +2207,7 @@ class Engine:
             print(f"[timing] MiniMax-H3-Image {i + 1}/{n}: {secs:.1f}s at {width}x{height}, {len(refs)} pictures, "
                   f"stages {timings}", flush=True)
             settings = {"model": model_id, "prompt": p_run, "negative_prompt": "", "width": image.width,
-                        "height": image.height, "steps": 6, "cfg": 1.0, "sampler": "flow", "seed": img_seed,
+                        "height": image.height, "steps": self._h3_steps(args), "cfg": 1.0, "sampler": "flow", "seed": img_seed,
                         "engine": "h3", "seconds": round(secs, 1),
                         "loras": [{"name": l["name"], "weight": float(l.get("weight", 1.0))}
                                   for l in args.get("loras") or [] if isinstance(l, dict) and l.get("name")]}
@@ -5436,7 +5462,7 @@ class Engine:
             scale = side / max(1.0, (image.width * image.height) ** 0.5)
             width = max(256, min(4096, int(image.width * scale) // 32 * 32))
             height = max(256, min(4096, int(image.height * scale) // 32 * 32))
-            steps = 6
+            steps = self._h3_steps(args)  # 6, or ⚡ 2 / 3 with the few-step LoRA
             tmp = paths.HOME / "tmp"
             tmp.mkdir(parents=True, exist_ok=True)
             ref_files = [tmp / f"h3edit_src_{os.getpid()}.png"]
@@ -5451,7 +5477,7 @@ class Engine:
                 # an outfit or a style) unless "Extra pictures in detail" is ticked
                 extra = 768 if args.get("h3_ref_detail") else 512
                 self._h3_picture(prompt, out, width, height, seed, ref_files,
-                                 ref_sides=[side] + [extra] * (len(ref_files) - 1))
+                                 ref_sides=[side] + [extra] * (len(ref_files) - 1), steps=self._h3_steps(args))
                 result = Image.open(out).convert("RGB")
             finally:
                 for f in [out, *ref_files]:

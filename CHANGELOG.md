@@ -2,6 +2,7 @@
 
 ## 1.6.31
 
+- ⚡ MiniMax-H3-Image speed (`h3_speed`: fast 2 steps / balanced 3 / best 6): the pDMD 2-NFE LoRA (akhaliq/minimax-h3-image-pdmd-2step, `minimax_h3_pdmd_2nfe_comfyui.safetensors`, Apache-2.0, ~2 GB, downloaded on first use into the Hugging Face cache, `h3_engine.fast_lora`) runs beside the quantized weights with h3-image-mlx's few-step grid (`H3_STEPS`, `H3_SHIFT=12`, as tested upstream on Macs). In Create, Edit with words and Fill a shape; records keep the steps used.
 - How to → 🔤 Fill a shape rewritten for the 4-step card; Library → About describes today's app and credits FLUX.2 [klein], MiniMax-H3-Image and the fonts.
 - 🔤 Fill a shape, a simpler card: 1 Pick a shape (Word / Shape / Your own, with its preview), 2 Fill it with, 3 Put it on, one line of help; 4 Speed (⚡ Quicker: 1 step / ✂ More accurate: the 2-step exact outline); your own font, stacking, ◐ Invert and a look to follow are under **More options**; the painting tools, Keep faces / colours, More pictures and Quick edits are hidden while it's picked.
 - 🔤 Fill a shape: **✂ Exact outline** (on by default for a word or a ready shape, `shapeExact`): step 1 the background on a blank picture, step 2 the material in the shape only (a paint mask from `shapeMask`; `mask_light: false` so the material keeps its colours, `crop_stitch: false`). The outline is exact; flowers no longer spill into a blob or get a black border.

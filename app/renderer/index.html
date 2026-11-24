@@ -924,6 +924,12 @@
           <datalist id="dims-list"><option v-for="v in dims" :key="v" :value="v"></option></datalist>
           <div class="hint size-hint">{{ form.width }} × {{ form.height }} · {{ aspectText }}<template v-if="form.size_link"> · linked</template></div>
           <label v-if="family === 'h3'" class="check" title="MiniMax-H3-Image is made for big pictures: it draws at about 2048 × 2048 (the same shape as your size) and the result is shrunk to your size. Much more detail and fewer odd faces, about 3 times as long (about 13 minutes on an 8 GB Mac)"><input type="checkbox" v-model="form.h3_best"> 🧠 Best quality (draws at 2048, ~13 min)</label>
+          <template v-if="family === 'h3'"><label title="How many steps MiniMax-H3-Image draws in: ⚡ Fast 2 and Balanced 3 (with a few-step LoRA, downloaded once, about 2 GB), ★ Best the usual 6">⚡ Speed</label>
+            <div class="seg mod-seg h3-speed">
+            <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="2 steps with the pDMD few-step LoRA (about 2 GB, downloaded the first time): about a third of the drawing time. A little softer up close; strong edits can drift more">⚡ Fast</button>
+            <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="3 steps with the same LoRA: about half the drawing time, cleaner flat areas than ⚡ Fast">Balanced</button>
+            <button :class="{on: !form.h3_speed}" @click="form.h3_speed = ''" title="The usual 6 steps: the best result">★ Best</button>
+          </div></template>
         </div>
         <div v-if="sizeWarning()" class="span2 size-warn">⚠ {{ sizeWarning() }}</div>
         <div v-if="currentModel?.fast_mode" class="span2 fast-row" :class="{on: form.fast}">
@@ -3518,6 +3524,14 @@
                 <button :class="{on: shp.exact}" @click="shp.exact = true; shpSave()" title="Two steps: first what it's put on, over the whole picture, then the filling inside the shape only. The outline comes out exact, with nothing spilling over; about twice as long">✂ More accurate</button>
               </div>
             </template>
+            <template v-if="editModelId() === 'h3_image'">
+              <div class="shape-step">MiniMax speed</div>
+              <div class="seg mod-seg h3-speed">
+                <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="2 steps with the pDMD few-step LoRA (about 2 GB, downloaded the first time): about a third of the drawing time. A little softer up close; strong edits can drift more">⚡ Fast</button>
+                <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="3 steps with the same LoRA: about half the drawing time, cleaner flat areas than ⚡ Fast">Balanced</button>
+                <button :class="{on: !form.h3_speed}" @click="form.h3_speed = ''" title="The usual 6 steps: the best result">★ Best</button>
+              </div>
+            </template>
             <div class="hint shape-hint">Then press <b>✨ Edit</b>. Empty boxes use the grey examples. MiniMax-H3 gives the best result; FLUX.2 Klein is quicker.</div>
 
             <details class="shape-more">
@@ -3665,6 +3679,12 @@
             <span class="hint">{{ mask.size }}</span>
           </div>
           <template v-if="editModelId() === 'h3_image'">
+            <label title="How many steps MiniMax-H3-Image draws in: ⚡ Fast 2 and Balanced 3 (with a few-step LoRA, downloaded once, about 2 GB), ★ Best the usual 6">⚡ Speed</label>
+            <div class="seg mod-seg h3-speed">
+              <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="2 steps with the pDMD few-step LoRA (about 2 GB, downloaded the first time): about a third of the drawing time. A little softer up close; strong edits can drift more">⚡ Fast</button>
+              <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="3 steps with the same LoRA: about half the drawing time, cleaner flat areas than ⚡ Fast">Balanced</button>
+              <button :class="{on: !form.h3_speed}" @click="form.h3_speed = ''" title="The usual 6 steps: the best result">★ Best</button>
+            </div>
             <label title="The size MiniMax-H3-Image works at (the bigger, the sharper faces and lettering come out). On an 8 GB Mac with one picture, about: 768 5–6 minutes, 896 8, 1024 12, 1280 17, 1536 25, 2048 45">🧠 Work size</label>
             <div class="seg mod-seg">
               <button v-for="z in ['768', '896', '1024', '1280', '1536', '2048']" :key="z" :title="{'768': 'about 5–6 min', '896': 'about 8 min', '1024': 'about 12 min', '1280': 'about 17 min', '1536': 'about 25 min', '2048': 'about 45 min: its best, for a final picture'}[z] + ' with one picture on an 8 GB Mac'" :class="{on: (form.h3_side || (sys.ram_gb && sys.ram_gb < 12 ? '768' : '1024')) === z}" @click="form.h3_side = z">{{ z }}</button>

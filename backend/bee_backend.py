@@ -367,6 +367,8 @@ class JobQueue:
             info["prompt"] = a["prompt"].strip()[:4000]
         if a.get("recipe"):
             info["recipe"] = str(a["recipe"])
+        if a.get("h3_speed") in ("fast", "balanced"):  # ⚡ MiniMax-H3 in 2 / 3 steps: its time estimate is shorter
+            info["h3_speed"] = a["h3_speed"]
         if j["cmd"] in ("edit_words", "heal", "peel") and a.get("init_image") and not a.get("from_tools"):
             info["i2i"] = True  # Edit with words / Remove: progress shows in Image to image, where they were started
         if j["cmd"] == "generate":  # what the UI needs to estimate how long the job will take

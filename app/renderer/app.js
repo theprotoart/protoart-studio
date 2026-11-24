@@ -1560,7 +1560,8 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.31: Fill a shape follows your words", items: [
+            { h: "1.6.31: ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
+              "<b>⚡ Speed for MiniMax-H3-Image</b> (Create, Edit with words and Fill a shape): <b>⚡ Fast</b> (2 steps) and <b>Balanced</b> (3 steps) use the pDMD few-step LoRA (about 2 GB, downloaded the first time) for roughly a third / half of the drawing time; <b>★ Best</b> is the usual 6 steps.",
               "<b>🔤 Fill a shape is simpler</b>: <b>1</b> Pick a shape (a word in a thick font, a ready shape, or your own), <b>2</b> Fill it with, <b>3</b> Put it on, then ✨ Edit. <b>4</b> Speed: ⚡ Quicker (1 step) or ✂ More accurate (2 steps, the exact outline). Your own font, stacking, ◐ Invert and a look to follow are under <b>⚙ More options</b>, and the tools that don't apply (painting, More pictures, Quick edits…) are hidden while it's picked.",
               "<b>✂ More accurate</b> (Fill a shape → 4 Speed, the default for a word or a ready shape): the picture is made in 2 steps, first the background over the whole frame, then the material painted into the shape only, so the shape's outline is exact and nothing spills over it or draws a border round it. It takes about twice as long; ⚡ Quicker does it in one step (the outline is then followed more loosely).",
               "Image to image → ✨ Edit with words: <b>🧩 Two pictures → one</b>, <b>🎭 Transform a person</b> and <b>🔤 Fill a shape</b> fold up (click the title; collapse all / expand all too); a folded one still shows the look you picked.",
@@ -2692,7 +2693,8 @@ const protoartApp = createApp({
               "<b>📷 Camera angle barely turned</b>: the words now describe what the new side shows, which turns it much further than 1.6.1 did. If it still keeps the angle: Klein sometimes keeps the original angle; try another seed, or a bigger change (a side view instead of a quarter view). <b>The character changed when seen from the back</b>: the back is invented; add details in the prompt (“long braid down her back”).",
               "<b>Peel left an outline behind</b>: select a little past the edge (Grow the selection, or paint over it), or turn on ✂ Follow the edge exactly. <b>The .psd won't open</b>: it's a standard 8-bit RGB Photoshop file; a very big picture with many layers can be several hundred MB." ] },
             { h: "New in 1.5.1: if something doesn't work", items: [
-              "<b>A MiniMax-H3-Image edit seems stuck on step 1 or 2</b>: it isn't. Each of its 6 drawing steps takes about 3 minutes on an 8 GB Mac (an Edit with words at 1280 takes about 20 minutes in all), so the step count moves slowly; leave it running. Pick a smaller size (768 or 1024) under the model for a quicker edit.",
+              "<b>A MiniMax-H3-Image edit seems stuck on step 1 or 2</b>: it isn't. Each of its 6 drawing steps takes about 3 minutes on an 8 GB Mac (an Edit with words at 1280 takes about 20 minutes in all), so the step count moves slowly; leave it running. For a quicker edit pick <b>⚡ Fast</b> (2 steps) or <b>Balanced</b> (3) under ⚡ Speed, or a smaller size (768 or 1024).",
+              "<b>MiniMax-H3-Image ⚡ Speed</b> (Create and Edit with words, and in 🔤 Fill a shape): <b>⚡ Fast</b> draws in 2 steps and <b>Balanced</b> in 3, with the pDMD few-step LoRA (Apache-2.0, about 2 GB, downloaded the first time); <b>★ Best</b> is the usual 6 steps. The drawing is most of the time, so ⚡ Fast takes roughly a third as long (an edit at 1280 about 8 minutes instead of 20 on an 8 GB Mac). Fast can look a little softer up close and strong edits can drift more; Balanced cleans up flat areas. The same seed gives a somewhat different picture at each speed.",
               "<b>Training says it will take 16 hours</b>: on an 8 GB Mac that's about right for ERNIE (each step works through a very big model, and memory spills onto the disk). Use ★ Recommended (fewer steps for ERNIE), or train on an SD 1.5 model, which takes minutes to a few hours. The estimate becomes a measurement after the first steps.",
               "<b>MOSS-Image is very slow or the Mac stalls</b>: it's a big model; on Macs under 14 GB it uses its own <b>8 GB version</b> (downloaded ready-made the first time, ~10.5 GB, and copied to the Mac's own drive once if your models are on an external drive). Close other apps (web browsers especially), use Medium (768) size and Turbo, and make one picture at a time. <b>“MOSS-Image isn't on this Mac yet”</b> with Strict offline on: turn it off for the one-time download (~13 GB).",
               "<b>MOSS-Image misspells a word</b>: put the exact words in quotes and say where they go (“at the top, in large letters”); shorter text works best. Try another seed." ] },
@@ -4251,6 +4253,8 @@ const protoartApp = createApp({
           const one = (k) => this.perf.jobs[k] ?? DEFAULT_JOB_S[k] ?? 30;
           est = key === "both" ? one("enhance") + one("faces") : one(key);
           if ((key === "enhance" || key === "both") && j.upscale) est *= (j.upscale / 2) ** 2;
+          if (j.h3_speed === "fast") est *= 0.45;  // ⚡ MiniMax-H3 in 2 of its 6 steps (the prompt and decoder stay)
+          else if (j.h3_speed === "balanced") est *= 0.6;
           measured = this.perf.jobs[key] != null;
         }
         if (!["generate", "train_lora", "train_embedding", "model_download"].includes(j.cmd) && j.state === "running") {
@@ -9205,7 +9209,7 @@ const protoartApp = createApp({
       return m && m.engine === "mlx" && FAST_I2I.includes(m.family) && m.cached !== false ? m : null;
     },
     h3EditArgs() {  // MiniMax-H3-Image's edit size (768 / 896 / 1024) and how big the extra pictures go in
-      return { h3_side: this.form.h3_side || "", h3_ref_detail: !!this.form.h3_ref_detail };
+      return { h3_side: this.form.h3_side || "", h3_ref_detail: !!this.form.h3_ref_detail, h3_speed: this.form.h3_speed || "" };
     },
     h3RoleOf(i) {  // 🧩 the role of picture i (0 = your picture, 1… = More pictures)
       const r = this.form.h3_roles || [];
