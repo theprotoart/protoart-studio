@@ -3468,20 +3468,20 @@
           </template>
         </template>
         <template v-else-if="form.i2i_mode === 'edit'">
-          <label class="pair-head">🧩 Two pictures → one <span class="hint">pick a recipe, drop Picture 1 and Picture 2 in their boxes, press Generate (the prompt is written for you; edit it if you like). Some use a community LoRA for FLUX.2 Klein, downloaded the first time</span></label>
-          <div class="seg seg-wrap edit-recipes">
+          <label class="pair-head pair-fold" :class="{shut: i2iShut('pair2')}" @click="i2iFoldToggle('pair2', $event)" title="Click to fold or unfold"><span class="pf-arrow" aria-hidden="true">{{ i2iShut('pair2') ? '▸' : '▾' }}</span> 🧩 Two pictures → one <span v-if="i2iShut('pair2') && editRecipe() && (!editRecipe().slots)" class="pf-sum">· {{ editRecipe().label }}</span><span class="hint">pick a recipe, drop Picture 1 and Picture 2 in their boxes, press Generate (the prompt is written for you; edit it if you like). Some use a community LoRA for FLUX.2 Klein, downloaded the first time</span></label>
+          <div v-if="!i2iShut('pair2')" class="seg seg-wrap edit-recipes">
             <button v-for="r in EDIT_RECIPES().filter((x) => !x.slots)" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
           </div>
-          <label class="pair-head">🎭 Transform a person <span class="hint">pick a look, drop a photo of the person, and optionally a style picture and the items it asks for (a picture, words, or both)</span></label>
-          <div class="tf-tiles">
+          <label class="pair-head pair-fold" :class="{shut: i2iShut('transform')}" @click="i2iFoldToggle('transform', $event)" title="Click to fold or unfold"><span class="pf-arrow" aria-hidden="true">{{ i2iShut('transform') ? '▸' : '▾' }}</span> 🎭 Transform a person <span v-if="i2iShut('transform') && editRecipe() && (editRecipe().slots && editRecipe().group !== 'shape')" class="pf-sum">· {{ editRecipe().label }}</span><span class="hint">pick a look, drop a photo of the person, and optionally a style picture and the items it asks for (a picture, words, or both)</span></label>
+          <div v-if="!i2iShut('transform')" class="tf-tiles">
             <button v-for="r in EDIT_RECIPES().filter((x) => x.slots && x.group !== 'shape')" :key="r.id" class="tf-tile" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">
               <img v-if="tfThumb(r.id)" :src="tfThumb(r.id)" alt="" loading="lazy">
               <span v-else class="tf-tile-icon">{{ r.label.split(' ')[0] }}</span>
               <span class="tf-tile-name">{{ r.label.split(' ').slice(1).join(' ') }}</span>
             </button>
           </div>
-          <label class="pair-head">🔤 Fill a shape <span class="hint">a word or a black shape, built out of anything you name, keeping its exact outline</span></label>
-          <div class="seg seg-wrap edit-recipes">
+          <label class="pair-head pair-fold" :class="{shut: i2iShut('shapes')}" @click="i2iFoldToggle('shapes', $event)" title="Click to fold or unfold"><span class="pf-arrow" aria-hidden="true">{{ i2iShut('shapes') ? '▸' : '▾' }}</span> 🔤 Fill a shape <span v-if="i2iShut('shapes') && editRecipe() && (editRecipe().group === 'shape')" class="pf-sum">· {{ editRecipe().label }}</span><span class="hint">a word or a black shape, built out of anything you name, keeping its exact outline</span></label>
+          <div v-if="!i2iShut('shapes')" class="seg seg-wrap edit-recipes">
             <button v-for="r in EDIT_RECIPES().filter((x) => x.group === 'shape')" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
           </div>
           <div v-if="editRecipe() && editRecipe().group === 'shape'" class="recipe-card shape-card">

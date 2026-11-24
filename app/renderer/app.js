@@ -1561,6 +1561,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.31: Fill a shape follows your words", items: [
+              "Image to image → ✨ Edit with words: <b>🧩 Two pictures → one</b>, <b>🎭 Transform a person</b> and <b>🔤 Fill a shape</b> fold up (click the title; collapse all / expand all too); a folded one still shows the look you picked.",
               "<b>🔤 Fill a shape always uses your boxes</b>: an older prompt left in the prompt box could be used instead (so “yellow flowers” came out as red roses). Its wording now starts with the background, which fills the whole frame with no white left, then the shape. The 3 · Prompt box is hidden while Fill a shape is picked: the boxes are the prompt.",
               "Installer builds no longer leave a <code>tmp…</code> folder in your home folder.",
             ] },
@@ -7116,7 +7117,7 @@ const protoartApp = createApp({
     },
     i2iFoldAll(shut) {  // Image to image → collapse all / expand all
       const all = {};
-      for (const k of ["picture", "chain", "cn", "prompt", "steps", "loras"]) all[k] = shut;
+      for (const k of ["picture", "chain", "cn", "prompt", "steps", "loras", "pair2", "transform", "shapes"]) all[k] = shut;
       this.i2iFolds = all;
       saveJSON("protoart.i2iFolds", this.i2iFolds);
     },

@@ -598,3 +598,8 @@ details.fine summary { cursor: pointer; }
 .shape-invert.on { outline: 2px solid var(--accent, #f5a623); }
 .shape-more { width: 100%; }
 .shape-more.on { outline: 2px solid var(--accent, #f5a623); }
+/* Edit with words: the recipe groups fold (click the title) */
+.pair-head.pair-fold { cursor: pointer; user-select: none; }
+.pair-fold .pf-arrow { color: var(--accent, #f5a623); display: inline-block; width: 14px; }
+.pair-fold .pf-sum { color: var(--accent, #f5a623); font-weight: 600; }
+.pair-fold.shut .hint { display: none; }
