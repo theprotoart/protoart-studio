@@ -1108,7 +1108,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.28";
+const APP_VERSION = "1.6.29";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1560,7 +1560,7 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "Next: 🧊 Make 3D is back, as a 3D splat (16 GB+ Macs)", items: [
+            { h: "1.6.29: 🔤 Fill a shape, 🔬 Ultra-detail, 5 new looks and 🧊 Make 3D (16 GB+ Macs)", items: [
               "<b>🔤 Fill a shape</b> (Image to image → ✨ Edit with words): <b>1</b> pick the shape: <b>🔤 Word</b> (type it and pick one of 6 thick built-in fonts; tick Stack for letters on top of each other), <b>⭐ Shape</b> (a heart, star, circle, moon, lightning bolt, diamond, drop or flower) or <b>🖼 My own</b> (a black shape on white: a silhouette, a logo, a cut-out; ⬛ Use as a shape on any picture or cut-out sends it here); the preview shows it. <b>◐ Invert</b> (under the preview) swaps black and white, so the material fills everything around the shape instead (letters cut out of a field of flowers). <b>2</b> say what it's made of (“a dense field of blooming red tulips, seen from above”) and <b>3</b> what's around it, then press Generate. The edit model builds the picture inside the exact outline, much more faithfully than the old word / shape tools under Create → 🎚 Denoise, which are gone (Denoise itself stays). MiniMax-H3 keeps the outline best; FLUX.2 Klein is quicker.",
               "<b>Two new thick fonts of our own</b>: <b>Protoart Bubble</b> (very fat, round) and <b>Protoart Block</b> (very heavy, square), made for 🔤 Fill a shape and also in 🔤 Replace text's Font list.",
               "<b>🔬 Ultra-detail upscale</b> (Image to image → ✨ Edit with words → 🎭 tiles): redraws a photo's fine detail (pores, hair strands, lashes, fabric weave, stitching) without changing the person, the light or the colours, on FLUX.2 Klein only (9B when this Mac has room): MiniMax-H3 over-sharpened skin and changed small features up close. It also ticks 🙂 Keep faces close to the original and 🎨 Keep the original's colours. For more pixels afterwards, run Tools → ⏩ Upscale on the result.",

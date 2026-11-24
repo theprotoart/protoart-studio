@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.29
 
 - 🔤 Fill a shape (`tf_shape`, group "shape", its own card in Edit with words): 1 the shape (a word in one of 6 built-in thick fonts, optionally stacked; 8 ready shapes `SHAPES`; or your own black shape on white), with a live preview, drawn at 1024–1536 px (`shapeDraw` / `shapeRender`); 2 the material, 3 the surroundings (defaults: red tulips in a green meadow seen from above); an optional style picture. Recipes can have their own Picture 1 line (`head`). ◐ Invert (white shape on black: the material fills around it; for your own shape via `make_shape` `negative`). ⬛ Use as a shape now sends a picture's outline to Fill a shape. Removed the word / shape tools from Create → 🎚 Denoise (`dnWord`, `dnWordRec`, `dnWordApply`, `onShapePicked`): they rarely kept the outline.
 - Two new Protoart fonts for it, also in Replace text: **Protoart Block** and **Protoart Bubble** (`packaging/fonts/build_comic_fonts.py`, which can now build only named fonts), OFL like the others.
