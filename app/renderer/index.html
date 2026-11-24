@@ -2853,7 +2853,7 @@
           </div>
         </div>
 
-        <div id="rack-splat" class="card rack-module splat-card" :class="{active: spl.job, off: spl.status && !spl.status.ram_ok}">
+        <div v-if="splatOn" id="rack-splat" class="card rack-module splat-card" :class="{active: spl.job, off: spl.status && !spl.status.ram_ok}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source && !(spl.status && !spl.status.ram_ok)}"></i><span class="mod-icon">🧊</span>
             <h3>Make 3D</h3><span class="mod-sub">3D splat, Idol · 16 GB+ Macs</span></div>
           <p class="mod-desc" title="Speridlabs' Idol finds the object in the picture, frames it and builds it in 3D, the sides the picture never showed included, as a 3D Gaussian splat (.ply): open it in a splat viewer, Blender (with a splat add-on), Unity or Unreal (splat plug-ins), or on websites like SuperSplat">The object in the picture as a 3D splat you can turn around and save as .ply.</p>
