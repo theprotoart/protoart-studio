@@ -1221,6 +1221,8 @@ def handle_quick(cmd, a):
         tmp = Path(paths.HOME) / "tmp"
         tmp.mkdir(parents=True, exist_ok=True)
         dest = tmp / f"shape_{os.getpid()}_{int(_t.time() * 1000)}.png"
+        if a.get("negative"):  # 🔤 Fill a shape → ◐ Invert: the shape white on black (the material goes around it)
+            out = ImageOps.invert(out)
         out.save(dest)
         return {"path": str(dest), "width": W, "height": H, "how": how}
     if cmd == "save_drawing":  # 🔤 a picture drawn in the app (the word shape) -> a PNG file to start from

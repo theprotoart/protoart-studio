@@ -827,26 +827,6 @@
              @dragleave="dnDragOver = false" @drop.prevent="onDnDrop" @click="$refs.dnPick.click()">
           Drop a picture to start from <span class="hint">(or click to choose) · without one, every picture starts from noise (denoise 1.00)</span></div>
         <div v-if="!form.dn.image" class="row"><button class="ghost small" :disabled="!session.length" @click="dnUseLast" title="Start from the last picture you made">↩ Use my last picture</button></div>
-        <div v-if="!form.dn.image || /word_/.test(form.dn.image)" class="dn-word">
-          <label>🔤 A word or ⬛ a shape <span class="hint">type a word, or import your own shape; it becomes the outline, then say what it's made of</span></label>
-          <div class="row">
-            <input type="text" v-model="form.dn.word" placeholder="ITALY" maxlength="24" @keydown.enter.prevent="dnWord">
-            <button class="ghost small" :disabled="!String(form.dn.word || '').trim()" @click="dnWord" title="Draw the word in big letters at the picture's size and start from it">🔤 Make the shape</button>
-          </div>
-          <div class="row">
-            <label class="check" title="One letter per line, staggered left and right (like a poster)"><input type="checkbox" v-model="form.dn.stack"> Letters stacked</label>
-            <label class="check" title="Light letters on a dark background (best for food, neon, fire); off: black letters on white"><input type="checkbox" v-model="form.dn.dark"> Dark background</label>
-          </div>
-          <div class="row">
-            <button class="ghost small" @click="$refs.shapePick.click()" title="Your own shape: a logo, silhouette, icon or drawing (a PNG with a see-through background works best)">📂 Import a shape</button>
-            <label class="check" title="For pictures without a see-through background: use the light parts as the shape instead of the dark ones"><input type="checkbox" v-model="form.dn.invert"> Light parts are the shape</label>
-            <input ref="shapePick" type="file" accept="image/*,.svg,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="onShapePicked">
-          </div>
-          <div class="row">
-            <button class="chip rec" @click="dnWordApply" title="Set Denoise, steps and a picture shape that suit a word shape with this model (press before 🔤 Make the shape)">★ Recommended settings</button>
-            <span class="hint">{{ currentModel ? currentModel.label.split(' · ')[0] : 'this model' }}: Denoise {{ dnWordRec().denoise.toFixed(2) }} · {{ dnWordRec().note }} · {{ form.dn.stack ? 'a tall 2:3 picture' : 'a wide 3:2 picture' }} · prompt: what the letters are made of + the background</span>
-          </div>
-        </div>
         <div v-else class="ipa-on">
           <img :src="fileUrl(form.dn.image)" alt="The picture to start from">
           <div class="ipa-opts">
@@ -2003,7 +1983,7 @@
             <button v-if="!adj.open" @click="openAdjust(tool.latest)">🎚 Adjust the result</button>
             <button v-if="!pw.open" @click="openPuppet(tool.latest)" title="Put pins on the result and drag them to bend it">🪡 Puppet warp the result</button>
             <button @click="useAsStart(tool.latest)" title="Open this picture in Image to image as the starting picture">🖼 Send to Image to image</button>
-            <button @click="useAsShape(tool.latest)" title="Turn the result into a solid shape (a cut-out's outline) and start a new picture from it in Create">⬛ Use as a shape</button>
+            <button @click="useAsShape(tool.latest)" title="Turn the result into a solid black shape (a cut-out's outline) for Image to image → 🔤 Fill a shape">⬛ Use as a shape</button>
             <button class="ghost" @click="closeAdjust(); openInTools(tool.latest)" title="Make this the picture Tools works on (enhance it again, adjust it, …)">Use as the new original</button>
           </div>
           <div v-if="tool.latest.kind === 'depth'" class="row">
@@ -3523,9 +3503,10 @@
                 <div v-else-if="shp.how === 'ready'" class="shape-ready">
                   <button v-for="sh in shapeList()" :key="sh.id" :class="{on: shp.ready === sh.id}" :title="sh.tip" @click="shp.ready = sh.id; shpSave()">{{ sh.label }}</button>
                 </div>
+                <label class="check" title="Swap black and white: the material fills everything around the shape, and the shape itself becomes the plain part (letters cut out of a field of flowers)"><input type="checkbox" v-model="shp.invert" @change="shpSave"> ◐ Invert: fill around the shape</label>
                 <div v-if="shp.how === 'own'" class="pair-slot shape-own" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
                      @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()" title="A black shape on white: a silhouette, a logo, a cut-out">
-                  <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt="">
+                  <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt="" :style="shp.invert ? {filter: 'invert(1)'} : null">
                   <div v-else class="pair-empty"><b>Your shape</b><span>black on white · drop or click</span></div>
                 </div>
                 <canvas v-else ref="shapePrev" class="shape-prev" title="The shape the picture is built in"></canvas>
@@ -6178,7 +6159,7 @@
           <button v-if="detailOriginalPrompt" @click="reusePrompt(detail, true)" title="The prompt as you typed it, before Enhance prompt or wildcards changed it">↺ Original prompt</button>
           <button @click="reuse(detail)" title="Load everything that made this picture: prompt, model, LoRAs, size, steps, sampler and seed">Use these settings</button>
           <button @click="useAsStart(detail)">🖼 Send to Image to image</button>
-          <button @click="useAsShape(detail)" title="Turn this picture into a solid shape (its outline if it's see-through, otherwise its dark parts) and start a new picture from it in Create">⬛ Use as a shape</button>
+          <button @click="useAsShape(detail)" title="Turn this picture into a solid black shape (its outline if it's see-through, otherwise its dark parts) for Image to image → 🔤 Fill a shape">⬛ Use as a shape</button>
           <button @click="useForAngles(detail)" title="See this picture from other angles, make a turnaround or an expression sheet (FLUX.2 Klein)">📷 Other angles / sheets</button>
           <button @click="openInTools(detail)">🧰 Send to Tools</button>
           <button @click="openAdjust(detail)" title="Opens it in Tools with Lightroom-style light and colour sliders and Color Efex-style filters; saves an adjusted copy">🎚 Adjust</button>

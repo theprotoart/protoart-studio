@@ -633,7 +633,7 @@ const EDIT_RECIPES = [
   // 🔤 Fill a shape: Picture 1 is a black shape (or a typed word, drawn for you) on white; the edit model builds the
   // picture inside that exact outline (much more faithful than starting Create from the shape with Denoise)
   { id: "tf_shape", label: "🔤 Fill a shape", group: "shape", by: "", files: null, p1: "the shape (black on white)",
-    head: "Picture 1 is the shape guide: a solid black shape (or black letters) on a plain white background.",
+    head: "Picture 1 is the shape guide: a solid black area and a white area.",
     tip: "Pick the shape (a word in a thick font, a ready shape like a heart or a star, or your own black shape on white), say what it's made of and what's around it, and press Generate. MiniMax-H3 keeps the outline best; FLUX.2 Klein is quicker.",
     slots: [{ id: "style", kind: "style", label: "A look to follow" },
             { id: "material", kind: "item", label: "What it's made of", ph: "[MATERIAL]", dflt: "a dense field of blooming red tulips, seen from above" },
@@ -1558,7 +1558,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Next: 🧊 Make 3D is back, as a 3D splat (16 GB+ Macs)", items: [
-              "<b>🔤 Fill a shape</b> (Image to image → ✨ Edit with words): <b>1</b> pick the shape: <b>🔤 Word</b> (type it and pick one of 6 thick built-in fonts; tick Stack for letters on top of each other), <b>⭐ Shape</b> (a heart, star, circle, moon, lightning bolt, diamond, drop or flower) or <b>🖼 My own</b> (a black shape on white: a silhouette, a logo, a cut-out); the preview shows it. <b>2</b> say what it's made of (“a dense field of blooming red tulips, seen from above”) and <b>3</b> what's around it, then press Generate. The edit model builds the picture inside the exact outline, much more faithfully than 🔤 Word / ⬛ Shape with Denoise in Create. MiniMax-H3 keeps the outline best; FLUX.2 Klein is quicker.",
+              "<b>🔤 Fill a shape</b> (Image to image → ✨ Edit with words): <b>1</b> pick the shape: <b>🔤 Word</b> (type it and pick one of 6 thick built-in fonts; tick Stack for letters on top of each other), <b>⭐ Shape</b> (a heart, star, circle, moon, lightning bolt, diamond, drop or flower) or <b>🖼 My own</b> (a black shape on white: a silhouette, a logo, a cut-out; ⬛ Use as a shape on any picture or cut-out sends it here); the preview shows it. <b>◐ Invert</b> fills everything around the shape instead (letters cut out of a field of flowers). <b>2</b> say what it's made of (“a dense field of blooming red tulips, seen from above”) and <b>3</b> what's around it, then press Generate. The edit model builds the picture inside the exact outline, much more faithfully than the old word / shape tools under Create → 🎚 Denoise, which are gone (Denoise itself stays). MiniMax-H3 keeps the outline best; FLUX.2 Klein is quicker.",
               "<b>Two new thick fonts of our own</b>: <b>Protoart Bubble</b> (very fat, round) and <b>Protoart Block</b> (very heavy, square), made for 🔤 Fill a shape and also in 🔤 Replace text's Font list.",
               "<b>🔬 Ultra-detail, keep the face</b> (Image to image → ✨ Edit with words, a quick instruction): redraws a photo's fine detail (pores, hair strands, lashes, fabric weave, stitching) without changing the person, the light or the colours. It also ticks 🙂 Keep faces close to the original (Klein) and 🎨 Keep the original's colours. The edit works at the 🧠 Work size, so pick a big one (MiniMax-H3: 1536 or 2048); for more pixels afterwards, run Tools → ⏩ Upscale on the result.",
               "<b>4 more looks in 🎭 Transform a person</b>: <b>🟡 Pop art portrait</b> (a 1960s screen print: halftone dots, loud colours, four colour panels; pick the colours and add a speech bubble), <b>📰 Editorial fashion shoot</b> (a magazine fashion photo; pick the outfit and the set), <b>🌀 Surreal dreamscape</b> (an original dreamlike oil painting with impossible things around you, like paper fish in the air and a teacup lighthouse) and <b>🎨 Graffiti mural</b> (a spray-painted street-art mural on a city wall, with an optional graffiti tag of a word).",
@@ -2285,7 +2285,7 @@ const protoartApp = createApp({
               "<b>Needs 16 GB of memory or more</b>: on 8 GB Macs the module is greyed out (Idol's image encoders and 3D model don't fit together). If it says it ran out of memory, close other apps or pick ⚡ Quick.",
             ] },
             { h: "🔤 Fill a shape: a word or a shape made of anything", items: [
-              "Image to image → ✨ Edit with words → <b>🔤 Fill a shape</b>. <b>1 The shape</b>: <b>🔤 Word</b>: type a word or two and pick a font (Protoart Bubble, Protoart Block, Titan One, Bowlby One SC, Luckiest Guy, Protoart Kaboom); <b>Stack the letters</b> puts them on top of each other. <b>⭐ Shape</b>: a heart, star, circle, moon, lightning bolt, diamond, drop or flower. <b>🖼 My own</b>: drop a black shape on a white background. The preview shows the shape the picture is built in.",
+              "Image to image → ✨ Edit with words → <b>🔤 Fill a shape</b>. <b>1 The shape</b>: <b>🔤 Word</b>: type a word or two and pick a font (Protoart Bubble, Protoart Block, Titan One, Bowlby One SC, Luckiest Guy, Protoart Kaboom); <b>Stack the letters</b> puts them on top of each other. <b>⭐ Shape</b>: a heart, star, circle, moon, lightning bolt, diamond, drop or flower. <b>🖼 My own</b>: drop a black shape on a white background, or press <b>⬛ Use as a shape</b> on any picture or cut-out (its window, or Tools) to send its outline here. The preview shows the shape the picture is built in. <b>◐ Invert: fill around the shape</b> swaps black and white: the material fills everything around the shape, and the shape becomes the plain part (letters cut out of a field of flowers).",
               "<b>2 What it's made of</b> and <b>3 What's around it</b>: e.g. “a dense field of blooming red tulips, seen from above” in “a green meadow seen from a drone” (left empty, that's what you get), “Italian food” on “a dark slate table”, “autumn leaves” on “a forest floor”, “glowing neon tubes” on “a brick wall at night”. Describing the scene from above or straight on helps the shape read clearly. Optional: a style picture to follow.",
               "Use <b>MiniMax-H3</b> when the outline matters most, <b>FLUX.2 Klein</b> for quicker tries. Bold, simple shapes work best: thin lines and small gaps get lost in the material.",
             ] },
@@ -2925,7 +2925,7 @@ const protoartApp = createApp({
       relightJob: false,
       // 🧊 Make 3D (Idol, 16 GB+ Macs): quality, kind of picture, the last result and the viewer's points
       // 🔤 Fill a shape: where the shape comes from (a word in a built-in font, a ready shape, or your own picture)
-      shp: Object.assign({ how: "word", word: "", font: "Protoart Bubble", stack: false, ready: "heart" }, loadJSON("protoart.fillshape", {})),
+      shp: Object.assign({ how: "word", word: "", font: "Protoart Bubble", stack: false, ready: "heart", invert: false }, loadJSON("protoart.fillshape", {})),
       spl: { job: false, status: null, last: null, quality: loadJSON("protoart.splat.quality", "standard"), mode: "auto",
              view: null, loading: false },
       txHint: false,  // Image to image: after 🔤 Text selection, point to Tools → Replace text
@@ -7223,57 +7223,6 @@ const protoartApp = createApp({
       this.form.dn.image = p;
       if (!(this.form.dn.value < 1)) this.form.dn.value = 0.6;
     },
-    dnWordRec() {  // 🔤 recommended settings for a word shape with this model: {denoise, steps, cfg, note}
-      const f = this.family, id = String((this.currentModel || {}).id || ""), def = (this.currentModel || {}).defaults || {};
-      if (f === "sd15" || f === "sdxl") return { denoise: 0.8, steps: 30, cfg: 7, note: "30 steps, CFG 7" };
-      if (f === "flux" && /schnell/.test(id)) return { denoise: 0.85, steps: 4, note: "4 steps" };
-      if (f === "flux") return { denoise: 0.8, steps: 20, note: "20 steps" };
-      if (f === "zimage") return { denoise: 0.8, steps: def.steps || 8, note: `${def.steps || 8} steps` };
-      if (f === "ernie") return { denoise: 0.85, steps: def.steps, note: def.steps ? `${def.steps} steps` : "its usual steps" };
-      return { denoise: 0.8, steps: def.steps, note: def.steps ? `${def.steps} steps` : "its usual steps" };
-    },
-    dnWordApply() {  // ★ the recommended settings: denoise, steps / CFG, and a shape that fits the word (tall when stacked)
-      const r = this.dnWordRec(), d = this.form.dn;
-      d.value = r.denoise;
-      if (r.steps) this.form.steps = r.steps;
-      if (r.cfg) this.form.cfg = r.cfg;
-      const side = Math.sqrt((this.form.width || 1024) * (this.form.height || 1024));
-      const want = (p) => (d.stack ? p.h > p.w : p.w > p.h) && Math.abs(Math.max(p.w, p.h) / Math.min(p.w, p.h) - 1.5) < 0.12;
-      const shapes = this.sizePresets.filter(want).sort((a, b) => Math.abs(Math.sqrt(a.w * a.h) - side) - Math.abs(Math.sqrt(b.w * b.h) - side));
-      if (shapes[0]) this.applySizePreset(shapes[0]);
-      this.status = `★ Recommended for a word shape: Denoise ${r.denoise.toFixed(2)}, ${r.note}, ${shapes[0] ? shapes[0].w + " × " + shapes[0].h + (d.stack ? " (tall, for stacked letters)" : " (wide, for one line)") : "your size"}. Make the shape again if you changed the size.`;
-    },
-    async dnWord() {  // 🔤 draw the word as plain letters at the picture's size, then start from it (the letters become the shape)
-      const d = this.form.dn, word = String(d.word || "").trim().toUpperCase();
-      if (!word) return (this.error = "Type a word first.");
-      const W = Math.max(256, this.form.width || 1024), H = Math.max(256, this.form.height || 1024);
-      const cv = document.createElement("canvas");
-      cv.width = W; cv.height = H;
-      const g = cv.getContext("2d");
-      g.fillStyle = d.dark ? "#1e1e1e" : "#ffffff";
-      g.fillRect(0, 0, W, H);
-      g.fillStyle = d.dark ? "#c8c8c8" : "#000000";
-      g.textAlign = "center"; g.textBaseline = "middle";
-      const font = (px) => `900 ${px}px "Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif`;
-      const lines = d.stack ? [...word.replace(/\s+/g, "")] : word.split(/\s+/);
-      // the biggest letters that fit in 86 % of the width and height
-      let px = H;
-      for (const ln of lines) { g.font = font(100); px = Math.min(px, (W * 0.86) / Math.max(1, g.measureText(ln).width) * 100); }
-      px = Math.min(px, (H * 0.86) / (lines.length * 0.95));
-      g.font = font(px);
-      const step = px * 0.95, top = H / 2 - (step * (lines.length - 1)) / 2;
-      lines.forEach((ln, i) => {
-        const shift = d.stack && lines.length > 1 ? (i % 2 ? 1 : -1) * W * 0.06 : 0;  // stacked letters staggered left / right
-        g.fillText(ln, W / 2 + shift, top + i * step);
-      });
-      try {
-        const r = await call("save_drawing", { data: cv.toDataURL("image/png"), name: "word" });
-        if (!r || !r.path) return;
-        Object.assign(d, { image: r.path, value: this.dnWordRec().denoise, use_size: true });
-        this.cfolds = { ...this.cfolds, dn: false };
-        this.status = `“${word}” is the shape: now say what the letters are made of in the prompt (e.g. “the word ${word} made of Italian food on a dark background”), then Generate. Lower Denoise keeps the letters sharper, higher lets the food spill over.`;
-      } catch (e) { this.error = "Couldn't make the word picture: " + (e.message || e); }
-    },
     shapeFonts() { return SHAPE_FONTS; },
     shapeList() { return SHAPES; },
     shpSave() { saveJSON("protoart.fillshape", this.shp); this.$nextTick(() => this.shapePreview()); },
@@ -7294,8 +7243,9 @@ const protoartApp = createApp({
     async shapeDraw(cv, W, H) {  // the shape in black on white onto a canvas (fonts loaded first)
       const s = this.shp, g = cv.getContext("2d");
       cv.width = W; cv.height = H;
-      g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, H);
-      g.fillStyle = "#000000";
+      const [bg, fg] = s.invert ? ["#000000", "#ffffff"] : ["#ffffff", "#000000"];  // ◐ Invert: white shape on black
+      g.fillStyle = bg; g.fillRect(0, 0, W, H);
+      g.fillStyle = fg;
       if (s.how === "ready") {
         const sh = SHAPES.find((x) => x.id === s.ready) || SHAPES[0];
         const k = Math.min(W, H) * 0.86 / 100;
@@ -7332,7 +7282,7 @@ const protoartApp = createApp({
       cv.getContext("2d").drawImage(big, 0, 0, cv.width, cv.height);
     },
     async shapeRender() {  // -> the saved path of the shape picture (drawn again only when it changed)
-      const key = JSON.stringify([this.shp.how, this.shp.word, this.shp.font, this.shp.stack, this.shp.ready]);
+      const key = JSON.stringify([this.shp.how, this.shp.word, this.shp.font, this.shp.stack, this.shp.ready, this.shp.invert]);
       if (this._shapeKey === key && this._shapePath && this.form.init_image === this._shapePath) return this._shapePath;
       const [W, H] = this.shapeSize(), cv = document.createElement("canvas");
       if (!(await this.shapeDraw(cv, W, H))) { this.error = "🔤 Fill a shape: type a word first (or pick a ready shape)."; return null; }
@@ -7343,24 +7293,21 @@ const protoartApp = createApp({
         return r.path;
       } catch (e) { this.error = "Couldn't draw the shape: " + (e.message || e); return null; }
     },
-    async useAsShape(rec) {  // ⬛ a picture (a cut-out, logo, silhouette, drawing) -> a solid shape to start a picture from in Create
+    async useAsShape(rec) {  // ⬛ a picture (a cut-out, logo, silhouette) -> a solid black shape for 🔤 Fill a shape
       const p = rec && (rec.path || rec);
       if (!p) return;
-      const d = this.form.dn;
       try {
-        const r = await call("make_shape", { path: p, width: this.form.width, height: this.form.height, dark: d.dark, invert: d.invert });
+        const W = (rec && rec.width) || 1024, H = (rec && rec.height) || 1024, k = Math.min(1, 1536 / Math.max(W, H));
+        const r = await call("make_shape", { path: p, width: Math.round(W * k), height: Math.round(H * k), dark: false, invert: false });
         if (!r || !r.path) return;
-        Object.assign(d, { image: r.path, value: this.dnWordRec().denoise, use_size: true });
         if (this.detail) this.detail = null;
-        this.tab = "create";
-        this.cfolds = { ...this.cfolds, dn: false };
-        this.status = `⬛ The shape is ${r.how} of that picture, filled in solid. Now say what it's made of in the prompt (“made of flowers”, “a neon sign”, “carved in marble”) and Generate. The model must be one that can start from a picture (see 🎚 Denoise).`;
+        this.tab = "i2i";
+        this.form.i2i_mode = "edit";
+        this.pickEditRecipe("tf_shape");
+        this.shp.how = "own"; this.shpSave();
+        this.form.init_image = r.path; this.controlMap = null;
+        this.status = `⬛ The shape is ${r.how} of that picture, filled in solid black: now say what it's made of and what's around it, then Generate.`;
       } catch (e) { this.error = "Couldn't make a shape from that picture: " + (e.message || e); }
-    },
-    onShapePicked(e) {
-      const file = e.target.files?.[0];
-      e.target.value = "";
-      if (file) this.preparePicture(window.bee.pathForFile(file)).then((p) => p && this.useAsShape(p));
     },
     dnUseLast() {
       const last = this.session[0];
@@ -10894,6 +10841,7 @@ const protoartApp = createApp({
         this.error = "";
         const painted = this.maskIsFor("i2i", f.init_image) ? this.mask.data : null;
         const rec = this.editRecipe();
+        let shapeInit = null;  // 🔤 Fill a shape → ◐ Invert on your own shape: the inverted copy goes to the edit
         if (rec && rec.group === "shape") {  // 🔤 Fill a shape: a word or a ready shape is drawn as Picture 1
           if (this.shp.how !== "own") {
             const path = await this.shapeRender();
@@ -10901,6 +10849,14 @@ const protoartApp = createApp({
             f.init_image = path; this.controlMap = null;
           }
           if (!f.init_image) return (this.error = "🔤 Fill a shape: drop your black shape on white in the box first.");
+          if (this.shp.how === "own" && this.shp.invert) {  // ◐ Invert your own shape: white on black, made in the backend
+            const size = await new Promise((ok) => { const im = new Image(); im.onload = () => ok([im.naturalWidth, im.naturalHeight]); im.onerror = () => ok([1024, 1024]); im.src = this.fileUrl(f.init_image); });
+            const k = Math.min(1, 1536 / Math.max(...size));
+            try {
+              const r = await call("make_shape", { path: f.init_image, width: Math.round(size[0] * k), height: Math.round(size[1] * k), dark: false, negative: true });
+              shapeInit = r && r.path;
+            } catch (e) { return (this.error = "Couldn't invert the shape: " + (e.message || e)); }
+          }
         }
         const tfb = rec && rec.slots ? this.tfBuild(rec) : null;  // 🎭 Transform a person: its boxes
         if (tfb && tfb.refs.length > this.editRefMax())
@@ -10909,7 +10865,7 @@ const protoartApp = createApp({
           if (!(f.edit_refs || []).length) return (this.error = `${rec.label} needs a second picture: add it under “More pictures”.`);
           if (rec.files && !this.editRecipeLora(rec)) return (this.error = `${rec.label} needs its LoRA first: press ⤓ Download under the recipe.`);
         }
-        await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: f.init_image, prompt: tfb ? tfb.prompt : f.prompt, mask: painted,
+        await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: shapeInit || f.init_image, prompt: tfb ? tfb.prompt : f.prompt, mask: shapeInit ? null : painted,
                                           keep_faces: !painted && f.keep_faces !== false && !rec, match_colors: !painted && !!f.match_colors,
                                           move_boxes: this.editModelId() === "flux3_klein_mlx_q4" && this.mvReady().length ? this.mvReady() : null,
                                           refs: tfb ? tfb.refs : (f.edit_refs || []).slice(0, this.editRefMax()), seed: f.seed, ...this.recipeEditArgs() });
