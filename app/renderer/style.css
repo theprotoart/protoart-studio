@@ -603,3 +603,16 @@ details.fine summary { cursor: pointer; }
 .pair-fold .pf-arrow { color: var(--accent, #f5a623); display: inline-block; width: 14px; }
 .pair-fold .pf-sum { color: var(--accent, #f5a623); font-weight: 600; }
 .pair-fold.shut .hint { display: none; }
+/* 🔤 Fill a shape, simplified: 3 numbered steps, the rest under More options */
+.shape-card { display: flex; flex-direction: column; gap: 6px; }
+.shape-card .shape-step { margin-top: 6px; font-size: 13px; }
+.shape-how { display: flex; }
+.shape-how button { flex: 1 1 0; }
+.shape-text { width: 100%; font-size: 14px; padding: 7px 9px; }
+.shape-hint { margin-top: 2px; }
+.shape-more { margin-top: 4px; }
+.shape-more summary { cursor: pointer; font-size: 12px; opacity: 0.85; }
+.shape-more-body { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; }
+.shape-font-own { width: 100%; }
+.shape-font-own.on { outline: 2px solid var(--accent, #f5a623); }
+.shape-card .shape-prev { align-self: center; margin: 4px auto 0; }

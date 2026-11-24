@@ -3485,62 +3485,60 @@
             <button v-for="r in EDIT_RECIPES().filter((x) => x.group === 'shape')" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
           </div>
           <div v-if="editRecipe() && editRecipe().group === 'shape'" class="recipe-card shape-card">
-            <div class="shape-steps">
-              <div class="shape-col">
-                <div class="shape-step"><b>1</b> The shape</div>
-                <div class="seg mod-seg">
-                  <button :class="{on: shp.how === 'word'}" @click="shp.how = 'word'; shpSave()" title="A word, drawn in a thick font">🔤 Word</button>
-                  <button :class="{on: shp.how === 'ready'}" @click="shp.how = 'ready'; shpSave()" title="A ready shape: heart, star, moon…">⭐ Shape</button>
-                  <button :class="{on: shp.how === 'own'}" @click="shp.how = 'own'; shpSave()" title="Your own black shape on white (a silhouette, a logo, a cut-out)">🖼 My own</button>
-                </div>
+            <div class="shape-step"><b>1</b> Pick a shape</div>
+            <div class="seg mod-seg shape-how">
+              <button :class="{on: shp.how === 'word'}" @click="shp.how = 'word'; shpSave()" title="A word, drawn in a thick font">🔤 Word</button>
+              <button :class="{on: shp.how === 'ready'}" @click="shp.how = 'ready'; shpSave()" title="A ready shape: heart, star, moon…">⭐ Shape</button>
+              <button :class="{on: shp.how === 'own'}" @click="shp.how = 'own'; shpSave()" title="Your own black shape on white (a silhouette, a logo, a cut-out)">🖼 Your own</button>
+            </div>
+            <template v-if="shp.how === 'word'">
+              <input type="text" v-model="shp.word" @input="shpSave" placeholder="Type a word, e.g. LOVE" maxlength="30" class="shape-word">
+              <div class="shape-fonts">
+                <button v-for="ft in shapeFonts()" :key="ft.name" :class="{on: shp.font === ft.name}" :style="{fontFamily: ft.css}" :title="ft.name + ': ' + ft.tip" @click="shp.font = ft.name; shpSave()">Aa</button>
+              </div>
+            </template>
+            <div v-else-if="shp.how === 'ready'" class="shape-ready">
+              <button v-for="sh in shapeList()" :key="sh.id" :class="{on: shp.ready === sh.id}" :title="sh.tip" @click="shp.ready = sh.id; shpSave()">{{ sh.label }}</button>
+            </div>
+            <div v-if="shp.how === 'own'" class="pair-slot shape-own" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
+                 @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()" title="A black shape on white: a silhouette, a logo, a cut-out">
+              <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt="" :style="shp.invert ? {filter: 'invert(1)'} : null">
+              <div v-else class="pair-empty"><b>Drop your shape here</b><span>black on white · or click</span></div>
+            </div>
+            <canvas v-else ref="shapePrev" class="shape-prev" title="The shape your picture will take"></canvas>
+
+            <div class="shape-step"><b>2</b> Fill it with</div>
+            <input type="text" v-model="form.tf.words.material" placeholder="e.g. yellow flowers" class="shape-text">
+            <div class="shape-step"><b>3</b> Put it on</div>
+            <input type="text" v-model="form.tf.words.around" placeholder="e.g. a green meadow" class="shape-text">
+            <div class="hint shape-hint">Then press <b>✨ Edit</b>. Empty boxes use the grey examples. MiniMax-H3 gives the best result; FLUX.2 Klein is quicker.</div>
+
+            <details class="shape-more">
+              <summary>⚙ More options: your own font, invert, exact outline, a look to follow</summary>
+              <div class="shape-more-body">
                 <template v-if="shp.how === 'word'">
-                  <input type="text" v-model="shp.word" @input="shpSave" placeholder="Type a word, e.g. LOVE" maxlength="30" class="shape-word">
-                  <div class="shape-fonts">
-                    <button v-for="ft in shapeFonts()" :key="ft.name" :class="{on: shp.font === ft.name}" :style="{fontFamily: ft.css}" :title="ft.name + ': ' + ft.tip" @click="shp.font = ft.name; shpSave()">Aa</button>
-                  </div>
-                  <select class="shape-more" :class="{on: !!shapeFontOwn()}" :value="shapeFontOwn()" @focus="txLoadFonts" @mousedown="txLoadFonts" @change="shapePickOwnFont" title="Your own font: any font installed on this Mac, or a font file (.ttf, .otf, .woff)">
-                    <option value="">{{ shapeFontOwn() ? shapeFontOwn() : '🔤 Your own font…' }}</option>
+                  <select class="shape-font-own" :class="{on: !!shapeFontOwn()}" :value="shapeFontOwn()" @focus="txLoadFonts" @mousedown="txLoadFonts" @change="shapePickOwnFont" title="Any font installed on this Mac, or a font file (.ttf, .otf, .woff)">
+                    <option value="">{{ shapeFontOwn() ? 'Font: ' + shapeFontOwn() : '🔤 Use your own font…' }}</option>
                     <option value="__file">📂 Load a font file (.ttf, .otf)…</option>
                     <option v-if="shapeFontOwn() && !(tx.fonts || []).includes(shapeFontOwn())" :value="shapeFontOwn()">{{ shapeFontOwn() }}</option>
                     <option v-for="fn in (tx.fonts || [])" :key="fn" :value="fn" :style="{fontFamily: '&quot;' + fn + '&quot;'}">{{ fn }}</option>
                   </select>
                   <input ref="shapeFontFile" type="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" hidden @change="shapeFontPicked">
-                  <label class="check"><input type="checkbox" v-model="shp.stack" @change="shpSave"> Stack the letters</label>
+                  <label class="check"><input type="checkbox" v-model="shp.stack" @change="shpSave"> Stack the letters on top of each other</label>
                 </template>
-                <div v-else-if="shp.how === 'ready'" class="shape-ready">
-                  <button v-for="sh in shapeList()" :key="sh.id" :class="{on: shp.ready === sh.id}" :title="sh.tip" @click="shp.ready = sh.id; shpSave()">{{ sh.label }}</button>
-                </div>
-                <div v-if="shp.how === 'own'" class="pair-slot shape-own" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
-                     @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()" title="A black shape on white: a silhouette, a logo, a cut-out">
-                  <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt="" :style="shp.invert ? {filter: 'invert(1)'} : null">
-                  <div v-else class="pair-empty"><b>Your shape</b><span>black on white · drop or click</span></div>
-                </div>
-                <canvas v-else ref="shapePrev" class="shape-prev" title="The shape the picture is built in"></canvas>
-                <label v-if="shp.how !== 'own'" class="check" title="2 steps: first the background over the whole frame, then the material painted into the shape only. The outline comes out exact, with nothing spilling over and no border; it takes about twice as long. Untick for one quicker step, where the model follows the outline more loosely"><input type="checkbox" v-model="shp.exact" @change="shpSave"> ✂ Exact outline (2 steps, slower)</label>
-                <button class="shape-invert" :class="{on: shp.invert}" @click="shp.invert = !shp.invert; shpSave()" title="Swap black and white: the black part becomes white and the white part black (the material then fills around the shape)">◐ Invert</button>
-              </div>
-              <div class="shape-col">
-                <div class="shape-step"><b>2</b> What it's made of</div>
-                <textarea v-model="form.tf.words.material" rows="2" placeholder="e.g. a dense field of blooming red tulips, seen from above"></textarea>
-                <div class="shape-step"><b>3</b> What's around it</div>
-                <textarea v-model="form.tf.words.around" rows="2" placeholder="e.g. a green meadow of short grass seen from a drone, soft morning light"></textarea>
-                <div class="shape-step">Optional: a look to follow</div>
+                <label class="check" title="Swap black and white: the filling goes all around the shape, and the shape itself shows what it's put on"><input type="checkbox" v-model="shp.invert" @change="shpSave"> ◐ Invert: fill around the shape instead</label>
+                <label v-if="shp.how !== 'own'" class="check" title="Made in 2 steps: first what it's put on, over the whole picture, then the filling inside the shape only. The outline comes out exact, with nothing spilling over and no border. Untick for 1 quicker step, where the outline is followed more loosely"><input type="checkbox" v-model="shp.exact" @change="shpSave"> ✂ Exact outline (2 steps, about twice as long)</label>
                 <div class="shape-row">
                   <div class="pair-slot shape-small" :class="{over: pairOver === 'style', filled: !!form.tf.pics.style}" @dragover.prevent="pairOver = 'style'" @dragleave="pairOver = ''"
                        @drop.prevent="tfDrop($event, editRecipe().slots[0])" @click="tfPick(editRecipe().slots[0])" title="Optional: a picture whose look (style, colours, finish) to follow">
                     <img v-if="form.tf.pics.style" :src="fileUrl(form.tf.pics.style)" alt="">
-                    <div v-else class="pair-empty"><span>style picture</span></div>
+                    <div v-else class="pair-empty"><span>a look to follow (optional)</span></div>
                     <button v-if="form.tf.pics.style" class="tf-x" @click.stop="tfClear(editRecipe().slots[0])" title="Take this picture out">✕</button>
-                  </div>
-                  <div class="pair-slot shape-small result" :title="i2iLatest ? 'The last result (click to open it)' : 'The result appears here'" @click="i2iLatest && openDetail && openDetail(i2iLatest)">
-                    <img v-if="i2iLatest && i2iLatest.path" :src="fileUrl(i2iLatest.path)" alt="">
-                    <div v-else class="pair-empty"><span>the result</span></div>
                   </div>
                 </div>
                 <input ref="tfPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="tfPicked">
               </div>
-            </div>
-            <div class="hint">{{ editRecipe().tip }} Empty boxes use the examples shown in grey.</div>
+            </details>
           </div>
           <div v-if="editRecipe() && editRecipe().slots && editRecipe().group !== 'shape'" class="recipe-card">
             <div class="tf-layout">
@@ -3638,7 +3636,7 @@
           </template>
           <div v-if="form.edit_recipe !== 'tf_shape'" class="hint">Describe the change in <b>3 · Prompt</b>. <b>Optional:</b> paint over the part that may change, and
             everything else stays exactly as it is (best for small, precise edits).</div>
-          <div class="mask-tools">
+          <div v-if="form.edit_recipe !== 'tf_shape'" class="mask-tools">
             <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
               <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
             </div>
@@ -3667,6 +3665,7 @@
             </div>
             <label class="check" title="More pictures go in at 512 (a quarter of the work of 1024 each: enough for a face, an outfit or a style). Tick this for 768 when small details matter (lettering on a label, a pattern), about twice as long per picture"><input type="checkbox" v-model="form.h3_ref_detail"> More pictures in more detail <span class="hint">(slower)</span></label>
           </template>
+          <template v-if="form.edit_recipe !== 'tf_shape'">  <!-- 🔤 Fill a shape has its own simple card: none of this -->
           <label v-if="editModelId() !== 'h3_image'" class="check" title="After the edit, each face (up to 3) is edited again on its own, close up, with the original face beside it, and blended in: the person stays recognisable (restoring or colouring old photos, changing clothes or the background). Adds about one more edit per face. Not used when you paint an area (the rest stays exactly the same then)">
             <input type="checkbox" :checked="form.keep_faces !== false" @change="form.keep_faces = $event.target.checked"> 🙂 Keep faces close to the original <span class="hint">(+1 full edit per face: switch it off when only the background changes)</span></label>
           <label class="check" title="After the edit, the whole picture's colours are moved back to the original's (like ComfyUI's Color Match), for when the model shifts everything warmer, greener or brighter. Leave it off when the change IS the colours (a sunset relight, black and white, a new palette). Not used with a painted area: that already matches the light around it">
@@ -3713,6 +3712,7 @@
           <div class="seg seg-wrap edit-recipes">
             <button v-for="q in EDIT_QUICK()" :key="q.label" @click="useEditQuick(q)" :title="(q.tip ? q.tip + '\n\n' : '') + q.prompt">{{ q.label }}</button>
           </div>
+          </template>
         </template>
         <template v-else-if="form.i2i_mode === 'combine'">
           <label class="pair-head">🧩 Scene ＋ character ➜ result <span class="hint">drop the scene on 1 and the character (or a pet, an object) on 2</span></label>
