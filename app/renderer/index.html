@@ -3511,10 +3511,17 @@
             <input type="text" v-model="form.tf.words.material" placeholder="e.g. yellow flowers" class="shape-text">
             <div class="shape-step"><b>3</b> Put it on</div>
             <input type="text" v-model="form.tf.words.around" placeholder="e.g. a green meadow" class="shape-text">
+            <template v-if="shp.how !== 'own'">
+              <div class="shape-step"><b>4</b> Speed</div>
+              <div class="seg mod-seg shape-how">
+                <button :class="{on: !shp.exact}" @click="shp.exact = false; shpSave()" title="One step: about half the time. The outline is followed more loosely (the filling can spill over a little)">⚡ Quicker</button>
+                <button :class="{on: shp.exact}" @click="shp.exact = true; shpSave()" title="Two steps: first what it's put on, over the whole picture, then the filling inside the shape only. The outline comes out exact, with nothing spilling over; about twice as long">✂ More accurate</button>
+              </div>
+            </template>
             <div class="hint shape-hint">Then press <b>✨ Edit</b>. Empty boxes use the grey examples. MiniMax-H3 gives the best result; FLUX.2 Klein is quicker.</div>
 
             <details class="shape-more">
-              <summary>⚙ More options: your own font, invert, exact outline, a look to follow</summary>
+              <summary>⚙ More options: your own font, invert, a look to follow</summary>
               <div class="shape-more-body">
                 <template v-if="shp.how === 'word'">
                   <select class="shape-font-own" :class="{on: !!shapeFontOwn()}" :value="shapeFontOwn()" @focus="txLoadFonts" @mousedown="txLoadFonts" @change="shapePickOwnFont" title="Any font installed on this Mac, or a font file (.ttf, .otf, .woff)">
@@ -3527,7 +3534,6 @@
                   <label class="check"><input type="checkbox" v-model="shp.stack" @change="shpSave"> Stack the letters on top of each other</label>
                 </template>
                 <label class="check" title="Swap black and white: the filling goes all around the shape, and the shape itself shows what it's put on"><input type="checkbox" v-model="shp.invert" @change="shpSave"> ◐ Invert: fill around the shape instead</label>
-                <label v-if="shp.how !== 'own'" class="check" title="Made in 2 steps: first what it's put on, over the whole picture, then the filling inside the shape only. The outline comes out exact, with nothing spilling over and no border. Untick for 1 quicker step, where the outline is followed more loosely"><input type="checkbox" v-model="shp.exact" @change="shpSave"> ✂ Exact outline (2 steps, about twice as long)</label>
                 <div class="shape-row">
                   <div class="pair-slot shape-small" :class="{over: pairOver === 'style', filled: !!form.tf.pics.style}" @dragover.prevent="pairOver = 'style'" @dragleave="pairOver = ''"
                        @drop.prevent="tfDrop($event, editRecipe().slots[0])" @click="tfPick(editRecipe().slots[0])" title="Optional: a picture whose look (style, colours, finish) to follow">
