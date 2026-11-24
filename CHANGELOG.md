@@ -2,6 +2,7 @@
 
 ## 1.6.31
 
+- 🔤 Fill a shape: **✂ Exact outline** (on by default for a word or a ready shape, `shapeExact`): step 1 the background on a blank picture, step 2 the material in the shape only (a paint mask from `shapeMask`; `mask_light: false` so the material keeps its colours, `crop_stitch: false`). The outline is exact; flowers no longer spill into a blob or get a black border.
 - 🔤 Fill a shape with FLUX.2 Klein: the guide is the shape in mid grey with soft edges (Klein copied the hard black edges as black outlines round the letters), and the wording forbids outlines, borders and drop shadows round the shape.
 - Edit with words: the 🧩 Two pictures → one, 🎭 Transform a person and 🔤 Fill a shape groups fold (keys `pair2`, `transform`, `shapes` in the Image to image folds, with collapse all / expand all), showing the picked look when folded.
 - 🔤 Fill a shape always uses its own wording with your boxes (an older prompt left in the prompt box had been used instead, so “yellow flowers” came out as red roses), and the wording now starts with the background, which must fill the whole frame (no white left), then the shape. The 3 · Prompt box is hidden while Fill a shape is picked (its boxes are the prompt).

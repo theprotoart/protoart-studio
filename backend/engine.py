@@ -5566,7 +5566,8 @@ class Engine:
             m = m.filter(ImageFilter.GaussianBlur(max(2, min(image.size) // 200)))
             try:  # the redraw often comes out a little lighter overall: match its light to the original around it
                 import color_match
-                result = color_match.match_to_original(result, image, m)
+                if args.get("mask_light", True):  # 🔤 Fill a shape: no (the material has its own colours)
+                    result = color_match.match_to_original(result, image, m)
             except Exception as e:
                 print("[engine] colour match skipped:", e, flush=True)
             result = Image.composite(result, image, m)

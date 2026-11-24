@@ -1561,6 +1561,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.31: Fill a shape follows your words", items: [
+              "<b>✂ Exact outline</b> (Fill a shape, on by default for a word or a ready shape): the picture is made in 2 steps, first the background over the whole frame, then the material painted into the shape only, so the shape's outline is exact and nothing spills over it or draws a border round it. It takes about twice as long; untick it for one quicker step (the model then follows the outline more loosely).",
               "Image to image → ✨ Edit with words: <b>🧩 Two pictures → one</b>, <b>🎭 Transform a person</b> and <b>🔤 Fill a shape</b> fold up (click the title; collapse all / expand all too); a folded one still shows the look you picked.",
               "<b>🔤 Fill a shape always uses your boxes</b>: an older prompt left in the prompt box could be used instead (so “yellow flowers” came out as red roses). Its wording now starts with the background, which fills the whole frame with no white left, then the shape. The 3 · Prompt box is hidden while Fill a shape is picked: the boxes are the prompt.",
               "Installer builds no longer leave a <code>tmp…</code> folder in your home folder.",
@@ -2931,7 +2932,7 @@ const protoartApp = createApp({
       relightJob: false,
       // 🧊 Make 3D (Idol, 16 GB+ Macs): quality, kind of picture, the last result and the viewer's points
       // 🔤 Fill a shape: where the shape comes from (a word in a built-in font, a ready shape, or your own picture)
-      shp: Object.assign({ how: "word", word: "", font: "Protoart Bubble", stack: false, ready: "heart", invert: false }, loadJSON("protoart.fillshape", {})),
+      shp: Object.assign({ how: "word", word: "", font: "Protoart Bubble", stack: false, ready: "heart", invert: false, exact: true }, loadJSON("protoart.fillshape", {})),
       splatOn: false,  // 🧊 Make 3D (Idol): hidden until it has been tested on a 16 GB Mac
       spl: { job: false, status: null, last: null, quality: loadJSON("protoart.splat.quality", "standard"), mode: "auto",
              view: null, loading: false },
@@ -7309,6 +7310,46 @@ const protoartApp = createApp({
       cv.width = Math.round(W * k); cv.height = Math.round(H * k);
       cv.getContext("2d").drawImage(big, 0, 0, cv.width, cv.height);
     },
+    async shapeMask() {  // ✂ the shape as a paint mask (opaque = the shape; with ◐ Invert, the area around it) -> data URL
+      const [W, H] = this.shapeSize(), cv = document.createElement("canvas");
+      const inv = this.shp.invert;
+      this.shp.invert = false;
+      let ok = false;
+      try { ok = await this.shapeDraw(cv, W, H); } finally { this.shp.invert = inv; }
+      if (!ok) return null;
+      const g = cv.getContext("2d"), img = g.getImageData(0, 0, W, H), d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const dark = 255 - d[i];  // black shape on white
+        d[i] = d[i + 1] = d[i + 2] = 255;
+        d[i + 3] = inv ? 255 - dark : dark;
+      }
+      g.putImageData(img, 0, 0);
+      return cv.toDataURL("image/png");
+    },
+    async shapeExact(rec) {  // ✂ Exact outline: 1 the background over the whole frame, 2 the material painted in the shape only
+      const [W, H] = this.shapeSize(), f = this.form, words = f.tf.words || {};
+      const slot = (id) => (rec.slots || []).find((x) => x.id === id) || {};
+      const bgw = String(words.around || "").trim() || slot("around").dflt, mat = String(words.material || "").trim() || slot("material").dflt;
+      const mask = await this.shapeMask();
+      if (!mask) return (this.error = "🔤 Fill a shape: type a word first (or pick a ready shape).");
+      const blank = document.createElement("canvas");
+      blank.width = W; blank.height = H;
+      const bg = blank.getContext("2d"); bg.fillStyle = "#ffffff"; bg.fillRect(0, 0, W, H);
+      let start;
+      try { start = (await call("save_drawing", { data: blank.toDataURL("image/png"), name: "shape_bg" })).path; }
+      catch (e) { return (this.error = "Couldn't start: " + (e.message || e)); }
+      const style = (f.tf.pics || {}).style;
+      const look = style ? "\nFollow the visual style, colour palette and finish of Picture 2 (a style reference only: don't copy its subject)." : "";
+      const base = { edit_model: this.editModelId(), ...this.h3EditArgs(), seed: f.seed, refs: style ? [style] : [], keep_faces: false, match_colors: false };
+      this.status = "🔤 Fill a shape, step 1 of 2: the background…";
+      const first = await this.runJob("edit_words", { ...base, init_image: start,
+        prompt: `Replace this entire blank picture with ${bgw}, filling the whole frame from edge to edge, realistic, in its own natural colours, evenly detailed and lit. No objects added in the middle, no shapes, no letters, no text.${look}` });
+      if (!first || !first.path) return;
+      this.status = "🔤 Fill a shape, step 2 of 2: the shape…";
+      await this.runJob("edit_words", { ...base, init_image: first.path, mask, mask_light: false, crop_stitch: false,
+        prompt: `Cover the whole picture with a dense, continuous layer of ${mat}, in its own natural colours, packed tightly with no gaps, with real texture, highlights and shadows, lit like a real photo and resting on ${bgw}. No text, no letters, no outlines.${look}` });
+      this.status = "";
+    },
     async shapeRender() {  // -> the saved path of the shape picture (drawn again only when it changed)
       // FLUX.2 Klein copies hard black edges into the picture (as black outlines round the letters): it gets a softer guide,
       // the shape in mid grey with blurred edges; MiniMax-H3 follows the plain black shape cleanly
@@ -10904,6 +10945,7 @@ const protoartApp = createApp({
             f.init_image = path; this.controlMap = null;
           }
           if (!f.init_image) return (this.error = "🔤 Fill a shape: drop your black shape on white in the box first.");
+          if (this.shp.exact && this.shp.how !== "own") return this.shapeExact(rec);  // ✂ the exact outline, in 2 steps
           if (this.shp.how === "own" && this.shp.invert) {  // ◐ Invert your own shape: white on black, made in the backend
             const size = await new Promise((ok) => { const im = new Image(); im.onload = () => ok([im.naturalWidth, im.naturalHeight]); im.onerror = () => ok([1024, 1024]); im.src = this.fileUrl(f.init_image); });
             const k = Math.min(1, 1536 / Math.max(...size));

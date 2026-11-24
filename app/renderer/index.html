@@ -3516,6 +3516,7 @@
                   <div v-else class="pair-empty"><b>Your shape</b><span>black on white · drop or click</span></div>
                 </div>
                 <canvas v-else ref="shapePrev" class="shape-prev" title="The shape the picture is built in"></canvas>
+                <label v-if="shp.how !== 'own'" class="check" title="2 steps: first the background over the whole frame, then the material painted into the shape only. The outline comes out exact, with nothing spilling over and no border; it takes about twice as long. Untick for one quicker step, where the model follows the outline more loosely"><input type="checkbox" v-model="shp.exact" @change="shpSave"> ✂ Exact outline (2 steps, slower)</label>
                 <button class="shape-invert" :class="{on: shp.invert}" @click="shp.invert = !shp.invert; shpSave()" title="Swap black and white: the black part becomes white and the white part black (the material then fills around the shape)">◐ Invert</button>
               </div>
               <div class="shape-col">
