@@ -1108,7 +1108,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.29";
+const APP_VERSION = "1.6.30";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1560,6 +1560,12 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.6.30: Fill a shape fixes and your own fonts", items: [
+              "<b>🔤 Fill a shape keeps real colours</b>: 🎨 Keep the original's colours is never used for it any more (it had turned red roses black and kept the background white), and it asks for full natural colours and a background that fills the frame.",
+              "<b>🔤 Your own font</b> in Fill a shape: any font installed on this Mac, or 📂 a .ttf / .otf font file.",
+              "A look's own settings (🔬 Ultra-detail turns on 🙂 Keep faces, 🎨 Keep colours and Klein) only last while that look is picked.",
+              "Image to image: the ✕ to close one result is no longer hidden under the ★. The picture window's “Made with” names the edit model used.",
+            ] },
             { h: "1.6.29: 🔤 Fill a shape, 🔬 Ultra-detail upscale and 4 new looks", items: [
               "<b>✕ Close in Image to image</b>: each earlier result has a ✕ in its corner and the latest one a <b>✕ Close</b> button, like in Create: it only takes the picture off the screen (it stays in the Library).",
               "<b>🔤 Fill a shape</b> (Image to image → ✨ Edit with words): <b>1</b> pick the shape: <b>🔤 Word</b> (type it and pick one of 6 thick built-in fonts; tick Stack for letters on top of each other), <b>⭐ Shape</b> (a heart, star, circle, moon, lightning bolt, diamond, drop or flower) or <b>🖼 My own</b> (a black shape on white: a silhouette, a logo, a cut-out; ⬛ Use as a shape on any picture or cut-out sends it here); the preview shows it. <b>◐ Invert</b> (under the preview) swaps black and white, so the material fills everything around the shape instead (letters cut out of a field of flowers). <b>2</b> say what it's made of (“a dense field of blooming red tulips, seen from above”) and <b>3</b> what's around it, then press Generate. The edit model builds the picture inside the exact outline, much more faithfully than the old word / shape tools under Create → 🎚 Denoise, which are gone (Denoise itself stays). MiniMax-H3 keeps the outline best; FLUX.2 Klein is quicker.",

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.30
 
 - 🔤 Fill a shape: **Your own font…**: any font installed on this Mac (the Replace text list), or a .ttf / .otf / .woff file loaded for the session (`FontFace`).
 - 🔤 Fill a shape no longer keeps the guide's black and white: 🎨 Keep the original's colours is never used for it (it had turned red roses black and kept the background white), and its prompt asks for full natural colours and a background that fills the frame.
