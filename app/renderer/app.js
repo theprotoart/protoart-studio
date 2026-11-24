@@ -644,7 +644,7 @@ const EDIT_RECIPES = [
     slots: [{ id: "style", kind: "style", label: "A look to follow" },
             { id: "material", kind: "item", label: "What it's made of", ph: "[MATERIAL]", dflt: "a dense field of blooming red tulips, seen from above" },
             { id: "around", kind: "item", label: "What's around it", ph: "[BACKGROUND]", dflt: "a green meadow of short grass seen from a drone, soft morning light" }],
-    prompt: "Create a completely new picture in which the black shape from Picture 1 is built entirely out of [MATERIAL].\nThe outline must match Picture 1 exactly: the same position, size, proportions and every edge and corner; if it is lettering, every letter stays clearly readable with its exact form and spacing.\nFill the whole shape densely and evenly with the material, right up to the edges, with its own real details, textures, highlights and shadows, so it looks like a real object or arrangement, not a flat pattern.\nThe white area of Picture 1 becomes [BACKGROUND], kept simple and clearly separate, so the shape reads instantly from a distance.\nNothing important spills beyond the outline. Keep the black and white guide itself out of the picture: no black fill, no white paper, no outlines from the guide. No extra text.",
+    prompt: "Create a completely new, full-colour picture in which the black shape from Picture 1 is built entirely out of [MATERIAL], in the material's own natural colours.\nThe outline must match Picture 1 exactly: the same position, size, proportions and every edge and corner; if it is lettering, every letter stays clearly readable with its exact form and spacing.\nFill the whole shape densely and evenly with the material, right up to the edges, with its own real details, textures, highlights and shadows, so it looks like a real object or arrangement, not a flat pattern.\nThe white area of Picture 1 is completely replaced by [BACKGROUND], filling the whole frame edge to edge in its own natural colours, so the shape reads instantly from a distance.\nNothing important spills beyond the outline. Keep the black and white guide itself out of the picture: nothing stays black or white because the guide was, no white paper, no outlines from the guide. No extra text.",
     licence: "no LoRA: the edit model alone" },
 ];
 // ✨ Edit with words: ready-made instructions (no download), e.g. old photo repair
@@ -5882,7 +5882,7 @@ const protoartApp = createApp({
       if (st.combine) return "🧩 Combine (FLUX.2 Klein)" + (st.combine.placed ? " · placed by hand" : " · placed by Klein") +
         (st.combine.cut_out ? " · cut out first" : "") + (st.combine.match_light ? " · light matched" : "");
       if (st.edit && st.edit.outpaint) return "↔ Expand (FLUX.2 Klein)";
-      if (d.kind === "word_edit") return "✨ Edit with words (FLUX.2 Klein)" + (st.edit && st.edit.painted ? " · painted area only" : "") +
+      if (d.kind === "word_edit") return `✨ Edit with words (${/h3/i.test(st.model || "") ? "MiniMax-H3-Image" : /flux3/i.test(st.model || "") ? "FLUX 3" : "FLUX.2 Klein"})` + (st.edit && st.edit.painted ? " · painted area only" : "") +
         (st.edit && st.edit.extra_pictures ? ` · ${st.edit.extra_pictures} extra picture${st.edit.extra_pictures > 1 ? "s" : ""}` : "") +
         (st.edit && st.edit.faces_redone ? ` · 🙂 ${st.edit.faces_redone} face${st.edit.faces_redone > 1 ? "s" : ""} kept close` : "");
       if (d.kind === "generated") return "Create (text to image)";
@@ -9351,12 +9351,15 @@ const protoartApp = createApp({
       // the recipe's own wording (it was trained on it); a prompt you wrote yourself is kept unless it was the last recipe's
       const mine = (f.prompt || "").trim() && !(old && f.prompt === old.prompt) && !EDIT_QUICK.some((q) => q.prompt === f.prompt);
       if (r && !mine) f.prompt = r.prompt;
-      if (r && r.set) Object.assign(f, r.set);
+      // a few looks take their own settings (🔬 Ultra-detail: keep faces and colours), only while they're picked
+      if (this._recipeSaved) { Object.assign(f, this._recipeSaved); this._recipeSaved = null; }
+      if (r && r.set) { this._recipeSaved = Object.fromEntries(Object.keys(r.set).map((k) => [k, f[k]])); Object.assign(f, r.set); }
       if (r && r.klein && !String(this.editModelId()).startsWith("flux2_klein")) {  // 🔬 Ultra-detail: Klein only
         const nine = this.editModel9();
+        this._recipeSaved = Object.assign(this._recipeSaved || {}, { edit_model: f.edit_model });  // back when you leave it
         f.edit_model = nine && !this.ramBlocked(nine) ? "flux2_klein9b_mlx_q4" : "flux2_klein_mlx_q4";
         this.status = `${r.label} runs on FLUX.2 Klein (${f.edit_model.includes("9b") ? "9B" : "4B"}): it keeps the photo's own detail and the face closer than MiniMax-H3.`;
-      }  // a few looks take their own settings (🔬 Ultra-detail: keep faces and colours)
+      }
       if (!r && old && f.prompt === old.prompt) f.prompt = "";
       if (r && r.files && !r.files["9b"] && this.form.edit_model === "flux2_klein9b_mlx_q4") this.status = `${r.label} is made for Klein 4B: it uses 4B.`;
       this.recipeMsg = "";
@@ -10871,7 +10874,7 @@ const protoartApp = createApp({
           if (rec.files && !this.editRecipeLora(rec)) return (this.error = `${rec.label} needs its LoRA first: press ⤓ Download under the recipe.`);
         }
         await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: shapeInit || f.init_image, prompt: tfb ? tfb.prompt : f.prompt, mask: shapeInit ? null : painted,
-                                          keep_faces: !painted && f.keep_faces !== false && (!rec || !!(rec.set && rec.set.keep_faces)), match_colors: !painted && !!f.match_colors,
+                                          keep_faces: !painted && f.keep_faces !== false && (!rec || !!(rec.set && rec.set.keep_faces)), match_colors: !painted && !!f.match_colors && !(rec && rec.group === "shape"),  // 🔤 never: the guide is black and white
                                           move_boxes: this.editModelId() === "flux3_klein_mlx_q4" && this.mvReady().length ? this.mvReady() : null,
                                           refs: tfb ? tfb.refs : (f.edit_refs || []).slice(0, this.editRefMax()), seed: f.seed, ...this.recipeEditArgs() });
         return;
