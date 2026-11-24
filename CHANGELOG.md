@@ -2,6 +2,7 @@
 
 ## 1.6.31
 
+- How to → 🔤 Fill a shape rewritten for the 4-step card; Library → About describes today's app and credits FLUX.2 [klein], MiniMax-H3-Image and the fonts.
 - 🔤 Fill a shape, a simpler card: 1 Pick a shape (Word / Shape / Your own, with its preview), 2 Fill it with, 3 Put it on, one line of help; 4 Speed (⚡ Quicker: 1 step / ✂ More accurate: the 2-step exact outline); your own font, stacking, ◐ Invert and a look to follow are under **More options**; the painting tools, Keep faces / colours, More pictures and Quick edits are hidden while it's picked.
 - 🔤 Fill a shape: **✂ Exact outline** (on by default for a word or a ready shape, `shapeExact`): step 1 the background on a blank picture, step 2 the material in the shape only (a paint mask from `shapeMask`; `mask_light: false` so the material keeps its colours, `crop_stitch: false`). The outline is exact; flowers no longer spill into a blob or get a black border.
 - 🔤 Fill a shape with FLUX.2 Klein: the guide is the shape in mid grey with soft edges (Klein copied the hard black edges as black outlines round the letters), and the wording forbids outlines, borders and drop shadows round the shape.
