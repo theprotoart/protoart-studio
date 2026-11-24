@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 🔬 Edit with words quick instruction "Ultra-detail, keep the face" (the user's 4K enhancement prompt, reordered so identity comes first and with "do not beautify"); quick instructions can now carry settings (`set`): this one turns on keep_faces and match_colors.
 - 🎭 Transform a person: 4 more looks, `tf_pop_art`, `tf_editorial`, `tf_surreal` and `tf_graffiti` (27 in all), each with a style box and item boxes (colours / speech bubble; outfit / set; the dream; tag word / wall). Pop art, Editorial and Graffiti have example tiles. The surreal look's prompt avoids famous paintings' motifs (its first version produced melting clocks and a floating apple).
 - 🧊 Make 3D is back (Tools), as a 3D Gaussian splat with Speridlabs' Idol (`idol3d.py`, `idol_worker.py`; pinned
   commit of github.com/speridlabs/idol-sdk, Apache-2.0), only on Macs with 16 GB or more (greyed out below).

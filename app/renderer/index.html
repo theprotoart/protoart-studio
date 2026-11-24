@@ -3665,7 +3665,7 @@
           <button v-if="editModelId() === 'h3_image'" class="primary small h3-write" @click="h3ComposePrompt" title="Writes the instruction from what each picture brings; anything already in the prompt is kept after it as details">✍ Write the prompt from the pictures</button>
           <label>Quick edits <span class="hint">a ready-made instruction in the prompt; edit it if you like</span></label>
           <div class="seg seg-wrap edit-recipes">
-            <button v-for="q in EDIT_QUICK()" :key="q.label" @click="useEditQuick(q)" :title="q.prompt">{{ q.label }}</button>
+            <button v-for="q in EDIT_QUICK()" :key="q.label" @click="useEditQuick(q)" :title="(q.tip ? q.tip + '\n\n' : '') + q.prompt">{{ q.label }}</button>
           </div>
         </template>
         <template v-else-if="form.i2i_mode === 'combine'">
