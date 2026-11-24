@@ -2,6 +2,7 @@
 
 ## 1.6.31
 
+- 🔤 Fill a shape with FLUX.2 Klein: the guide is the shape in mid grey with soft edges (Klein copied the hard black edges as black outlines round the letters), and the wording forbids outlines, borders and drop shadows round the shape.
 - Edit with words: the 🧩 Two pictures → one, 🎭 Transform a person and 🔤 Fill a shape groups fold (keys `pair2`, `transform`, `shapes` in the Image to image folds, with collapse all / expand all), showing the picked look when folded.
 - 🔤 Fill a shape always uses its own wording with your boxes (an older prompt left in the prompt box had been used instead, so “yellow flowers” came out as red roses), and the wording now starts with the background, which must fill the whole frame (no white left), then the shape. The 3 · Prompt box is hidden while Fill a shape is picked (its boxes are the prompt).
 - The installer build's tests no longer leave a `tmp…` folder (with `models--a--b` / `models--c--d` inside) in your home folder each time: `test_download_retry.py` now uses the system temp folder and cleans up.

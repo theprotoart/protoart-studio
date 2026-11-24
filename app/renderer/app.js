@@ -639,12 +639,12 @@ const EDIT_RECIPES = [
   // 🔤 Fill a shape: Picture 1 is a black shape (or a typed word, drawn for you) on white; the edit model builds the
   // picture inside that exact outline (much more faithful than starting Create from the shape with Denoise)
   { id: "tf_shape", label: "🔤 Fill a shape", group: "shape", by: "", files: null, p1: "the shape (black on white)",
-    head: "Picture 1 is the shape guide: a solid black area and a white area.",
+    head: "Picture 1 is the shape guide: a solid dark area (the shape) on a light area (the background).",
     tip: "Pick the shape (a word in a thick font, a ready shape like a heart or a star, or your own black shape on white), say what it's made of and what's around it, and press Generate. MiniMax-H3 keeps the outline best; FLUX.2 Klein is quicker.",
     slots: [{ id: "style", kind: "style", label: "A look to follow" },
             { id: "material", kind: "item", label: "What it's made of", ph: "[MATERIAL]", dflt: "a dense field of blooming red tulips, seen from above" },
             { id: "around", kind: "item", label: "What's around it", ph: "[BACKGROUND]", dflt: "a green meadow of short grass seen from a drone, soft morning light" }],
-    prompt: "Make a brand-new, full-colour, realistic picture. Picture 1 is only a layout guide: use its black shape for the outline and nothing else from it.\nThe background: [BACKGROUND] fills the entire frame from edge to edge, in its own natural colours, lit and detailed like a real scene. There is no white, grey or plain empty area anywhere: every part outside the shape shows [BACKGROUND].\nThe shape: in the exact outline of the black shape from Picture 1 (same position, size, proportions, every edge and corner), the shape is made entirely of [MATERIAL], in its own natural colours, packed densely right up to the edges, with real texture, highlights and shadows, sitting on or in the background as part of the same scene. If the shape is lettering, every letter stays clearly readable with its exact form and spacing.\nThe shape reads instantly from a distance against the background. Nothing black or white remains from the guide, and there are no outlines from it. No extra text.",
+    prompt: "Make a brand-new, full-colour, realistic picture. Picture 1 is only a layout guide: use its dark shape for the outline and nothing else from it: not its colours, not its edges.\nThe background: [BACKGROUND] fills the entire frame from edge to edge, in its own natural colours, lit and detailed like a real scene. There is no white, grey or plain empty area anywhere: every part outside the shape shows [BACKGROUND].\nThe shape: in the exact outline of the dark shape from Picture 1 (same position, size, proportions, every edge and corner), the shape is made entirely of [MATERIAL], in its own natural colours, packed densely right up to the edges, with real texture, highlights and shadows, sitting on or in the background as part of the same scene. If the shape is lettering, every letter stays clearly readable with its exact form and spacing.\nThe shape reads instantly from a distance against the background. The shape has no outline, border, stroke or drop shadow: where the material ends, the background begins. Nothing dark, grey or white remains from the guide. No extra text.",
     licence: "no LoRA: the edit model alone" },
 ];
 // ✨ Edit with words: ready-made instructions (no download), e.g. old photo repair
@@ -7310,10 +7310,25 @@ const protoartApp = createApp({
       cv.getContext("2d").drawImage(big, 0, 0, cv.width, cv.height);
     },
     async shapeRender() {  // -> the saved path of the shape picture (drawn again only when it changed)
-      const key = JSON.stringify([this.shp.how, this.shp.word, this.shp.font, this.shp.stack, this.shp.ready, this.shp.invert]);
+      // FLUX.2 Klein copies hard black edges into the picture (as black outlines round the letters): it gets a softer guide,
+      // the shape in mid grey with blurred edges; MiniMax-H3 follows the plain black shape cleanly
+      const soft = String(this.editModelId()).startsWith("flux2_klein");
+      const key = JSON.stringify([this.shp.how, this.shp.word, this.shp.font, this.shp.stack, this.shp.ready, this.shp.invert, soft]);
       if (this._shapeKey === key && this._shapePath && this.form.init_image === this._shapePath) return this._shapePath;
-      const [W, H] = this.shapeSize(), cv = document.createElement("canvas");
+      const [W, H] = this.shapeSize();
+      let cv = document.createElement("canvas");
       if (!(await this.shapeDraw(cv, W, H))) { this.error = "🔤 Fill a shape: type a word first (or pick a ready shape)."; return null; }
+      if (soft) {
+        const out = document.createElement("canvas"), g = out.getContext("2d");
+        out.width = W; out.height = H;
+        g.fillStyle = this.shp.invert ? "#000" : "#fff"; g.fillRect(0, 0, W, H);
+        g.filter = `blur(${Math.round(Math.min(W, H) / 180)}px)`;
+        g.drawImage(cv, 0, 0);
+        g.filter = "none";
+        g.globalCompositeOperation = "lighter";  // black → mid grey, white stays white
+        g.fillStyle = "rgb(118,118,118)"; g.fillRect(0, 0, W, H);
+        cv = out;
+      }
       try {
         const r = await call("save_drawing", { data: cv.toDataURL("image/png"), name: "shape" });
         if (!r || !r.path) return null;
