@@ -390,7 +390,7 @@ const I2I_PICTURE_KEYS = ["init_image", "control_image", "edit_refs"];
 // never bundled). Each takes the picture above as “Image 1” and the first extra picture as “Image 2”.
 const POSE_VIEWS = { front: "Front", diag: "¾ turn", side: "Side", above: "From above", below: "From below" };
 // 🎭 Transform a person: example pictures for the preset tiles (made with the presets themselves, in assets/presets)
-const TF_THUMBS = new Set(["tf_action_figure", "tf_pop_art", "tf_claymation", "tf_crime_game", "tf_pixel_sprite", "tf_fighter_select", "tf_movie_hero", "tf_oil_portrait", "tf_trading_card", "tf_retro_console",
+const TF_THUMBS = new Set(["tf_action_figure", "tf_pop_art", "tf_editorial", "tf_claymation", "tf_crime_game", "tf_pixel_sprite", "tf_fighter_select", "tf_movie_hero", "tf_oil_portrait", "tf_trading_card", "tf_retro_console",
   "tf_crochet", "tf_vinyl_toy", "tf_figurine_desk", "tf_caricature", "tf_anime", "tf_sticker_pack", "tf_half_anime", "tf_90s_film", "tf_anime_still", "tf_comic_cover", "tf_bobblehead", "tf_brick_fig", "tf_miniature", "tf_turnaround"]);
 const EDIT_RECIPES = [
   // two-picture recipes without a LoRA (files: null): they work with any edit model (Klein, FLUX 3, MiniMax-H3)
