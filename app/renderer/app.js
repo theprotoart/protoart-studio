@@ -1108,7 +1108,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.30";
+const APP_VERSION = "1.6.31";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1560,6 +1560,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.6.31: Fill a shape follows your words", items: [
+              "<b>🔤 Fill a shape always uses your boxes</b>: an older prompt left in the prompt box could be used instead (so “yellow flowers” came out as red roses). Its wording now starts with the background, which fills the whole frame with no white left, then the shape. The 3 · Prompt box is hidden while Fill a shape is picked: the boxes are the prompt.",
+              "Installer builds no longer leave a <code>tmp…</code> folder in your home folder.",
+            ] },
             { h: "1.6.30: Fill a shape fixes and your own fonts", items: [
               "<b>🔤 Fill a shape keeps real colours</b>: 🎨 Keep the original's colours is never used for it any more (it had turned red roses black and kept the background white), and it asks for full natural colours and a background that fills the frame.",
               "<b>🔤 Your own font</b> in Fill a shape: any font installed on this Mac, or 📂 a .ttf / .otf font file.",
