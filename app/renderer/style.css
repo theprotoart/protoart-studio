@@ -594,3 +594,5 @@ details.fine summary { cursor: pointer; }
 .shape-col textarea { width: 100%; resize: vertical; font-size: 12.5px; }
 .shape-row { display: flex; gap: 8px; }
 .shape-small { width: 90px; aspect-ratio: 1 / 1; }
+.shape-invert { align-self: center; padding: 5px 16px; }
+.shape-invert.on { outline: 2px solid var(--accent, #f5a623); }

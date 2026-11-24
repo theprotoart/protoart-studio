@@ -3503,13 +3503,13 @@
                 <div v-else-if="shp.how === 'ready'" class="shape-ready">
                   <button v-for="sh in shapeList()" :key="sh.id" :class="{on: shp.ready === sh.id}" :title="sh.tip" @click="shp.ready = sh.id; shpSave()">{{ sh.label }}</button>
                 </div>
-                <label class="check" title="Swap black and white: the material fills everything around the shape, and the shape itself becomes the plain part (letters cut out of a field of flowers)"><input type="checkbox" v-model="shp.invert" @change="shpSave"> ◐ Invert: fill around the shape</label>
                 <div v-if="shp.how === 'own'" class="pair-slot shape-own" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
                      @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()" title="A black shape on white: a silhouette, a logo, a cut-out">
                   <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt="" :style="shp.invert ? {filter: 'invert(1)'} : null">
                   <div v-else class="pair-empty"><b>Your shape</b><span>black on white · drop or click</span></div>
                 </div>
                 <canvas v-else ref="shapePrev" class="shape-prev" title="The shape the picture is built in"></canvas>
+                <button class="shape-invert" :class="{on: shp.invert}" @click="shp.invert = !shp.invert; shpSave()" title="Swap black and white: the black part becomes white and the white part black (the material then fills around the shape)">◐ Invert</button>
               </div>
               <div class="shape-col">
                 <div class="shape-step"><b>2</b> What it's made of</div>
