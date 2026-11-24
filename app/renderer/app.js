@@ -10761,7 +10761,8 @@ const protoartApp = createApp({
     async generateI2I() {
       if (!["edit", "remove"].includes(this.form.i2i_mode)) this.dropMismatchedLoras();
       const f = this.form;
-      if (!f.init_image) return (this.error = "Add a picture first.");
+      const shapeDrawn = f.i2i_mode === "edit" && f.edit_recipe === "tf_shape" && this.shp.how !== "own";  // 🔤 drawn for you
+      if (!f.init_image && !shapeDrawn) return (this.error = "Add a picture first.");
       if (f.i2i_mode === "faceswap") {  // 🔁 inswapper_128: no model or prompt involved
         const sw = f.swap || {};
         if (!sw.face) return (this.error = "Add the photo of the face to use.");
