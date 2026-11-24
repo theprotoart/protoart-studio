@@ -1,4 +1,5 @@
 """A download cut short by the network is tried again, after its partial files are cleared (only that model's)."""
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -9,7 +10,7 @@ import engine  # noqa: E402
 
 
 def test_retry_after_cut_short():
-    t = Path(tempfile.mkdtemp(dir=Path.home()))
+    t = Path(tempfile.mkdtemp(prefix="protoart_test_"))  # the system temp folder (it used to be left in your home folder)
     blobs = t / "models--a--b" / "blobs"
     blobs.mkdir(parents=True)
     (blobs / "x.incomplete").write_text("1")
@@ -41,6 +42,7 @@ def test_retry_after_cut_short():
             pass
     finally:
         engine._hub_dir, engine.time.sleep = hub, sleep
+        shutil.rmtree(t, ignore_errors=True)
 
 
 if __name__ == "__main__":

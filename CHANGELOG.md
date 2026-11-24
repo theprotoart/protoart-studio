@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The installer build's tests no longer leave a `tmp…` folder (with `models--a--b` / `models--c--d` inside) in your home folder each time: `test_download_retry.py` now uses the system temp folder and cleans up.
+
 ## 1.6.30
 
 - 🔤 Fill a shape: **Your own font…**: any font installed on this Mac (the Replace text list), or a .ttf / .otf / .woff file loaded for the session (`FontFace`).
