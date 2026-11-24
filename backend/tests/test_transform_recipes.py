@@ -10,11 +10,15 @@ def _presets():
     return re.findall(r'\{ id: "(tf_\w+)".*?slots: \[(.*?)\],\n    prompt: "(.*?)",\n', BLOCK, re.S)
 
 
+def _nostyle():
+    return set(re.findall(r'\{ id: "(tf_\w+)"[^\n]*\n[^\n]*nostyle: true', BLOCK))
+
+
 def test_presets():
     ids = [p[0] for p in _presets()]
-    assert len(ids) == 28 and len(set(ids)) == 28  # 27 looks + 🔤 Fill a shape
+    assert len(ids) == 29 and len(set(ids)) == 29  # 27 looks + 🔬 Ultra-detail + 🔤 Fill a shape
     for pid, slots, prompt in _presets():
-        assert 'kind: "style"' in slots, pid
+        assert 'kind: "style"' in slots or pid in _nostyle(), pid
         for ph in re.findall(r"\[[A-Z0-9 ]+\]", prompt):
             assert f'ph: "{ph}"' in slots, f"{pid}: {ph} has no box"
         for m in re.finditer(r'kind: "item"[^}]*', slots):
