@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 🎭 Transform a person: 4 more looks, `tf_pop_art`, `tf_editorial`, `tf_surreal` and `tf_graffiti` (27 in all), each with a style box and item boxes (colours / speech bubble; outfit / set; the dream; tag word / wall). No example tiles yet.
 - 🧊 Make 3D is back (Tools), as a 3D Gaussian splat with Speridlabs' Idol (`idol3d.py`, `idol_worker.py`; pinned
   commit of github.com/speridlabs/idol-sdk, Apache-2.0), only on Macs with 16 GB or more (greyed out below).
   Installed on first use like the old Hunyuan3D engine: Idol's code and plyfile, plus a small stand-in for

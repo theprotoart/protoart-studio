@@ -12,7 +12,7 @@ def _presets():
 
 def test_presets():
     ids = [p[0] for p in _presets()]
-    assert len(ids) == 23 and len(set(ids)) == 23
+    assert len(ids) == 27 and len(set(ids)) == 27
     for pid, slots, prompt in _presets():
         assert 'kind: "style"' in slots, pid
         for ph in re.findall(r"\[[A-Z0-9 ]+\]", prompt):
