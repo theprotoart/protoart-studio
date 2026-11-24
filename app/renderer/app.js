@@ -390,6 +390,26 @@ const I2I_PICTURE_KEYS = ["init_image", "control_image", "edit_refs"];
 // never bundled). Each takes the picture above as “Image 1” and the first extra picture as “Image 2”.
 const POSE_VIEWS = { front: "Front", diag: "¾ turn", side: "Side", above: "From above", below: "From below" };
 // 🎭 Transform a person: example pictures for the preset tiles (made with the presets themselves, in assets/presets)
+// 🔤 Fill a shape: thick fonts built into the app (assets/fonts: Protoart's own, and SIL Open Font License fonts)
+const SHAPE_FONTS = [
+  { name: "Protoart Bubble", css: "'Protoart Bubble', 'Titan One', sans-serif", tip: "Protoart original: very fat, round" },
+  { name: "Protoart Block", css: "'Protoart Block', Impact, sans-serif", tip: "Protoart original: very heavy, square" },
+  { name: "Titan One", css: "'Titan One', Impact, sans-serif", tip: "fat and friendly" },
+  { name: "Bowlby One SC", css: "'Bowlby One SC', Impact, sans-serif", tip: "heavy poster capitals" },
+  { name: "Luckiest Guy", css: "'Luckiest Guy', Impact, sans-serif", tip: "big, round cartoon capitals" },
+  { name: "Protoart Kaboom", css: "'Protoart Kaboom', Impact, sans-serif", tip: "Protoart original: blocky and bouncy" },
+];
+// 🔤 Fill a shape: ready shapes (SVG paths in a 100 × 100 box)
+const SHAPES = [
+  { id: "heart", label: "♥", tip: "A heart", path: "M50 92 C20 70 2 52 2 32 C2 16 14 5 28 5 C38 5 46 11 50 20 C54 11 62 5 72 5 C86 5 98 16 98 32 C98 52 80 70 50 92 Z" },
+  { id: "star", label: "★", tip: "A star", path: "M50 2 L61.8 35.5 L97.6 35.5 L68.9 57.1 L79.4 91.5 L50 71 L20.6 91.5 L31.1 57.1 L2.4 35.5 L38.2 35.5 Z" },
+  { id: "circle", label: "●", tip: "A circle", path: "M50 3 A47 47 0 1 1 49.99 3 Z" },
+  { id: "moon", label: "☾", tip: "A crescent moon", path: "M62 4 A46 46 0 1 0 96 66 A38 38 0 1 1 62 4 Z" },
+  { id: "bolt", label: "⚡", tip: "A lightning bolt", path: "M58 2 L16 56 L44 56 L36 98 L84 38 L55 38 L66 2 Z" },
+  { id: "diamond", label: "◆", tip: "A diamond", path: "M50 2 L94 50 L50 98 L6 50 Z" },
+  { id: "drop", label: "💧", tip: "A drop", path: "M50 2 C50 2 86 44 86 64 C86 84 70 98 50 98 C30 98 14 84 14 64 C14 44 50 2 50 2 Z" },
+  { id: "flower", label: "✿", tip: "A four-petal flower", path: "M27 27 a23 23 0 1 0 46 0 a23 23 0 1 0 -46 0 Z M50 50 a23 23 0 1 0 46 0 a23 23 0 1 0 -46 0 Z M27 73 a23 23 0 1 0 46 0 a23 23 0 1 0 -46 0 Z M4 50 a23 23 0 1 0 46 0 a23 23 0 1 0 -46 0 Z" },
+];
 const TF_THUMBS = new Set(["tf_action_figure", "tf_pop_art", "tf_editorial", "tf_graffiti", "tf_surreal", "tf_claymation", "tf_crime_game", "tf_pixel_sprite", "tf_fighter_select", "tf_movie_hero", "tf_oil_portrait", "tf_trading_card", "tf_retro_console",
   "tf_crochet", "tf_vinyl_toy", "tf_figurine_desk", "tf_caricature", "tf_anime", "tf_sticker_pack", "tf_half_anime", "tf_90s_film", "tf_anime_still", "tf_comic_cover", "tf_bobblehead", "tf_brick_fig", "tf_miniature", "tf_turnaround"]);
 const EDIT_RECIPES = [
@@ -614,9 +634,8 @@ const EDIT_RECIPES = [
   // picture inside that exact outline (much more faithful than starting Create from the shape with Denoise)
   { id: "tf_shape", label: "🔤 Fill a shape", group: "shape", by: "", files: null, p1: "the shape (black on white)",
     head: "Picture 1 is the shape guide: a solid black shape (or black letters) on a plain white background.",
-    tip: "Type a word (it's drawn as bold black letters for you) or drop a black shape on white (a silhouette, a logo, a cut-out), then say what it's made of and what's around it. MiniMax-H3 keeps the outline best; FLUX.2 Klein is quicker.",
-    slots: [{ id: "word", kind: "word", label: "A word (or drop a shape)" },
-            { id: "style", kind: "style", label: "A look to follow" },
+    tip: "Pick the shape (a word in a thick font, a ready shape like a heart or a star, or your own black shape on white), say what it's made of and what's around it, and press Generate. MiniMax-H3 keeps the outline best; FLUX.2 Klein is quicker.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow" },
             { id: "material", kind: "item", label: "What it's made of", ph: "[MATERIAL]", dflt: "a dense field of blooming red tulips, seen from above" },
             { id: "around", kind: "item", label: "What's around it", ph: "[BACKGROUND]", dflt: "a green meadow of short grass seen from a drone, soft morning light" }],
     prompt: "Create a completely new picture in which the black shape from Picture 1 is built entirely out of [MATERIAL].\nThe outline must match Picture 1 exactly: the same position, size, proportions and every edge and corner; if it is lettering, every letter stays clearly readable with its exact form and spacing.\nFill the whole shape densely and evenly with the material, right up to the edges, with its own real details, textures, highlights and shadows, so it looks like a real object or arrangement, not a flat pattern.\nThe white area of Picture 1 becomes [BACKGROUND], kept simple and clearly separate, so the shape reads instantly from a distance.\nNothing important spills beyond the outline. Keep the black and white guide itself out of the picture: no black fill, no white paper, no outlines from the guide. No extra text.",
@@ -1539,7 +1558,8 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Next: 🧊 Make 3D is back, as a 3D splat (16 GB+ Macs)", items: [
-              "<b>🔤 Fill a shape</b> (Image to image → ✨ Edit with words): type a word (drawn for you as bold black letters) or drop a black shape on white (a silhouette, a logo, a cut-out), say what it's made of (a field of tulips, Italian food, autumn leaves, neon tubes) and what's around it, and press Generate. The edit model builds the picture inside the exact outline, so letters stay readable: much more faithful than 🔤 Word / ⬛ Shape with Denoise in Create. MiniMax-H3 keeps the outline best; FLUX.2 Klein is quicker.",
+              "<b>🔤 Fill a shape</b> (Image to image → ✨ Edit with words): <b>1</b> pick the shape: <b>🔤 Word</b> (type it and pick one of 6 thick built-in fonts; tick Stack for letters on top of each other), <b>⭐ Shape</b> (a heart, star, circle, moon, lightning bolt, diamond, drop or flower) or <b>🖼 My own</b> (a black shape on white: a silhouette, a logo, a cut-out); the preview shows it. <b>2</b> say what it's made of (“a dense field of blooming red tulips, seen from above”) and <b>3</b> what's around it, then press Generate. The edit model builds the picture inside the exact outline, much more faithfully than 🔤 Word / ⬛ Shape with Denoise in Create. MiniMax-H3 keeps the outline best; FLUX.2 Klein is quicker.",
+              "<b>Two new thick fonts of our own</b>: <b>Protoart Bubble</b> (very fat, round) and <b>Protoart Block</b> (very heavy, square), made for 🔤 Fill a shape and also in 🔤 Replace text's Font list.",
               "<b>🔬 Ultra-detail, keep the face</b> (Image to image → ✨ Edit with words, a quick instruction): redraws a photo's fine detail (pores, hair strands, lashes, fabric weave, stitching) without changing the person, the light or the colours. It also ticks 🙂 Keep faces close to the original (Klein) and 🎨 Keep the original's colours. The edit works at the 🧠 Work size, so pick a big one (MiniMax-H3: 1536 or 2048); for more pixels afterwards, run Tools → ⏩ Upscale on the result.",
               "<b>4 more looks in 🎭 Transform a person</b>: <b>🟡 Pop art portrait</b> (a 1960s screen print: halftone dots, loud colours, four colour panels; pick the colours and add a speech bubble), <b>📰 Editorial fashion shoot</b> (a magazine fashion photo; pick the outfit and the set), <b>🌀 Surreal dreamscape</b> (an original dreamlike oil painting with impossible things around you, like paper fish in the air and a teacup lighthouse) and <b>🎨 Graffiti mural</b> (a spray-painted street-art mural on a city wall, with an optional graffiti tag of a word).",
               "<b>🧊 Make 3D</b> (Tools, Macs with 16 GB or more): Speridlabs' <b>Idol</b> finds the object in your picture, frames it and builds it in 3D, the sides the picture never showed included, as a <b>3D Gaussian splat</b>. Turn it around right in the module (drag to turn, scroll to zoom), then <b>💾 Save .ply…</b> for a splat viewer, Blender, Unity or Unreal (with a splat add-on). Pick <b>⚡ Quick</b>, <b>Standard</b> or <b>★ Best</b>; on 24 GB Macs and more, Standard and Best also add more detail. The result goes to the Library with a preview; its details have <b>🧊 View in 3D</b> and <b>💾 Save .ply…</b>.",
@@ -2264,6 +2284,11 @@ const protoartApp = createApp({
               "<b>One-time setup</b>: 1. Sign in on Hugging Face (a free account), open <code>huggingface.co/facebook/dinov3-vith16plus-pretrain-lvd1689m</code> (📋 Copy in the module) and accept Meta's DINOv3 licence. 2. On Hugging Face → Settings → Access Tokens, make a <b>Read</b> token and paste it into the module. The first 3D then downloads about 5 GB: Idol (Apache-2.0), DINOv3 and FLUX.2 [klein]'s image encoder (Apache-2.0).",
               "<b>Needs 16 GB of memory or more</b>: on 8 GB Macs the module is greyed out (Idol's image encoders and 3D model don't fit together). If it says it ran out of memory, close other apps or pick ⚡ Quick.",
             ] },
+            { h: "🔤 Fill a shape: a word or a shape made of anything", items: [
+              "Image to image → ✨ Edit with words → <b>🔤 Fill a shape</b>. <b>1 The shape</b>: <b>🔤 Word</b>: type a word or two and pick a font (Protoart Bubble, Protoart Block, Titan One, Bowlby One SC, Luckiest Guy, Protoart Kaboom); <b>Stack the letters</b> puts them on top of each other. <b>⭐ Shape</b>: a heart, star, circle, moon, lightning bolt, diamond, drop or flower. <b>🖼 My own</b>: drop a black shape on a white background. The preview shows the shape the picture is built in.",
+              "<b>2 What it's made of</b> and <b>3 What's around it</b>: e.g. “a dense field of blooming red tulips, seen from above” in “a green meadow seen from a drone” (left empty, that's what you get), “Italian food” on “a dark slate table”, “autumn leaves” on “a forest floor”, “glowing neon tubes” on “a brick wall at night”. Describing the scene from above or straight on helps the shape read clearly. Optional: a style picture to follow.",
+              "Use <b>MiniMax-H3</b> when the outline matters most, <b>FLUX.2 Klein</b> for quicker tries. Bold, simple shapes work best: thin lines and small gaps get lost in the material.",
+            ] },
             { h: "⏩ Which upscaler? (Instant)", items: [
               "Tools → <b>Enhance & upscale</b> → Speed <b>⏩ Instant</b> makes the picture bigger in seconds with an upscaler alone (no new detail invented). Not sure? Use the buttons under the list: <b>⚡ Fastest</b> (<b>UltraSharp V2 Lite</b> for anything, <b>Real-ESRGAN fast</b>, <b>AnimeVideo v3</b> for anime) or <b>★ Best quality</b> (<b>UltraSharp V2</b> for anything, <b>Nomos WebPhoto</b> for phone and web photos, <b>AnimeSharp</b> for anime, line art and text). The list shows each one's speed; hover for what it's best at.",
               "<b>For everything:</b> 4x-UltraSharp (built in, crisp), UltraSharp V2 (most detail; slow: 1–3 min for a 1024 px picture on an 8 GB Mac), UltraSharp V2 Lite (fast), Real-ESRGAN fast. <b>Photos:</b> Real-ESRGAN (old or compressed pictures), Real-ESRGAN 2× (made for 2×), Nomos WebPhoto (noise, lens blur, JPEG/WebP), Nomos8kSC (clean photos, natural texture). <b>Anime, drawings & text:</b> AnimeSharp (extra crisp), Real-ESRGAN Anime (clean lines, flat colours), AnimeVideo v3 (fastest, a little softer).",
@@ -2899,6 +2924,8 @@ const protoartApp = createApp({
       zstyle: { applied: null, cat: "Photo", q: "" },  // 🎨 Styles (ZImagePowerNodes templates)
       relightJob: false,
       // 🧊 Make 3D (Idol, 16 GB+ Macs): quality, kind of picture, the last result and the viewer's points
+      // 🔤 Fill a shape: where the shape comes from (a word in a built-in font, a ready shape, or your own picture)
+      shp: Object.assign({ how: "word", word: "", font: "Protoart Bubble", stack: false, ready: "heart" }, loadJSON("protoart.fillshape", {})),
       spl: { job: false, status: null, last: null, quality: loadJSON("protoart.splat.quality", "standard"), mode: "auto",
              view: null, loading: false },
       txHint: false,  // Image to image: after 🔤 Text selection, point to Tools → Replace text
@@ -4261,6 +4288,7 @@ const protoartApp = createApp({
   },
 
   watch: {
+    "form.edit_recipe"(v) { if (v === "tf_shape") this.$nextTick(() => this.shapePreview()); },
     family() {  // Pony ↔ SD 1.5: Create's ControlNet switches to the same kind made for the new model type
       const cc = this.form.cc;
       if (cc && cc.type && this.ccTypeNow && this.ccTypeNow !== cc.type) { cc.type = this.ccTypeNow; this.ccMap = null; }
@@ -7246,26 +7274,74 @@ const protoartApp = createApp({
         this.status = `“${word}” is the shape: now say what the letters are made of in the prompt (e.g. “the word ${word} made of Italian food on a dark background”), then Generate. Lower Denoise keeps the letters sharper, higher lets the food spill over.`;
       } catch (e) { this.error = "Couldn't make the word picture: " + (e.message || e); }
     },
-    async shapeWordPicture(word) {  // 🔤 a word as bold black letters on white (wide for a long word) -> its saved path
-      const w = word.toUpperCase(), lines = w.split(/\s+/).filter(Boolean);
-      const longest = Math.max(...lines.map((l) => l.length));
-      const [W, H] = lines.length >= 3 ? [1024, 1365] : longest <= 3 && lines.length === 1 ? [1024, 1024] : [1536, lines.length > 1 ? 1024 : 864];
-      const cv = document.createElement("canvas");
+    shapeFonts() { return SHAPE_FONTS; },
+    shapeList() { return SHAPES; },
+    shpSave() { saveJSON("protoart.fillshape", this.shp); this.$nextTick(() => this.shapePreview()); },
+    shapeSize() {  // the picture's size: square for a ready shape, wide for a long word, tall for stacked letters
+      const s = this.shp;
+      if (s.how === "ready") return [1024, 1024];
+      const lines = this.shapeLines();
+      const longest = Math.max(1, ...lines.map((l) => l.length));
+      if (lines.length >= 3) return [1024, 1365];
+      if (lines.length === 1 && longest <= 3) return [1024, 1024];
+      return [1536, lines.length > 1 ? 1024 : 864];
+    },
+    shapeLines() {
+      const w = String(this.shp.word || "").trim().toUpperCase();
+      if (!w) return [];
+      return this.shp.stack ? [...w.replace(/\s+/g, "")] : w.split(/\s+/).filter(Boolean);
+    },
+    async shapeDraw(cv, W, H) {  // the shape in black on white onto a canvas (fonts loaded first)
+      const s = this.shp, g = cv.getContext("2d");
       cv.width = W; cv.height = H;
-      const g = cv.getContext("2d");
       g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, H);
-      g.fillStyle = "#000000"; g.textAlign = "center"; g.textBaseline = "middle";
-      const font = (px) => `900 ${px}px "Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif`;
+      g.fillStyle = "#000000";
+      if (s.how === "ready") {
+        const sh = SHAPES.find((x) => x.id === s.ready) || SHAPES[0];
+        const k = Math.min(W, H) * 0.86 / 100;
+        g.save(); g.translate(W / 2 - 50 * k, H / 2 - 50 * k); g.scale(k, k);
+        g.fill(new Path2D(sh.path), "nonzero"); g.restore();
+        return true;
+      }
+      const lines = this.shapeLines();
+      if (!lines.length) return false;
+      const fam = SHAPE_FONTS.find((x) => x.name === s.font) || SHAPE_FONTS[0];
+      try { await document.fonts.load(`900 100px ${fam.css}`); } catch {}
+      const font = (px) => `900 ${px}px ${fam.css}`;
+      g.textAlign = "center"; g.textBaseline = "alphabetic";
       let px = H;
-      for (const ln of lines) { g.font = font(100); px = Math.min(px, (W * 0.84) / Math.max(1, g.measureText(ln).width) * 100); }
-      px = Math.min(px, (H * 0.8) / (lines.length * 1.0));
+      for (const ln of lines) { g.font = font(100); px = Math.min(px, (W * 0.86) / Math.max(1, g.measureText(ln).width) * 100); }
+      g.font = font(100);
+      const m = g.measureText("H"), capH = (m.actualBoundingBoxAscent || 72) / 100;  // cap height per px of font size
+      const gap = 0.28;
+      px = Math.min(px, (H * 0.84) / (lines.length * capH + (lines.length - 1) * capH * gap));
       g.font = font(px);
-      const step = px * 1.0, top = H / 2 - (step * (lines.length - 1)) / 2;
+      const step = px * capH * (1 + gap), block = px * capH * lines.length + px * capH * gap * (lines.length - 1);
+      const top = (H - block) / 2 + px * capH;
       lines.forEach((ln, i) => g.fillText(ln, W / 2, top + i * step));
+      return true;
+    },
+    async shapePreview() {
+      const cv = this.$refs.shapePrev;
+      if (!cv || this.shp.how === "own") return;
+      const [W, H] = this.shapeSize();
+      const k = 240 / Math.max(W, H);
+      const big = document.createElement("canvas");
+      await this.shapeDraw(big, W, H);
+      cv.width = Math.round(W * k); cv.height = Math.round(H * k);
+      cv.getContext("2d").drawImage(big, 0, 0, cv.width, cv.height);
+    },
+    async shapeRender() {  // -> the saved path of the shape picture (drawn again only when it changed)
+      const key = JSON.stringify([this.shp.how, this.shp.word, this.shp.font, this.shp.stack, this.shp.ready]);
+      if (this._shapeKey === key && this._shapePath && this.form.init_image === this._shapePath) return this._shapePath;
+      const [W, H] = this.shapeSize(), cv = document.createElement("canvas");
+      if (!(await this.shapeDraw(cv, W, H))) { this.error = "🔤 Fill a shape: type a word first (or pick a ready shape)."; return null; }
       try {
-        const r = await call("save_drawing", { data: cv.toDataURL("image/png"), name: "word" });
-        return r && r.path;
-      } catch (e) { this.error = "Couldn't draw the word: " + (e.message || e); return null; }
+        const r = await call("save_drawing", { data: cv.toDataURL("image/png"), name: "shape" });
+        if (!r || !r.path) return null;
+        this._shapeKey = key; this._shapePath = r.path;
+        return r.path;
+      } catch (e) { this.error = "Couldn't draw the shape: " + (e.message || e); return null; }
     },
     async useAsShape(rec) {  // ⬛ a picture (a cut-out, logo, silhouette, drawing) -> a solid shape to start a picture from in Create
       const p = rec && (rec.path || rec);
@@ -10818,15 +10894,13 @@ const protoartApp = createApp({
         this.error = "";
         const painted = this.maskIsFor("i2i", f.init_image) ? this.mask.data : null;
         const rec = this.editRecipe();
-        if (rec && rec.group === "shape") {  // 🔤 Fill a shape: a typed word is drawn as Picture 1
-          const word = String((f.tf.words || {}).word || "").trim();
-          if (word && !(this._shapeWord && this._shapeWord.word === word && this._shapeWord.path === f.init_image)) {
-            const path = await this.shapeWordPicture(word);
+        if (rec && rec.group === "shape") {  // 🔤 Fill a shape: a word or a ready shape is drawn as Picture 1
+          if (this.shp.how !== "own") {
+            const path = await this.shapeRender();
             if (!path) return;
             f.init_image = path; this.controlMap = null;
-            this._shapeWord = { word, path };
           }
-          if (!f.init_image) return (this.error = "🔤 Fill a shape: type a word, or drop a black shape on white in the first box.");
+          if (!f.init_image) return (this.error = "🔤 Fill a shape: drop your black shape on white in the box first.");
         }
         const tfb = rec && rec.slots ? this.tfBuild(rec) : null;  // 🎭 Transform a person: its boxes
         if (tfb && tfb.refs.length > this.editRefMax())

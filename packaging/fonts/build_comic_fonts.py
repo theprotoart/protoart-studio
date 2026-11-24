@@ -7,10 +7,12 @@ font draws those skeletons with a different pen:
   * Protoart Kaboom       sound effects: a heavy square pen (blocky strokes, sharp corners), a strong lean and
                           letters that jump up and down
   * Protoart Chatter      casual, bouncy cartoon lettering: a fat round pen, upright, each letter tilted a little
+  * Protoart Block        for 🔤 Fill a shape: a very heavy square pen, upright and steady, wide letters
+  * Protoart Bubble       for 🔤 Fill a shape: a very fat round pen, upright and steady, soft wide letters
 Lowercase keys give slightly smaller capitals (comic lettering is written in capitals), so a word never repeats
 exactly the same shape. Licensed under the SIL Open Font License 1.1 (see OFL-protoart.txt).
 
-Run:  python3 packaging/fonts/build_comic_fonts.py   (needs fontTools)
+Run:  python3 packaging/fonts/build_comic_fonts.py [names…]   (needs fontTools and opencv)
 """
 import math
 import random
@@ -170,6 +172,11 @@ STYLES = {
                                    bounce=90, tilt=8, wide=1.18, weight=900),
     "ProtoartChatter-Regular": dict(family="Protoart Chatter", style="Regular", pen=round_pen(70), slant=0.0, jitter=8, lower=0.86,
                                     bounce=60, tilt=7, wide=1.05, weight=600),
+    # for 🔤 Fill a shape: very heavy, upright, steady letters that make big, readable shapes to fill
+    "ProtoartBlock-Regular": dict(family="Protoart Block", style="Regular", pen=block_pen(86), slant=0.0, jitter=0, lower=0.9,
+                                  wide=1.18, weight=900),
+    "ProtoartBubble-Regular": dict(family="Protoart Bubble", style="Regular", pen=round_pen(122, 14), slant=0.0, jitter=0,
+                                   lower=0.9, wide=1.32, weight=900),
 }
 
 
@@ -296,6 +303,10 @@ def glyph_name(k):
 
 
 if __name__ == "__main__":
+    import sys
+    only = sys.argv[1:]  # e.g. ProtoartBlock-Regular: build just these (the others stay as they are)
     for n, st in STYLES.items():
+        if only and n not in only:
+            continue
         p = build(n, st)
         print(p.name, p.stat().st_size, "bytes")

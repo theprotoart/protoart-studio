@@ -7,6 +7,8 @@
     ["Protoart Speech", "'Protoart Speech', 'Comic Neue', cursive", "Protoart original: dialogue lettering, in capitals"],
     ["Protoart Kaboom", "'Protoart Kaboom', Impact, sans-serif", "Protoart original: chunky sound effects, KA-BOOM!"],
     ["Protoart Chatter", "'Protoart Chatter', 'Comic Neue', cursive", "Protoart original: bouncy cartoon lettering"],
+    ["Protoart Block", "'Protoart Block', Impact, sans-serif", "Protoart original: very heavy square letters (great for 🔤 Fill a shape)"],
+    ["Protoart Bubble", "'Protoart Bubble', 'Titan One', sans-serif", "Protoart original: very fat round letters (great for 🔤 Fill a shape)"],
     ["Comic Neue", "'Comic Neue', 'Comic Sans MS', cursive", "dialogue: clean, like hand lettering"],
     ["Shantell Sans", "'Shantell Sans', 'Comic Neue', cursive", "dialogue: lively, a little bouncy"],
     ["Patrick Hand", "'Patrick Hand', 'Comic Neue', cursive", "dialogue: hand-lettered"],

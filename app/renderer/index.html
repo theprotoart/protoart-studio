@@ -3504,7 +3504,56 @@
           <div class="seg seg-wrap edit-recipes">
             <button v-for="r in EDIT_RECIPES().filter((x) => x.group === 'shape')" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
           </div>
-          <div v-if="editRecipe() && editRecipe().slots" class="recipe-card">
+          <div v-if="editRecipe() && editRecipe().group === 'shape'" class="recipe-card shape-card">
+            <div class="shape-steps">
+              <div class="shape-col">
+                <div class="shape-step"><b>1</b> The shape</div>
+                <div class="seg mod-seg">
+                  <button :class="{on: shp.how === 'word'}" @click="shp.how = 'word'; shpSave()" title="A word, drawn in a thick font">🔤 Word</button>
+                  <button :class="{on: shp.how === 'ready'}" @click="shp.how = 'ready'; shpSave()" title="A ready shape: heart, star, moon…">⭐ Shape</button>
+                  <button :class="{on: shp.how === 'own'}" @click="shp.how = 'own'; shpSave()" title="Your own black shape on white (a silhouette, a logo, a cut-out)">🖼 My own</button>
+                </div>
+                <template v-if="shp.how === 'word'">
+                  <input type="text" v-model="shp.word" @input="shpSave" placeholder="Type a word, e.g. LOVE" maxlength="30" class="shape-word">
+                  <div class="shape-fonts">
+                    <button v-for="ft in shapeFonts()" :key="ft.name" :class="{on: shp.font === ft.name}" :style="{fontFamily: ft.css}" :title="ft.name + ': ' + ft.tip" @click="shp.font = ft.name; shpSave()">Aa</button>
+                  </div>
+                  <label class="check"><input type="checkbox" v-model="shp.stack" @change="shpSave"> Stack the letters</label>
+                </template>
+                <div v-else-if="shp.how === 'ready'" class="shape-ready">
+                  <button v-for="sh in shapeList()" :key="sh.id" :class="{on: shp.ready === sh.id}" :title="sh.tip" @click="shp.ready = sh.id; shpSave()">{{ sh.label }}</button>
+                </div>
+                <div v-if="shp.how === 'own'" class="pair-slot shape-own" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
+                     @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()" title="A black shape on white: a silhouette, a logo, a cut-out">
+                  <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt="">
+                  <div v-else class="pair-empty"><b>Your shape</b><span>black on white · drop or click</span></div>
+                </div>
+                <canvas v-else ref="shapePrev" class="shape-prev" title="The shape the picture is built in"></canvas>
+              </div>
+              <div class="shape-col">
+                <div class="shape-step"><b>2</b> What it's made of</div>
+                <textarea v-model="form.tf.words.material" rows="2" placeholder="e.g. a dense field of blooming red tulips, seen from above"></textarea>
+                <div class="shape-step"><b>3</b> What's around it</div>
+                <textarea v-model="form.tf.words.around" rows="2" placeholder="e.g. a green meadow of short grass seen from a drone, soft morning light"></textarea>
+                <div class="shape-step">Optional: a look to follow</div>
+                <div class="shape-row">
+                  <div class="pair-slot shape-small" :class="{over: pairOver === 'style', filled: !!form.tf.pics.style}" @dragover.prevent="pairOver = 'style'" @dragleave="pairOver = ''"
+                       @drop.prevent="tfDrop($event, editRecipe().slots[0])" @click="tfPick(editRecipe().slots[0])" title="Optional: a picture whose look (style, colours, finish) to follow">
+                    <img v-if="form.tf.pics.style" :src="fileUrl(form.tf.pics.style)" alt="">
+                    <div v-else class="pair-empty"><span>style picture</span></div>
+                    <button v-if="form.tf.pics.style" class="tf-x" @click.stop="tfClear(editRecipe().slots[0])" title="Take this picture out">✕</button>
+                  </div>
+                  <div class="pair-slot shape-small result" :title="i2iLatest ? 'The last result (click to open it)' : 'The result appears here'" @click="i2iLatest && openDetail && openDetail(i2iLatest)">
+                    <img v-if="i2iLatest && i2iLatest.path" :src="fileUrl(i2iLatest.path)" alt="">
+                    <div v-else class="pair-empty"><span>the result</span></div>
+                  </div>
+                </div>
+                <input ref="tfPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="tfPicked">
+              </div>
+            </div>
+            <div class="hint">{{ editRecipe().tip }} Empty boxes use the examples shown in grey.</div>
+          </div>
+          <div v-if="editRecipe() && editRecipe().slots && editRecipe().group !== 'shape'" class="recipe-card">
             <div class="tf-layout">
               <div class="pair-slot" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
                    @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()" :title="editRecipe().group === 'shape' ? 'A black shape on white (a silhouette, a logo, a cut-out), or type a word below' : 'A clear photo of the person (face visible)'">

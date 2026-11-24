@@ -505,6 +505,8 @@ details.fine summary { cursor: pointer; }
 @font-face { font-family: "Protoart Speech"; src: url("assets/fonts/protoart/ProtoartSpeech-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
 @font-face { font-family: "Protoart Speech"; src: url("assets/fonts/protoart/ProtoartSpeech-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
 @font-face { font-family: "Protoart Kaboom"; src: url("assets/fonts/protoart/ProtoartKaboom-Regular.ttf") format("truetype"); font-weight: 400 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Protoart Block"; src: url("assets/fonts/protoart/ProtoartBlock-Regular.ttf") format("truetype"); font-weight: 400 900; font-style: normal; font-display: swap; }
+@font-face { font-family: "Protoart Bubble"; src: url("assets/fonts/protoart/ProtoartBubble-Regular.ttf") format("truetype"); font-weight: 400 900; font-style: normal; font-display: swap; }
 @font-face { font-family: "Protoart Chatter"; src: url("assets/fonts/protoart/ProtoartChatter-Regular.ttf") format("truetype"); font-weight: 400 900; font-style: normal; font-display: swap; }
 
 /* 🧩 Compose with pictures (MiniMax-H3-Image): a number and a role under each More picture */
@@ -576,3 +578,19 @@ details.fine summary { cursor: pointer; }
 .job-prompt .link { margin-left: 6px; font-size: 11px; }
 /* 🔤 Fill a shape: the word box (no picture: the word is drawn into box 1) */
 .tf-slot .tf-word { aspect-ratio: 3 / 4; border: 1px dashed var(--line, #555); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; justify-content: center; gap: 4px; text-align: center; font-size: 11px; }
+
+/* 🔤 Fill a shape: two columns, 1 the shape (word + font / ready shape / your own), 2 made of, 3 around it */
+.shape-card .shape-steps { display: flex; flex-direction: column; gap: 10px; }
+.shape-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.shape-step { font-size: 12px; font-weight: 600; margin-top: 2px; }
+.shape-step b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent, #f5a623); color: #111; font-size: 11px; margin-right: 4px; }
+.shape-word { font-size: 15px; padding: 6px 8px; text-transform: uppercase; }
+.shape-fonts, .shape-ready { display: flex; flex-wrap: wrap; gap: 5px; }
+.shape-fonts button { font-size: 18px; line-height: 1; padding: 6px 8px; flex: 1 1 0; min-width: 0; }
+.shape-ready button { font-size: 20px; line-height: 1; padding: 6px 0; width: 42px; }
+.shape-fonts button.on, .shape-ready button.on { outline: 2px solid var(--accent, #f5a623); }
+.shape-prev { display: block; align-self: center; max-width: 100%; max-height: 200px; background: #fff; border-radius: 8px; }
+.shape-own { aspect-ratio: 4 / 3; }
+.shape-col textarea { width: 100%; resize: vertical; font-size: 12.5px; }
+.shape-row { display: flex; gap: 8px; }
+.shape-small { width: 90px; aspect-ratio: 1 / 1; }
