@@ -4772,6 +4772,7 @@
           <button class="ghost" @click="openSkinTexture(i2iLatest)" title="Brush real skin texture onto smooth, waxy-looking skin (opens it in Tools)">🧴 Skin texture</button>
           <button class="ghost" @click="editIn(i2iLatest)">✏️ Edit in {{ editorName() }}</button>
           <button class="ghost" @click="showInFolder(i2iLatest.path)">Show in Finder</button>
+          <button class="ghost" @click="hideFromSession(i2iLatest)" title="Close: take it off this screen (it stays in the Library)">✕ Close</button>
         </div>
       </div>
       <h3 v-if="i2iResults.length > 1" class="sub">Earlier results <span class="hint i2i-clear-line">· {{ i2iResults.length }} pictures ·
@@ -4780,6 +4781,7 @@
       <div class="gallery">
         <figure v-for="r in i2iResults.slice(1)" :key="r.id" @click="openDetail(r)" :class="{covered: covered(r)}">
           <img :src="thumbUrl(r)" loading="lazy" decoding="async"><span v-if="covered(r)" class="nsfw-cover">NSFW · hidden</span>
+          <button class="close-x" @click.stop="hideFromSession(r)" title="Close: take it off this screen (it stays in the Library)">✕</button>
           <span v-if="r.settings && r.settings.control" class="badge">{{ r.settings.control.type }}</span>
           <button class="star" :class="{on: r.starred}" @click.stop="toggleStar(r)" title="Star">★</button>
           <button v-if="r.prompt" class="to-i2i" @click.stop="reusePrompt(r)" title="Put this picture's prompt back in the prompt box (keeps your current model and settings)">↺ Prompt</button>
