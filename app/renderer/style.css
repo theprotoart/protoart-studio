@@ -596,3 +596,5 @@ details.fine summary { cursor: pointer; }
 .shape-small { width: 90px; aspect-ratio: 1 / 1; }
 .shape-invert { align-self: center; padding: 5px 16px; }
 .shape-invert.on { outline: 2px solid var(--accent, #f5a623); }
+.shape-more { width: 100%; }
+.shape-more.on { outline: 2px solid var(--accent, #f5a623); }

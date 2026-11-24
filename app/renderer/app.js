@@ -2280,7 +2280,7 @@ const protoartApp = createApp({
               "<b>In Image to image</b>: the <b>💡 Relight</b> mode uses the same settings (light, reference, background, add detail, full size, shadow, blend, warmth) on the picture in Image to image.",
               "<b>Light like → 🖼 A picture</b>: drop (or pick) a picture whose light you want, a sunset photo, a neon street, a film still, and the subject is lit the same way (IC-Light's reference model, another ~1.7 GB download the first time). Words are optional then. On Macs under 16 GB Relight runs at 512." ] },
             { h: "🔤 Fill a shape: a word or a shape made of anything", items: [
-              "Image to image → ✨ Edit with words → <b>🔤 Fill a shape</b>. <b>1 The shape</b>: <b>🔤 Word</b>: type a word or two and pick a font (Protoart Bubble, Protoart Block, Titan One, Bowlby One SC, Luckiest Guy, Protoart Kaboom); <b>Stack the letters</b> puts them on top of each other. <b>⭐ Shape</b>: a heart, star, circle, moon, lightning bolt, diamond, drop or flower. <b>🖼 My own</b>: drop a black shape on a white background, or press <b>⬛ Use as a shape</b> on any picture or cut-out (its window, or Tools) to send its outline here. The preview shows the shape the picture is built in. <b>◐ Invert</b> (the button under the preview) swaps black and white: the material fills everything around the shape, and the shape becomes the plain part (letters cut out of a field of flowers).",
+              "Image to image → ✨ Edit with words → <b>🔤 Fill a shape</b>. <b>1 The shape</b>: <b>🔤 Word</b>: type a word or two and pick a font (Protoart Bubble, Protoart Block, Titan One, Bowlby One SC, Luckiest Guy, Protoart Kaboom), or <b>🔤 Your own font…</b>: any font installed on this Mac, or 📂 a font file (.ttf, .otf; kept until the app closes). Thick, bold fonts make the clearest shapes; <b>Stack the letters</b> puts them on top of each other. <b>⭐ Shape</b>: a heart, star, circle, moon, lightning bolt, diamond, drop or flower. <b>🖼 My own</b>: drop a black shape on a white background, or press <b>⬛ Use as a shape</b> on any picture or cut-out (its window, or Tools) to send its outline here. The preview shows the shape the picture is built in. <b>◐ Invert</b> (the button under the preview) swaps black and white: the material fills everything around the shape, and the shape becomes the plain part (letters cut out of a field of flowers).",
               "<b>2 What it's made of</b> and <b>3 What's around it</b>: e.g. “a dense field of blooming red tulips, seen from above” in “a green meadow seen from a drone” (left empty, that's what you get), “Italian food” on “a dark slate table”, “autumn leaves” on “a forest floor”, “glowing neon tubes” on “a brick wall at night”. Describing the scene from above or straight on helps the shape read clearly. Optional: a style picture to follow.",
               "Use <b>MiniMax-H3</b> when the outline matters most, <b>FLUX.2 Klein</b> for quicker tries. Bold, simple shapes work best: thin lines and small gaps get lost in the material.",
             ] },
@@ -7220,6 +7220,26 @@ const protoartApp = createApp({
       if (!(this.form.dn.value < 1)) this.form.dn.value = 0.6;
     },
     shapeFonts() { return SHAPE_FONTS; },
+    shapeFontOwn() { return this.shp.font && !SHAPE_FONTS.some((x) => x.name === this.shp.font) ? this.shp.font : ""; },
+    shapePickOwnFont(e) {  // 🔤 one of this Mac's fonts, or 📂 a font file
+      const v = e.target.value;
+      if (v === "__file") { e.target.value = this.shapeFontOwn(); return this.$refs.shapeFontFile.click(); }
+      if (v) { this.shp.font = v; this.shpSave(); }
+    },
+    async shapeFontPicked(e) {  // a .ttf / .otf / .woff file: loaded into the app for this session, under its file name
+      const file = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (!file) return;
+      try {
+        const name = "My font · " + file.name.replace(/\.(ttf|otf|woff2?)$/i, "");
+        const face = new FontFace(name, await file.arrayBuffer());
+        await face.load();
+        document.fonts.add(face);
+        this.shp.font = name;
+        this.shpSave();
+        this.status = `🔤 Using ${file.name}. Fonts loaded from a file are kept until the app closes; one installed on this Mac stays in the list.`;
+      } catch (err) { this.error = "Couldn't load that font file: " + (err.message || err); }
+    },
     shapeList() { return SHAPES; },
     shpSave() { saveJSON("protoart.fillshape", this.shp); this.$nextTick(() => this.shapePreview()); },
     shapeSize() {  // the picture's size: square for a ready shape, wide for a long word, tall for stacked letters
@@ -7251,7 +7271,8 @@ const protoartApp = createApp({
       }
       const lines = this.shapeLines();
       if (!lines.length) return false;
-      const fam = SHAPE_FONTS.find((x) => x.name === s.font) || SHAPE_FONTS[0];
+      // a built-in font, or one of this Mac's fonts / a font file you loaded (by its name)
+      const fam = SHAPE_FONTS.find((x) => x.name === s.font) || (s.font ? { name: s.font, css: `"${s.font.replace(/"/g, "")}", sans-serif` } : SHAPE_FONTS[0]);
       try { await document.fonts.load(`900 100px ${fam.css}`); } catch {}
       const font = (px) => `900 ${px}px ${fam.css}`;
       g.textAlign = "center"; g.textBaseline = "alphabetic";

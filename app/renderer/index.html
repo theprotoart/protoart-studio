@@ -3498,6 +3498,13 @@
                   <div class="shape-fonts">
                     <button v-for="ft in shapeFonts()" :key="ft.name" :class="{on: shp.font === ft.name}" :style="{fontFamily: ft.css}" :title="ft.name + ': ' + ft.tip" @click="shp.font = ft.name; shpSave()">Aa</button>
                   </div>
+                  <select class="shape-more" :class="{on: !!shapeFontOwn()}" :value="shapeFontOwn()" @focus="txLoadFonts" @mousedown="txLoadFonts" @change="shapePickOwnFont" title="Your own font: any font installed on this Mac, or a font file (.ttf, .otf, .woff)">
+                    <option value="">{{ shapeFontOwn() ? shapeFontOwn() : '🔤 Your own font…' }}</option>
+                    <option value="__file">📂 Load a font file (.ttf, .otf)…</option>
+                    <option v-if="shapeFontOwn() && !(tx.fonts || []).includes(shapeFontOwn())" :value="shapeFontOwn()">{{ shapeFontOwn() }}</option>
+                    <option v-for="fn in (tx.fonts || [])" :key="fn" :value="fn" :style="{fontFamily: '&quot;' + fn + '&quot;'}">{{ fn }}</option>
+                  </select>
+                  <input ref="shapeFontFile" type="file" accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2" hidden @change="shapeFontPicked">
                   <label class="check"><input type="checkbox" v-model="shp.stack" @change="shpSave"> Stack the letters</label>
                 </template>
                 <div v-else-if="shp.how === 'ready'" class="shape-ready">
