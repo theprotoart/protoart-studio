@@ -3494,22 +3494,30 @@
           </div>
           <label class="pair-head">🎭 Transform a person <span class="hint">pick a look, drop a photo of the person, and optionally a style picture and the items it asks for (a picture, words, or both)</span></label>
           <div class="tf-tiles">
-            <button v-for="r in EDIT_RECIPES().filter((x) => x.slots)" :key="r.id" class="tf-tile" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">
+            <button v-for="r in EDIT_RECIPES().filter((x) => x.slots && x.group !== 'shape')" :key="r.id" class="tf-tile" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">
               <img v-if="tfThumb(r.id)" :src="tfThumb(r.id)" alt="" loading="lazy">
               <span v-else class="tf-tile-icon">{{ r.label.split(' ')[0] }}</span>
               <span class="tf-tile-name">{{ r.label.split(' ').slice(1).join(' ') }}</span>
             </button>
           </div>
+          <label class="pair-head">🔤 Fill a shape <span class="hint">a word or a black shape, built out of anything you name, keeping its exact outline</span></label>
+          <div class="seg seg-wrap edit-recipes">
+            <button v-for="r in EDIT_RECIPES().filter((x) => x.group === 'shape')" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
+          </div>
           <div v-if="editRecipe() && editRecipe().slots" class="recipe-card">
             <div class="tf-layout">
               <div class="pair-slot" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
-                   @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()" title="A clear photo of the person (face visible)">
+                   @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()" :title="editRecipe().group === 'shape' ? 'A black shape on white (a silhouette, a logo, a cut-out), or type a word below' : 'A clear photo of the person (face visible)'">
                 <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt="">
-                <div v-else class="pair-empty"><b>The person</b><span>drop or click</span></div>
-                <span class="pair-cap">1 · the person</span>
+                <div v-else class="pair-empty"><b>{{ editRecipe().group === 'shape' ? 'The shape' : 'The person' }}</b><span>drop or click</span></div>
+                <span class="pair-cap">1 · {{ editRecipe().p1 || 'the person' }}</span>
               </div>
               <div v-for="sl in editRecipe().slots" :key="sl.id" class="tf-slot">
-                <div class="pair-slot" :class="{over: pairOver === sl.id, filled: !!form.tf.pics[sl.id]}" @dragover.prevent="pairOver = sl.id" @dragleave="pairOver = ''"
+                <template v-if="sl.kind === 'word'">
+                  <div class="pair-empty tf-word"><b>{{ tfSlotLabel(sl) }}</b><span>type it below: it's drawn as black letters into box 1</span></div>
+                  <input type="text" v-model="form.tf.words[sl.id]" placeholder="e.g. PASTA" maxlength="40" title="A word or two (three short lines at most). Leave it empty to use the shape in box 1">
+                </template>
+                <div v-else class="pair-slot" :class="{over: pairOver === sl.id, filled: !!form.tf.pics[sl.id]}" @dragover.prevent="pairOver = sl.id" @dragleave="pairOver = ''"
                      @drop.prevent="tfDrop($event, sl)" @click="tfPick(sl)" :title="sl.kind === 'style' ? 'Optional: a picture whose look (style, colours, finish) to follow' : 'Optional: a picture of it (and / or type it below)'">
                   <img v-if="form.tf.pics[sl.id]" :src="fileUrl(form.tf.pics[sl.id])" alt="">
                   <div v-else class="pair-empty"><b>{{ tfSlotLabel(sl) }}</b><span>optional · drop or click</span></div>
@@ -3528,7 +3536,7 @@
             </div>
             <div class="hint">{{ editRecipe().tip }} The words in [BRACKETS] in the prompt are filled in from the boxes when you press Generate; edit the rest of the prompt as you like.</div>
             <div v-if="tfBuild().refs.length > editRefMax()" class="hint warn">{{ tfBuild().refs.length }} pictures in the boxes, and this edit model takes {{ editRefMax() }}: type some items instead, or pick FLUX 3 or MiniMax-H3 as the edit model.</div>
-            <div v-if="!form.init_image" class="hint warn">Drop a photo of the person in the first box.</div>
+            <div v-if="!form.init_image && !(editRecipe().group === 'shape' && (form.tf.words.word || '').trim())" class="hint warn">{{ editRecipe().group === 'shape' ? 'Type a word, or drop a black shape on white in the first box.' : 'Drop a photo of the person in the first box.' }}</div>
           </div>
           <div v-if="editRecipe() && !editRecipe().slots" class="recipe-card">
             <div class="pair-layout" title="Drop a picture on each box (or click to pick one)">

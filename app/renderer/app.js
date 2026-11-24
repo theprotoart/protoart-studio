@@ -610,6 +610,17 @@ const EDIT_RECIPES = [
             { id: "wall", kind: "item", label: "The wall", ph: "[WALL]", dflt: "a weathered red-brick wall in an urban alley with a cracked sidewalk in front" }],
     prompt: "Transform the person in the reference photograph into a giant spray-painted street-art mural.\nKeep their recognizable face, hairstyle, skin tone, facial hair and expression, painted larger than life as a head-and-shoulders portrait.\nPaint it in a bold contemporary graffiti style: vivid spray-paint colours, crisp stencil-cut shadows, soft airbrushed gradients, paint drips running down, overspray halos and a few splatters.\nThe mural is on [WALL], so the wall's texture, mortar lines and cracks show through the paint.\nPhotograph the whole mural straight on in daylight, with a little of the street in front for scale and a few spray cans on the ground.\nNo logos or brand names.",
     licence: "no LoRA: the edit model alone" },
+  // 🔤 Fill a shape: Picture 1 is a black shape (or a typed word, drawn for you) on white; the edit model builds the
+  // picture inside that exact outline (much more faithful than starting Create from the shape with Denoise)
+  { id: "tf_shape", label: "🔤 Fill a shape", group: "shape", by: "", files: null, p1: "the shape (black on white)",
+    head: "Picture 1 is the shape guide: a solid black shape (or black letters) on a plain white background.",
+    tip: "Type a word (it's drawn as bold black letters for you) or drop a black shape on white (a silhouette, a logo, a cut-out), then say what it's made of and what's around it. MiniMax-H3 keeps the outline best; FLUX.2 Klein is quicker.",
+    slots: [{ id: "word", kind: "word", label: "A word (or drop a shape)" },
+            { id: "style", kind: "style", label: "A look to follow" },
+            { id: "material", kind: "item", label: "What it's made of", ph: "[MATERIAL]", dflt: "a dense field of blooming red tulips, seen from above" },
+            { id: "around", kind: "item", label: "What's around it", ph: "[BACKGROUND]", dflt: "a green meadow of short grass seen from a drone, soft morning light" }],
+    prompt: "Create a completely new picture in which the black shape from Picture 1 is built entirely out of [MATERIAL].\nThe outline must match Picture 1 exactly: the same position, size, proportions and every edge and corner; if it is lettering, every letter stays clearly readable with its exact form and spacing.\nFill the whole shape densely and evenly with the material, right up to the edges, with its own real details, textures, highlights and shadows, so it looks like a real object or arrangement, not a flat pattern.\nThe white area of Picture 1 becomes [BACKGROUND], kept simple and clearly separate, so the shape reads instantly from a distance.\nNothing important spills beyond the outline. Keep the black and white guide itself out of the picture: no black fill, no white paper, no outlines from the guide. No extra text.",
+    licence: "no LoRA: the edit model alone" },
 ];
 // ✨ Edit with words: ready-made instructions (no download), e.g. old photo repair
 // 🧠 MiniMax-H3-Image's multi-picture edits (shown when it's the edit model): your picture is <Picture 1>, More pictures are <Picture 2>…
@@ -1528,6 +1539,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "Next: 🧊 Make 3D is back, as a 3D splat (16 GB+ Macs)", items: [
+              "<b>🔤 Fill a shape</b> (Image to image → ✨ Edit with words): type a word (drawn for you as bold black letters) or drop a black shape on white (a silhouette, a logo, a cut-out), say what it's made of (a field of tulips, Italian food, autumn leaves, neon tubes) and what's around it, and press Generate. The edit model builds the picture inside the exact outline, so letters stay readable: much more faithful than 🔤 Word / ⬛ Shape with Denoise in Create. MiniMax-H3 keeps the outline best; FLUX.2 Klein is quicker.",
               "<b>🔬 Ultra-detail, keep the face</b> (Image to image → ✨ Edit with words, a quick instruction): redraws a photo's fine detail (pores, hair strands, lashes, fabric weave, stitching) without changing the person, the light or the colours. It also ticks 🙂 Keep faces close to the original (Klein) and 🎨 Keep the original's colours. The edit works at the 🧠 Work size, so pick a big one (MiniMax-H3: 1536 or 2048); for more pixels afterwards, run Tools → ⏩ Upscale on the result.",
               "<b>4 more looks in 🎭 Transform a person</b>: <b>🟡 Pop art portrait</b> (a 1960s screen print: halftone dots, loud colours, four colour panels; pick the colours and add a speech bubble), <b>📰 Editorial fashion shoot</b> (a magazine fashion photo; pick the outfit and the set), <b>🌀 Surreal dreamscape</b> (an original dreamlike oil painting with impossible things around you, like paper fish in the air and a teacup lighthouse) and <b>🎨 Graffiti mural</b> (a spray-painted street-art mural on a city wall, with an optional graffiti tag of a word).",
               "<b>🧊 Make 3D</b> (Tools, Macs with 16 GB or more): Speridlabs' <b>Idol</b> finds the object in your picture, frames it and builds it in 3D, the sides the picture never showed included, as a <b>3D Gaussian splat</b>. Turn it around right in the module (drag to turn, scroll to zoom), then <b>💾 Save .ply…</b> for a splat viewer, Blender, Unity or Unreal (with a splat add-on). Pick <b>⚡ Quick</b>, <b>Standard</b> or <b>★ Best</b>; on 24 GB Macs and more, Standard and Best also add more detail. The result goes to the Library with a preview; its details have <b>🧊 View in 3D</b> and <b>💾 Save .ply…</b>.",
@@ -7234,6 +7246,27 @@ const protoartApp = createApp({
         this.status = `“${word}” is the shape: now say what the letters are made of in the prompt (e.g. “the word ${word} made of Italian food on a dark background”), then Generate. Lower Denoise keeps the letters sharper, higher lets the food spill over.`;
       } catch (e) { this.error = "Couldn't make the word picture: " + (e.message || e); }
     },
+    async shapeWordPicture(word) {  // 🔤 a word as bold black letters on white (wide for a long word) -> its saved path
+      const w = word.toUpperCase(), lines = w.split(/\s+/).filter(Boolean);
+      const longest = Math.max(...lines.map((l) => l.length));
+      const [W, H] = lines.length >= 3 ? [1024, 1365] : longest <= 3 && lines.length === 1 ? [1024, 1024] : [1536, lines.length > 1 ? 1024 : 864];
+      const cv = document.createElement("canvas");
+      cv.width = W; cv.height = H;
+      const g = cv.getContext("2d");
+      g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, H);
+      g.fillStyle = "#000000"; g.textAlign = "center"; g.textBaseline = "middle";
+      const font = (px) => `900 ${px}px "Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif`;
+      let px = H;
+      for (const ln of lines) { g.font = font(100); px = Math.min(px, (W * 0.84) / Math.max(1, g.measureText(ln).width) * 100); }
+      px = Math.min(px, (H * 0.8) / (lines.length * 1.0));
+      g.font = font(px);
+      const step = px * 1.0, top = H / 2 - (step * (lines.length - 1)) / 2;
+      lines.forEach((ln, i) => g.fillText(ln, W / 2, top + i * step));
+      try {
+        const r = await call("save_drawing", { data: cv.toDataURL("image/png"), name: "word" });
+        return r && r.path;
+      } catch (e) { this.error = "Couldn't draw the word: " + (e.message || e); return null; }
+    },
     async useAsShape(rec) {  // ⬛ a picture (a cut-out, logo, silhouette, drawing) -> a solid shape to start a picture from in Create
       const p = rec && (rec.path || rec);
       if (!p) return;
@@ -10785,6 +10818,16 @@ const protoartApp = createApp({
         this.error = "";
         const painted = this.maskIsFor("i2i", f.init_image) ? this.mask.data : null;
         const rec = this.editRecipe();
+        if (rec && rec.group === "shape") {  // 🔤 Fill a shape: a typed word is drawn as Picture 1
+          const word = String((f.tf.words || {}).word || "").trim();
+          if (word && !(this._shapeWord && this._shapeWord.word === word && this._shapeWord.path === f.init_image)) {
+            const path = await this.shapeWordPicture(word);
+            if (!path) return;
+            f.init_image = path; this.controlMap = null;
+            this._shapeWord = { word, path };
+          }
+          if (!f.init_image) return (this.error = "🔤 Fill a shape: type a word, or drop a black shape on white in the first box.");
+        }
         const tfb = rec && rec.slots ? this.tfBuild(rec) : null;  // 🎭 Transform a person: its boxes
         if (tfb && tfb.refs.length > this.editRefMax())
           return (this.error = `${rec.label}: this edit model takes ${this.editRefMax()} extra pictures and there are ${tfb.refs.length}. Type some of the items instead of dropping a picture, or pick FLUX 3 (9) or MiniMax-H3 (15) as the edit model.`);
@@ -11141,6 +11184,7 @@ const protoartApp = createApp({
       const pics = this.form.tf.pics || {}, words = this.form.tf.words || {}, refs = [], adds = [], roles = [];
       let text = String(prompt || "");
       for (const sl of r.slots || []) {
+        if (sl.kind === "word") continue;  // 🔤 the word becomes Picture 1 itself (shapeWordPicture)
         const pic = pics[sl.id], w = String(words[sl.id] || "").trim();
         let n = 0;
         if (pic) { refs.push(pic); n = refs.length + 1; }
@@ -11154,7 +11198,8 @@ const protoartApp = createApp({
         if (sl.ph && text.includes(sl.ph)) text = text.split(sl.ph).join(what || sl.dflt || "");
         else if (what && sl.add) adds.push(sl.add.replace("{x}", what));
       }
-      const head = refs.length ? `Picture 1 is the reference photo of the person. ${roles.join(". ")}.\n` : "";
+      const head = r.head ? `${r.head}${roles.length ? " " + roles.join(". ") + "." : ""}\n`
+        : refs.length ? `Picture 1 is the reference photo of the person. ${roles.join(". ")}.\n` : "";
       return { prompt: head + text + (adds.length ? "\n" + adds.join("\n") : ""), refs };
     },
     pairCap(n) {  // the caption under each box of the two-picture layout
