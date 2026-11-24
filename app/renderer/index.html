@@ -3635,7 +3635,7 @@
             </div>
             <p v-if="mv.items.length" class="hint">The prompt can stay empty, or add to it (“at night”). Orange boxes: where things are now · blue: where they go. Drag a box to move it, its corner to resize it.</p>
           </template>
-          <div class="hint">Describe the change in <b>3 · Prompt</b>. <b>Optional:</b> paint over the part that may change, and
+          <div v-if="form.edit_recipe !== 'tf_shape'" class="hint">Describe the change in <b>3 · Prompt</b>. <b>Optional:</b> paint over the part that may change, and
             everything else stays exactly as it is (best for small, precise edits).</div>
           <div class="mask-tools">
             <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
@@ -4530,7 +4530,7 @@
         </template>
       </div>
 
-      <div v-if="!['faceswap', 'text', 'relight'].includes(form.i2i_mode)" class="card i2ifold" :class="{shut: i2iShut('prompt')}">
+      <div v-if="!['faceswap', 'text', 'relight'].includes(form.i2i_mode) && !(form.i2i_mode === 'edit' && form.edit_recipe === 'tf_shape')" class="card i2ifold" :class="{shut: i2iShut('prompt')}">
         <h3 @click="i2iFoldToggle('prompt', $event)">3 · Prompt <span v-if="i2iShut('prompt')" class="cfold-sum">{{ form.prompt ? (form.prompt.length > 60 ? form.prompt.slice(0, 59) + '…' : form.prompt) : 'empty' }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <textarea class="tape" v-model="form.prompt" rows="3"
                   :placeholder="form.i2i_mode === 'camera' ? 'Optional: anything to add · she is holding the sword · he is smiling…' : form.i2i_mode === 'combine' ? 'Where and doing what · sitting on the bench, waving · standing on the left, small, in the distance…' : form.i2i_mode === 'edit' ? 'The change, in a sentence: make the jacket red · add a hat · turn it into a watercolour…' : i2iUsesKlein ? 'Optional: what goes around the picture · more of the street · a sunny beach · the rest of the room…' : 'What the result should look like…'"></textarea>

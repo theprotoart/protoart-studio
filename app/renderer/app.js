@@ -644,7 +644,7 @@ const EDIT_RECIPES = [
     slots: [{ id: "style", kind: "style", label: "A look to follow" },
             { id: "material", kind: "item", label: "What it's made of", ph: "[MATERIAL]", dflt: "a dense field of blooming red tulips, seen from above" },
             { id: "around", kind: "item", label: "What's around it", ph: "[BACKGROUND]", dflt: "a green meadow of short grass seen from a drone, soft morning light" }],
-    prompt: "Create a completely new, full-colour picture in which the black shape from Picture 1 is built entirely out of [MATERIAL], in the material's own natural colours.\nThe outline must match Picture 1 exactly: the same position, size, proportions and every edge and corner; if it is lettering, every letter stays clearly readable with its exact form and spacing.\nFill the whole shape densely and evenly with the material, right up to the edges, with its own real details, textures, highlights and shadows, so it looks like a real object or arrangement, not a flat pattern.\nThe white area of Picture 1 is completely replaced by [BACKGROUND], filling the whole frame edge to edge in its own natural colours, so the shape reads instantly from a distance.\nNothing important spills beyond the outline. Keep the black and white guide itself out of the picture: nothing stays black or white because the guide was, no white paper, no outlines from the guide. No extra text.",
+    prompt: "Make a brand-new, full-colour, realistic picture. Picture 1 is only a layout guide: use its black shape for the outline and nothing else from it.\nThe background: [BACKGROUND] fills the entire frame from edge to edge, in its own natural colours, lit and detailed like a real scene. There is no white, grey or plain empty area anywhere: every part outside the shape shows [BACKGROUND].\nThe shape: in the exact outline of the black shape from Picture 1 (same position, size, proportions, every edge and corner), the shape is made entirely of [MATERIAL], in its own natural colours, packed densely right up to the edges, with real texture, highlights and shadows, sitting on or in the background as part of the same scene. If the shape is lettering, every letter stays clearly readable with its exact form and spacing.\nThe shape reads instantly from a distance against the background. Nothing black or white remains from the guide, and there are no outlines from it. No extra text.",
     licence: "no LoRA: the edit model alone" },
 ];
 // ✨ Edit with words: ready-made instructions (no download), e.g. old photo repair
@@ -10893,7 +10893,8 @@ const protoartApp = createApp({
             } catch (e) { return (this.error = "Couldn't invert the shape: " + (e.message || e)); }
           }
         }
-        const tfb = rec && rec.slots ? this.tfBuild(rec) : null;  // 🎭 Transform a person: its boxes
+        // 🔤 Fill a shape always builds from its own wording (its card has no prompt box; an older prompt left in it was used)
+        const tfb = rec && rec.slots ? this.tfBuild(rec, rec.group === "shape" ? rec.prompt : f.prompt) : null;  // 🎭 Transform a person: its boxes
         if (tfb && tfb.refs.length > this.editRefMax())
           return (this.error = `${rec.label}: this edit model takes ${this.editRefMax()} extra pictures and there are ${tfb.refs.length}. Type some of the items instead of dropping a picture, or pick FLUX 3 (9) or MiniMax-H3 (15) as the edit model.`);
         if (rec && !rec.slots) {  // 🧬 / 🔁 two-picture recipes
