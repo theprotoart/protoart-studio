@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- 🧊 Make 3D is back (Tools), as a 3D Gaussian splat with Speridlabs' Idol (`idol3d.py`, `idol_worker.py`; pinned
+  commit of github.com/speridlabs/idol-sdk, Apache-2.0), only on Macs with 16 GB or more (greyed out below).
+  Installed on first use like the old Hunyuan3D engine: Idol's code and plyfile, plus a small stand-in for
+  `tensordict` (so no compiled library has to match the app's PyTorch). Weights `speridlabs/idol`, Meta's gated
+  DINOv3 ViT-H+ (licence acceptance + the saved Hugging Face token; the module has a token box), and the FLUX.2 VAE
+  from the ungated `black-forest-labs/FLUX.2-klein-4B` instead of FLUX.2-dev. Runs on MPS in its own process.
+  Quick / Standard / Best (10/20/30 steps, 65,536 Gaussians on 16 GB; up to 50 steps and 262,144 on 24 GB+).
+  Output: `.ply` in the images folder's 3D folder, a preview picture in the Library (`kind="splat3d"`), a WebGL
+  point viewer (`splat_points`), 💾 Save .ply… (`splat:saveAs`), and 🧊 View in 3D in the picture's details.
+  Tests: `test_idol3d.py`.
+
 ## 1.6.28
 
 - ⏱ MiniMax-H3-Image progress (`_h3_picture`): the bar counts only the 6 drawing steps (the prompt, pictures and

@@ -2873,6 +2873,52 @@
           </div>
         </div>
 
+        <div id="rack-splat" class="card rack-module splat-card" :class="{active: spl.job, off: spl.status && !spl.status.ram_ok}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source && !(spl.status && !spl.status.ram_ok)}"></i><span class="mod-icon">🧊</span>
+            <h3>Make 3D</h3><span class="mod-sub">3D splat, Idol · 16 GB+ Macs</span></div>
+          <p class="mod-desc" title="Speridlabs' Idol finds the object in the picture, frames it and builds it in 3D, the sides the picture never showed included, as a 3D Gaussian splat (.ply): open it in a splat viewer, Blender (with a splat add-on), Unity or Unreal (splat plug-ins), or on websites like SuperSplat">The object in the picture as a 3D splat you can turn around and save as .ply.</p>
+          <template v-if="spl.status && !spl.status.ram_ok">
+            <div class="hint">Needs a Mac with <b>16 GB</b> of memory or more: this one has {{ Math.round(spl.status.ram_gb) }} GB, too little for Idol's image encoders and 3D model together.</div>
+          </template>
+          <template v-else>
+            <label title="How long it works on it: more steps give a cleaner shape; on 24 GB Macs and more, also more detail (more Gaussians)">Quality</label>
+            <div class="seg mod-seg">
+              <button v-for="q in [['quick', '⚡ Quick'], ['standard', 'Standard'], ['best', '★ Best']]" :key="q[0]" :class="{on: spl.quality === q[0]}" @click="splQuality(q[0])"
+                      :title="spl.status && spl.status.quality ? spl.status.quality[q[0]].steps + ' steps · ' + spl.status.quality[q[0]].gaussians.toLocaleString() + ' Gaussians' : ''">{{ q[1] }}</button>
+            </div>
+            <label title="Idol frames photos and pictures made on a computer a little differently. Auto: a picture made in this app counts as made on a computer">The picture is</label>
+            <div class="seg mod-seg">
+              <button v-for="m in [['auto', 'Auto'], ['real', '📷 Photo'], ['synthetic', '🖥 Render']]" :key="m[0]" :class="{on: spl.mode === m[0]}" @click="spl.mode = m[0]">{{ m[1] }}</button>
+            </div>
+            <div v-if="spl.status && !spl.status.models.dinov3 && !hub.tokenSet" class="hint splat-gate">
+              <b>One-time setup</b> (Idol uses Meta's DINOv3 image encoder, free but “gated”):
+              <ol>
+                <li>On Hugging Face, sign in (a free account) and open <code class="sel">{{ spl.status.dinov3_page }}</code> <button class="ghost small" @click="splCopyPage" title="Copy the page's address, to paste into your browser">📋 Copy</button>, then accept Meta's licence.</li>
+                <li>On Hugging Face → Settings → Access Tokens, make a <b>Read</b> token and paste it here. It's kept on this Mac and only ever sent to huggingface.co.</li>
+              </ol>
+              <div class="row">
+                <input v-model="hub.token" type="password" placeholder="hf_…" style="flex:1" autocomplete="off">
+                <button class="primary small" :disabled="!hub.token.trim()" @click="hfSaveToken(false).then(splStatus)">Save token</button>
+              </div>
+            </div>
+            <div v-if="spl.status && !spl.status.env" class="hint">The first time downloads Idol and its image encoders (~{{ spl.status.download_gb }} GB). Then a {{ spl.status.big ? 'Standard' : 'Quick' }} 3D takes a few minutes; ★ Best takes longer.</div>
+            <div v-if="spl.view" class="splat-view">
+              <canvas ref="splCanvas" class="splat-canvas" @pointerdown.prevent="splDown" @wheel.prevent="splWheel" title="Drag to turn it, scroll to zoom"></canvas>
+              <div class="row small">
+                <span class="hint">{{ spl.view.total.toLocaleString() }} Gaussians · drag to turn, scroll to zoom</span>
+                <button class="ghost small" @click="splSave(spl.view.rec)">💾 Save .ply…</button>
+                <button class="ghost small" @click="showInFolder(splPly(spl.view.rec))">Show in Finder</button>
+                <button class="ghost small" @click="splClose">✕</button>
+              </div>
+            </div>
+            <div class="hint splat-notice">{{ spl.status ? spl.status.notice : '' }}</div>
+          </template>
+          <div class="mod-foot">
+            <button class="primary mod-go" :disabled="!tool.source || spl.job || (spl.status && !spl.status.ram_ok)" @click="toolSplat">🧊 Make 3D</button>
+            <span class="mod-plate">Idol · splat</span>
+          </div>
+        </div>
+
         <div id="rack-paper" class="card rack-module paper-card" :class="{active: paperJob}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">📄</span>
             <h3>Paper cut-out</h3><button class="mod-reset" @click.stop="resetToolPart('paper')" title="This module's settings back to the start">↺</button><span class="mod-sub">torn-paper sticker</span></div>
@@ -6082,6 +6128,10 @@
           <button @click="editIn(detail)" :title="'Open in ' + editorName() + '; saved edits come back to the Library'">✏️ Edit in {{ editorName() }}</button>
           <button @click="compressOne(detail)" title="Export a smaller copy that looks the same, or resize / convert it (Library → Batch edit &amp; export)">🗜 Compress / export…</button>
           <button @click="savePictureAs(detail)" title="Save a copy of the picture where you choose (it also stays in the Library)">💾 Save as…</button>
+          <template v-if="splPly(detail)">
+            <button @click="splOpen(detail)" title="Turn the 3D splat around in Tools → 🧊 Make 3D">🧊 View in 3D</button>
+            <button @click="splSave(detail)" title="Save a copy of the 3D splat (.ply) where you choose">💾 Save .ply…</button>
+          </template>
           <button @click="exportSettings(detail)" title="Save this picture's settings as a .json file (load it again with 📥 Settings in Create, or share it)">⤓ Settings .json</button>
           <button @click="showInFolder(detail.path)">Show in Finder</button>
         </div>

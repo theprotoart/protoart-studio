@@ -2875,3 +2875,13 @@ section.cfold > label:first-child:hover .cfold-chev, .i2ifold > h3:hover .cfold-
 .mode-row { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 12px; }
 .mode-row .watch { margin-left: auto; white-space: nowrap; }
 .mode-row .mode-seg { display: inline-flex; margin: 0; }
+
+/* 🧊 Make 3D (Idol): greyed out on Macs under 16 GB, the turnable 3D view */
+.rack-module.off { opacity: 0.55; }
+.splat-view { margin-top: 8px; }
+.splat-canvas { display: block; width: 100%; aspect-ratio: 1 / 1; max-height: 420px; border-radius: 8px; background: #1c1d20; cursor: grab; touch-action: none; }
+.splat-canvas:active { cursor: grabbing; }
+.splat-view .row { align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.splat-gate ol { margin: 4px 0 6px 18px; padding: 0; }
+.splat-gate code.sel { user-select: all; word-break: break-all; }
+.splat-notice { font-size: 11px; opacity: 0.7; margin-top: 6px; }

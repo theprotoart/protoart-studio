@@ -399,6 +399,22 @@ handle("image:saveAs", async (_e, p) => {
   await fs.promises.copyFile(src, res.filePath);
   return { ok: true, path: res.filePath };
 });
+// 🧊 Make 3D: "Save .ply…" (a copy of a 3D splat file where you choose; only .ply files are copied)
+handle("splat:saveAs", async (_e, p) => {
+  let src = null;
+  try { src = typeof p === "string" && path.isAbsolute(p) && path.extname(p).toLowerCase() === ".ply" && fs.statSync(p).isFile() ? p : null; } catch {}
+  if (!src) return { ok: false, msg: "That 3D file wasn't found." };
+  const res = await dialog.showSaveDialog(win, {
+    title: "Save the 3D splat (.ply)",
+    defaultPath: path.join(app.getPath("downloads"), path.basename(src)),
+    buttonLabel: "Save",
+    filters: [{ name: "3D Gaussian splat", extensions: ["ply"] }],
+  });
+  if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+  if (path.resolve(res.filePath) === path.resolve(src)) return { ok: true, path: src };
+  await fs.promises.copyFile(src, res.filePath);
+  return { ok: true, path: res.filePath };
+});
 handle("image:copy", (_e, p) => {
   const src = pictureFile(p);
   if (!src) return false;

@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("bee", {
   // Save a copy of a picture where you choose / put it on the clipboard (to paste into another app).
   saveImageAs: (p) => ipcRenderer.invoke("image:saveAs", p),
   copyImage: (p) => ipcRenderer.invoke("image:copy", p),
+  saveSplatAs: (p) => ipcRenderer.invoke("splat:saveAs", p),
   openFolder: (p) => ipcRenderer.invoke("shell:openFolder", p),
   pickFolder: (current) => ipcRenderer.invoke("dialog:pickFolder", current),
   // Pick model files (.safetensors/.ckpt) and/or model folders from this Mac.

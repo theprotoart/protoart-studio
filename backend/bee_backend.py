@@ -937,6 +937,16 @@ def handle_quick(cmd, a):
         _train_folders.add(os.path.realpath(str(a.get("folder"))))
         used = sum(1 for it in items if it["fit"] != trainer.SKIP)
         return {"items": items, "suggested_steps": trainer.suggest_steps(used)}
+    if cmd == "idol_status":  # 🧊 Make 3D (Idol, 16 GB+ Macs): set up? models here? this Mac's memory, the token
+        import idol3d
+        return idol3d.status()
+    if cmd == "splat_points":  # 🧊 a Make 3D .ply as points for the app's viewer (only the app's own 3D folder)
+        import idol3d
+        p = os.path.realpath(str(a.get("path") or ""))
+        base = os.path.realpath(str(paths.IMAGES_DIR / "3D"))
+        if not (p.startswith(base + os.sep) and p.endswith(".ply") and os.path.isfile(p)):
+            raise ValueError("That 3D file wasn't found.")
+        return idol3d.read_ply(p)
     if cmd == "mesh3d_status":  # 🧊 Make 3D: is it set up, is the model here (and its licence notice)
         import mesh3d
         return mesh3d.status()

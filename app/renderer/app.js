@@ -1497,6 +1497,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "Next: 🧊 Make 3D is back, as a 3D splat (16 GB+ Macs)", items: [
+              "<b>🧊 Make 3D</b> (Tools, Macs with 16 GB or more): Speridlabs' <b>Idol</b> finds the object in your picture, frames it and builds it in 3D, the sides the picture never showed included, as a <b>3D Gaussian splat</b>. Turn it around right in the module (drag to turn, scroll to zoom), then <b>💾 Save .ply…</b> for a splat viewer, Blender, Unity or Unreal (with a splat add-on). Pick <b>⚡ Quick</b>, <b>Standard</b> or <b>★ Best</b>; on 24 GB Macs and more, Standard and Best also add more detail. The result goes to the Library with a preview; its details have <b>🧊 View in 3D</b> and <b>💾 Save .ply…</b>.",
+              "<b>One-time setup</b>: Idol uses Meta's DINOv3 image encoder, which is free but “gated”: accept Meta's licence on its Hugging Face page and paste a Hugging Face Read token into the module. The first 3D then downloads about 5 GB (Idol, DINOv3 and FLUX.2's image encoder). On 8 GB Macs the module is greyed out: it doesn't fit in their memory.",
+            ] },
             { h: "1.6.28: honest time left for MiniMax-H3-Image", items: [
               "<b>MiniMax-H3-Image's time left no longer jumps</b>: the progress bar now counts only its 6 drawing steps. Reading the prompt and pictures was counted as a step, so the time first read about 3 minutes and then jumped to the real figure (about 20 minutes for an Edit with words at 1280 on an 8 GB Mac), which made a working edit look stuck. Until two steps are timed, the queue shows the typical time of the last edits.",
             ] },
@@ -2209,6 +2213,13 @@ const protoartApp = createApp({
               "<b>Finishing</b>: <b>Full size</b> (on by default) gives the result at your picture's own size: the relit part is sharpened back up with Real-ESRGAN fast (~5 MB once). <b>Add a shadow</b> throws a soft shadow of the subject away from the light (along the ground for side light, a pool underneath for light from above). <b>Blend in</b> nudges the subject's colours towards the light around it. <b>Warmth</b> (double-click to reset) and <b>Light colour</b> tint the whole result. With <b>Character + Light</b>, a depth map of your picture (Depth Anything, small) tells which surfaces face the light, so they brighten and the others darken; it still can't add hard shadows or light beams.",
               "<b>In Image to image</b>: the <b>💡 Relight</b> mode uses the same settings (light, reference, background, add detail, full size, shadow, blend, warmth) on the picture in Image to image.",
               "<b>Light like → 🖼 A picture</b>: drop (or pick) a picture whose light you want, a sunset photo, a neon street, a film still, and the subject is lit the same way (IC-Light's reference model, another ~1.7 GB download the first time). Words are optional then. On Macs under 16 GB Relight runs at 512." ] },
+            { h: "🧊 Make 3D: a picture as a 3D splat (16 GB+ Macs)", items: [
+              "Tools → pick the picture → <b>🧊 Make 3D</b>. Idol (by Speridlabs) finds the object, removes the background, frames it and builds it in 3D, the back and sides included. One object on a plain or simple background works best: a figure, a toy, a piece of furniture, food, a product.",
+              "<b>Quality</b>: ⚡ Quick (10 steps), Standard or ★ Best (more steps; on 24 GB Macs and more also more Gaussians, the tiny blobs the splat is made of: up to 262,144). <b>The picture is</b>: 📷 Photo or 🖥 Render (made on a computer); Auto picks Render for pictures made in this app.",
+              "<b>The result</b>: drag it to turn it, scroll to zoom. <b>💾 Save .ply…</b> saves the 3D Gaussian splat (a standard .ply) for a splat viewer, Blender, Unity or Unreal (with a splat add-on). It also goes to the Library as a picture of the splat; that picture's details have <b>🧊 View in 3D</b> and <b>💾 Save .ply…</b>. A splat is not a mesh: for 3D printing it would need converting first.",
+              "<b>One-time setup</b>: 1. Sign in on Hugging Face (a free account), open <code>huggingface.co/facebook/dinov3-vith16plus-pretrain-lvd1689m</code> (📋 Copy in the module) and accept Meta's DINOv3 licence. 2. On Hugging Face → Settings → Access Tokens, make a <b>Read</b> token and paste it into the module. The first 3D then downloads about 5 GB: Idol (Apache-2.0), DINOv3 and FLUX.2 [klein]'s image encoder (Apache-2.0).",
+              "<b>Needs 16 GB of memory or more</b>: on 8 GB Macs the module is greyed out (Idol's image encoders and 3D model don't fit together). If it says it ran out of memory, close other apps or pick ⚡ Quick.",
+            ] },
             { h: "⏩ Which upscaler? (Instant)", items: [
               "Tools → <b>Enhance & upscale</b> → Speed <b>⏩ Instant</b> makes the picture bigger in seconds with an upscaler alone (no new detail invented). Not sure? Use the buttons under the list: <b>⚡ Fastest</b> (<b>UltraSharp V2 Lite</b> for anything, <b>Real-ESRGAN fast</b>, <b>AnimeVideo v3</b> for anime) or <b>★ Best quality</b> (<b>UltraSharp V2</b> for anything, <b>Nomos WebPhoto</b> for phone and web photos, <b>AnimeSharp</b> for anime, line art and text). The list shows each one's speed; hover for what it's best at.",
               "<b>For everything:</b> 4x-UltraSharp (built in, crisp), UltraSharp V2 (most detail; slow: 1–3 min for a 1024 px picture on an 8 GB Mac), UltraSharp V2 Lite (fast), Real-ESRGAN fast. <b>Photos:</b> Real-ESRGAN (old or compressed pictures), Real-ESRGAN 2× (made for 2×), Nomos WebPhoto (noise, lens blur, JPEG/WebP), Nomos8kSC (clean photos, natural texture). <b>Anime, drawings & text:</b> AnimeSharp (extra crisp), Real-ESRGAN Anime (clean lines, flat colours), AnimeVideo v3 (fastest, a little softer).",
@@ -2843,6 +2854,9 @@ const protoartApp = createApp({
       pairOver: "",  // ➕ the two-picture layout's drop box under the pointer  // ✨ a recommended LoRA (Flow-DPO) downloading
       zstyle: { applied: null, cat: "Photo", q: "" },  // 🎨 Styles (ZImagePowerNodes templates)
       relightJob: false,
+      // 🧊 Make 3D (Idol, 16 GB+ Macs): quality, kind of picture, the last result and the viewer's points
+      spl: { job: false, status: null, last: null, quality: loadJSON("protoart.splat.quality", "standard"), mode: "auto",
+             view: null, loading: false },
       txHint: false,  // Image to image: after 🔤 Text selection, point to Tools → Replace text
       m3d: { job: false, accepted: loadJSON("protoart.mesh3d.accepted", false), status: null, last: null },
       RELIGHT_IDEAS: ["sunshine from a window", "neon light, city", "sunset over the sea", "golden hour", "sci-fi RGB glow, cyberpunk",
@@ -4323,6 +4337,7 @@ const protoartApp = createApp({
       saveJSON(OPTS_KEY, this.opts);
     }
     window.bee.onMenu && window.bee.onMenu((what) => this.menuAction(what));  // Help menu in the Mac menu bar
+    this.splStatus();  // 🧊 Make 3D: is this Mac big enough, is it set up
     setupPanelFolds();  // every panel with a title folds (click the title)
     installTypeIn();  // double-click a slider's number (Tools' modules) to type an exact value
     // while you paint, drag or draw on a picture, the holiday looks' animations hold still (every frame for the brush)
@@ -8425,6 +8440,121 @@ const protoartApp = createApp({
       return this.runJob("edit_words", { ...extra, edit_model: "h3_image", init_image: src, prompt: this.relightH3Prompt(o),
                                          refs: o.ref_on && o.ref ? [o.ref] : [], ...this.h3EditArgs(), relight: true });
     },
+    async splStatus() { try { this.spl.status = await call("idol_status"); } catch {} },
+    splQuality(q) { this.spl.quality = q; saveJSON("protoart.splat.quality", q); },
+    splMode() {  // a photo (real) or a picture made on a computer (synthetic): "auto" goes by where the picture came from
+      if (this.spl.mode !== "auto") return this.spl.mode;
+      const st = (this.tool.source && this.tool.source.settings) || {};
+      return st.model || st.prompt ? "synthetic" : "real";
+    },
+    splCopyPage() {
+      const page = (this.spl.status && this.spl.status.dinov3_page) || "huggingface.co/facebook/dinov3-vith16plus-pretrain-lvd1689m";
+      try { navigator.clipboard.writeText(page); this.status = "Copied: " + page + " (paste it into your browser)"; } catch {}
+    },
+    async toolSplat() {  // 🧊 the picture's object as a 3D Gaussian splat (.ply) with Idol
+      const s = this.tool.source;
+      if (!s || this.spl.job) return;
+      if (this.spl.status && !this.spl.status.ram_ok) return (this.error = "Make 3D needs a Mac with 16 GB of memory or more.");
+      this.spl.job = true;
+      this.tool.working = { label: "Making the 3D splat", started: Date.now() };
+      this.tool.latest = null;
+      try {
+        const rec = await this.runJob("make3d", { ...this.toolArgs(), engine: "idol", quality: this.spl.quality, mode: this.splMode() });
+        if (rec) { this.tool.latest = rec; this.spl.last = rec; this.afterPost(rec); this.splView(rec); }
+      } finally { this.tool.working = null; this.spl.job = false; this.splStatus(); }
+    },
+    splPly(r) { return r && r.settings && r.settings.splat && r.settings.splat.ply; },
+    async splSave(r) {
+      const p = this.splPly(r);
+      if (!p) return;
+      try {
+        const res = await window.bee.saveSplatAs(p);
+        if (res && res.ok) this.status = "Saved the 3D splat: " + res.path.replace(/^\/Users\/[^/]+/, "~");
+        else if (res && !res.canceled) this.error = res.msg || "Couldn't save the .ply.";
+      } catch (e) { this.error = e.message; }
+    },
+    async splView(r) {  // open the turnable viewer on a Make 3D result
+      const p = this.splPly(r);
+      if (!p) return;
+      this.spl.loading = true;
+      try {
+        const d = await call("splat_points", { path: p });
+        const dec = (b, T) => { const bin = atob(b), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); };
+        this.spl.view = { rec: r, n: d.n, total: d.total, pos: dec(d.pos, Float32Array), col: dec(d.col, Uint8Array),
+                          size: dec(d.size, Float32Array), yaw: -0.5, pitch: 0.2, zoom: 1 };
+        this.$nextTick(() => this.splDraw(true));
+      } catch (e) { this.error = "Couldn't open the 3D view: " + e.message; } finally { this.spl.loading = false; }
+    },
+    splOpen(r) {  // from the Library: Tools → 🧊 Make 3D with its viewer on this splat
+      this.detail = null;
+      this.tab = "tools";
+      this.splView(r);
+      this.$nextTick(() => { const el = document.getElementById("rack-splat"); if (el) el.scrollIntoView({ block: "center" }); });
+    },
+    splClose() { this.spl.view = null; this._splGl = null; },
+    splDraw(fresh) {
+      const v = this.spl.view, cv = this.$refs.splCanvas;
+      if (!v || !cv) return;
+      const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 480, h = cv.clientHeight || 480;
+      if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+      let g = this._splGl;
+      if (fresh || !g || g.canvas !== cv) {
+        const gl = cv.getContext("webgl", { antialias: true, premultipliedAlpha: false });
+        if (!gl) return (this.error = "This Mac's graphics can't show the 3D view; the .ply still saves.");
+        const sh = (type, src) => { const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o); return o; };
+        const prog = gl.createProgram();
+        gl.attachShader(prog, sh(gl.VERTEX_SHADER, `attribute vec3 p; attribute vec4 c; attribute float s;
+          uniform mat3 R; uniform vec3 C; uniform float K; uniform float A; uniform float P; varying vec4 vc;
+          void main() { vec3 q = R * (p - C); q.z -= 2.2; float f = 2.2 / -q.z;
+            gl_Position = vec4(q.x * K * f / A, q.y * K * f, -(q.z + 2.2) * 0.2, 1.0);
+            gl_PointSize = clamp(s * K * f * P * 2.2, 1.5, 9.0); vc = c; }`));
+        gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, `precision mediump float; varying vec4 vc;
+          void main() { vec2 d = gl_PointCoord - 0.5; if (dot(d, d) > 0.25 || vc.a < 0.35) discard; gl_FragColor = vec4(vc.rgb, 1.0); }`));
+        gl.linkProgram(prog);
+        gl.useProgram(prog);
+        const buf = (data, name, n, type, norm) => {
+          const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+          const loc = gl.getAttribLocation(prog, name); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, n, type, norm, 0, 0);
+        };
+        buf(v.pos, "p", 3, gl.FLOAT, false); buf(v.col, "c", 4, gl.UNSIGNED_BYTE, true); buf(v.size, "s", 1, gl.FLOAT, false);
+        let lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+        for (let i = 0; i < v.n; i++) for (let k = 0; k < 3; k++) { const x = v.pos[i * 3 + k]; if (x < lo[k]) lo[k] = x; if (x > hi[k]) hi[k] = x; }
+        const span = Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) || 1;
+        g = this._splGl = { gl, prog, canvas: cv, center: [0, 1, 2].map((k) => (lo[k] + hi[k]) / 2), span };
+      }
+      const { gl, prog } = g;
+      gl.viewport(0, 0, cv.width, cv.height);
+      gl.clearColor(0.11, 0.115, 0.125, 1); gl.enable(gl.DEPTH_TEST); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      const cy = Math.cos(v.yaw), sy = Math.sin(v.yaw), cp = Math.cos(v.pitch), sp = Math.sin(v.pitch);
+      // turn about the up axis, then tilt (column-major for WebGL)
+      const R = [cy, sp * sy, -cp * sy, 0, cp, sp, sy, -sp * cy, cp * cy];
+      gl.uniformMatrix3fv(gl.getUniformLocation(prog, "R"), false, new Float32Array(R));
+      gl.uniform3fv(gl.getUniformLocation(prog, "C"), g.center);
+      gl.uniform1f(gl.getUniformLocation(prog, "K"), (1.7 / g.span) * v.zoom);
+      gl.uniform1f(gl.getUniformLocation(prog, "A"), cv.width / cv.height);
+      gl.uniform1f(gl.getUniformLocation(prog, "P"), cv.height / 2);
+      gl.drawArrays(gl.POINTS, 0, v.n);
+    },
+    splDown(e) {
+      if (!this.spl.view) return;
+      const start = { x: e.clientX, y: e.clientY, yaw: this.spl.view.yaw, pitch: this.spl.view.pitch };
+      const move = (ev) => {
+        const v = this.spl.view;
+        if (!v) return;
+        v.yaw = start.yaw + (ev.clientX - start.x) * 0.01;
+        v.pitch = Math.max(-1.4, Math.min(1.4, start.pitch + (ev.clientY - start.y) * 0.01));
+        this.splDraw();
+      };
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    },
+    splWheel(e) {
+      const v = this.spl.view;
+      if (!v) return;
+      v.zoom = Math.max(0.4, Math.min(4, v.zoom * (e.deltaY > 0 ? 0.9 : 1.1)));
+      this.splDraw();
+    },
     async m3dStatus() { try { this.m3d.status = await call("mesh3d_status"); } catch {} },
     m3dAccept(on) { this.m3d.accepted = !!on; saveJSON("protoart.mesh3d.accepted", this.m3d.accepted); },
     async toolMake3d() {  // 🧊 the subject as a 3D model (.glb + .obj) with Hunyuan3D 2 mini
@@ -11625,7 +11755,7 @@ const protoartApp = createApp({
       return { generated: "Original", img2img: "Image-to-image", faces: "Face-restored", enhanced: "Enhanced",
                depth: "Depth map", inpaint: "Inpainted", outpaint: "Expanded", grid: "Comparison grid",
                edited: "Edited", healed: "Objects removed", word_edit: "Edited with words", combined: "Combined", camera_angle: "Camera angle", faceswap: "Face swap",
-               chain: "Model chain", tiled: "Tiled upscale", animation: "Animation", layer: "Layer", cutout: "Cut out", relit: "Relit", mesh3d: "3D model",
+               chain: "Model chain", tiled: "Tiled upscale", animation: "Animation", layer: "Layer", cutout: "Cut out", relit: "Relit", mesh3d: "3D model", splat3d: "3D splat",
                papercut: "Paper cut-out" }[kind] || kind;
     },
     depthModelInfo(id) {

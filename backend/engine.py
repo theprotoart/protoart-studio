@@ -4858,8 +4858,69 @@ class Engine:
         emit({"type": "image", "record": record})
         return record
 
+    def make_splat(self, args, emit=None):
+        """🧊 Make 3D (16 GB+ Macs): a picture as a 3D Gaussian splat .ply with Speridlabs' Idol, in its own process
+        (see idol3d.py). Idol finds and frames the object itself."""
+        import idol3d
+        import net
+        from PIL import Image
+        emit = emit or self.emit
+        if idol3d.ram_gb() < idol3d.MIN_RAM_GB:
+            raise UserError(f"Make 3D needs a Mac with 16 GB of memory or more (this one has {idol3d.ram_gb():.0f} GB).")
+        src, image = self._source_picture(args)
+        image = image.convert("RGB")
+        started = time.time()
+        if not idol3d.env_ready():
+            if net.strict:
+                raise UserError("Make 3D needs a one-time download (its code and the models), and Strict offline mode "
+                                "is on. Turn it off in Settings → Privacy.")
+            net.set_online(True)
+            try:
+                idol3d.setup(emit, self.cancel_event)
+            except idol3d.IdolError as e:
+                raise UserError(str(e))
+            finally:
+                net.set_online(False)
+        tmp = paths.HOME / "tmp"
+        tmp.mkdir(parents=True, exist_ok=True)
+        pic = tmp / f"idol_in_{os.getpid()}.png"
+        image.save(pic)
+        self.unload()  # Idol runs in its own process: give it the memory
+        self.drop_helpers()
+        day = paths.IMAGES_DIR / "3D"
+        day.mkdir(parents=True, exist_ok=True)
+        stem = day / f"{datetime.now().strftime('%Y-%m-%d_%H%M%S')}_{_slug(Path(src['path']).stem)}"
+        seed = int(args["seed"]) if str(args.get("seed") or "").isdigit() else int.from_bytes(os.urandom(4), "little") & 0x7FFFFFFF
+        quality = args.get("quality") if args.get("quality") in idol3d.QUALITY else "standard"
+        steps, gaussians = idol3d.settings_for(quality)
+        mode = "real" if args.get("mode") == "real" else "synthetic"
+        opts = {"steps": steps, "gaussians": gaussians, "seed": seed, "mode": mode}
+        try:
+            r = idol3d.run(pic, str(stem), opts, emit, self.cancel_event)
+        except idol3d.IdolError as e:
+            raise UserError(f"Make 3D didn't finish: {e}")
+        finally:
+            try:
+                pic.unlink()
+            except OSError:
+                pass
+        prev = Image.open(r["preview"]).convert("RGB")
+        settings = dict(src.get("settings") or {})
+        settings.update(seed=seed, width=prev.width, height=prev.height, seconds=round(time.time() - started, 1),
+                        splat={"ply": r["ply"], "input": r.get("input"), "gaussians": r.get("gaussians"),
+                               "steps": steps, "quality": quality, "mode": mode, "model": idol3d.WEIGHTS})
+        settings["loras"] = []
+        path = self._save(prev, settings, suffix="3d")
+        record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="splat3d")
+        record["thumb"] = str(thumbs.make(record["id"], path, prev) or "") or None
+        emit({"type": "image", "record": record})
+        return dict(record, ply=r["ply"])
+
     def make3d(self, args, emit=None):
-        """🧊 Make 3D: the subject of a picture as a 3D model (Hunyuan3D 2 mini, in its own process; see mesh3d.py)."""
+        """🧊 Make 3D: the subject of a picture as a 3D model (Hunyuan3D 2 mini, in its own process; see mesh3d.py).
+        With engine "idol": a Gaussian splat instead (make_splat)."""
+        if args.get("engine") == "idol":
+            return self.make_splat(args, emit)
         import mesh3d
         import net
         import numpy as np
