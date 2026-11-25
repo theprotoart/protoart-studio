@@ -626,3 +626,8 @@ details.fine summary { cursor: pointer; }
 .film-prev { width: 100%; max-height: 220px; object-fit: contain; border-radius: 6px; background: #0004; display: block; }
 .picked-list { margin: 0; padding: 0; list-style: none; }
 .picked-list li { margin: 0 0 2px; }
+.tile-make { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 4px; padding: 10px; border: 1px solid var(--line, #333); border-radius: 8px; }
+.tile-make > .primary { align-self: flex-start; }
+.tf-star { position: absolute; top: 2px; right: 3px; z-index: 2; font-size: 15px; line-height: 1; padding: 2px; color: #fff; text-shadow: 0 1px 3px #000; opacity: 0; cursor: pointer; }
+.tf-tile:hover .tf-star, .tf-star.on { opacity: 1; }
+.tf-star.on { color: #f5c04a; }

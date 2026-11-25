@@ -140,3 +140,14 @@ def test_wired_up():
         assert gone not in app, gone   # duplicates of 🎭 Transform looks
     for t in ("tf_fx_sparkler", "tf_fx_glass"):
         assert (ROOT / "app" / "renderer" / "assets" / "presets" / f"{t}.jpg").exists()
+
+
+def test_batch_run_every_look():
+    app = (ROOT / "app" / "renderer" / "app.js").read_text()
+    html = (ROOT / "app" / "renderer" / "index.html").read_text()
+    body = app[app.index("    batchLooks(which"):app.index("    async setTileThumb(")]
+    assert 'r.id !== "tf_ultra_detail"' in body and "this.editRecipeLora(r)" in body and "(!r.klein || klein)" in body
+    assert 'startsWith("tf_fx_")' in body and "!this.tfThumb(r.id)" in body and "tileMaking.stop" in body
+    assert "loras: [{ name: lora.name" in body and "tiles && !hadTile" in body  # LoRA looks with their LoRA; never replace a tile
+    assert "Run every look on one photo" in html and "lookBatch.which = 'fx'" in html and 'v-model="lookBatch.tiles"' in html
+    assert 'which === "star" ? this.tfStars.includes(r.id)' in body and 'tfStar(r.id)' in html and "lookBatch.which = 'star'" in html

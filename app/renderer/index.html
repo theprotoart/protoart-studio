@@ -3574,12 +3574,26 @@
               <img v-if="tfThumb(r.id)" :src="tfThumb(r.id)" alt="" loading="lazy">
               <span v-else class="tf-tile-icon">{{ r.label.split(' ')[0] }}</span>
               <span class="tf-tile-name">{{ r.label.split(' ').slice(1).join(' ') }}</span>
+              <span class="tf-star" :class="{on: tfStars.includes(r.id)}" role="button" @click.stop="tfStar(r.id)" :title="tfStars.includes(r.id) ? 'Starred: click to unstar' : 'Star this look (▶ Run every look can run just the starred ones)'">{{ tfStars.includes(r.id) ? '★' : '☆' }}</span>
             </button>
           </div>
-          <div v-if="!i2iShut('transform') && (tileMaking || tileMissing().length)" class="tile-make hint">
-            <template v-if="tileMaking">🎭 Making tile pictures: {{ tileMaking.done }} of {{ tileMaking.total }}<span v-if="tileMaking.now"> · now {{ tileMaking.now }}</span>
-              <button class="link small" :disabled="tileMaking.stop" @click="tileMaking.stop = true" title="Finish the look being made, then stop">{{ tileMaking.stop ? 'stopping after this one…' : 'stop after this one' }}</button></template>
-            <button v-else class="link small" :disabled="!form.init_image" @click="tileMakeAll" :title="'Runs each of these looks on the photo in 1 · Picture with the edit model you picked, one after the other, and puts each result on its tile: ' + tileMissing().map((r) => r.label).join(', ')">🎭 Make the {{ tileMissing().length }} missing tile pictures from this photo<span v-if="!form.init_image"> (drop a photo in 1 · Picture first)</span> · about {{ tileMissing().length * 4 }} min</button>
+          <div v-if="!i2iShut('transform')" class="tile-make">
+            <div class="shape-step">▶ Run every look on one photo <span class="hint">drop the photo in 1 · Picture · the results go to the Library, one after the other</span></div>
+            <template v-if="tileMaking">
+              <div class="hint">🎭 {{ tileMaking.done }} of {{ tileMaking.total }} done<span v-if="tileMaking.now"> · now {{ tileMaking.now }}</span>
+                <button class="link small" :disabled="tileMaking.stop" @click="tileMaking.stop = true" title="Finish the look being made, then stop">{{ tileMaking.stop ? 'stopping after this one…' : 'stop after this one' }}</button></div>
+            </template>
+            <template v-else>
+              <div class="seg mod-seg">
+                <button :class="{on: lookBatch.which === 'all'}" @click="lookBatch.which = 'all'" :title="batchLooks('all').map((r) => r.label).join(', ')">All looks ({{ batchLooks('all').length }})</button>
+                <button :class="{on: lookBatch.which === 'star'}" @click="lookBatch.which = 'star'" :title="batchLooks('star').map((r) => r.label).join(', ') || 'Click the ☆ in a tile\'s corner to star a look'">★ Starred ({{ batchLooks('star').length }})</button>
+                <button :class="{on: lookBatch.which === 'fx'}" @click="lookBatch.which = 'fx'" :title="batchLooks('fx').map((r) => r.label).join(', ')">✨ Effects ({{ batchLooks('fx').length }})</button>
+                <button :class="{on: lookBatch.which === 'missing'}" @click="lookBatch.which = 'missing'" :title="batchLooks('missing').map((r) => r.label).join(', ') || 'Every look has its tile picture'">No tile picture ({{ batchLooks('missing').length }})</button>
+              </div>
+              <label class="check" title="A look whose tile has no picture yet gets your result on it (🎭 Use as the tile picture changes it later)"><input type="checkbox" v-model="lookBatch.tiles"> Put each result on its tile if the tile has no picture yet</label>
+              <button class="primary" :disabled="!form.init_image || !batchLooks().length" @click="tileMakeAll" :title="'One after the other, with the edit model you picked: ' + batchLooks().map((r) => r.label).join(', ')">▶ Run {{ batchLooks().length }} looks<span v-if="form.init_image"> · about {{ batchLooks().length * 4 }} min</span></button>
+              <span v-if="!form.init_image" class="hint">drop a photo in 1 · Picture first</span>
+            </template>
           </div>
           <label class="pair-head pair-fold" :class="{shut: i2iShut('shapes')}" @click="i2iFoldToggle('shapes', $event)" title="Click to fold or unfold"><span class="pf-arrow" aria-hidden="true">{{ i2iShut('shapes') ? '▸' : '▾' }}</span> 🔤 Fill a shape <span v-if="i2iShut('shapes') && editRecipe() && (editRecipe().group === 'shape')" class="pf-sum">· {{ editRecipe().label }}</span><span class="hint">a word or a black shape, built out of anything you name, keeping its exact outline</span></label>
           <div v-if="!i2iShut('shapes')" class="seg seg-wrap edit-recipes">

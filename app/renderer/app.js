@@ -1541,7 +1541,9 @@ const protoartApp = createApp({
       paperJob: false,
       filmJob: false,
       tileThumbs: {},  // 🎭 your own Transform tile pictures {recipe id: path}
-      tileMaking: null,  // 🎭 making the missing tile pictures: {done, total, now, stop}
+      tileMaking: null,  // 🎭 a batch of looks running: {done, total, now, stop}
+      tfStars: loadJSON("protoart.tfstars", []),  // ★ the Transform looks you starred (ids)
+      lookBatch: Object.assign({ which: "all", tiles: true }, loadJSON("protoart.lookbatch", {})),  // 🎭 Run every look: which, and tiles
       fxJob: false,
       fxPrev: "",   // ✨ the effect's live preview (data URL)
       filmPrev: "",     // 🎞 the film look's live preview (data URL)
@@ -1694,10 +1696,11 @@ const protoartApp = createApp({
             { h: "1.6.31: ✨ Photo effects, ✨ Effects lab, 🎞 Film looks, 🔁 seamless patterns, Krea 2 on 16 GB Macs, ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
               "<b>✨ 14 photo-effect looks</b> in 🎭 Transform a person (they work on people, things and places): ❄️ Winter storm (snow settling on the head, shoulders and every edge), 🌧 Soaked in rain (wet hair and clothes, water dripping off), 🖌 Concept-art painting, 🔦 Dramatic light, 🌲 Double exposure (drop a landscape picture or describe one), 💧 Made of water, 🔥 Apocalypse, 💨 Made of smoke, ✏️ Pencil sketch, 🎨 Watercolour splash, 😃 Cartoon portrait, 📄 Torn paper, 🎇 Sparkler light trail and 🪟 Fluted glass. The same looks are in Create → 🎨 Styles → <b>Effects</b> (with ✒️ Line engraving). Quick edits that repeated a Transform look (Turnaround sheet, Comic panel, Crime-game art) now live only in Transform.",
               "<b>✨ Effects lab</b> (Tools, and the patchbay's <b>FX</b> module), instant, no model: <b>✨ Sparkler</b>: paint a path round a person or a thing and it becomes a long-exposure sparkler trail (white-hot core, glow, sparks) that really lights the faces and clothes near it, the scene optionally turned to night; <b>✒️ Engraving</b>: a banknote-style line engraving or halftone dots, in black, sepia, navy or red ink; <b>🪟 Fluted glass</b>: reeded glass over a shape you place or an area you paint or select (▭ Box, 👤 Subject, Invert…).",
+              "<b>★ Star your favourite looks</b> (the star in a 🎭 Transform tile's corner) and <b>▶ Run every look on one photo</b> (under the tiles): drop one photo in 1 · Picture and run all the looks, just your ★ starred ones, just the ✨ effects, or only the looks with no tile picture, one after the other; every result goes to the Library, and a look with no tile picture can get yours. Stop after any one.",
               "<b>▭ Box</b> selection tool (Image to image and Tools painting): drag a rectangle and it becomes the painted area.",
               "<b>🔤 Fill a shape → text styles</b> for a word: 🎨 Graffiti 3D, 🪞 Chrome, 🏆 Gold game title, 💡 Neon sign, 🧊 Carved ice, 🔥 Fire, 🎈 Foil balloons (they fill in the two boxes; the word is drawn as styled lettering).",
               "<b>⬛ Use as a shape → Threshold slider</b> (and ⬛ Solid silhouette, Light parts are the shape) under your own shape in Fill a shape: a photo becomes a clean black shape instead of speckles. Any picture in the box can be turned into a shape (⬛ Turn this picture into a black shape…).",
-              "<b>🎭 Use as the tile picture</b> (picture window, for a Transform look's result): your own picture on that look's tile (right-click puts the app's back). Or under the Transform tiles, <b>🎭 Make the missing tile pictures from this photo</b> runs every look that has no picture yet on the photo in 1 · Picture, one after the other, and puts each result on its tile.",
+              "<b>🎭 Use as the tile picture</b> (picture window, for a Transform look's result): your own picture on that look's tile (right-click puts the app's back). And under the Transform tiles, <b>▶ Run every look on one photo</b>: drop a photo in 1 · Picture and run all the looks (or just your ★ starred ones — click the star in a tile's corner — the ✨ effects, or only those without a tile picture) one after the other; the results go to the Library, and a look with no tile picture can get yours.",
               "Fix: ✂ Cut out's People, Classic, General and Anime finders download from a Hugging Face copy when GitHub can't be reached, checked against rembg's own checksums.",
               "<b>🔁 Face swap: ★ HyperSwap 1c</b> (FaceFusion, 2025) is the new default model: it draws the new face at 256 px (512 with Sharper) instead of 128, so skin, eyes and the face's outline come out sharper and the likeness closer. ~400 MB the first time. <b>inswapper</b> stays as a choice. HyperSwap's licence is ResearchRAIL (research use).",
               "<b>↺ Use these settings works for Image to image pictures</b>: an edit goes back into Image to image with the picture it started from, the recipe and its card (🔤 Fill a shape's shape, filling and background, 🔁 Seamless pattern's choices, a Transform look's boxes), the edit model, ⚡ speed, work size and seed, so ✨ Edit makes it again (it used to fill in Create instead). Pictures made before this keep their recipe, model and seed.",
@@ -11665,13 +11668,21 @@ const protoartApp = createApp({
       const mine = this.tileThumbs[id];
       return mine ? this.fileUrl(mine.split("?")[0]) + "?" + (mine.split("?")[1] || "") : TF_THUMBS.has(id) ? `assets/presets/${id}.jpg` : "";
     },
-    tileMissing() {  // 🎭 the looks with no tile picture yet (no LoRA to download, not Klein-only)
-      return EDIT_RECIPES.filter((r) => r.slots && r.group === "transform" && !r.files && !r.klein && !this.tfThumb(r.id));
+    tfStar(id) {  // ★ star or unstar a Transform look (for the batch run's ★ Starred choice)
+      this.tfStars = this.tfStars.includes(id) ? this.tfStars.filter((x) => x !== id) : [...this.tfStars, id];
+      saveJSON("protoart.tfstars", this.tfStars);
     },
-    async tileMakeAll() {  // 🎭 every look without a picture, on the photo in 1 · Picture; each result goes on its tile
-      const f = this.form, todo = this.tileMissing();
+    batchLooks(which = this.lookBatch.which) {  // 🎭 the looks a batch runs: all, ★ starred, the ✨ effects, or those with no tile picture
+      const klein = ["flux2_klein_mlx_q4", "flux2_klein9b_mlx_q4"].includes(this.editModelId());
+      return EDIT_RECIPES.filter((r) => r.slots && r.group === "transform" && r.id !== "tf_ultra_detail"  // (an upscale, not a look)
+        && (!r.files || this.editRecipeLora(r)) && (!r.klein || klein)
+        && (which === "fx" ? r.id.startsWith("tf_fx_") : which === "star" ? this.tfStars.includes(r.id) : which === "missing" ? !this.tfThumb(r.id) : true));
+    },
+    async tileMakeAll() {  // 🎭 run every look in the batch on the photo in 1 · Picture, one after the other
+      const f = this.form, todo = this.batchLooks(), tiles = !!this.lookBatch.tiles;
+      saveJSON("protoart.lookbatch", this.lookBatch);
       if (!f.init_image) return (this.error = "Drop the photo to use in 1 · Picture first.");
-      if (!todo.length) return (this.status = "🎭 Every look already has its tile picture.");
+      if (!todo.length) return (this.status = "🎭 No looks to run.");
       this.error = "";
       this.tileMaking = { done: 0, total: todo.length, now: "", stop: false };
       const seed = f.seed == null || +f.seed < 0 ? Math.floor(Math.random() * 2 ** 31) : +f.seed;
@@ -11682,16 +11693,19 @@ const protoartApp = createApp({
           let text = r.prompt;  // its own wording with the boxes' examples: the look as it comes
           for (const sl of r.slots || []) if (sl.ph) text = text.split(sl.ph).join(sl.dflt || "");
           const head = r.head || "Picture 1 is the reference photo of the person.";
+          const lora = r.files ? this.editRecipeLora(r) : null, file = r.files ? this.editRecipeFile(r) : null;
+          const own = lora ? { loras: [{ name: lora.name, weight: 1.0 }], edit_model: file === r.files["9b"] ? "flux2_klein9b_mlx_q4" : "flux2_klein_mlx_q4" } : {};
+          const hadTile = !!this.tfThumb(r.id);
           const rec = await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: f.init_image,
-                                                        prompt: head + "\n" + text, refs: [], seed, recipe: r.id,
-                                                        keep_faces: !!(r.set && r.set.keep_faces), match_colors: false });
-          if (rec && rec.path) {
+                                                        prompt: head + "\n" + text, refs: [], seed, recipe: r.id, ...own,
+                                                        keep_faces: !!(r.set && r.set.keep_faces), match_colors: !!(r.set && r.set.match_colors) });
+          if (rec && rec.path && tiles && !hadTile) {  // a look with no picture yet gets this one on its tile
             const t = await call("tile_thumb_set", { id: r.id, path: rec.path }).catch(() => null);
             if (t && t.path) this.tileThumbs = { ...this.tileThumbs, [r.id]: t.path };
           }
           this.tileMaking.done++;
         }
-        this.status = `🎭 ${this.tileMaking.done} tile picture${this.tileMaking.done === 1 ? "" : "s"} made` + (this.tileMaking.stop ? " (stopped)" : "") + ". Right-click 🎭 Use as the tile picture on a result to put the app's back.";
+        this.status = `🎭 ${this.tileMaking.done} look${this.tileMaking.done === 1 ? "" : "s"} made from your photo` + (this.tileMaking.stop ? " (stopped)" : "") + ": they're in the Library.";
       } finally { this.tileMaking = null; }
     },
     async setTileThumb(d, reset = false) {  // 🎭 this result as its look's tile picture
