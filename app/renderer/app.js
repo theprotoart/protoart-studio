@@ -414,7 +414,7 @@ const SHAPES = [
   { id: "drop", label: "💧", tip: "A drop", path: "M50 2 C50 2 86 44 86 64 C86 84 70 98 50 98 C30 98 14 84 14 64 C14 44 50 2 50 2 Z" },
   { id: "flower", label: "✿", tip: "A four-petal flower", path: "M27 27 a23 23 0 1 0 46 0 a23 23 0 1 0 -46 0 Z M50 50 a23 23 0 1 0 46 0 a23 23 0 1 0 -46 0 Z M27 73 a23 23 0 1 0 46 0 a23 23 0 1 0 -46 0 Z M4 50 a23 23 0 1 0 46 0 a23 23 0 1 0 -46 0 Z" },
 ];
-const TF_THUMBS = new Set(["tf_fx_winter", "tf_fx_sparkler", "tf_fx_glass", "tf_action_figure", "tf_ultra_detail", "tf_pop_art", "tf_editorial", "tf_graffiti", "tf_surreal", "tf_claymation", "tf_crime_game", "tf_pixel_sprite", "tf_fighter_select", "tf_movie_hero", "tf_oil_portrait", "tf_trading_card", "tf_retro_console",
+const TF_THUMBS = new Set(["tf_fx_winter", "tf_fx_pencil", "tf_fx_watercolour", "tf_fx_cartoon", "tf_fx_torn", "tf_fx_sparkler", "tf_fx_glass", "tf_action_figure", "tf_ultra_detail", "tf_pop_art", "tf_editorial", "tf_graffiti", "tf_surreal", "tf_claymation", "tf_crime_game", "tf_pixel_sprite", "tf_fighter_select", "tf_movie_hero", "tf_oil_portrait", "tf_trading_card", "tf_retro_console",
   "tf_crochet", "tf_vinyl_toy", "tf_figurine_desk", "tf_caricature", "tf_anime", "tf_sticker_pack", "tf_half_anime", "tf_90s_film", "tf_anime_still", "tf_comic_cover", "tf_bobblehead", "tf_brick_fig", "tf_miniature", "tf_turnaround"]);
 const EDIT_RECIPES = [
   // two-picture recipes without a LoRA (files: null): they work with any edit model (Klein, FLUX 3, MiniMax-H3)
