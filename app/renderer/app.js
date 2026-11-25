@@ -753,7 +753,7 @@ const EDIT_RECIPES = [
     tip: "The subject turned into a sculpture: polished gold, weathered bronze or white marble, on a plinth in a gallery. Works on people, things and places.",
     slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" },
             { id: "material", kind: "item", label: "Material (optional)", add: "Instead of white marble, the whole sculpture is made of {x}, the same material everywhere." }],
-    prompt: "Keep the subject exactly recognizable: the same face, features, hairstyle, skin tone, pose and clothes for a person, the same shape and details for a thing or a place, and the same composition.\nTurn the whole subject into one lifelike sculpture carved from a single block of polished white marble with faint grey veins.\nEverything is the same white stone: the skin, the hair, the beard, the eyes, the clothes, the watch and every accessory. The hair becomes sculpted locks, the clothes become carved folds, the eyes are smooth and blank as on a classical statue; every detail of the face, the hands and the pose is kept exactly, only the material changes. No colour anywhere on the sculpture.\nThe surface shows real carved stone: a soft glow where light passes into the marble, fine veins, tool marks in the crevices, a little dust.\nAdd nothing that is not in the photo: no flowers, no props, no extra objects, no jewellery, no added clothing. The sculpture stands on a plain stone plinth in a quiet museum gallery, lit by a soft skylight from above with deep shadows.\nA real photograph of a real sculpture. No text, no plaque.",
+    prompt: "Keep the subject exactly recognizable: the same face, features, hairstyle, skin tone, pose and clothes for a person, the same shape and details for a thing or a place, and the same composition.\nTurn the whole subject into one lifelike sculpture carved from a single block of polished white marble with faint grey veins.\nEverything is the same white stone: the skin, the hair, the beard, the eyes, the clothes, the watch and every accessory. The hair becomes sculpted locks, the clothes become carved folds, the eyes are smooth and blank as on a classical statue; every detail of the face, the hands and the pose is kept exactly, only the material changes. No colour anywhere on the sculpture.\nThe surface shows real carved stone: a soft glow where light passes into the marble, fine veins, tool marks in the crevices, a little dust.\nThe sculpture shows only what is in the photo, nothing added, every part of it the same smooth carved stone. The sculpture stands on a plain stone plinth in a quiet museum gallery, lit by a soft skylight from above with deep shadows.\nA real photograph of a real sculpture. No text, no plaque.",
     licence: "no LoRA: the edit model alone" },
   { id: "tf_fx_lowpoly", label: "🔷 Low-poly", group: "transform", by: "", files: null, p1: "the photo",
     head: "Picture 1 is the reference photograph (a person, a thing or a place).",
@@ -1552,6 +1552,13 @@ const protoartApp = createApp({
         f.combine = { ...defaultForm().combine, ...(f.combine || {}) };
         f.dn = { ...defaultForm().dn, ...(f.dn || {}) };
         f.tf = { pics: {}, words: {}, ...(f.tf || {}) };
+        {  // a look's own wording that you didn't change follows the app's improvements (e.g. 🗽 Statue's 1.6.31 fix)
+          const r = f.edit_recipe && EDIT_RECIPES.find((x) => x.id === f.edit_recipe);
+          const untouched = r && (f.recipe_prompt != null ? f.prompt === f.recipe_prompt
+            : r.group === "transform" && String(f.prompt || "").slice(0, 80) === r.prompt.slice(0, 80));
+          if (untouched && f.prompt !== r.prompt) f.prompt = r.prompt;
+          if (r) f.recipe_prompt = f.prompt === r.prompt ? r.prompt : f.recipe_prompt;
+        }
         f.cc = { ...defaultForm().cc, ...(f.cc || {}) };  // permission is asked again each time the app opens
         if (!loadJSON("protoart.cfDefault", false)) {  // 1.2: CodeFormer became the default face model (once)
           f.face_model = "codeformer";
@@ -9869,8 +9876,9 @@ const protoartApp = createApp({
       f.edit_recipe = f.edit_recipe === id ? "" : id;
       const r = this.editRecipe();
       // the recipe's own wording (it was trained on it); a prompt you wrote yourself is kept unless it was the last recipe's
-      const mine = (f.prompt || "").trim() && !(old && f.prompt === old.prompt) && !EDIT_QUICK.some((q) => q.prompt === f.prompt);
+      const mine = (f.prompt || "").trim() && !(old && f.prompt === old.prompt) && f.prompt !== f.recipe_prompt && !EDIT_QUICK.some((q) => q.prompt === f.prompt);
       if (r && !mine) f.prompt = r.prompt;
+      f.recipe_prompt = r && f.prompt === r.prompt ? r.prompt : null;  // the wording as the look gave it (so it's updated, not kept as yours)
       // a few looks take their own settings (🔬 Ultra-detail: keep faces and colours), only while they're picked
       if (this._recipeSaved) { Object.assign(f, this._recipeSaved); this._recipeSaved = null; }
       if (r && r.set) { this._recipeSaved = Object.fromEntries(Object.keys(r.set).map((k) => [k, f[k]])); Object.assign(f, r.set); }
