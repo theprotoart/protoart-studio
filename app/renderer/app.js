@@ -211,7 +211,10 @@ function defaultPost() {  // Tools settings on a fresh install
     cut: { threshold: 0.5, softness: 0.1, grow: 0, bg: "transparent", color: "#ffffff", clean: true, fix_edges: true, crop: false, finder: "birefnet", invert: false },
     // 📄 Paper cut-out: border width (% of the shorter side), its paper, torn-ness, shadow, print look, background
     paper: { edge: 2, edge_colour: "white", rough: 0.5, shadow: 0.6, print_as: "photo", background: "transparent" },
-    film: { stock: "warm_portrait", strength: 1, grain: 1, halation: 1 },  // 🎞 Film look: which film, how much, grain, glow
+    film: { stock: "warm_portrait", strength: 1, grain: 1, halation: 1 },
+    fx: { effect: "sparkler", colour: "gold", glow: 1, sparks: 1, night: true, light: 1,  // ✨ Effects lab: sparkler…
+          style: "lines", spacing: 1, angle: 45, ink: "black", cross: true, contrast: 1,  // …engraving / halftone…
+          shape: "diamond", cx: 0.4, cy: 0.5, size: 0.6, rib: 1, strength: 1 },  // …fluted glass  // 🎞 Film look: which film, how much, grain, glow
     harmonize: { direction: "subject", strength: 70, light: 50, ref: "" },  // 🎯 Match colours (Tools)
     relight: { prompt: "", subject: "", direction: "none", model: "", size: 640, hires: true, speed: "standard", background: "keep", ref_on: false, ref: "",
                shadow: true, blend: true, full_size: true, warmth: 0, colour_on: false, colour: "#ffb066" },
@@ -221,7 +224,7 @@ function defaultPost() {  // Tools settings on a fresh install
 // each Tools module's own starting settings (its ↺ reset button); the big ↺ Reset Tools settings does them all
 const TOOL_PARTS = {
   enhance: { post: ["enh", "do_enhance"] }, faces: { post: ["face_strength", "face_model", "face_fidelity", "do_faces"] },
-  depth: { post: ["depth"] }, vector: { post: ["vec"] }, detail: { post: ["det"] }, cutout: { post: ["cut"] }, paper: { post: ["paper"] }, film: { post: ["film"] }, relight: { post: ["relight"] }, harmonize: { post: ["harmonize"] }, mesh3d: { post: ["mesh3d"] },
+  depth: { post: ["depth"] }, vector: { post: ["vec"] }, detail: { post: ["det"] }, cutout: { post: ["cut"] }, paper: { post: ["paper"] }, film: { post: ["film"] }, fx: { post: ["fx"] }, relight: { post: ["relight"] }, harmonize: { post: ["harmonize"] }, mesh3d: { post: ["mesh3d"] },
   heal: {}, tiled: {}, quant: {}, merge: {}, convert: {},
 };
 // 😀 Expression sheets (📷 Camera angle → Picture layout): the expressions to show, picked in the window
@@ -411,7 +414,7 @@ const SHAPES = [
   { id: "drop", label: "💧", tip: "A drop", path: "M50 2 C50 2 86 44 86 64 C86 84 70 98 50 98 C30 98 14 84 14 64 C14 44 50 2 50 2 Z" },
   { id: "flower", label: "✿", tip: "A four-petal flower", path: "M27 27 a23 23 0 1 0 46 0 a23 23 0 1 0 -46 0 Z M50 50 a23 23 0 1 0 46 0 a23 23 0 1 0 -46 0 Z M27 73 a23 23 0 1 0 46 0 a23 23 0 1 0 -46 0 Z M4 50 a23 23 0 1 0 46 0 a23 23 0 1 0 -46 0 Z" },
 ];
-const TF_THUMBS = new Set(["tf_action_figure", "tf_ultra_detail", "tf_pop_art", "tf_editorial", "tf_graffiti", "tf_surreal", "tf_claymation", "tf_crime_game", "tf_pixel_sprite", "tf_fighter_select", "tf_movie_hero", "tf_oil_portrait", "tf_trading_card", "tf_retro_console",
+const TF_THUMBS = new Set(["tf_fx_sparkler", "tf_fx_glass", "tf_action_figure", "tf_ultra_detail", "tf_pop_art", "tf_editorial", "tf_graffiti", "tf_surreal", "tf_claymation", "tf_crime_game", "tf_pixel_sprite", "tf_fighter_select", "tf_movie_hero", "tf_oil_portrait", "tf_trading_card", "tf_retro_console",
   "tf_crochet", "tf_vinyl_toy", "tf_figurine_desk", "tf_caricature", "tf_anime", "tf_sticker_pack", "tf_half_anime", "tf_90s_film", "tf_anime_still", "tf_comic_cover", "tf_bobblehead", "tf_brick_fig", "tf_miniature", "tf_turnaround"]);
 const EDIT_RECIPES = [
   // two-picture recipes without a LoRA (files: null): they work with any edit model (Klein, FLUX 3, MiniMax-H3)
@@ -631,6 +634,100 @@ const EDIT_RECIPES = [
             { id: "wall", kind: "item", label: "The wall", ph: "[WALL]", dflt: "a weathered red-brick wall in an urban alley with a cracked sidewalk in front" }],
     prompt: "Transform the person in the reference photograph into a giant spray-painted street-art mural.\nKeep their recognizable face, hairstyle, skin tone, facial hair and expression, painted larger than life as a head-and-shoulders portrait.\nPaint it in a bold contemporary graffiti style: vivid spray-paint colours, crisp stencil-cut shadows, soft airbrushed gradients, paint drips running down, overspray halos and a few splatters.\nThe mural is on [WALL], so the wall's texture, mortar lines and cracks show through the paint.\nPhotograph the whole mural straight on in daylight, with a little of the street in front for scale and a few spray cans on the ground.\nNo logos or brand names.",
     licence: "no LoRA: the edit model alone" },
+  // ✨ Photo effects (1.6.31): the looks people buy as Photoshop actions, done by the edit model; they work on a person,
+  // a thing or a place (head), so the sparkler and the fluted glass also have exact versions in Tools → ✨ Effects lab
+  { id: "tf_fx_winter", label: "❄️ Winter storm", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "Turns the scene into heavy snowfall: snow settles naturally on the head, shoulders and every upward-facing edge, frost on hair and fabric, flakes in the air. Works on people, things and places.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" },
+            { id: "place", kind: "item", label: "Where it is (optional)", add: "The setting: {x}, deep in snow." }],
+    prompt: "Keep the subject exactly recognizable: the same face, features, hairstyle, skin tone, pose and clothes for a person, the same shape and details for a thing or a place, and the same composition.\nTurn it into a cold winter scene in a heavy snowfall.\nSnow settles naturally wherever it would land: a soft layer on top of the head and hair, on the shoulders, the tops of the arms, the folds of the clothes and every upward-facing surface and edge, with fine frost on the tips of hair, eyebrows, beard and fabric; snow never covers the face or the eyes. A thing or a building gets the same: snow heaped on its top and ledges, icicles on its edges.\nFresh snow covers the ground and everything around; big soft flakes fall through the air, some close to the camera and softly blurred, with drifting mist behind.\nCold blue-grey winter light, breath faintly visible in the cold air, a cool desaturated colour grade with icy highlights and deep blue shadows.\nA real photograph, not a painting. No text.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_fx_rain", label: "🌧 Soaked in rain", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "A heavy downpour: hair, skin and clothes soaking wet, water running down and dripping off the chin, fingers and hems; a thing gets beading drops and water running off its edges. Works on people, things and places.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" },
+            { id: "place", kind: "item", label: "Where it is (optional)", add: "The setting: {x}, in the rain." }],
+    prompt: "Keep the subject exactly recognizable: the same face, features, hairstyle, skin tone, pose and clothes for a person, the same shape and details for a thing or a place, and the same composition.\nPut it in a heavy downpour, everything soaking wet.\nA person: hair wet and clumped with water running through it, skin glistening with beads of water and drops running down the face and arms, clothes darker and heavier where they are wet and clinging to the body, water dripping steadily from the chin, nose, fingertips, sleeves and hems. A thing: its upper surfaces covered in beading droplets, thin streams of water running down its sides and dripping off its edges and corners.\nRain falls in long visible streaks, splashing in small crowns where it hits; puddles on the ground reflect the light.\nMoody overcast or night light, wet specular highlights everywhere, a slightly cool, high-contrast colour grade.\nA real photograph. No text.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_fx_concept", label: "🖌 Concept-art painting", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "Repainted as loose, expressive digital concept art: confident detail on the face, the edges dissolving into broad strokes, splatters and drips over an abstract wash.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" },
+            { id: "colours", kind: "item", label: "Colours (optional)", add: "Paint it mainly in {x}." }],
+    prompt: "Keep the subject exactly recognizable: the same face, features, hairstyle, skin tone, pose and clothes for a person, the same shape and details for a thing or a place, and the same composition.\nRepaint it as a loose, expressive digital concept-art painting.\nThe face and the main forms are painted with confident, finished detail; towards the edges the forms dissolve into broad visible brushstrokes, palette-knife marks, dry-brush texture, paint splatters and drips.\nThe background becomes an abstract painterly wash in the photo's own colours, built from overlapping translucent strokes, with a few speckles of paint flying off.\nStrong contrast between the finished focal areas and the rough, unfinished edges; rich, slightly heightened colour with warm and cool accents.\nAn original painting. No text, no signature.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_fx_dramatic", label: "🔦 Dramatic light", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "A dark, heroic film-poster look: one beam of light from above through haze, bright rim light, everything else falling into deep shadow, steel-blue grade.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" }],
+    prompt: "Keep the subject exactly recognizable: the same face, features, hairstyle, skin tone, pose and clothes for a person, the same shape and details for a thing or a place, and the same composition.\nRelight it as a dark, dramatic cinematic picture.\nA single strong beam of light falls from directly above and slightly in front through a faint haze, making a soft visible shaft of light with dust drifting in it, and bright rim highlights on the head, shoulders and edges; everything else falls away into deep shadow, the background nearly black with a soft glow behind the subject.\nA desaturated cool steel-blue and teal colour grade with rich deep blacks, crisp micro-contrast that brings out texture (skin, metal, fabric), subtle film grain.\nMoody and heroic, like a film poster. A real photograph. No text.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_fx_double", label: "🌲 Double exposure", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "Two photos in one: the silhouette is filled with a landscape (a picture of a place, words, or both) and the face shows softly through, on a clean light background.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" },
+            { id: "place", kind: "item", label: "The place inside the silhouette (a picture, words or both)", ph: "[PLACE]", dflt: "a misty pine forest on a mountainside" }],
+    prompt: "Make an artistic double exposure from the reference photograph.\nKeep the subject's exact outline and recognizable profile, face and features.\nInside the silhouette, [PLACE] fills the body and the back of the head, blended with the subject like two photographs exposed on the same frame: the bright parts of one show through the dark parts of the other, so the face, the eyes and the key features stay softly visible through the scenery.\nOutside the silhouette, a clean off-white background; the top of the scenery (treetops, mist, peaks) breaks softly past the outline in places.\nA muted, natural palette, soft fog and fine grain: elegant and minimal, like a double-exposure poster. No text.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_fx_water", label: "💧 Made of water", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "The subject made of clear liquid water: the same shape and details as glassy, rippling water, splashes and droplets flying off, in a deep blue-green underwater light.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" }],
+    prompt: "Transform the subject of the reference photograph into a figure made entirely of clear liquid water.\nKeep the exact shape, pose and proportions, the recognizable face and the details (the folds of the clothes, numbers, edges), all formed from rippling, glassy water with bright specular highlights and refraction, the original colours faintly tinted through it.\nSplashes and droplets burst from the edges and fly outward, streams of water flow off the shoulders and limbs, small bubbles are caught inside.\nBackground: a deep teal-blue gradient like being underwater, soft rays of light from above, floating droplets.\nPhotorealistic, high-speed photography of water. No text.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_fx_apocalypse", label: "🔥 Apocalypse", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "The world after a disaster: cracked, scorched and crumbling, small fires and embers, black smoke into an ash-grey sky. Great for places and things; a person gets soot and torn clothes.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" }],
+    prompt: "Turn the reference photograph into a post-apocalyptic scene of destruction.\nKeep the main subject recognizable with its exact shape and layout, but damaged: cracked, scorched, crumbling and dusty, broken windows, rust and soot, rubble and debris on the ground, burnt-out cars if it's a street.\nSmall fires burn here and there with glowing embers; thick black smoke rises into a heavy, smoky, ash-grey sky.\nA person keeps their recognizable face and pose, with dust and soot on the skin and torn, weathered clothes.\nA desaturated, dirty teal-and-orange colour grade, dramatic and cinematic. A real photograph. No text.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_fx_smoke", label: "💨 Made of smoke", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "The subject formed from wisps of glowing smoke on a dark background: the face still clear, the edges curling away into smoke trails.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" },
+            { id: "colour", kind: "item", label: "Smoke colour (optional)", add: "The smoke glows {x}." }],
+    prompt: "Transform the subject of the reference photograph into a figure formed from swirling wisps of smoke.\nKeep the recognizable face, features and the exact pose and outline; the face stays the clearest part, the rest built from soft glowing smoke that follows the forms and folds.\nThe edges dissolve into curling smoke trails drifting outward and upward, fine particles and haze around them.\nA near-black background, the smoke lit cool white and pale blue from within, deep contrast.\nPhotorealistic, ethereal and dramatic. No text.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_fx_pencil", label: "✏️ Pencil sketch", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "A hand-drawn graphite sketch on textured paper: confident outlines, diagonal hatching for the shading, the edges left unfinished.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" }],
+    prompt: "Keep the subject exactly recognizable: the same face, features, hairstyle, skin tone, pose and clothes for a person, the same shape and details for a thing or a place, and the same composition.\nRedraw it as a hand-drawn graphite pencil sketch on textured white drawing paper.\nConfident, slightly loose outlines; the shading built from parallel diagonal hatching and cross-hatching, darker and denser in the shadows; a few construction lines; the drawing fades out and is left unfinished towards the edges.\nOnly pencil grey on paper, no colour; the paper's grain visible.\nA skilled artist's sketch. No text, no signature.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_fx_watercolour", label: "🎨 Watercolour splash", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "A watercolour painting on white paper: the subject's colours bleeding out into splashes, drips and spatters, the background left as bare paper.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" },
+            { id: "colours", kind: "item", label: "Splash colours (optional)", add: "The splashes are mainly {x}." }],
+    prompt: "Keep the subject exactly recognizable: the same face, features, hairstyle, skin tone, pose and clothes for a person, the same shape and details for a thing or a place, and the same composition.\nRepaint it as a vivid watercolour painting on white watercolour paper.\nThe face and the main forms are painted with care in transparent washes; their colours bleed outward into loose watercolour blooms, splashes, drips running down and fine spatters.\nThe background is mostly bare white paper with soft colour stains, the paper texture showing through everywhere.\nFresh, luminous colour, hard wet edges where the washes dried. An original painting. No text, no signature.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_fx_cartoon", label: "😃 Cartoon portrait", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "A bold digital cartoon: clean outlines, smooth cel shading, slightly exaggerated features and a big expressive face, still clearly them.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" },
+            { id: "bg", kind: "item", label: "Background (optional)", add: "The background: {x}." }],
+    prompt: "Redraw the person in the reference photograph as a bold digital cartoon portrait.\nKeep them clearly recognizable: the same face shape, features, hairstyle, facial hair, skin tone, expression and clothes, with gently exaggerated proportions (a slightly larger head, expressive eyes and smile).\nClean confident dark outlines, smooth cel shading with soft gradients, crisp highlights on the hair, eyes and nose, rich saturated colours.\nA simple bold background in a strong flat colour with a few light graphic shapes.\nPolished, professional cartoon illustration. No text.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_fx_torn", label: "📄 Torn paper", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "The photo printed on paper with a torn hole: the middle bursts through in full colour, the rest in grey halftone with curled, ripped edges.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" }],
+    prompt: "Make a torn-paper effect from the reference photograph.\nThe whole picture is printed on a sheet of paper in black and white with a fine halftone dot texture; in the middle, a large hole is ripped through the paper, and inside the hole the subject's face and upper body show in full, rich colour.\nThe torn edges are white, rough and fibrous, curling outward in jagged flaps with soft shadows under them.\nKeep the subject exactly recognizable and in the same position, so the colour part and the grey part line up perfectly.\nA real photograph of a real torn print. No text.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_fx_sparkler", label: "🎇 Sparkler light trail", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "A long-exposure night photo with a glowing sparkler trail looping round the subject. For a trail exactly where you want it, use Tools → ✨ Effects lab → Sparkler.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" },
+            { id: "path", kind: "item", label: "The trail's path (optional)", add: "The light trail follows this path: {x}." }],
+    prompt: "Keep the subject exactly recognizable: the same face, features, hairstyle, skin tone, pose and clothes for a person, the same shape and details for a thing or a place, and the same composition.\nMake it a long-exposure photograph at night with a bright sparkler light-painting trail.\nA continuous glowing line of warm golden light loops and spirals around the subject, passing behind and in front of them, white-hot at its core with a soft warm glow and countless tiny sparks flying off it.\nThe scene is dark, the subject softly lit by the trail's warm light, the background fading into night.\nA real photograph. No text.",
+    licence: "no LoRA: the edit model alone" },
+  { id: "tf_fx_glass", label: "🪟 Fluted glass", group: "transform", by: "", files: null, p1: "the photo",
+    head: "Picture 1 is the reference photograph (a person, a thing or a place).",
+    tip: "Part of the photo seen through a panel of fluted (reeded) glass: thin vertical ribs that smear what's behind them. For exact control, use Tools → ✨ Effects lab → Fluted glass.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" }],
+    prompt: "Keep the subject exactly recognizable: the same face, features, hairstyle, skin tone, pose and clothes for a person, the same shape and details for a thing or a place, and the same composition.\nPlace a large panel of fluted (reeded) glass in front of part of the picture: a tall rounded rectangle turned 45 degrees, overlapping the side of the subject.\nThrough the glass, the picture is split into thin vertical ribs that refract and smear the colours into vertical streaks with faint colour fringes; outside the panel everything stays sharp and unchanged, and the face stays clear.\nThe panel's polished edge catches a thin line of light.\nA real photograph, minimal and elegant. No text.",
+    licence: "no LoRA: the edit model alone" },
   { id: "tf_ultra_detail", label: "🔬 Ultra-detail upscale", group: "transform", by: "", files: null, p1: "the photo",
     head: "Picture 1 is the photo to enhance.", set: { keep_faces: true, match_colors: true }, nostyle: true, klein: true,
     tip: "Redraws the photo's fine detail (pores, hair strands, lashes, fabric weave, stitching) without changing the person, the light or the colours. Runs on FLUX.2 Klein (9B when this Mac has room, else 4B): it keeps faces closer to the original and adds less “AI texture” than MiniMax-H3, which over-sharpened skin and changed small features in tests. For true 4K afterwards, run Tools → ⏩ Upscale on the result.",
@@ -660,8 +757,6 @@ const H3_QUICK = [
   { label: "🏞 Into this scene", prompt: "Put the person (or character) from <Picture 2> into the scene of <Picture 1>, standing naturally in the middle. Keep their face, outfit and proportions as in <Picture 2>; match the light, colours, perspective and shadows of <Picture 1>." },
   { label: "👗 Outfit from picture 2", prompt: "Dress the person in <Picture 1> in the outfit from <Picture 2> (the clothes, shoes and accessories). Keep their face, hair, pose, body and the background of <Picture 1> exactly the same." },
   { label: "🎨 Style of picture 2", prompt: "Redraw <Picture 1> in the art style of <Picture 2>: its medium, brushwork or line, colour palette and lighting. Keep the composition, the people and the objects of <Picture 1>." },
-  { label: "🧍 Turnaround sheet", prompt: "Make a character model sheet of the character in <Picture 1> on a plain white background: full body front view, three-quarter view, side view and back view at the same height, the same face, hair, outfit and colours in every view, flat even lighting." },
-  { label: "📖 Comic panel", prompt: "Make one comic book panel in a clean inked, full-colour style with the character from <Picture 1> as the hero, in a dramatic action pose on a city rooftop at night. A speech balloon reads \"Not on my watch!\". Keep the character's face, hair and outfit as in <Picture 1>." },
   { label: "🔩 Exploded view", prompt: "Take apart the object in <Picture 1> into a detailed isometric exploded-view diagram: keep its exact shape, colours and materials, separate every part along its assembly direction, thin leader lines to ALL-CAPS part labels, two round magnified insets of key parts, on a dark grey grid background." },
   { label: "📐 Blueprint", prompt: "Turn the object in <Picture 1> into an engineering blueprint poster on deep blue paper: white line work, a side view, a top view and a cross-section with dimension lines, a parts list box, and its name as a bold title at the top." },
   { label: "🛠 CAD views", prompt: "Turn the object in <Picture 1> into a standard CAD engineering drawing with front, side, top and rear views and an isometric wireframe view, dimension lines, short part labels and a title block, black lines on white." },
@@ -766,7 +861,6 @@ const H3_SUBJECTS = {
 };
 const LOADING_ART = "bold clean ink outlines, cel-shaded skin and clothes with hard-edged graphic shadows and highlights, slightly stylised realistic faces and proportions, a saturated sunset palette of lavender, violet, magenta, peach and warm gold with teal accents, a hazy Miami-style Art Deco skyline and palm trees, strong warm rim light, poster-like composition, highly detailed hand-drawn digital painting";
 const EDIT_QUICK = [
-  { label: "🌴 Crime-game art", prompt: "Redraw this picture as a modern open-world crime video game loading-screen illustration: " + LOADING_ART + ". Keep the person's face, identity, expression, pose, outfit and the composition exactly the same." },
   { label: "🎮 Game cover collage", prompt: "Make a video-game cover collage from these pictures: each picture becomes its own rectangular panel, redrawn as a modern crime-game loading-screen illustration (" + LOADING_ART + "), panels separated by thin dark purple borders, with a big bold white game title that reads 'PROTOART CITY' in the centre over the panels. Keep each person's face and identity." },
   { label: "🚶 Remove people", prompt: "Remove all the people from this picture and fill in what was behind them naturally (the floor, walls, scenery, shadows and reflections), as if they were never there. Keep everything else exactly the same: the place, the light, the colours and the framing." },
   { label: "🧍 Remove one person", prompt: "Remove the person on the left from this picture and fill in what was behind them naturally, with matching light and shadows. Keep everyone and everything else exactly the same." },
@@ -923,6 +1017,7 @@ const PATCH_NODES = [
   { id: "cutout", label: "CUT OUT", sub: "subject", icon: "✂", in: true, out: true },
   { id: "paper", label: "PAPER", sub: "cut-out", icon: "📄", in: true, out: true },
   { id: "film", label: "FILM", sub: "look", icon: "🎞", in: true, out: true },
+  { id: "fx", label: "FX", sub: "effects lab", icon: "✨", in: true, out: true },
   { id: "result", label: "RESULT", sub: "to Library", in: true },
 ];
 // 🎞 Film lab (Tools): five kinds of film, named by their look (postprocess/film.py has the numbers). Create's 🎞 Film
@@ -934,6 +1029,18 @@ const FILM_LAB = [
   { id: "gritty_bw", icon: "🖤", label: "Gritty B&W", tip: "A fast black-and-white film, pushed: heavy grain, deep blacks, bright highlights, black and white with attitude" },
   { id: "night_tungsten", icon: "🌃", label: "Night tungsten", tip: "A tungsten-balanced cinema film with its anti-halation layer removed: cool teal shadows and red-orange halos round lights and bright edges", glow: true },
 ];
+// 🔤 Fill a shape → a word: ready text styles (they fill in "Fill it with" and "Put it on"); with one picked the word
+// is drawn as lettering in that style (TEXT_FX_PROMPT), in one pass so its outlines and 3D sides aren't trimmed
+const TEXT_FX = [
+  { id: "graffiti", label: "🎨 Graffiti 3D", material: "bold 3D wildstyle graffiti lettering: white faces fading to vivid purple at the bottom with a halftone dot texture, a thick light-purple outline, chunky extruded purple 3D sides, white highlight strokes, soft purple spray-paint clouds and a few drips behind the letters, and two hand-drawn white arrows swooping round them", around: "a dark violet gradient background" },
+  { id: "chrome", label: "🪞 Chrome", material: "polished liquid-chrome blackletter lettering with sharp bevelled edges, cool silver and blue-violet reflections, fine glitter grain on the faces and bright four-pointed starburst glints on the corners", around: "a black background with a band of thin glowing violet horizontal lines behind the letters" },
+  { id: "gold3d", label: "🏆 Gold game title", material: "chunky glossy 3D game-title lettering: golden-yellow faces with a warm glow, a thin white inner outline, deep red-brown extruded sides and a soft drop shadow", around: "a worn brown concrete wall with fine cracks, lit warmly from above" },
+  { id: "neon", label: "💡 Neon sign", material: "glowing neon-tube lettering in hot pink and electric blue, bright white-hot cores, a soft coloured halo and small mounting brackets", around: "a dark brick wall at night with the neon light spilling onto it" },
+  { id: "ice", label: "🧊 Carved ice", material: "lettering carved from clear blue ice with frosted edges, trapped bubbles, sharp facets and cold blue reflections", around: "a snowy landscape at dusk with falling snow" },
+  { id: "fire", label: "🔥 Fire", material: "lettering made of roaring orange flames and glowing embers, white-hot at the core, sparks rising from the tops of the letters", around: "a dark smoky background" },
+  { id: "balloon", label: "🎈 Foil balloons", material: "shiny inflated metallic foil-balloon lettering in rose gold, puffy rounded letters with crinkled seams and soft reflections", around: "a soft pastel pink studio background with confetti" },
+];
+const TEXT_FX_PROMPT = "Make a brand-new picture: a polished, professional title-lettering design. Picture 1 is only a layout guide: use its dark letters for the exact letter shapes, positions, sizes and spacing, and nothing else from it.\nThe lettering: every letter in the exact form of the dark letters in Picture 1, designed as [MATERIAL]. Every letter stays clearly readable and is spelled exactly as in Picture 1: the same letters, in the same order, nothing added or left out.\nThe background: [BACKGROUND], filling the entire frame, so nothing white or grey remains from the guide.\nNo other text.";
 const PATCH_PER_ROW = 7;                       // PICTURE and up to six modules a row; more modules start a new row below
 const PATCH_ROW_H = 250;                       // a row's height in the panel's drawing
 const PATCH_X = (i) => 78 + (i % PATCH_PER_ROW) * 140;  // jack columns in the panel's own 1000-wide drawing
@@ -1341,6 +1448,7 @@ const protoartApp = createApp({
         { id: "brush", icon: "🖌", label: "Brush", tip: "Paint the area (B)" },
         { id: "erase", icon: "🧽", label: "Erase", tip: "Rub out paint (E)" },
         { id: "lasso", icon: "➰", label: "Lasso", tip: "Draw around an area freehand; it fills when you let go (L)" },
+        { id: "rect", icon: "▭", label: "Box", tip: "Drag a box: the box itself becomes the area (R)" },
         { id: "poly", icon: "⬠", label: "Polygon", tip: "Polygonal lasso: click the corners for straight edges; click the first point or double-click to close (P)" },
         { id: "wand", icon: "🪄", label: "Wand", tip: "Magic wand: click a colour to pick the connected area of similar colour (W)" },
         { id: "object", icon: "⬚", label: "Object", tip: "Object selection: drag a box around something and its outline is found (O)" },
@@ -1432,6 +1540,9 @@ const protoartApp = createApp({
       cutFix: { tool: "", size: 30, undo: 0, any: false, figure: null },  // ✍ Cut out's touch-up: brush / lasso to add to or take from the cut-out  // 🧩 Split a character sheet  // ✂ Cut out's live preview
       paperJob: false,
       filmJob: false,
+      tileThumbs: {},  // 🎭 your own Transform tile pictures {recipe id: path}
+      fxJob: false,
+      fxPrev: "",   // ✨ the effect's live preview (data URL)
       filmPrev: "",     // 🎞 the film look's live preview (data URL)
       filmLive: false,  // previews follow the settings once you've picked a look
       i2iInpaintPick: "",
@@ -1534,7 +1645,7 @@ const protoartApp = createApp({
       // 🔍 zoom on the pictures you work on: Tools' picture, Image to image's preview and the picture you paint on there
       zoom: { tools: { z: 1, x: 0, y: 0 }, i2i: { z: 1, x: 0, y: 0 }, i2iSrc: { z: 1, x: 0, y: 0 } },
       zoomSpace: false,      // Space held: drag to move around (like Photoshop)
-      toolMasks: { remove: null, enhArea: null },  // Tools: each painting kept apart ({data, for}): Remove's, Enhance's area
+      toolMasks: { remove: null, enhArea: null, sparkle: null, glassArea: null },  // Tools: each painting kept apart ({data, for}): Remove's, Enhance's area
       tx: { open: false, where: "", free: false, base: null, layers: [], sel: -1, scale: 1, nw: 0, nh: 0, pick: false, busy: false, msg: "", drag: null, finding: false, fonts: null, fontsAsked: false },  // 🔤 Replace text
       pw: { open: false, rec: null, pins: [], sel: -1, density: 48, busy: false, msg: "", error: "", original: false,
             ovl: null, size: null, mode: "rigid", expand: 0, feather: 3, showMesh: true, showBg: true, whole: false,
@@ -1579,7 +1690,14 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.31: 🎞 Film looks, 🔁 seamless patterns, Krea 2 on 16 GB Macs, ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
+            { h: "1.6.31: ✨ Photo effects, ✨ Effects lab, 🎞 Film looks, 🔁 seamless patterns, Krea 2 on 16 GB Macs, ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
+              "<b>✨ 14 photo-effect looks</b> in 🎭 Transform a person (they work on people, things and places): ❄️ Winter storm (snow settling on the head, shoulders and every edge), 🌧 Soaked in rain (wet hair and clothes, water dripping off), 🖌 Concept-art painting, 🔦 Dramatic light, 🌲 Double exposure (drop a landscape picture or describe one), 💧 Made of water, 🔥 Apocalypse, 💨 Made of smoke, ✏️ Pencil sketch, 🎨 Watercolour splash, 😃 Cartoon portrait, 📄 Torn paper, 🎇 Sparkler light trail and 🪟 Fluted glass. The same looks are in Create → 🎨 Styles → <b>Effects</b> (with ✒️ Line engraving). Quick edits that repeated a Transform look (Turnaround sheet, Comic panel, Crime-game art) now live only in Transform.",
+              "<b>✨ Effects lab</b> (Tools, and the patchbay's <b>FX</b> module), instant, no model: <b>✨ Sparkler</b>: paint a path round a person or a thing and it becomes a long-exposure sparkler trail (white-hot core, glow, sparks) that really lights the faces and clothes near it, the scene optionally turned to night; <b>✒️ Engraving</b>: a banknote-style line engraving or halftone dots, in black, sepia, navy or red ink; <b>🪟 Fluted glass</b>: reeded glass over a shape you place or an area you paint or select (▭ Box, 👤 Subject, Invert…).",
+              "<b>▭ Box</b> selection tool (Image to image and Tools painting): drag a rectangle and it becomes the painted area.",
+              "<b>🔤 Fill a shape → text styles</b> for a word: 🎨 Graffiti 3D, 🪞 Chrome, 🏆 Gold game title, 💡 Neon sign, 🧊 Carved ice, 🔥 Fire, 🎈 Foil balloons (they fill in the two boxes; the word is drawn as styled lettering).",
+              "<b>⬛ Use as a shape → Threshold slider</b> (and ⬛ Solid silhouette, Light parts are the shape) under your own shape in Fill a shape: a photo becomes a clean black shape instead of speckles. Any picture in the box can be turned into a shape (⬛ Turn this picture into a black shape…).",
+              "<b>🎭 Use as the tile picture</b> (picture window, for a Transform look's result): your own picture on that look's tile (right-click puts the app's back).",
+              "Fix: ✂ Cut out's People, Classic, General and Anime finders download from a Hugging Face copy when GitHub can't be reached, checked against rembg's own checksums.",
               "<b>🔁 Face swap: ★ HyperSwap 1c</b> (FaceFusion, 2025) is the new default model: it draws the new face at 256 px (512 with Sharper) instead of 128, so skin, eyes and the face's outline come out sharper and the likeness closer. ~400 MB the first time. <b>inswapper</b> stays as a choice. HyperSwap's licence is ResearchRAIL (research use).",
               "<b>↺ Use these settings works for Image to image pictures</b>: an edit goes back into Image to image with the picture it started from, the recipe and its card (🔤 Fill a shape's shape, filling and background, 🔁 Seamless pattern's choices, a Transform look's boxes), the edit model, ⚡ speed, work size and seed, so ✨ Edit makes it again (it used to fill in Create instead). Pictures made before this keep their recipe, model and seed.",
               "Fix: ✨ Edit with words on FLUX 3 Klein could stop with “[metal::malloc] … greater than the maximum allowed buffer size” when its pictures were big (a Fill a shape guide plus a style picture): the pictures now go in at the size the edit works at.",
@@ -1658,7 +1776,7 @@ const protoartApp = createApp({
               "While Regions redraws one area at a time, the live preview says which area it's showing (it's just that part of the picture, so it can look like a thin strip).",
             ] },
             { h: "1.6.24: 🌴 crime-game art & 🎮 game cover, 🕺 character into pose, 🩹 faster Remove", items: [
-              "<b>🌴 Crime-game loading-screen art</b>: in Create, 🎨 Style presets → Illustration → <i>Crime Game Loading Screen</i> or <i>Crime Game Character Portrait</i> (bold ink outlines, cel shading, sunset lavender-and-peach palette, palm-tree skyline). In Image to image → ✨ Edit with words → Quick edits, <b>🌴 Crime-game art</b> redraws your photo that way, keeping the face and pose.",
+              "<b>🌴 Crime-game loading-screen art</b>: in Create, 🎨 Style presets → Illustration → <i>Crime Game Loading Screen</i> or <i>Crime Game Character Portrait</i> (bold ink outlines, cel shading, sunset lavender-and-peach palette, palm-tree skyline). In Image to image → ✨ Edit with words → 🎭 Transform a person, <b>🌴 Crime-game cover art</b> redraws your photo that way, keeping the face.",
               "<b>🎮 Game cover collage</b>: in Create → 🗺 Regions → templates, 8 illustrated panels and a big title in the middle, as 📦 Boxes (best with FLUX 3: change the title and each panel's scene). Or in ✨ Edit with words, add your pictures under More pictures and press Quick edits → <b>🎮 Game cover collage</b>.",
               "<b>🕺 Character into pose</b> (✨ Edit with words → Two pictures → one): drop a photo on 1 (the pose and scene) and a character on 2: the character takes the person's place in that exact pose, setting and light, keeping their own face, hair, outfit and drawing style. No download.",
               "<b>⚡ Models kept on this Mac</b> (Settings → Downloaded models folder): if your models are on an external drive, keep a copy of the ones you use most on the Mac's own drive (most used first, with their size) and they load in seconds instead of a minute or more. Remove a copy any time (only the app's copy is deleted). Copying fast-engine models automatically the first time can now be switched off there.",
@@ -1719,7 +1837,7 @@ const protoartApp = createApp({
             { h: "1.6.18: 🧠 MiniMax-H3-Image on 8 GB Macs: creates and edits", items: [
               "<b>MiniMax-H3-Image</b> (a 33B model by MiniMax) in Create and in Image to image → <b>✨ Edit with words</b> and <b>📷 Camera angle</b>. On this Mac it's shrunk to <b>4-bit</b> once and read from the drive a piece at a time, so it needs under 2 GB of memory: about <b>4 minutes</b> for 1024 × 1024 on an 8 GB M1, about 15 for 2048 × 2048. It spells quoted words right (signs, posters, covers).",
               "<b>Editing</b>: your picture is <code>&lt;Picture 1&gt;</code>, More pictures are <code>&lt;Picture 2&gt;</code>…: relight, change the season, put a hat from another picture on someone, or draw a turnaround sheet of a character (📷 Camera angle's sheets use it when it's picked). <b>💡 Relight</b> has a <b>🧠 H3</b> button in its Speed row: the whole picture relit from your words or a reference picture's light, no SD 1.5 model needed. On an 8 GB Mac an edit works at 768 (about 5–6 minutes); tick 🧠 Full size for 1024 (about 12).",
-              "<b>Many pictures at once</b>: with MiniMax-H3-Image picked in ✨ Edit with words, <b>More pictures</b> takes up to <b>15</b> (16 with yours; each adds about 2–3 minutes), and <b>Quick edits</b> has its own recipes: 👥 Put them together, 🏞 Into this scene, 👗 Outfit from picture 2, 🎨 Style of picture 2, 🧍 Turnaround sheet, 📖 Comic panel and 🛍 Product shot.",
+              "<b>Many pictures at once</b>: with MiniMax-H3-Image picked in ✨ Edit with words, <b>More pictures</b> takes up to <b>15</b> (16 with yours; each adds about 2–3 minutes), and <b>Quick edits</b> has its own recipes: 👥 Put them together, 🏞 Into this scene, 👗 Outfit from picture 2, 🎨 Style of picture 2 and 🛍 Product shot (a turnaround sheet and a comic cover are 🎭 Transform looks).",
               "<b>🧩 Compose with pictures</b> (Image to image → ✨ Edit with words, with MiniMax-H3-Image picked): pick a starting point (👗 Fashion try-on, 👥 People together, 🎎 Characters in a scene, 🏞 Person into a place, 🛋 Furnish a room, 🎨 Style &amp; light), add the pictures, set what each one brings under it (a person, a top, shoes, a pose, the place, the art style…), then <b>✍ Write the prompt from the pictures</b> and add what they're doing. Each starting point shows its own labelled boxes (for 👗 Fashion try-on: your picture, then 👚 Top, 👖 Skirt / trousers, 👟 Shoes, 👜 Bag): drop each picture on its box. More pictures now go in at 512, so each adds about a minute instead of several; <b>🧠 Work size</b> 768 / 896 / 1024 sets how sharp the result is.",
               "<b>🧠 Presets in Create</b> for MiniMax-H3-Image: type a subject, then one press lays it out as an exploded view, a blueprint, a CAD sheet, an infographic, a magazine cover, a movie poster, a comic page, a character sheet, a product ad, a sticker sheet, a tarot card, an oil painting, a watercolour and more. Image to image's Quick edits add exploded view, blueprint, CAD views, render → film still and map → game view of your picture. <b>🎲 Random prompt</b> follows the picked layout with a fitting subject (an engine for an exploded view, a place for a diorama…), or any layout.",
               "<b>Bigger sizes</b> for MiniMax-H3-Image on Create's <b>Max size</b> switch: Draft 1024, Medium 1280, Large 1536 and Best 2048 (about 4, 6, 9 and 13 minutes on an 8 GB Mac). Going to Image to image no longer swaps Create's model for an SD one. <b>↔ Expand</b> can fill the new area with MiniMax-H3-Image too (Fill the new area with → 🧠 MiniMax-H3-Image), and with <b>⚡ Z-Image Turbo</b> (or another fast model that starts from a picture) when it's the model at the top: describe the whole scene, and your picture is put back exactly.",
@@ -2327,6 +2445,19 @@ const protoartApp = createApp({
               "<b>4 Speed</b>: <b>✂ More accurate</b> (the default) makes it in 2 steps: first what it's put on, over the whole picture, then the filling inside the shape only, so the outline is exact and nothing spills over (about twice as long; the first step also lands in your Library). <b>⚡ Quicker</b> does it in one step, with the outline followed more loosely.",
               "<b>⚙ More options</b>: <b>🔤 Use your own font</b> (any font installed on this Mac, or 📂 a .ttf / .otf file, kept until the app closes), <b>Stack the letters</b>, <b>◐ Invert</b> (the filling goes all around the shape instead: letters cut out of a field of flowers) and <b>a look to follow</b> (an optional style picture).",
               "<b>MiniMax-H3-Image</b> gives the best result (about 20 minutes a step on an 8 GB Mac); <b>FLUX.2 Klein</b> is much quicker for tries. Thick, bold fonts and simple shapes work best: thin lines and small gaps get lost in the filling. While Fill a shape is picked, the tools that don't apply (painting, More pictures, Quick edits, the prompt box) are hidden.",
+            ] },
+            { h: "✨ Effects lab: sparkler trails, engraving, fluted glass", items: [
+              "Tools → <b>✨ Effects lab</b> (also the patchbay's <b>FX</b> module). Pick an effect, see it in the module's 👁 preview, then <b>✨ Make it</b>. No model or download; a second or two.",
+              "<b>✨ Sparkler</b>: press <b>🖌 Paint the path</b> and draw a loop or a spiral round the person or thing (one line is enough; the brush size doesn't matter, it follows the middle of what you paint). Pick the colour; <b>Glow</b> and <b>Sparks</b> set how bright and busy it is; <b>Light on nearby things</b> makes the trail light the faces, clothes and ground close to it; <b>🌙 Make it night</b> turns the scene into a long exposure at night.",
+              "<b>✒️ Engraving</b>: <i>Engraved lines</i> (fine lines that thicken in the shadows and bend with the form, cross-hatched in the darkest parts, like a banknote portrait) or <i>Halftone dots</i>; the ink colour, spacing, angle and contrast.",
+              "<b>🪟 Fluted glass</b>: reeded glass that splits what's behind it into thin smeared ribs. Place a shape (◆ Diamond, ● Circle, ⌂ Arch, ▮ Band, ▣ Whole picture) with the sliders, or pick <b>🖌 Painted area</b> and paint or select where it goes: ▭ Box to drag a rectangle, 👤 Subject for the person, then Invert for everything else. Rib width and Distortion to taste.",
+              "In 🎭 Transform a person, 🎇 Sparkler light trail and 🪟 Fluted glass do the same with the edit model (it decides where the trail and the panel go); the Effects lab puts them exactly where you paint.",
+            ] },
+            { h: "✨ Photo-effect looks (Transform a person and Create)", items: [
+              "Image to image → ✨ Edit with words → <b>🎭 Transform a person</b>: the ✨ looks (❄️ Winter storm, 🌧 Soaked in rain, 🖌 Concept-art painting, 🔦 Dramatic light, 🌲 Double exposure, 💧 Made of water, 🔥 Apocalypse, 💨 Made of smoke, ✏️ Pencil sketch, 🎨 Watercolour splash, 😃 Cartoon portrait, 📄 Torn paper, 🎇 Sparkler light trail, 🪟 Fluted glass) work on a person, a thing or a place. Drop the photo, optionally a picture whose look to follow, fill in the optional box (the place for the weather looks, the colours for the painted ones), and press ✨ Edit.",
+              "<b>🌲 Double exposure</b> takes a second picture: drop a landscape (a forest, a city, the sea) in its box, or describe one; the person's silhouette is filled with it and the face shows softly through.",
+              "In Create: 🎨 Styles → <b>Effects</b> wraps your prompt in the same looks (and ✒️ Line engraving).",
+              "Your own tile pictures: in a look's result, <b>🎭 Use as the tile picture</b> puts it on that look's tile (right-click the button to put the app's picture back).",
             ] },
             { h: "🎞 Film look: a classic film stock on any picture", items: [
               "Tools → <b>🎞 Film look</b>: pick a film, see it in the module's preview, then <b>🎞 Make it</b> (it takes about a second; no model or download). The new picture goes to your Library.",
@@ -2980,7 +3111,7 @@ const protoartApp = createApp({
       // 🔤 Fill a shape: where the shape comes from (a word in a built-in font, a ready shape, or your own picture)
       pat: Object.assign({ from: "words", what: "", use: "fabric", count: 1 }, loadJSON("protoart.pattern", {})),  // 🔁 Seamless pattern
       patLast: "",
-      shp: Object.assign({ how: "word", word: "", font: "Protoart Bubble", stack: false, ready: "heart", invert: false, exact: true }, loadJSON("protoart.fillshape", {})),
+      shp: Object.assign({ how: "word", word: "", font: "Protoart Bubble", stack: false, ready: "heart", invert: false, exact: true, textfx: "" }, loadJSON("protoart.fillshape", {})),
       splatOn: false,  // 🧊 Make 3D (Idol): hidden until it has been tested on a 16 GB Mac
       spl: { job: false, status: null, last: null, quality: loadJSON("protoart.splat.quality", "standard"), mode: "auto",
              view: null, loading: false },
@@ -3028,6 +3159,7 @@ const protoartApp = createApp({
       tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false, protecting: false, protectWhich: "all", enhArea: false, paintFor: "remove", promptText: "", promptCopied: false, view: "split", split: 0.5 },
       PATCH_NODES,
       FILM_LAB,
+      TEXT_FX,
       ProtoText: window.ProtoText,  // 🔤 Replace text's fonts
       patchInY: PATCH_IN_Y,
       patchOutY: PATCH_OUT_Y,
@@ -4351,6 +4483,7 @@ const protoartApp = createApp({
 
   watch: {
     "post.film": { deep: true, handler() { if (this.filmLive) this.filmPreview(); } },
+    "post.fx": { deep: true, handler() { if (this.fxPrev || this.post.fx.effect !== "sparkler") this.fxPreview(); } },
     "form.edit_recipe"(v) { if (v === "tf_shape") this.$nextTick(() => this.shapePreview()); },
     family() {  // Pony ↔ SD 1.5: Create's ControlNet switches to the same kind made for the new model type
       const cc = this.form.cc;
@@ -4445,6 +4578,8 @@ const protoartApp = createApp({
       immediate: true,
       handler(v, old) {  // the picture's real size, for Expand's sizes and presets (also when the paint area isn't shown)
         if (old !== undefined && v !== old && this.txIn("i2i")) this.txClose();  // its text was for the picture before
+        // ⬛ a different picture dropped in: the shape threshold slider no longer belongs to the old one
+        if (this.shp && this.shp.src && v && !/[\\/]shape_\d+_\d+\.png$/.test(v) && v !== this.shp.src) this.shp.src = "";
         this.initDims = null;
         if (!v) return;
         const im = new Image();
@@ -4455,6 +4590,7 @@ const protoartApp = createApp({
     },
     "tool.source"() {
       this.filmPrev = ""; if (this.filmLive) this.filmPreview();  // 🎞 the film preview follows the picture
+      this.fxPrev = "";
       if (this.txIn("tools")) this.txClose();  // its text was placed on the picture that was here before
       this.tool.healing = false; this.zoomReset("tools"); if (this.cut.open) this.closeCutout(); this.$nextTick(() => this.cmpDraw()); },
     "train.kind"() { if (this.train.preset === "recommended") this.applyTrainPreset(this.trainRecommended); },
@@ -4654,6 +4790,7 @@ const protoartApp = createApp({
           clearTimeout(slow);
         }
         this.queue = this.queue.filter((x) => x.cmd !== "preload");
+        call("tile_thumbs").then((m) => { this.tileThumbs = m || {}; }).catch(() => {});
         // 1.6.31 builds set a 2048 work size with ⚡ Draft in Image to image; under 16 GB that runs out of memory
         if (!this.h3SpeedEdit() && this.form.h3_side === "2048" && this.form.h3_speed) { this.form.h3_side = ""; this.form.h3_speed = ""; }
         this.loadContentStatus();
@@ -6255,7 +6392,7 @@ const protoartApp = createApp({
       window.ProtoSound?.play("plug");
     },
     patchFields(type) {  // the rack-unit settings a module's copies have of their own
-      return { faces: ["face_strength", "face_model", "face_fidelity"], enhance: ["enh"], depth: ["depth"], detail: ["det"], film: ["film"] }[type] || [];
+      return { faces: ["face_strength", "face_model", "face_fidelity"], enhance: ["enh"], depth: ["depth"], detail: ["det"], film: ["film"], fx: ["fx"] }[type] || [];
     },
     patchCopyInit(id) {  // a copy starts with the settings its module has now; after that they're its own
       const type = String(id).split("#")[0], P = this.post;
@@ -6527,7 +6664,7 @@ const protoartApp = createApp({
       id = String(id).split("#")[0];
       return { heal: "Removing what you painted", faces: "Restoring faces", enhance: "Enhancing & upscaling",
                depth: "Making a depth map", vector: "Vectorizing", detail: "Adding detail with a LoRA",
-               tiled: "Tiled upscale", relight: "Relighting", cutout: "Cutting out", paper: "Making a paper cut-out", film: "Adding the film look" }[id] || id;
+               tiled: "Tiled upscale", relight: "Relighting", cutout: "Cutting out", paper: "Making a paper cut-out", film: "Adding the film look", fx: "Adding the effect" }[id] || id;
     },
     async patchRun() {
       const steps = this.patchChain.steps;
@@ -6596,6 +6733,11 @@ const protoartApp = createApp({
               background: o.bg === "transparent" ? "transparent" : o.bg === "white" ? "#ffffff" : o.bg === "black" ? "#000000" : o.color });
           } else if (id === "paper") {
             rec = await this.runJob("papercut", { ...cur, ...this.post.paper, threshold: this.post.cut.threshold, grow: this.post.cut.grow });
+          } else if (id === "fx") {  // ✨ a copy you added (FX 2) has its own effect; the sparkler follows the path painted in Tools
+            const o = (this.patch.copySettings[node] && this.patch.copySettings[node].fx) || this.post.fx;
+            const kind = this.fxPaintKind(o), path = kind && this.toolMasks[kind] && this.toolMasks[kind].data;
+            if (kind && !path) throw new Error(kind === "sparkle" ? "✨ FX sparkler: paint its path first (Tools → ✨ Effects lab → 🖌 Paint the path)" : "✨ FX glass: paint where it goes first (Tools → ✨ Effects lab → 🖌 Paint where)");
+            rec = await this.runJob("fx", { ...cur, ...this.fxArgs(o), mask: path || undefined });
           } else if (id === "film") {  // 🎞 a copy you added (FILM 2) has its own look
             rec = await this.runJob("film", { ...cur, ...((this.patch.copySettings[node] && this.patch.copySettings[node].film) || this.post.film) });
           } else if (id === "vector") {
@@ -7426,12 +7568,22 @@ const protoartApp = createApp({
       g.putImageData(img, 0, 0);
       return cv.toDataURL("image/png");
     },
+    textFx() { return this.shp.how === "word" && TEXT_FX.find((x) => x.id === this.shp.textfx) || null; },  // 🔤 the text style picked
+    pickTextFx(id) {  // 🔤 a text style: it fills in what the letters are made of and what's behind them (yours to change)
+      const was = TEXT_FX.find((x) => x.id === this.shp.textfx), w = { ...(this.form.tf.words || {}) };
+      const now = id && id !== this.shp.textfx ? TEXT_FX.find((x) => x.id === id) : null;
+      if (was) { if (w.material === was.material) w.material = ""; if (w.around === was.around) w.around = ""; }
+      this.shp.textfx = now ? now.id : "";
+      if (now) { w.material = now.material; w.around = now.around; }
+      this.form.tf.words = w;
+      this.shpSave();
+    },
     shapeOpts(extra) {  // 🔤 what was picked on the Fill a shape card (kept in the picture's info)
       const p = this.shp, w = (this.form.tf && this.form.tf.words) || {};
       const shape = p.how === "word" ? `the word “${p.word}” (${this.shapeFontOwn() || p.font}${p.stack ? ", stacked" : ""})`
         : p.how === "ready" ? (SHAPES.find((x) => x.id === p.ready) || {}).tip || p.ready : "your own shape";
       return { "Shape": shape, "Filled with": String(w.material || "").trim() || "yellow flowers (example)",
-               "Put on": String(w.around || "").trim() || "a green meadow (example)", "Inverted": p.invert ? "yes" : "",
+               "Put on": String(w.around || "").trim() || "a green meadow (example)", "Inverted": p.invert ? "yes" : "", "Text style": this.textFx() ? this.textFx().label : "",
                "Outline": p.how === "own" ? "" : p.exact ? "✂ More accurate (2 steps)" : "⚡ Quicker (1 step)", ...(extra || {}) };
     },
     shapeState() {  // 🔤 the Fill a shape card as it is, so ↺ Use these settings can put it back
@@ -7490,12 +7642,27 @@ const protoartApp = createApp({
         return r.path;
       } catch (e) { this.error = "Couldn't draw the shape: " + (e.message || e); return null; }
     },
+    shapeRemake() {  // ⬛ the threshold / solid / light-parts settings changed: draw the shape again from the original
+      clearTimeout(this._shapeT);
+      this._shapeT = setTimeout(() => this.shapeFrom(this.shp.src, true), 250);
+    },
+    async shapeFrom(src, again = false) {  // ⬛ any picture -> a black shape on white (kept: the original, for the slider)
+      if (!src) return;
+      const p = this.shp;
+      if (!again) Object.assign(p, { src, thr: p.thr || 128 });
+      try {
+        const r = await call("make_shape", { path: src, dark: false,
+                                             invert: !!p.lightIsShape, threshold: p.thr || 128, solid: !!p.solid });
+        if (r && r.path && p.src === src) { this.form.init_image = r.path; this.controlMap = null; this.shpSave(); }
+      } catch (e) { this.error = "Couldn't make a shape from that picture: " + (e.message || e); }
+    },
     async useAsShape(rec) {  // ⬛ a picture (a cut-out, logo, silhouette) -> a solid black shape for 🔤 Fill a shape
       const p = rec && (rec.path || rec);
       if (!p) return;
       try {
         const W = (rec && rec.width) || 1024, H = (rec && rec.height) || 1024, k = Math.min(1, 1536 / Math.max(W, H));
-        const r = await call("make_shape", { path: p, width: Math.round(W * k), height: Math.round(H * k), dark: false, invert: false });
+        Object.assign(this.shp, { src: p, thr: 128, solid: false, lightIsShape: false });  // ⬛ kept for the threshold slider
+        const r = await call("make_shape", { path: p, width: Math.round(W * k), height: Math.round(H * k), dark: false, invert: false, threshold: 128 });
         if (!r || !r.path) return;
         if (this.detail) this.detail = null;
         this.tab = "i2i";
@@ -7503,7 +7670,7 @@ const protoartApp = createApp({
         this.pickEditRecipe("tf_shape");
         this.shp.how = "own"; this.shpSave();
         this.form.init_image = r.path; this.controlMap = null;
-        this.status = `⬛ The shape is ${r.how} of that picture, filled in solid black: now say what it's made of and what's around it, then Generate.`;
+        this.status = `⬛ The shape is ${r.how} of that picture: move the Threshold slider under it (or tick ⬛ Solid silhouette) until the shape is right, then say what it's made of and press ✨ Edit.`;
       } catch (e) { this.error = "Couldn't make a shape from that picture: " + (e.message || e); }
     },
     dnUseLast() {
@@ -7628,7 +7795,7 @@ const protoartApp = createApp({
           if (this.sel.pts.length > 2 && Math.hypot(p.x - f.x, p.y - f.y) < 10 * p.k) return this.selFinishPoly();
           this.sel.pts.push(p);
         }
-      } else if (tool === "object") {
+      } else if (tool === "object" || tool === "rect") {
         e.target.setPointerCapture?.(e.pointerId);
         this.sel = { tool, start: p, end: p, sub };
       } else if (tool === "wand") {
@@ -7648,7 +7815,7 @@ const protoartApp = createApp({
       const p = this.maskPoint(e);
       if (this.sel.tool === "lasso" && e.buttons) this.sel.pts.push(p);
       else if (this.sel.tool === "poly") this.sel.hover = p;
-      else if (this.sel.tool === "object" && e.buttons) this.sel.end = p;
+      else if ((this.sel.tool === "object" || this.sel.tool === "rect") && e.buttons) this.sel.end = p;
       this.selDraw();
     },
     maskUp() {
@@ -7663,6 +7830,11 @@ const protoartApp = createApp({
       if (s.tool === "lasso") {
         if (s.pts.length > 2) this.selFill(s.pts, s.sub);
         this.sel = null;
+        this.selDraw();
+      } else if (s.tool === "rect") {  // ▭ the box itself is the area
+        this.sel = null;
+        const a = s.start, b = s.end;
+        if (Math.abs(b.x - a.x) > 3 && Math.abs(b.y - a.y) > 3) this.selFill([a, { x: b.x, y: a.y }, b, { x: a.x, y: b.y }], s.sub);
         this.selDraw();
       } else if (s.tool === "object") {
         this.sel = null;
@@ -7714,7 +7886,7 @@ const protoartApp = createApp({
         this.status = `Brush size ${this.mask.size}`;
         return;
       }
-      const map = { b: "brush", e: "erase", l: "lasso", p: "poly", w: "wand", o: "object", s: "subject", t: "text" };
+      const map = { b: "brush", e: "erase", l: "lasso", r: "rect", p: "poly", w: "wand", o: "object", s: "subject", t: "text" };
       const id = map[(e.key || "").toLowerCase()];
       if (id) this.setMaskTool(id);
     },
@@ -7735,7 +7907,7 @@ const protoartApp = createApp({
         ctx.strokeStyle = "#fff"; path(); ctx.stroke();
         ctx.lineDashOffset = 0;
       };
-      if (s.tool === "object") {
+      if (s.tool === "object" || s.tool === "rect") {
         stroke(() => { ctx.beginPath(); ctx.rect(Math.min(s.start.x, s.end.x), Math.min(s.start.y, s.end.y), Math.abs(s.end.x - s.start.x), Math.abs(s.end.y - s.start.y)); });
         return;
       }
@@ -8225,7 +8397,9 @@ const protoartApp = createApp({
     // you were on and brings back the other's.
     TOOL_PAINT_LABELS() {
       return { remove: "what 🩹 Remove takes out", enhArea: "the part ✨ Enhance works on", enhProtect: "what ✨ Enhance must leave as it is",
-               protect: "what the patch must leave as it is", pw: "the part 🪡 Puppet warp moves" };
+               protect: "what the patch must leave as it is", pw: "the part 🪡 Puppet warp moves",
+               sparkle: "the path the ✨ sparkler follows (a line round the person or thing)",
+               glassArea: "where the 🪟 glass goes (brush, ▭ box, 👤 subject, then Invert for everything else)" };
     },
     toolPaintSlot(kind) {  // where a painting is kept: {data, for}
       if (kind === "protect") return this.patch.protect;
@@ -8632,6 +8806,42 @@ const protoartApp = createApp({
     },
     h3SpeedEdit() {  // ⚡ Draft / Balanced in Image to image need a 2048 work size: more than an edit can use on a Mac under 16 GB
       return !this.sys.ram_gb || this.sys.ram_gb >= 15.5;
+    },
+    fxArgs(o) {  // ✨ just the chosen effect's settings
+      const keys = { sparkler: ["colour", "glow", "sparks", "night", "light"], engrave: ["style", "spacing", "angle", "ink", "cross", "contrast"],
+                     glass: ["shape", "cx", "cy", "size", "rib", "strength"] }[o.effect] || [];
+      return Object.fromEntries([["effect", o.effect], ...keys.map((k) => [k, o[k]])]);
+    },
+    fxPaintKind(o = this.post.fx) {  // ✨ which painting this effect uses: the sparkler's path, or where the glass goes
+      return o.effect === "sparkler" ? "sparkle" : o.effect === "glass" && o.shape === "paint" ? "glassArea" : null;
+    },
+    fxPick(e) { this.post.fx.effect = e; this.fxPrev = ""; if (e !== "sparkler") this.fxPreview(); },
+    fxPreview() {  // ✨ a small preview on the picture, a moment after the settings stop changing
+      clearTimeout(this._fxT);
+      const o = this.post.fx;
+      if (!this.tool.source) return (this.fxPrev = "");
+      const kind = this.fxPaintKind(o), path = kind ? this.toolPaintFor(kind) : null;
+      if (kind && !path) return (this.fxPrev = "");
+      this._fxT = setTimeout(async () => {
+        const want = JSON.stringify([this.tool.source.path, o]);
+        try {
+          const r = await call("fx_preview", { ...this.toolArgs(), ...this.fxArgs(o), mask: path || undefined });
+          if (r && want === JSON.stringify([this.tool.source && this.tool.source.path, this.post.fx])) this.fxPrev = r.src;
+        } catch (e) { this.error = "Couldn't preview the effect: " + (e.message || e); }
+      }, 300);
+    },
+    async toolFx() {
+      const s = this.tool.source, o = this.post.fx;
+      if (!s || this.fxJob) return;
+      const kind = this.fxPaintKind(o), path = kind ? this.toolPaintFor(kind) : null;
+      if (kind && !path) return (this.error = kind === "sparkle" ? "Paint the path for the sparkler first: press 🖌 Paint the path." : "Paint or select where the glass goes first: press 🖌 Paint where.");
+      this.fxJob = true;
+      this.tool.working = { label: "Adding the effect", started: Date.now() };
+      this.tool.latest = null;
+      try {
+        const rec = await this.runJob("fx", { ...this.toolArgs(), ...this.fxArgs(o), mask: path || undefined });
+        if (rec) { this.tool.latest = rec; this.afterPost(rec); if (kind && this.tool.paintFor === kind) this.toolPaintStop(true); }
+      } finally { this.tool.working = null; this.fxJob = false; }
     },
     filmLook() { return FILM_LAB.find((x) => x.id === this.post.film.stock) || FILM_LAB[0]; },
     filmPick(id) { this.post.film.stock = id; this.filmLive = true; this.filmPreview(); },
@@ -11098,7 +11308,7 @@ const protoartApp = createApp({
             f.init_image = path; this.controlMap = null;
           }
           if (!f.init_image) return (this.error = "🔤 Fill a shape: drop your black shape on white in the box first.");
-          if (this.shp.exact && this.shp.how !== "own") return this.shapeExact(rec);  // ✂ the exact outline, in 2 steps
+          if (this.shp.exact && this.shp.how !== "own" && !this.textFx()) return this.shapeExact(rec);  // ✂ the exact outline, in 2 steps
           if (this.shp.how === "own" && this.shp.invert) {  // ◐ Invert your own shape: white on black, made in the backend
             const size = await new Promise((ok) => { const im = new Image(); im.onload = () => ok([im.naturalWidth, im.naturalHeight]); im.onerror = () => ok([1024, 1024]); im.src = this.fileUrl(f.init_image); });
             const k = Math.min(1, 1536 / Math.max(...size));
@@ -11109,7 +11319,7 @@ const protoartApp = createApp({
           }
         }
         // 🔤 Fill a shape always builds from its own wording (its card has no prompt box; an older prompt left in it was used)
-        const tfb = rec && rec.slots ? this.tfBuild(rec, rec.group === "shape" ? rec.prompt : f.prompt) : null;  // 🎭 Transform a person: its boxes
+        const tfb = rec && rec.slots ? this.tfBuild(rec, rec.group === "shape" ? (this.textFx() ? TEXT_FX_PROMPT : rec.prompt) : f.prompt) : null;  // 🎭 Transform a person: its boxes
         if (tfb && tfb.refs.length > this.editRefMax())
           return (this.error = `${rec.label}: this edit model takes ${this.editRefMax()} extra pictures and there are ${tfb.refs.length}. Type some of the items instead of dropping a picture, or pick FLUX 3 (9) or MiniMax-H3 (15) as the edit model.`);
         if (rec && !rec.slots) {  // 🧬 / 🔁 two-picture recipes
@@ -11450,7 +11660,22 @@ const protoartApp = createApp({
       const r = j.recipe && EDIT_RECIPES.find((x) => x.id === j.recipe);
       return r ? `${r.label}${j.prompt ? " · " + j.prompt.replace(/^Picture 1 is[^\n]*\n/, "").slice(0, 70) : ""}` : j.label;
     },
-    tfThumb(id) { return TF_THUMBS.has(id) ? `assets/presets/${id}.jpg` : ""; },
+    tfThumb(id) {  // your own tile picture (↺ from a result), else the app's
+      const mine = this.tileThumbs[id];
+      return mine ? this.fileUrl(mine.split("?")[0]) + "?" + (mine.split("?")[1] || "") : TF_THUMBS.has(id) ? `assets/presets/${id}.jpg` : "";
+    },
+    async setTileThumb(d, reset = false) {  // 🎭 this result as its look's tile picture
+      const id = d && d.settings && d.settings.recipe;
+      if (!id) return;
+      try {
+        const r = await call("tile_thumb_set", { id, path: reset ? "" : d.path });
+        const m = { ...this.tileThumbs };
+        if (reset) delete m[id]; else m[id] = r.path;
+        this.tileThumbs = m;
+        const rec = EDIT_RECIPES.find((x) => x.id === id);
+        this.status = reset ? `🎭 ${rec ? rec.label : id}: back to the app's tile picture` : `🎭 This picture is now the ${rec ? rec.label : id} tile`;
+      } catch (e) { this.error = "Couldn't set the tile picture: " + (e.message || e); }
+    },
     tfSlotLabel(sl) { return sl.label || (sl.kind === "style" ? "Style reference" : "An item"); },
     tfDrop(e, sl) {
       this.pairOver = "";
@@ -11483,6 +11708,9 @@ const protoartApp = createApp({
       if (s.h3_speed) out.push("MiniMax speed: " + ({ draft: "⚡ Draft (2 steps)", balanced: "Balanced (4 steps)", best: "★ Best (6 steps)" }[s.h3_speed] || s.h3_speed));
       if (s.drawn_at) out.push("🧠 Best quality: drawn at " + s.drawn_at.replace("x", " × "));
       if (s.film) out.push(`🎞 ${s.film.look} · strength ${Math.round((s.film.strength ?? 1) * 100)}% · grain ${s.film.grain ?? 1}×` + ((FILM_LAB.find((x) => x.id === s.film.stock) || {}).glow ? ` · glow ${s.film.halation ?? 1}×` : ""));
+      if (s.fx) out.push(s.fx.name + ({ sparkler: ` · ${s.fx.colour} · glow ${s.fx.glow}× · sparks ${s.fx.sparks}×${s.fx.night ? " · night" : ""}`,
+                                        engrave: ` · ${s.fx.style === "dots" ? "halftone dots" : "lines"} · ${s.fx.ink} ink · spacing ${s.fx.spacing}×`,
+                                        glass: ` · ${s.fx.shape} · ribs ${s.fx.rib}× · strength ${s.fx.strength}×` }[s.fx.effect] || ""));
       if (s.papercut) out.push(`📄 ${s.papercut.edge_colour} paper · ${s.papercut.print_as} · border ${s.papercut.edge}%`);
       return out;
     },
@@ -12140,7 +12368,7 @@ const protoartApp = createApp({
                depth: "Depth map", inpaint: "Inpainted", outpaint: "Expanded", grid: "Comparison grid",
                edited: "Edited", healed: "Objects removed", word_edit: "Edited with words", combined: "Combined", camera_angle: "Camera angle", faceswap: "Face swap",
                chain: "Model chain", tiled: "Tiled upscale", animation: "Animation", layer: "Layer", cutout: "Cut out", relit: "Relit", mesh3d: "3D model", splat3d: "3D splat",
-               papercut: "Paper cut-out", film: "🎞 Film look (Tools)" }[kind] || kind;
+               papercut: "Paper cut-out", film: "🎞 Film look (Tools)", fx: "✨ Effects lab (Tools)" }[kind] || kind;
     },
     depthModelInfo(id) {
       return this.depthModels.find((d) => d.id === id) || this.depthModels[0];

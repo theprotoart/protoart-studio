@@ -437,7 +437,7 @@
         </div>
         <div v-if="ptool === 'zstyle'" class="wild-panel ptool-panel zstyle-panel">
           <div class="zstyle-top">
-            <div class="seg"><button v-for="c in ['Photo', 'Illustration', 'Wild']" :key="c" :class="{on: zstyle.cat === c}" @click="zstyle.cat = c">{{ c }}</button></div>
+            <div class="seg"><button v-for="c in ['Photo', 'Illustration', 'Wild', 'Effects']" :key="c" :class="{on: zstyle.cat === c}" @click="zstyle.cat = c">{{ c }}</button></div>
             <input v-model="zstyle.q" type="search" placeholder="Search styles…" class="zstyle-search">
           </div>
           <div class="zstyle-list">
@@ -1234,7 +1234,7 @@
         <div class="cn-guide-head"><h3>🎨 Style presets <span class="hint">· 123 styles from ZImagePowerNodes (made for Z-Image Turbo, fine with FLUX): type what the picture shows, then pick a style: it goes on top of your prompt · press it again to take it off</span></h3><span class="grow"></span>
           <button class="ghost small" @click="hideModelGuide('zstyles')" title="Fold the styles away (a small button brings them back)">✕</button></div>
         <div class="zstyle-top">
-          <div class="seg"><button v-for="c in ['Photo', 'Illustration', 'Wild']" :key="c" :class="{on: zstyle.cat === c && !zstyle.q}" @click="zstyle.cat = c; zstyle.q = ''">{{ c }}</button></div>
+          <div class="seg"><button v-for="c in ['Photo', 'Illustration', 'Wild', 'Effects']" :key="c" :class="{on: zstyle.cat === c && !zstyle.q}" @click="zstyle.cat = c; zstyle.q = ''">{{ c }}</button></div>
           <input v-model="zstyle.q" type="search" placeholder="Search styles…" class="zstyle-search">
         </div>
         <div class="seg seg-wrap edit-recipes zstyle-list">
@@ -2966,6 +2966,71 @@
           </div>
         </div>
 
+        <div id="rack-fx" class="card rack-module fx-card" :class="{active: fxJob, 'patch-pick': patchPicked('fx')}">
+          <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">✨</span>
+            <h3>Effects lab</h3><button class="mod-reset" @click.stop="resetToolPart('fx')" title="This module's settings back to the start">↺</button><span v-if="patchPicked('fx')" class="mod-editing" title="The patchbay module these settings belong to">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">sparkler · engraving · glass · instant</span></div>
+          <div class="film-looks">
+            <button :class="{on: post.fx.effect === 'sparkler'}" @click="fxPick('sparkler')" title="Paint a path round a person or a thing: it becomes a long-exposure sparkler trail with sparks flying off it">✨ Sparkler</button>
+            <button :class="{on: post.fx.effect === 'engrave'}" @click="fxPick('engrave')" title="The picture as a banknote-style line engraving, or as halftone dots">✒️ Engraving</button>
+            <button :class="{on: post.fx.effect === 'glass'}" @click="fxPick('glass')" title="Part of the picture seen through a panel of fluted (reeded) glass">🪟 Fluted glass</button>
+          </div>
+          <template v-if="post.fx.effect === 'sparkler'">
+            <p v-if="!(tool.healing && tool.paintFor === 'sparkle')" class="mod-desc">Press <b>🖌 Paint the path</b>, draw a loop or a spiral round the person or thing on the picture (go behind and in front of them), then <b>✨ Make it</b>.</p>
+            <p v-else class="mod-desc mod-live">← Draw the path on the picture: one line is enough, the brush size doesn't matter (it follows the middle of what you paint).</p>
+            <label>Colour</label>
+            <div class="film-looks">
+              <button v-for="c in [['gold', '🟡 Gold'], ['white', '⚪ White'], ['blue', '🔵 Ice blue'], ['pink', '🩷 Pink'], ['green', '🟢 Green']]" :key="c[0]" :class="{on: post.fx.colour === c[0]}" @click="post.fx.colour = c[0]">{{ c[1] }}</button>
+            </div>
+            <label title="How much the light glows round the line">Glow <span class="mod-val">{{ Number(post.fx.glow).toFixed(2) }}×</span></label>
+            <input type="range" min="0" max="2.5" step="0.05" v-model.number="post.fx.glow">
+            <label title="How many sparks fly off the line">Sparks <span class="mod-val">{{ Number(post.fx.sparks).toFixed(2) }}×</span></label>
+            <input type="range" min="0" max="2.5" step="0.05" v-model.number="post.fx.sparks">
+            <label title="How strongly the trail lights what's near it: faces, clothes, the ground take its colour, brightest where the line passes close">Light on nearby things <span class="mod-val">{{ Number(post.fx.light).toFixed(2) }}×</span></label>
+            <input type="range" min="0" max="2.5" step="0.05" v-model.number="post.fx.light">
+            <label class="check" title="A long exposure at night: the scene goes dark and cool so the light trail shines"><input type="checkbox" v-model="post.fx.night"> 🌙 Make it night</label>
+          </template>
+          <template v-else-if="post.fx.effect === 'engrave'">
+            <div class="seg mod-seg">
+              <button :class="{on: post.fx.style !== 'dots'}" @click="post.fx.style = 'lines'" title="Fine lines that thicken in the shadows and bend with the form, like a banknote portrait">✒️ Engraved lines</button>
+              <button :class="{on: post.fx.style === 'dots'}" @click="post.fx.style = 'dots'" title="A printed halftone: dots that grow in the shadows">⚫ Halftone dots</button>
+            </div>
+            <label>Ink</label>
+            <div class="film-looks">
+              <button v-for="c in [['black', 'Black'], ['sepia', 'Sepia'], ['blue', 'Navy'], ['red', 'Red']]" :key="c[0]" :class="{on: post.fx.ink === c[0]}" @click="post.fx.ink = c[0]">{{ c[1] }}</button>
+            </div>
+            <label title="How far apart the lines or dots are: smaller is finer">Spacing <span class="mod-val">{{ Number(post.fx.spacing).toFixed(2) }}×</span></label>
+            <input type="range" min="0.5" max="3" step="0.05" v-model.number="post.fx.spacing">
+            <label>Angle <span class="mod-val">{{ post.fx.angle }}°</span></label>
+            <input type="range" min="-90" max="90" step="5" v-model.number="post.fx.angle">
+            <label>Contrast <span class="mod-val">{{ Number(post.fx.contrast).toFixed(2) }}×</span></label>
+            <input type="range" min="0.5" max="2" step="0.05" v-model.number="post.fx.contrast">
+            <label v-if="post.fx.style !== 'dots'" class="check" title="A second set of lines across the first in the darkest parts"><input type="checkbox" v-model="post.fx.cross"> Cross-hatch the shadows</label>
+          </template>
+          <template v-else>
+            <label>Shape</label>
+            <div class="film-looks">
+              <button v-for="c in [['paint', '🖌 Painted area'], ['diamond', '◆ Diamond'], ['circle', '● Circle'], ['arch', '⌂ Arch'], ['band', '▮ Band'], ['all', '▣ Whole picture']]" :key="c[0]" :class="{on: post.fx.shape === c[0]}" @click="post.fx.shape = c[0]">{{ c[1] }}</button>
+            </div>
+            <p v-if="post.fx.shape === 'paint'" class="mod-desc">Press <b>🖌 Paint where</b>, then paint the glass on the picture, or use the tools under it: <b>▭ Box</b> to drag a rectangle, <b>👤 Subject</b> to select the person, <b>Invert</b> for everything but them.</p>
+            <template v-if="!['all', 'paint'].includes(post.fx.shape)">
+              <label>Left ↔ right</label><input type="range" min="0" max="1" step="0.01" v-model.number="post.fx.cx">
+              <label>Up ↕ down</label><input type="range" min="0" max="1" step="0.01" v-model.number="post.fx.cy">
+              <label>Size <span class="mod-val">{{ Math.round(post.fx.size * 100) }}%</span></label><input type="range" min="0.15" max="1.4" step="0.01" v-model.number="post.fx.size">
+            </template>
+            <label title="How wide each glass rib is">Rib width <span class="mod-val">{{ Number(post.fx.rib).toFixed(2) }}×</span></label>
+            <input type="range" min="0.4" max="3" step="0.05" v-model.number="post.fx.rib">
+            <label title="How much the glass bends what's behind it">Distortion <span class="mod-val">{{ Number(post.fx.strength).toFixed(2) }}×</span></label>
+            <input type="range" min="0.2" max="2.5" step="0.05" v-model.number="post.fx.strength">
+          </template>
+          <img v-if="fxPrev && tool.source" :src="fxPrev" class="film-prev" alt="" title="A small preview of the effect on your picture">
+          <button v-else class="link small-link" :disabled="!tool.source || (!!fxPaintKind() && !toolPaintFor(fxPaintKind()))" @click="fxPreview()">👁 preview</button>
+          <div class="mod-foot">
+            <button v-if="fxPaintKind() && !(tool.healing && tool.paintFor === fxPaintKind())" class="ghost mod-go" :disabled="!tool.source" @click="toolPaintStart(fxPaintKind())">🖌 {{ toolPaintFor(fxPaintKind()) ? 'Paint more' : fxPaintKind() === 'sparkle' ? 'Paint the path' : 'Paint where' }}</button>
+            <button class="primary mod-go" :disabled="!tool.source || fxJob || (!!fxPaintKind() && !toolPaintFor(fxPaintKind()))" @click="toolFx">{{ fxJob ? 'Working…' : '✨ Make it' }}</button>
+            <span class="mod-plate">Effects lab · FX-3</span>
+          </div>
+        </div>
+
         <div id="rack-detail" class="card rack-module detail-card" :class="{'patch-pick': patchPicked('detail')}">
           <div class="mod-head"><i class="mod-lamp" :class="{on: !!tool.source}"></i><span class="mod-icon">🔎</span>
             <h3>Detail with a LoRA</h3><button class="mod-reset" @click.stop="resetToolPart('detail')" title="This module's settings back to the start (only this one; ↺ Reset Tools settings at the top resets them all)">↺</button><span v-if="patchPicked('detail')" class="mod-editing">⚙ {{ patchPickLabel() }}</span><span class="mod-sub">patchbay · {{ detModel() ? detModel().label : 'no SD model yet' }}</span></div>
@@ -3537,7 +3602,22 @@
               <div v-else class="pair-empty"><b>Drop your shape here</b><span>black on white · or click</span></div>
             </div>
             <canvas v-else ref="shapePrev" class="shape-prev" title="The shape your picture will take"></canvas>
+            <template v-if="shp.how === 'own' && form.init_image">
+              <template v-if="shp.src">
+                <label title="Which parts become the shape: higher takes in lighter parts too, lower only the darkest">Threshold <span class="mod-val">{{ shp.thr || 128 }}</span></label>
+                <input type="range" min="10" max="245" step="1" :value="shp.thr || 128" @input="shp.thr = +$event.target.value; shapeRemake()">
+                <label class="check" title="One solid silhouette: the gaps inside the outline (light skin, a white shirt) are filled in"><input type="checkbox" :checked="!!shp.solid" @change="shp.solid = $event.target.checked; shapeRemake()"> ⬛ Solid silhouette (fill the inside)</label>
+                <label class="check" title="The light parts become the shape instead of the dark ones"><input type="checkbox" :checked="!!shp.lightIsShape" @change="shp.lightIsShape = $event.target.checked; shapeRemake()"> Light parts are the shape</label>
+              </template>
+              <button v-else class="link small-link" @click="shapeFrom(form.init_image)" title="A photo or a drawing that isn't black on white yet: make it one, with a threshold slider">⬛ Turn this picture into a black shape…</button>
+            </template>
 
+            <template v-if="shp.how === 'word'">
+              <div class="shape-step">Text style <span class="hint">optional · fills in the two boxes below (change them as you like)</span></div>
+              <div class="film-looks">
+                <button v-for="t in TEXT_FX" :key="t.id" :class="{on: shp.textfx === t.id}" @click="pickTextFx(t.id)" :title="'The word as ' + t.material + ', on ' + t.around + '. Press it again to go back to filling the letters with anything'">{{ t.label }}</button>
+              </div>
+            </template>
             <div class="shape-step"><b>2</b> Fill it with</div>
             <input type="text" v-model="form.tf.words.material" placeholder="e.g. yellow flowers" class="shape-text">
             <div class="shape-step"><b>3</b> Put it on</div>
@@ -6276,6 +6356,7 @@
           <button v-if="detailOriginalPrompt" @click="reusePrompt(detail, true)" title="The prompt as you typed it, before Enhance prompt or wildcards changed it">↺ Original prompt</button>
           <button @click="reuse(detail)" :title="['word_edit', 'combined', 'camera_angle'].includes(detail.kind) ? 'Put everything that made this picture back in Image to image: the picture it started from, the recipe and its card (Fill a shape, Seamless pattern, a look), the edit model, speed and seed' : 'Load everything that made this picture: prompt, model, LoRAs, size, steps, sampler and seed'">Use these settings</button>
           <button @click="useAsStart(detail)">🖼 Send to Image to image</button>
+          <button v-if="detail.settings && /^tf_/.test(detail.settings.recipe || '') && !['tf_shape', 'tf_pattern'].includes(detail.settings.recipe)" @click="setTileThumb(detail)" @contextmenu.prevent="setTileThumb(detail, true)" title="Show this picture on its look's tile in 🎭 Transform a person (right-click: put back the app's own tile picture)">🎭 Use as the tile picture</button>
           <button @click="useAsShape(detail)" title="Turn this picture into a solid black shape (its outline if it's see-through, otherwise its dark parts) for Image to image → 🔤 Fill a shape">⬛ Use as a shape</button>
           <button @click="useForAngles(detail)" title="See this picture from other angles, make a turnaround or an expression sheet (FLUX.2 Klein)">📷 Other angles / sheets</button>
           <button @click="openInTools(detail)">🧰 Send to Tools</button>

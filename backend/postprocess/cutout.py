@@ -42,6 +42,24 @@ FINDERS = {
               "mean": (0.485, 0.456, 0.406), "std": (0.229, 0.224, 0.225)},
 }
 REMBG_URL = "https://github.com/danielgatis/rembg/releases/download/v0.0.0/{name}.onnx"
+# When GitHub can't be reached (some networks, VPNs and Macs block it), the same files from a Hugging Face copy, checked
+# against the SHA-256 of rembg's own release files (measured from GitHub, 1.6.31): a file that doesn't match is thrown away
+REMBG_HF = "tomjackson2023/rembg"
+REMBG_SHA256 = {
+    "u2net_human_seg": "01eb6a29a5c4d8edb30b56adad9bb3a2a0535338e480724a213e0acfd2d1c73c",
+    "u2net": "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491",
+    "isnet-anime": "f15622d853e8260172812b657053460e20806f04b9e05147d49af7bed31a6e99",
+    "isnet-general-use": "60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a",
+}
+
+
+def _sha256(path):
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
 
 _sessions = {}
 
@@ -66,16 +84,28 @@ def _fetch_rembg(name):
                             "-A", "ProtoartStudio", "-o", str(tmp), url], capture_output=True, text=True)
         ok = r.returncode == 0
     if not ok:
-        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "ProtoartStudio"}),
-                                    timeout=60) as resp, open(tmp, "wb") as f:
-            while True:
-                b = resp.read(1 << 20)
-                if not b:
-                    break
-                f.write(b)
-    if tmp.stat().st_size < 1_000_000:
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "ProtoartStudio"}),
+                                        timeout=60) as resp, open(tmp, "wb") as f:
+                while True:
+                    b = resp.read(1 << 20)
+                    if not b:
+                        break
+                    f.write(b)
+            ok = True
+        except Exception:  # noqa: BLE001  (GitHub unreachable: try the Hugging Face copy below)
+            ok = False
+    if not ok or not tmp.exists() or tmp.stat().st_size < 1_000_000:
         tmp.unlink(missing_ok=True)
-        raise RuntimeError(f"the {name} model didn't download properly")
+        if name not in REMBG_SHA256:
+            raise RuntimeError(f"the {name} model didn't download (GitHub couldn't be reached)")
+        import shutil
+        from huggingface_hub import hf_hub_download
+        shutil.copyfile(hf_hub_download(REMBG_HF, f"{name}.onnx"), tmp)
+    want = REMBG_SHA256.get(name)
+    if want and _sha256(tmp) != want:
+        tmp.unlink(missing_ok=True)
+        raise RuntimeError(f"the {name} model that downloaded isn't the right file (its checksum doesn't match), so it wasn't used")
     tmp.replace(dest)
     return dest
 

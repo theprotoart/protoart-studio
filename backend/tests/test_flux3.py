@@ -44,7 +44,7 @@ def test_recommended_hf_loras_have_a_type():
 def test_styles_file():
     js = (Path(__file__).resolve().parents[2] / "app" / "renderer" / "zimage_styles.js").read_text()
     data = json.loads(js[js.index("["):js.rindex("]") + 1])
-    assert len(data) >= 100 and {d["cat"] for d in data} == {"Photo", "Illustration", "Wild"}
+    assert len(data) >= 100 and {d["cat"] for d in data} == {"Photo", "Illustration", "Wild", "Effects"}
     assert all("{$" not in d["pre"] + d["post"] for d in data)  # no template commands left
     assert "MIT" in js[:600] and "Martin Rizzo" in js[:600]
 

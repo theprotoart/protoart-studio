@@ -4658,6 +4658,77 @@ class Engine:
         emit({"type": "image", "record": record})
         return record
 
+    @staticmethod
+    def _fx_opts(args):
+        """✨ Effects lab: the effect and its settings, checked."""
+        num = lambda k, d, lo, hi: max(lo, min(hi, float(args.get(k) if args.get(k) is not None else d)))  # noqa: E731
+        eff = args.get("effect") if args.get("effect") in ("sparkler", "engrave", "glass") else "engrave"
+        if eff == "sparkler":
+            return eff, {"colour": str(args.get("colour") or "gold"), "glow": num("glow", 1, 0, 3),
+                         "sparks": num("sparks", 1, 0, 3), "night": args.get("night", True) is not False,
+                         "light": num("light", 1, 0, 3)}
+        if eff == "glass":
+            return eff, {"shape": args.get("shape") if args.get("shape") in ("diamond", "circle", "arch", "band", "all", "paint") else "diamond",
+                         "cx": num("cx", 0.4, 0, 1), "cy": num("cy", 0.5, 0, 1), "size": num("size", 0.6, 0.1, 1.5),
+                         "rib": num("rib", 1, 0.3, 4), "strength": num("strength", 1, 0, 3)}
+        return eff, {"style": "dots" if args.get("style") == "dots" else "lines", "spacing": num("spacing", 1, 0.4, 4),
+                     "angle": num("angle", 45, -90, 90), "ink": str(args.get("ink") or "black"),
+                     "cross": args.get("cross", True) is not False, "contrast": num("contrast", 1, 0.3, 2.5)}
+
+    def _fx_apply(self, image, args):
+        import detailer
+        import postprocess.fx as fxm
+        eff, opts = self._fx_opts(args)
+        try:
+            if eff == "sparkler":
+                if not args.get("mask"):
+                    raise ValueError("Paint the path for the sparkler first (🖌 Paint the path)")
+                mask = detailer.decode_mask(args.get("mask"), image.size)
+                return fxm.sparkler(image.convert("RGB"), mask, **opts), eff, opts
+            if eff == "glass" and opts["shape"] == "paint":  # 🖌 where you painted or selected
+                if not args.get("mask"):
+                    raise ValueError("Paint or select where the glass goes first (🖌 Paint where)")
+                return fxm.glass(image, **{k: v for k, v in opts.items() if k != "shape"},
+                                 mask=detailer.decode_mask(args.get("mask"), image.size)), eff, opts
+            return getattr(fxm, eff)(image, **opts), eff, opts
+        except ValueError as e:
+            raise UserError(str(e)[:1].upper() + str(e)[1:] + ".")
+
+    FX_NAMES = {"sparkler": "✨ Sparkler trail", "engrave": "✒️ Engraving", "glass": "🪟 Fluted glass"}
+
+    def fx(self, args, emit=None):
+        """✨ Effects lab (Tools): sparkler trail, line engraving / halftone, fluted glass (no model)."""
+        emit = emit or self.emit
+        src, image = self._source_picture(args)
+        started = time.time()
+        emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
+        out, eff, opts = self._fx_apply(image, args)
+        emit({"type": "progress", "image": 1, "images": 1, "step": 1, "steps": 1})
+        settings = dict(src.get("settings") or {})
+        settings.update({k: src.get(k) for k in ("prompt", "negative_prompt", "model", "sampler", "steps", "cfg", "seed")})
+        settings["loras"] = src.get("loras") or []
+        settings.update(width=out.width, height=out.height, seconds=round(time.time() - started, 1),
+                        fx=dict(opts, effect=eff, name=self.FX_NAMES[eff]))
+        path = self._save(out, settings, suffix="fx")
+        record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="fx")
+        record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
+        emit({"type": "image", "record": record})
+        return record
+
+    def fx_preview(self, args):
+        """✨ A small preview of the effect (about 640 px, not saved): -> data URL."""
+        import base64
+        import io
+        from PIL import Image
+        _, image = self._source_picture(args)
+        k = min(1.0, 640 / max(image.size))
+        if k < 1:
+            image = image.resize((max(1, int(image.width * k)), max(1, int(image.height * k))), Image.LANCZOS)
+        out, _, _ = self._fx_apply(image, args)
+        buf = io.BytesIO()
+        out.convert("RGB").save(buf, "JPEG", quality=88)
+        return {"src": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()}
+
     def film_preview(self, args):
         """🎞 A small preview of the film look (about 640 px, not saved): -> data URL."""
         import base64

@@ -86,4 +86,4 @@ def test_no_brand_names_and_wired_up():
     assert '{ id: "film", label: "FILM"' in app and 'id === "film"' in app and 'film: ["film"]' in app
     assert 'id="rack-film"' in html and "toolFilm" in html and "patchPicked('film')" in html
     bee = (ROOT / "backend" / "bee_backend.py").read_text()
-    assert 'cmd == "film_preview"' in bee and 'kind == "film"' in bee and '"film", "peel", "peel_save")' in bee
+    assert 'cmd == "film_preview"' in bee and 'kind == "film"' in bee and '"film", "fx", "peel", "peel_save")' in bee

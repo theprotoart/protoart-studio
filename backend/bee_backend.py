@@ -178,7 +178,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("make3d", "harmonize", "relight", "store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "detail_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "model_keep", "lora_base_find", "cutout", "papercut", "film", "peel", "peel_save", "find_text", "find_words", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("make3d", "harmonize", "relight", "store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "detail_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "model_keep", "lora_base_find", "cutout", "papercut", "film", "fx", "peel", "peel_save", "find_text", "find_words", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -307,6 +307,8 @@ def job_label(cmd, a):
         return "Convert " + os.path.basename(str(a.get("path") or "")) + " to .safetensors"
     if cmd == "papercut":
         return "Paper cut-out"
+    if cmd == "fx":
+        return "✨ Effects lab"
     if cmd == "film":
         import postprocess.film as _film
         return "🎞 Film look · " + _film.STOCKS.get(a.get("stock") or "", {}).get("label", "")
@@ -907,6 +909,8 @@ def handle_quick(cmd, a):
                             "size_mb": i.get("size_mb")})
         return {"items": out, "default_out": str(paths.CONVERTED_DIR), "free_gb": round(
             __import__("shutil").disk_usage(paths.HOME).free / 2**30, 1)}
+    if cmd == "fx_preview":  # ✨ the effect's live preview (small, not saved)
+        return _engine.fx_preview(a) if _engine is not None else None
     if cmd == "film_preview":  # 🎞 the film look's live preview (small, not saved)
         return _engine.film_preview(a) if _engine is not None else None
     if cmd == "papercut_preview":  # 📄 the paper cut-out's live preview (small, not saved) from the found subject
@@ -1207,17 +1211,27 @@ def handle_quick(cmd, a):
         if (alpha < 0.05).mean() > 0.05:  # a cut-out / PNG with transparency: its outline is the shape
             shape = alpha > 0.5
             how = "its outline"
-        else:  # a drawing or logo: the dark parts are the shape (or the light ones, inverted)
+        else:  # a drawing, a logo or a photo: the parts darker than the threshold are the shape (or the lighter ones)
             lum = np.asarray(im.convert("L"), np.float32)
-            shape = lum < 128
+            thr = max(1.0, min(254.0, float(a.get("threshold") or 128)))  # the threshold slider (0-255)
+            shape = lum < thr
             how = "its dark parts"
             if a.get("invert"):
                 shape = ~shape
                 how = "its light parts"
+        if a.get("solid") and shape.any():  # ⬛ one solid silhouette: the holes inside the outline filled in
+            import cv2
+            filled = np.pad(shape.astype(np.uint8), 1)
+            cv2.floodFill(filled, None, (0, 0), 2)               # everything reachable from the edge is background
+            shape = (filled[1:-1, 1:-1] != 2)
+            how += ", filled in solid"
         if not shape.any() or shape.all():
             raise ValueError("No shape found in that picture: try ‘Light parts are the shape’, or a picture with a see-through background.")
         ys, xs = np.nonzero(shape)
         mask = Image.fromarray((shape[ys.min():ys.max() + 1, xs.min():xs.max() + 1] * 255).astype(np.uint8))
+        if not a.get("width"):  # the picture's own shape, up to 1536 px
+            k0 = min(1.0, 1536 / max(im.size))
+            a = {**a, "width": int(im.width * k0), "height": int(im.height * k0)}
         W, H = max(256, int(a.get("width") or 1024)), max(256, int(a.get("height") or 1024))
         k = min(W * 0.86 / mask.width, H * 0.86 / mask.height)
         mask = mask.resize((max(1, round(mask.width * k)), max(1, round(mask.height * k))), Image.LANCZOS)
@@ -1232,6 +1246,27 @@ def handle_quick(cmd, a):
             out = ImageOps.invert(out)
         out.save(dest)
         return {"path": str(dest), "width": W, "height": H, "how": how}
+    if cmd == "tile_thumbs":  # 🎭 your own tile pictures for the Transform looks: {recipe id: picture path}
+        d = Path(paths.HOME) / "tile_thumbs"
+        return {f.stem: f"{f}?v={int(f.stat().st_mtime)}" for f in d.glob("tf_*.jpg")} if d.is_dir() else {}
+    if cmd == "tile_thumb_set":  # 🎭 a result of yours as its look's tile picture (240 × 320, cropped to fit); "" puts back the app's
+        import re as _re
+        from PIL import Image, ImageOps
+        rid = str(a.get("id") or "")
+        if not _re.fullmatch(r"tf_\w{1,40}", rid):
+            raise ValueError("Not a Transform look.")
+        d = Path(paths.HOME) / "tile_thumbs"
+        d.mkdir(parents=True, exist_ok=True)
+        dest = d / f"{rid}.jpg"
+        if not a.get("path"):
+            dest.unlink(missing_ok=True)
+            return {"ok": True}
+        src = Path(str(a["path"]))
+        if not src.is_file():
+            raise FileNotFoundError("That picture isn't there any more.")
+        with Image.open(src) as im:
+            ImageOps.fit(ImageOps.exif_transpose(im).convert("RGB"), (240, 320), Image.LANCZOS, centering=(0.5, 0.3)).save(dest, quality=88)
+        return {"ok": True, "path": f"{dest}?v={int(dest.stat().st_mtime)}"}
     if cmd == "file_exists":  # ↺ Use these settings: is the picture an edit started from still there
         return Path(str(a.get("path") or "")).is_file()
     if cmd == "pattern_prompt":  # 🔁 Seamless pattern: the wording for step 1 and for the seam pass
@@ -2274,7 +2309,7 @@ def reader():
 
 # Tools jobs that run on the processor (not the graphics chip) and take seconds: while a picture is being made they
 # run beside it instead of waiting in the queue (Remove with smart fill uses LaMa on the CPU; quick fill is OpenCV).
-SIDE_LANE = ("heal", "cutout", "harmonize", "papercut", "film", "peel", "peel_save")
+SIDE_LANE = ("heal", "cutout", "harmonize", "papercut", "film", "fx", "peel", "peel_save")
 
 
 def _ram_gb():
@@ -2303,6 +2338,8 @@ def run_side(mid, cmd, a):
             data = eng.papercut(a, emit=side_emit)
         elif cmd == "film":
             data = eng.film(a, emit=side_emit)
+        elif cmd == "fx":
+            data = eng.fx(a, emit=side_emit)
         elif cmd == "peel":
             data = eng.peel(a, emit=side_emit)
         elif cmd == "peel_save":
@@ -2319,7 +2356,7 @@ def run_side(mid, cmd, a):
 
 # quick commands that talk to a website (up to ~25 s if it's slow or blocked): run beside the reader, so the
 # app stays responsive (an unanswered Check used to leave every other button waiting)
-NET_QUICK = ("select_object", "film_preview", "pattern_prompt", "pattern_prep", "kept_list", "sheet_crop", "save_drawing", "make_shape", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
+NET_QUICK = ("select_object", "tile_thumbs", "tile_thumb_set", "film_preview", "fx_preview", "pattern_prompt", "pattern_prep", "kept_list", "sheet_crop", "save_drawing", "make_shape", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
              "train_square_copies", "poselib_thumbs", "poselib_get")  # (that one isn't online, but can take a while for a big folder)
 
 
@@ -2504,6 +2541,8 @@ def run_job(kind, a):
         return eng.papercut(a)
     if kind == "film":  # 🎞 Film look (Tools)
         return eng.film(a)
+    if kind == "fx":  # ✨ Effects lab (Tools)
+        return eng.fx(a)
     if kind == "find_text":
         return eng.find_text(a)
     if kind == "find_words":

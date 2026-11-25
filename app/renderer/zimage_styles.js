@@ -2,7 +2,7 @@
  * Z-Image Turbo and fine with other models that read sentences. From ComfyUI-ZImagePowerNodes v1.0 styles
  * (https://github.com/martin-rizzo/ComfyUI-ZImagePowerNodes), MIT License, Copyright (c) 2026 Martin Rizzo.
  * pre + your prompt + post; their optional extra-content switch is left out.
- * The last two (Crime Game Loading Screen / Character Portrait) are Protoart Studio's own, not from ZImagePowerNodes. */
+ * The two Crime Game ones and all of "Effects" (photo-effect looks, 1.6.31) are Protoart Studio's own, not from ZImagePowerNodes. */
 window.Z_STYLES = [
 {
 "name": "Phone Photo",
@@ -753,5 +753,95 @@ window.Z_STYLES = [
 "cat": "Illustration",
 "pre": "A waist-up character portrait for a modern open-world crime video game, loading-screen art of ",
 "post": ". Confident pose, looking at the viewer, plain hazy sunset background with the city skyline. Art style: bold clean ink outlines, cel-shaded skin and clothes with hard-edged graphic shadows and highlights, slightly stylised realistic faces and proportions, a saturated sunset palette of lavender, violet, magenta, peach and warm gold with teal accents, a hazy Miami-style Art Deco skyline and palm trees, strong warm rim light, poster-like composition, highly detailed hand-drawn digital painting."
+},
+{
+"name": "Winter Storm",
+"cat": "Effects",
+"pre": "A photograph of ",
+"post": "In a heavy snowfall. Snow settles naturally on the top of the head and hair, the shoulders, the folds of the clothes and every upward-facing edge, with fine frost on hair and fabric; big soft flakes fall through the air, some close to the camera and blurred; fresh snow on the ground, drifting mist. Cold blue-grey winter light, breath visible in the cold air, a cool desaturated grade with icy highlights."
+},
+{
+"name": "Soaked in Rain",
+"cat": "Effects",
+"pre": "A photograph of ",
+"post": "Soaking wet in a heavy downpour. Hair wet and clumped, skin glistening with beads of water, clothes dark and clinging, water dripping from the chin, fingers and hems; on things, beading droplets and water running off every edge. Long streaks of rain, splashes and reflective puddles, moody low light with wet specular highlights, a cool high-contrast grade."
+},
+{
+"name": "Concept Art Painting",
+"cat": "Effects",
+"pre": "A loose, expressive digital concept-art painting of ",
+"post": "The face and main forms painted with confident detail, dissolving towards the edges into broad brushstrokes, palette-knife marks, paint splatters and drips over an abstract painterly wash; rich heightened colour with warm and cool accents, strong contrast between finished and unfinished areas."
+},
+{
+"name": "Dramatic Light",
+"cat": "Effects",
+"pre": "A dark, dramatic cinematic photograph of ",
+"post": "A single beam of light from directly above through faint haze with dust in it, bright rim light on the head and shoulders, everything else falling into deep shadow on a near-black background; desaturated steel-blue and teal grade, deep blacks, crisp texture, subtle film grain, like a film poster."
+},
+{
+"name": "Double Exposure",
+"cat": "Effects",
+"pre": "An artistic double-exposure photograph: the silhouette of ",
+"post": "Filled with a misty pine forest on a mountainside that blends through the body and the back of the head while the face shows softly through; a clean off-white background, treetops and mist breaking past the outline, a muted natural palette, soft fog, fine grain, minimal and elegant."
+},
+{
+"name": "Made of Water",
+"cat": "Effects",
+"pre": "A high-speed photograph of ",
+"post": " made entirely of clear liquid water: the same shape and details formed from rippling glassy water with bright highlights and refraction, splashes and droplets bursting off the edges, streams flowing from the limbs, small bubbles inside; a deep teal-blue underwater background with soft light rays."
+},
+{
+"name": "Apocalypse",
+"cat": "Effects",
+"pre": "A cinematic photograph of ",
+"post": "After an apocalypse: cracked, scorched and crumbling, broken windows, rust and soot, rubble on the ground, small fires with glowing embers, thick black smoke rising into an ash-grey sky; a desaturated dirty teal-and-orange grade."
+},
+{
+"name": "Made of Smoke",
+"cat": "Effects",
+"pre": "A dark ethereal photograph of ",
+"post": " formed from swirling wisps of glowing smoke: the face clearest, the body built from soft smoke following its forms, the edges curling away into drifting smoke trails and haze; a near-black background, the smoke lit cool white and pale blue from within."
+},
+{
+"name": "Pencil Sketch",
+"cat": "Effects",
+"pre": "A hand-drawn graphite pencil sketch of ",
+"post": "On textured white drawing paper: confident loose outlines, parallel diagonal hatching and cross-hatching for the shading, a few construction lines, fading out unfinished towards the edges; pencil grey only, the paper's grain visible."
+},
+{
+"name": "Watercolour Splash",
+"cat": "Effects",
+"pre": "A vivid watercolour painting of ",
+"post": "On white watercolour paper: the face and forms in careful transparent washes, the colours bleeding outward into loose blooms, splashes, drips and spatters, the background mostly bare paper with soft stains, hard wet edges, luminous colour."
+},
+{
+"name": "Cartoon Portrait",
+"cat": "Effects",
+"pre": "A bold digital cartoon portrait of ",
+"post": "Clean confident dark outlines, smooth cel shading with soft gradients, gently exaggerated proportions with expressive eyes and smile, crisp highlights, rich saturated colours, a simple bold flat-colour background with a few graphic shapes; polished professional illustration."
+},
+{
+"name": "Torn Paper",
+"cat": "Effects",
+"pre": "A torn-paper photo effect of ",
+"post": "The picture printed in black and white halftone on a sheet of paper, a large hole ripped through the middle where the face and upper body show in full rich colour, rough white fibrous torn edges curling outward with soft shadows."
+},
+{
+"name": "Sparkler Light Trail",
+"cat": "Effects",
+"pre": "A long-exposure night photograph of ",
+"post": "With a bright sparkler light-painting trail looping and spiralling around them, passing behind and in front: a continuous line of warm golden light, white-hot at its core, a soft glow and countless tiny sparks flying off it; the dark scene softly lit by the trail."
+},
+{
+"name": "Fluted Glass",
+"cat": "Effects",
+"pre": "A minimal, elegant photograph of ",
+"post": "Partly seen through a large panel of fluted reeded glass (a tall rounded rectangle turned 45 degrees): through the glass the picture splits into thin vertical ribs that smear the colours into streaks with faint colour fringes, outside it everything sharp, the face clear."
+},
+{
+"name": "Line Engraving",
+"cat": "Effects",
+"pre": "A detailed banknote-style line engraving of ",
+"post": "Fine parallel lines that thicken in the shadows and curve with the forms, cross-hatching in the darkest areas, black ink on off-white paper, crisp and precise like an antique engraved portrait."
 }
 ];
