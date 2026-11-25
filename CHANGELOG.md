@@ -2,6 +2,7 @@
 
 ## 1.6.31
 
+- Edit with words (FLUX.2 / FLUX 3 Klein): the picture and the extra pictures go in at the working size (`_edit_fit`; extras up to 640² under 12 GB, 1024² above). FLUX 3 reads them at the size they come in: a big shape guide plus a style picture asked an 8 GB Mac for one 8.4 GB Metal buffer (`[metal::malloc] … greater than the maximum allowed buffer size`).
 - 🔁 Face swap: HyperSwap 1c (`facefusion/models-3.3.0/hyperswap_1c_256.onnx`, 403 MB, ResearchRAIL) is the default swapper (`swapper` arg, `faceswap.MODELS`); fed as FaceFusion does (normalised ArcFace w600k_r50 identity, the arcface_128 template at 256 px, -1..1 in and out); pixel boost tiles at 512. inswapper_128 stays as a choice. Records name the swapper and its licence.
 - ↺ Use these settings on an edit (`word_edit`, `combined`, `camera_angle`) → `reuseEdit`: Image to image with `init_image`, `user_prompt`, `edit_refs`, `recipe_state` (Fill a shape card / pattern card / a look's boxes, now saved by `edit_words`), edit model, `h3_speed`, `h3_side`, seed; `file_exists` says when the start picture is gone.
 - Queue time left: a step-counted job past its typical time projects from the steps done (`elapsed × steps / step`) instead of sitting at 1 s, then reads “taking longer than usual”.

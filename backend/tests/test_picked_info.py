@@ -45,3 +45,16 @@ def test_no_2048_edits_under_16gb_and_eta_doesnt_freeze():
     app = (ROOT / "app" / "renderer" / "app.js").read_text()
     assert "h3_speed: this.h3SpeedEdit() ?" in app and "this.sys.ram_gb >= 15.5" in app
     assert "elapsed * pr.steps / Math.max(1, pr.step)" in app and "taking longer than usual: almost done…" in app
+
+
+def test_edit_pictures_go_in_at_the_working_size():
+    """FLUX 3 reads its pictures at the size they come in: a big one asked an 8 GB Mac for one 8.4 GB block."""
+    from PIL import Image
+    fit = engine.Engine._edit_fit
+    big = fit(Image.new("RGB", (1536, 2048)), 656 * 880)
+    assert big.width * big.height <= 656 * 880 and big.width % 16 == 0 and big.height % 16 == 0
+    assert abs(big.width / big.height - 0.75) < 0.03
+    small = Image.new("RGB", (300, 400))
+    assert fit(small, 1024 * 1024) is small
+    eng = (ROOT / "backend" / "engine.py").read_text()
+    assert "self._edit_fit(image, width * height).save(first)" in eng and "self._edit_fit(im.convert(\"RGB\"), ref_area).save(p)" in eng

@@ -5461,6 +5461,15 @@ class Engine:
                 except OSError:
                     pass
 
+    @staticmethod
+    def _edit_fit(im, area):
+        """A picture no bigger than `area` pixels (the same shape, sides multiples of 16), for the edit models."""
+        from PIL import Image
+        k = (area / max(1, im.width * im.height)) ** 0.5
+        if k >= 1:
+            return im
+        return im.resize((max(64, int(im.width * k) // 16 * 16), max(64, int(im.height * k) // 16 * 16)), Image.LANCZOS)
+
     def edit_words(self, args):
         """✨ Edit with words (Image to image): FLUX.2 [klein] changes the picture as described. Optional: a painted
         area (only that part changes; the rest stays exactly as it was) and more pictures to take a style, an object
@@ -5580,15 +5589,18 @@ class Engine:
                 tmp = paths.HOME / "tmp"
                 tmp.mkdir(parents=True, exist_ok=True)
                 first = tmp / f"edit_src_{os.getpid()}.png"
-                image.save(first)
+                # the pictures go in at about the size the edit works at: FLUX 3 reads them at the size they come in, and
+                # a 1536 × 2048 picture plus a style picture asked an 8 GB Mac for one 8.4 GB block (more than any Mac
+                # allows in one piece, 4 GB) (1.6.31)
+                self._edit_fit(image, width * height).save(first)
                 ref_files = [str(first)]
+                ref_area = min(width * height, (640 * 640) if 0 < ram < 12 else (1024 * 1024))
                 for i, im in enumerate(ref_imgs):
-                    im = im.convert("RGB")
                     p = tmp / f"edit_ref_{os.getpid()}_{i}.png"
-                    im.save(p)
+                    self._edit_fit(im.convert("RGB"), ref_area).save(p)
                     ref_files.append(str(p))
                 out = tmp / f"edit_out_{os.getpid()}.png"
-                self.emit({"type": "status", "msg": "Editing with FLUX.2 Klein (fast engine)…"})
+                self.emit({"type": "status", "msg": f"Editing with {'FLUX 3 Klein' if spec.get('family') == 'flux3' else 'FLUX.2 Klein'} (fast engine)…"})
                 face_files = []
                 # one progress bar for the whole job: a retry or a 🙂 Keep faces pass adds its steps to the same bar
                 # (each pass used to start the bar and the time left again, which looked like it was stuck)
