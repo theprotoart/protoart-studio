@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.32
+
+- ↻ Install and restart (`update:install`): the slow part (mount the DMG, `ditto` the new app to `….app.updating`, clear quarantine) now runs while the app is still open and shows Installing…; only then does the app quit and a tiny script swap the folders and open the new app. Before, the copy ran after quitting, and a friend who reopened the app during it stayed on the old version (the script's `open` just brought the running old app forward). If the copy fails nothing changes and the installer opens. `install.log` in the updates folder records each step.
+- Models: a model that runs on less memory in parts (Krea 2 Turbo) shows "needs 16 GB RAM (32 GB+ is faster)" (`needRamText`), not 32 GB.
+- What's new: the 1.6.31 list no longer names the ★ starred looks twice.
+
 ## 1.6.31
 
 - 🎭 Picking another look empties its boxes (`form.tf`): words left in a box (same slot id) carried over and changed the next look (roses on 🗽 Statue).

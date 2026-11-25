@@ -294,31 +294,50 @@ handle("update:install", async (_e, dmgPath) => {
     await shell.openPath(dmg);
     return { manual: true, reason: !target ? "not-installed" : "no-permission" };
   }
-  // a small script that waits for this app to close, swaps in the new one, and opens it
+  // 1 · while this app is still open (it shows "Installing…"): copy the new app out of the DMG next to the old one. This is
+  // the slow part (a minute or more); doing it before quitting means the app can't be reopened half-way through it,
+  // which left people on the old version (they reopened it while the copy was still running, so the swap's `open`
+  // just brought the old one forward).
   const q = (x) => "'" + String(x).replace(/'/g, "'\\''") + "'";
-  const mnt = path.join(UPDATE_DIR, "mnt");
-  const script = [
+  const mnt = path.join(UPDATE_DIR, "mnt"), next = target + ".updating", log = path.join(UPDATE_DIR, "install.log");
+  const prep = [
     "#!/bin/bash", "set -e",
-    `trap 'hdiutil detach ${q(path.join(UPDATE_DIR, "mnt"))} -force >/dev/null 2>&1; [ -d ${q(target)} ] && open ${q(target)}' ERR`,  // something failed: the app opens as it was
-    `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.5; done`,
     `mkdir -p ${q(mnt)}; hdiutil detach ${q(mnt)} -force >/dev/null 2>&1 || true`,
+    `trap 'hdiutil detach ${q(mnt)} -force >/dev/null 2>&1 || true' EXIT`,
     `hdiutil attach -nobrowse -readonly -noautoopen -mountpoint ${q(mnt)} ${q(dmg)} >/dev/null`,
     `NEW="$(find ${q(mnt)} -maxdepth 1 -name '*.app' | head -1)"`,
-    `[ -n "$NEW" ] || { hdiutil detach ${q(mnt)} -force; open ${q(dmg)}; exit 1; }`,
-    `rm -rf ${q(target + ".updating")}`,
-    `ditto "$NEW" ${q(target + ".updating")}`,
-    `hdiutil detach ${q(mnt)} -force >/dev/null 2>&1 || true`,
-    `xattr -dr com.apple.quarantine ${q(target + ".updating")} 2>/dev/null || true`,
-    // swap: if putting the new one in place fails, the old one goes back (the app is never left missing)
+    `[ -n "$NEW" ] || { echo "no app in the update"; exit 3; }`,
+    `rm -rf ${q(next)}`,
+    `ditto "$NEW" ${q(next)}`,
+    `xattr -dr com.apple.quarantine ${q(next)} 2>/dev/null || true`,
+    `[ -x ${q(path.join(next, "Contents", "MacOS"))} ] || [ -d ${q(path.join(next, "Contents", "MacOS"))} ]`,
+  ].join("\n");
+  const prepSh = path.join(UPDATE_DIR, "prepare.sh");
+  fs.writeFileSync(prepSh, prep, { mode: 0o700 });
+  const code = await new Promise((done) => {
+    const out = fs.openSync(log, "w");
+    const c = spawn("/bin/bash", [prepSh], { stdio: ["ignore", out, out] });
+    c.on("exit", (n) => done(n)); c.on("error", () => done(-1));
+  });
+  if (code !== 0) {  // couldn't copy it (no permission, a damaged download…): nothing has changed; the installer opens instead
+    try { fs.rmSync(next, { recursive: true, force: true }); } catch {}
+    await shell.openPath(dmg);
+    return { manual: true, reason: "no-permission" };
+  }
+  // 2 · a tiny script that waits for this app to close, swaps the folders (instant) and opens the new app
+  const script = [
+    "#!/bin/bash",
+    `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.2; done`,
     `rm -rf ${q(target + ".old")}`,
+    // if putting the new one in place fails, the old one goes back (the app is never left missing)
     `if mv ${q(target)} ${q(target + ".old")}; then`,
-    `  if mv ${q(target + ".updating")} ${q(target)}; then rm -rf ${q(target + ".old")}; else mv ${q(target + ".old")} ${q(target)}; fi`,
-    `fi`,
+    `  if mv ${q(next)} ${q(target)}; then rm -rf ${q(target + ".old")}; echo "updated"; else mv ${q(target + ".old")} ${q(target)}; echo "swap failed"; fi`,
+    `else echo "couldn't move the old app"; fi`,
     `open ${q(target)}`,
   ].join("\n");
   const sh = path.join(UPDATE_DIR, "install.sh");
   fs.writeFileSync(sh, script, { mode: 0o700 });
-  const child = spawn("/bin/bash", [sh], { detached: true, stdio: ["ignore", fs.openSync(path.join(UPDATE_DIR, "install.log"), "w"), fs.openSync(path.join(UPDATE_DIR, "install.log"), "a")] });
+  const child = spawn("/bin/bash", [sh], { detached: true, stdio: ["ignore", fs.openSync(log, "a"), fs.openSync(log, "a")] });
   child.unref();
   setTimeout(() => { stopBackend(); app.quit(); }, 300);
   return { installing: true };

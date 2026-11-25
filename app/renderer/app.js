@@ -1300,7 +1300,7 @@ const REGION_TEMPLATES = [
     main: "product photography, soft natural light, shallow depth of field",
     prompts: ["a bright kitchen with plants, blurred", "a bottle of olive oil on a wooden table with fresh tomatoes and basil"] },
 ];
-const APP_VERSION = "1.6.31";
+const APP_VERSION = "1.6.32";
 // ⚡ fast-engine kinds that can start from a picture (mflux image strength): Image to image → Change it
 const FAST_I2I = ["zimage", "ernie", "flux", "qwen21", "krea2"];
 // 💡 Suggested settings for the newer models, shown as a card in Create and in Image to image → Change it
@@ -1768,6 +1768,10 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
+            { h: "1.6.32: a sturdier ↻ Install and restart", items: [
+              "↻ Install and restart: the new version is now copied in while the app is still open (it says Installing…, about a minute), then the app closes, the new one is swapped in at once and opens. Before, the copy happened after the app closed, so opening it again too soon left you on the old version.",
+              "Models: Krea 2 Turbo's card says it needs 16 GB (32 GB+ is faster) instead of 32 GB.",
+            ] },
             { h: "1.6.31: ✨ Photo effects, ✨ Effects lab, 🎞 Film looks, 🔁 seamless patterns, Krea 2 on 16 GB Macs, ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
               "<b>✨ 23 photo-effect looks</b> in 🎭 Transform a person (they work on people, things and places): ❄️ Winter storm (snow settling on the head, shoulders and every edge), 🌧 Soaked in rain (wet hair and clothes, water dripping off), 🖌 Concept-art painting, 🔦 Dramatic light, 🌲 Double exposure (drop a landscape picture or describe one), 💧 Made of water, 🔥 Apocalypse, 💨 Made of smoke, ✏️ Pencil sketch, 🎨 Watercolour splash, 😃 Cartoon portrait, 📄 Torn paper, 🎇 Sparkler light trail, 🪟 Fluted glass, 💥 Dispersion, 📺 Glitch, 🗽 Statue, 🔷 Low-poly, 🖋 Ink splash, ⛪ Stained glass, 💠 Hologram, 🧵 Embroidered patch and ✂️ Layered paper cut. The same looks are in Create → 🎨 Styles → <b>Effects</b> (with ✒️ Line engraving). Quick edits that repeated a Transform look (Turnaround sheet, Comic panel, Crime-game art) now live only in Transform.",
               "<b>✨ Effects lab</b> (Tools, and the patchbay's <b>FX</b> module), instant, no model: <b>✨ Sparkler</b>: paint a path round a person or a thing and it becomes a long-exposure sparkler trail (white-hot core, glow, sparks) that really lights the faces and clothes near it, the scene optionally turned to night; <b>✒️ Engraving</b>: a banknote-style line engraving or halftone dots, in black, sepia, navy or red ink; <b>🪟 Fluted glass</b>: reeded glass over a shape you place or an area you paint or select (▭ Box, 👤 Subject, Invert…).",
@@ -1777,7 +1781,6 @@ const protoartApp = createApp({
               "<b>▭ Box</b> selection tool (Image to image and Tools painting): drag a rectangle and it becomes the painted area.",
               "<b>🔤 Fill a shape → text styles</b> for a word: 🎨 Graffiti 3D, 🪞 Chrome, 🏆 Gold game title, 💡 Neon sign, 🧊 Carved ice, 🔥 Fire, 🎈 Foil balloons (they fill in the two boxes; the word is drawn as styled lettering).",
               "<b>⬛ Use as a shape → Threshold slider</b> (and ⬛ Solid silhouette, Light parts are the shape) under your own shape in Fill a shape: a photo becomes a clean black shape instead of speckles. Any picture in the box can be turned into a shape (⬛ Turn this picture into a black shape…).",
-              "<b>★ Starred looks</b>: click the ☆ in a 🎭 Transform tile's corner to star a look. And under the Transform tiles, <b>▶ Run every look on one photo</b>: drop a photo in 1 · Picture and run all the looks, or just your ★ starred ones, one after the other; the results go to the Library.",
               "Fix: ✂ Cut out's People, Classic, General and Anime finders download from a Hugging Face copy when GitHub can't be reached, checked against rembg's own checksums.",
               "<b>🔁 Face swap: ★ HyperSwap 1c</b> (FaceFusion, 2025) is the new default model: it draws the new face at 256 px (512 with Sharper) instead of 128, so skin, eyes and the face's outline come out sharper and the likeness closer. ~400 MB the first time. <b>inswapper</b> stays as a choice. HyperSwap's licence is ResearchRAIL (research use).",
               "<b>↺ Use these settings works for Image to image pictures</b>: an edit goes back into Image to image with the picture it started from, the recipe and its card (🔤 Fill a shape's shape, filling and background, 🔁 Seamless pattern's choices, a Transform look's boxes), the edit model, ⚡ speed, work size and seed, so ✨ Edit makes it again (it used to fill in Create instead). Pictures made before this keep their recipe, model and seed.",
@@ -6193,8 +6196,12 @@ const protoartApp = createApp({
     ramBlocked(m) {
       return !!m && m.enough_ram === false && !this.opts.force_load;
     },
+    needRamText(m) {  // Krea 2: 16 GB (it loads in parts there), 32 GB to keep it all loaded
+      const low = m.low_memory_min_ram_gb;
+      return low && low < m.min_ram_gb ? `${low} GB RAM (${m.min_ram_gb} GB+ is faster)` : `${m.min_ram_gb} GB RAM`;
+    },
     ramBlockText(m) {
-      return `Not available on this Mac: ${m.label} needs ${m.min_ram_gb} GB of memory and this Mac has ${this.sys.ram_gb || "less"} GB. ` +
+      return `Not available on this Mac: ${m.label} needs ${m.low_memory_min_ram_gb && m.low_memory_min_ram_gb < m.min_ram_gb ? m.low_memory_min_ram_gb : m.min_ram_gb} GB of memory and this Mac has ${this.sys.ram_gb || "less"} GB. ` +
         "(Settings → Options → “Load anyway” lets you try it, but it may be very slow or stop part-way.)";
     },
     selectModel(id) {

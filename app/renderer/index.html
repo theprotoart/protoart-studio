@@ -105,7 +105,7 @@
           </optgroup>
           <optgroup v-for="g in i2iModelGroups" :key="g.name" :label="g.name">
             <option v-for="m in g.models" :key="m.id" :value="m.id" :disabled="!m.i2iOk || ramBlocked(m)">
-              {{ m.label }}{{ m.people ? ' ●' : '' }}{{ m.nsfw ? ' ⚑' : '' }}{{ ramBlocked(m) ? ' — needs ' + m.min_ram_gb + ' GB RAM' : m.i2iOk ? (m.cached ? '' : ' · ' + Math.round(m.download_gb) + ' GB download') : (m.why || ' — not for image to image') }}</option>
+              {{ m.label }}{{ m.people ? ' ●' : '' }}{{ m.nsfw ? ' ⚑' : '' }}{{ ramBlocked(m) ? ' — needs ' + needRamText(m) : m.i2iOk ? (m.cached ? '' : ' · ' + Math.round(m.download_gb) + ' GB download') : (m.why || ' — not for image to image') }}</option>
           </optgroup>
         </select>
           <select class="model-sort small" :value="opts.model_sort || ''" @change="setModelSort($event.target.value)" title="Sort the model list (★ favourites stay first)">
@@ -263,6 +263,7 @@
       <span>🎁 <b>Protoart Studio {{ upd.info.version }}</b> is available (you have {{ upd.info.current }}).</span>
       <button class="link" @click="updateOpenPage()">What's new</button>
       <template v-if="upd.busy === 'download'"><span class="hint">Downloading… {{ upd.total ? Math.round(upd.got / upd.total * 100) + '%' : '' }}</span></template>
+      <template v-else-if="upd.busy === 'install'"><span class="hint">Installing… about a minute; the app closes and opens again by itself</span></template>
       <button v-else-if="!upd.path" class="primary small" @click="updateDownload" :disabled="!!upd.busy" title="Downloads the installer (~530 MB) and checks it against the checksum published with it">⬇ Download update</button>
       <button v-else class="primary small" @click="updateInstall" :disabled="!!upd.busy" title="Closes the app, puts the new version in place of this one and opens it again (your pictures, models and settings stay)">↻ Install and restart</button>
       <span v-if="upd.error" class="warn-text">{{ upd.error }}</span>
@@ -1652,7 +1653,7 @@
                  :title="m.nsfw ? 'NSFW · click to mark it safe' : 'Click to mark as NSFW (hidden when Hide NSFW is on)'">⚑</span></span>
           </div>
           <div class="shop-name" :title="m.label">{{ m.label }}</div>
-          <div class="hint">{{ modelSizeText(m) }}<template v-if="ramBlocked(m)"> · <b class="unavail-text">not available on this Mac: needs {{ m.min_ram_gb }} GB RAM</b></template><template v-else-if="!isInstalled(m) && m.min_ram_gb"> · needs {{ m.min_ram_gb }} GB RAM</template><template v-if="m.quant"> · {{ m.quant }}</template></div>
+          <div class="hint">{{ modelSizeText(m) }}<template v-if="ramBlocked(m)"> · <b class="unavail-text">not available on this Mac: needs {{ needRamText(m) }}</b></template><template v-else-if="!isInstalled(m) && m.min_ram_gb"> · needs {{ needRamText(m) }}</template><template v-if="m.quant"> · {{ m.quant }}</template></div>
           <div v-if="downloadJob(m)" class="shop-dl">
             <div class="bar"><div :style="{width: (jobProgress(downloadJob(m)) ?? 0) + '%'}"></div></div>
             <span class="hint">{{ downloadJob(m).state === 'running' ? 'Downloading · ' + etaText(downloadJob(m)) : 'Waiting in the queue' }}</span>
@@ -4621,7 +4622,7 @@
                 <i class="mod-lamp" :class="{on: chain.at === k}"></i>
                 <span class="chain-n">{{ k + 1 }}</span>
                 <select v-model="st.model" @change="chainModelChanged(st)" title="The model for this step">
-                  <option v-for="m in chainModels()" :key="m.id" :value="m.id" :disabled="ramBlocked(m)">{{ m.label }}{{ ramBlocked(m) ? ' — needs ' + m.min_ram_gb + ' GB RAM' : '' }}</option>
+                  <option v-for="m in chainModels()" :key="m.id" :value="m.id" :disabled="ramBlocked(m)">{{ m.label }}{{ ramBlocked(m) ? ' — needs ' + needRamText(m) : '' }}</option>
                 </select>
                 <button class="ghost small" :disabled="k === 0 || chain.running" @click="chainMove(k, -1)" title="Move this step earlier">↑</button>
                 <button class="ghost small" :disabled="k === chain.steps.length - 1 || chain.running" @click="chainMove(k, 1)" title="Move this step later">↓</button>
@@ -5610,7 +5611,7 @@
       <button @click="updateCheck(false)" :disabled="upd.checking || strictOffline">{{ upd.checking ? 'Checking…' : '↻ Check for updates now' }}</button>
       <template v-if="upd.info && upd.info.newer">
         <button v-if="!upd.path" class="primary" @click="updateDownload" :disabled="!!upd.busy">{{ upd.busy === 'download' ? 'Downloading… ' + (upd.total ? Math.round(upd.got / upd.total * 100) + '%' : '') : '⬇ Download ' + upd.info.version }}</button>
-        <button v-else class="primary" @click="updateInstall" :disabled="!!upd.busy">↻ Install {{ upd.info.version }} and restart</button>
+        <button v-else class="primary" @click="updateInstall" :disabled="!!upd.busy">{{ upd.busy === 'install' ? 'Installing… about a minute, then it reopens by itself' : '↻ Install ' + upd.info.version + ' and restart' }}</button>
         <button class="ghost" @click="updateOpenPage()">What's new</button>
       </template>
       <span v-else-if="upd.info" class="hint">✓ You have the latest version.</span>
@@ -5897,7 +5898,7 @@
       <select title="Which model to load in the background when the app opens, so the first picture starts sooner" v-model="opts.preload_start" @change="saveOpts" style="width:auto">
         <option value="">nothing (load on Generate)</option>
         <option value="last">{{ opts.default_model ? 'my default model' : 'the model I used last' }}</option>
-        <option v-for="m in installedModels" :key="m.id" :value="m.id" :disabled="ramBlocked(m)">{{ m.label }}{{ ramBlocked(m) ? ' — needs ' + m.min_ram_gb + ' GB RAM' : '' }}</option>
+        <option v-for="m in installedModels" :key="m.id" :value="m.id" :disabled="ramBlocked(m)">{{ m.label }}{{ ramBlocked(m) ? ' — needs ' + needRamText(m) : '' }}</option>
       </select>
     </div>
     <label class="check"><input type="checkbox" v-model="opts.preload_on_pick" @change="saveOpts">
