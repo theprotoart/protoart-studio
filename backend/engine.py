@@ -6219,11 +6219,19 @@ class Engine:
             target = target.resize((int(target.width * s), int(target.height * s)))
             if marks:
                 marks = [[[x * s, y * s] for x, y in m] for m in marks]
-        if self.face_swapper is None:
+        model = fsw.model_of(args.get("swapper"))  # ★ HyperSwap 1c (default) or inswapper 128
+        if self.face_swapper is None or getattr(self.face_swapper, "model", "inswapper") != model:
             if self.face_finder is None:
                 self.emit({"type": "status", "msg": "Preparing the face finder…"})
                 self.face_finder = detailer.FaceFinder(paths.WEIGHTS_DIR / "facexlib")
-            self.face_swapper = fsw.FaceSwapper(self.face_finder.net, emit=self.emit)
+            self.face_swapper = None
+            try:
+                self.face_swapper = fsw.FaceSwapper(self.face_finder.net, emit=self.emit, model=model)
+            except Exception as e:  # noqa: BLE001
+                if fsw.is_cached(model):
+                    raise
+                raise UserError(f"Couldn't download the face swap model {fsw.MODELS[model]['label']} (~{fsw.MODELS[model]['mb']} MB): "
+                                f"check the internet connection, or pick inswapper. ({e})")
         started = time.time()
         try:
             image, n = self.face_swapper.swap(face_pic, target, which=args.get("which") or "all",
@@ -6232,7 +6240,8 @@ class Engine:
         except ValueError as e:
             msg = str(e)
             raise UserError(msg[:1].upper() + msg[1:] + ".")
-        info = {"faces": n, "boost": int(args.get("boost") or 1), "licence": fsw.LICENCE,
+        info = {"faces": n, "boost": int(args.get("boost") or 1), "licence": self.face_swapper.licence,
+                "swapper": self.face_swapper.label,
                 "likeness_photos": getattr(self.face_swapper, "photos_used", 1), "marked_by_hand": bool(marks)}
         if args.get("restore", True):  # tidy the new face (CodeFormer, blended so skin texture survives)
             image, finfo = self._restore_faces(image, {"face_model": args.get("face_model") or "codeformer",
@@ -6240,9 +6249,10 @@ class Engine:
                                                        "face_fidelity": args.get("face_fidelity", 0.7)})
             info["restore"] = finfo
         score = self._swap_safeguard(image, "Face swap")
-        settings = {"prompt": "face swap", "model": "inswapper_128", "width": image.width, "height": image.height,
+        settings = {"prompt": "face swap", "model": {"hyperswap": "hyperswap_1c_256"}.get(model, "inswapper_128"),
+                    "width": image.width, "height": image.height,
                     "seed": 0, "faceswap": info, "seconds": round(time.time() - started, 1),
-                    "licence": fsw.LICENCE}
+                    "licence": self.face_swapper.licence}
         src_id = args.get("image_id")
         path = self._save(image, settings, suffix="faceswap")
         record = self.library.add_image(path, settings, parent_id=int(src_id) if src_id is not None else None, kind="faceswap")

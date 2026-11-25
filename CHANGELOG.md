@@ -2,6 +2,7 @@
 
 ## 1.6.31
 
+- 🔁 Face swap: HyperSwap 1c (`facefusion/models-3.3.0/hyperswap_1c_256.onnx`, 403 MB, ResearchRAIL) is the default swapper (`swapper` arg, `faceswap.MODELS`); fed as FaceFusion does (normalised ArcFace w600k_r50 identity, the arcface_128 template at 256 px, -1..1 in and out); pixel boost tiles at 512. inswapper_128 stays as a choice. Records name the swapper and its licence.
 - ↺ Use these settings on an edit (`word_edit`, `combined`, `camera_angle`) → `reuseEdit`: Image to image with `init_image`, `user_prompt`, `edit_refs`, `recipe_state` (Fill a shape card / pattern card / a look's boxes, now saved by `edit_words`), edit model, `h3_speed`, `h3_side`, seed; `file_exists` says when the start picture is gone.
 - Queue time left: a step-counted job past its typical time projects from the steps done (`elapsed × steps / step`) instead of sitting at 1 s, then reads “taking longer than usual”.
 - Under 16 GB, edits send no `h3_speed` and hide its buttons (`h3SpeedEdit`): Draft's 2048 work size ran out of memory on an 8 GB Mac; a 2048 size it set is reset at start.

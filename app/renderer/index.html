@@ -4050,14 +4050,19 @@
               </div>
               <div class="hint">Drag any marker to adjust it. A face needs both eyes, or the nose and the mouth; what you skip is filled in (hollow markers). Works best on faces shaped roughly like a person's.</div></div>
           </div>
+          <label>Model</label>
+          <div class="seg">
+            <button :class="{on: (form.swap.model || 'hyperswap') === 'hyperswap'}" @click="form.swap.model = 'hyperswap'" title="FaceFusion's HyperSwap 1c (2025): draws the new face at 256 px, sharper skin, eyes and outline, closer likeness. ~400 MB the first time. Licence: ResearchRAIL (research use)">★ HyperSwap 1c</button>
+            <button :class="{on: form.swap.model === 'inswapper'}" @click="form.swap.model = 'inswapper'" title="InsightFace's inswapper (the one before 1.6.31): 128 px, quick. ~280 MB the first time. Licence: non-commercial research use only">inswapper</button>
+          </div>
           <label>Detail</label>
           <div class="seg">
-            <button :class="{on: form.swap.boost === 1}" @click="form.swap.boost = 1" title="128 px swap: quick; fine for small faces">Normal</button>
-            <button :class="{on: form.swap.boost === 2}" @click="form.swap.boost = 2" title="“Pixel boost” 256 px: sharper for big, close-up faces (4× the work, still a few seconds)">Sharper (256 px)</button>
+            <button :class="{on: form.swap.boost === 1}" @click="form.swap.boost = 1" :title="(form.swap.model === 'inswapper' ? '128' : '256') + ' px swap: quick; fine for most faces'">Normal</button>
+            <button :class="{on: form.swap.boost === 2}" @click="form.swap.boost = 2" :title="'“Pixel boost” ' + (form.swap.model === 'inswapper' ? '256' : '512') + ' px: sharper for big, close-up faces (4× the work)'">Sharper ({{ form.swap.model === 'inswapper' ? '256' : '512' }} px)</button>
           </div>
           <label class="check" title="Restore faces (CodeFormer, fidelity 0.7, blended 60% so skin texture survives) after the swap"><input type="checkbox" v-model="form.swap.restore"> Tidy the new face (CodeFormer · 0.7 · 60%)</label>
           <label class="check consent"><input type="checkbox" v-model="form.swap.consent"> I have permission from the person whose face this is</label>
-          <p class="hint">inswapper_128 is licensed for <b>non-commercial use only</b>, and every result is checked: explicit results aren't saved. First use downloads ~460 MB.</p>
+          <p class="hint">{{ form.swap.model === 'inswapper' ? 'inswapper_128 is licensed for non-commercial research use only' : 'HyperSwap 1c is licensed for research use (FaceFusion’s ResearchRAIL)' }}, and every result is checked: explicit results aren't saved. First use downloads ~{{ form.swap.model === 'inswapper' ? '450' : '570' }} MB.</p>
         </template>
         <template v-else-if="form.i2i_mode === 'relight'">
           <div class="hint">New light on the picture with IC-Light (on one of your Stable Diffusion 1.5 models). The same settings as Tools → 💡 Relight, where there are a few more.</div>

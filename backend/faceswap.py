@@ -3,21 +3,36 @@
 How it works (the same method as FaceFusion / roop, written for this app):
   1. RetinaFace (facexlib, already used by Restore faces) finds the faces and their 5 landmarks.
   2. ArcFace w600k_r50 turns the source face into an identity vector.
-  3. InsightFace's inswapper_128 redraws each chosen target face (aligned to 128 px, or 256 px with
-     "pixel boost", processed as 2 × 2 tiles of 128) with that identity.
+  3. The swapper redraws each chosen target face with that identity: ★ HyperSwap 1c (FaceFusion, 2025; the
+     default) at 256 px, or InsightFace's inswapper_128 at 128 px. "Pixel boost" doubles that, as 2 × 2 tiles.
   4. The new face is warped back and blended in with a soft mask; Restore faces (CodeFormer) can tidy it.
 
-Models (downloaded once from Hugging Face, ~460 MB): inswapper_128_fp16.onnx and arcface_w600k_r50.onnx.
-inswapper_128 is released by InsightFace for non-commercial research use only, so results are labelled that way.
+Models (downloaded once from Hugging Face): arcface_w600k_r50.onnx (~170 MB) and the swapper: hyperswap_1c_256.onnx
+(~400 MB, FaceFusion's ResearchRAIL licence: research use) or inswapper_128_fp16.onnx (~280 MB, InsightFace:
+non-commercial research use only). Results are labelled with the swapper's licence.
+HyperSwap is fed as FaceFusion feeds it (processors/modules/face_swapper/core.py): the normalised ArcFace identity as
+"source", the face aligned to the arcface_128 template at 256 px, RGB scaled to -1..1 as "target"; it answers in -1..1.
 Only swap faces you have permission to use.
 """
 import numpy as np
 
-REPO = "facefusion/models-3.0.0"
-SWAPPER = "inswapper_128_fp16.onnx"
+REPO = "facefusion/models-3.0.0"  # ArcFace and inswapper
 ARCFACE = "arcface_w600k_r50.onnx"
-DOWNLOAD_MB = 455
-LICENCE = "inswapper_128 (InsightFace): non-commercial research use only"
+MODELS = {
+    "hyperswap": {"label": "HyperSwap 1c", "repo": "facefusion/models-3.3.0", "file": "hyperswap_1c_256.onnx",
+                  "size": 256, "mb": 403, "licence": "HyperSwap 1c (FaceFusion): ResearchRAIL, research use"},
+    "inswapper": {"label": "inswapper 128", "repo": REPO, "file": "inswapper_128_fp16.onnx",
+                  "size": 128, "mb": 280, "licence": "inswapper_128 (InsightFace): non-commercial research use only"},
+}
+DEFAULT = "hyperswap"
+ARCFACE_MB = 170
+SWAPPER = MODELS["inswapper"]["file"]  # (older code and tests)
+DOWNLOAD_MB = ARCFACE_MB + MODELS[DEFAULT]["mb"]
+LICENCE = MODELS[DEFAULT]["licence"]
+
+
+def model_of(name):
+    return name if name in MODELS else DEFAULT
 
 # ArcFace's five-point face template at 112 px (left eye, right eye, nose, left / right mouth corner)
 ARCFACE_DST = np.array([[38.2946, 51.6963], [73.5318, 51.5014], [56.0252, 71.7366],
@@ -45,9 +60,10 @@ def align(bgr, landmarks, size):
     return cv2.warpAffine(bgr, M, (size, size), borderValue=0.0), M
 
 
-def is_cached():
+def is_cached(model=DEFAULT):
     from huggingface_hub import try_to_load_from_cache
-    return all(isinstance(try_to_load_from_cache(REPO, f), str) for f in (SWAPPER, ARCFACE))
+    m = MODELS[model_of(model)]
+    return isinstance(try_to_load_from_cache(REPO, ARCFACE), str) and isinstance(try_to_load_from_cache(m["repo"], m["file"]), str)
 
 
 def find_faces(face_net, image, min_score=0.6):
@@ -69,22 +85,25 @@ def find_faces(face_net, image, min_score=0.6):
 
 
 class FaceSwapper:
-    def __init__(self, face_net, emit=None):
-        """face_net: facexlib's RetinaFace (detailer.FaceFinder(...).net)."""
+    def __init__(self, face_net, emit=None, model=DEFAULT):
+        """face_net: facexlib's RetinaFace (detailer.FaceFinder(...).net). model: "hyperswap" (default) or "inswapper"."""
         import onnxruntime as ort
         from huggingface_hub import hf_hub_download
         self.emit = emit or (lambda m: None)
         self.face_net = face_net
-        if not is_cached():
-            self.emit({"type": "status", "msg": f"Downloading the face swap models (first time only, ~{DOWNLOAD_MB} MB)…"})
-        swapper_path = hf_hub_download(REPO, SWAPPER)
+        self.model = model_of(model)
+        spec = MODELS[self.model]
+        self.size, self.licence, self.label = spec["size"], spec["licence"], spec["label"]
+        if not is_cached(self.model):
+            self.emit({"type": "status", "msg": f"Downloading the face swap model {spec['label']} (first time only, ~{spec['mb'] + ARCFACE_MB} MB)…"})
+        swapper_path = hf_hub_download(spec["repo"], spec["file"])
         arcface_path = hf_hub_download(REPO, ARCFACE)
         prov = ["CPUExecutionProvider"]  # CoreML gives no gain for these small models and can fail to compile
         opts = ort.SessionOptions()
         opts.log_severity_level = 3
         self.swapper = ort.InferenceSession(swapper_path, sess_options=opts, providers=prov)
         self.arcface = ort.InferenceSession(arcface_path, sess_options=opts, providers=prov)
-        self.emap = self._emap(swapper_path)
+        self.emap = self._emap(swapper_path) if self.model == "inswapper" else None  # HyperSwap takes ArcFace as it is
         self.in_names = [i.name for i in self.swapper.get_inputs()]
         self.in_types = {i.name: i.type for i in self.swapper.get_inputs()}
 
@@ -115,6 +134,8 @@ class FaceSwapper:
             embs.append(self._arc(pic, f))
         emb = np.mean(embs, axis=0)
         emb = emb / (np.linalg.norm(emb) + 1e-8)
+        if self.emap is None:  # HyperSwap: the normalised ArcFace identity
+            return emb.reshape(1, -1).astype(np.float32), len(embs)
         latent = emb.reshape(1, -1) @ self.emap
         return (latent / (np.linalg.norm(latent) + 1e-8)).astype(np.float32), len(embs)
 
@@ -134,33 +155,42 @@ class FaceSwapper:
         blob = cv2.dnn.blobFromImage(crop, 1.0 / 127.5, (112, 112), (127.5, 127.5, 127.5), swapRB=True)
         emb = self.arcface.run(None, {self.arcface.get_inputs()[0].name: blob})[0].reshape(-1)
         emb = emb / (np.linalg.norm(emb) + 1e-8)
+        if self.emap is None:
+            return emb.reshape(1, -1).astype(np.float32)
         latent = emb.reshape(1, -1) @ self.emap
         return (latent / (np.linalg.norm(latent) + 1e-8)).astype(np.float32)
 
     # ---------------------------------------------------------------- swap
-    def _run(self, crop128_bgr, latent):
+    def _run(self, crop_bgr, latent):
+        """One aligned face (BGR, the model's size) -> the swapped face (BGR uint8)."""
         import cv2
-        blob = cv2.dnn.blobFromImage(crop128_bgr, 1.0 / 255.0, (128, 128), (0, 0, 0), swapRB=True)
+        n = self.size
+        if self.model == "hyperswap":  # RGB in -1..1 in, -1..1 out
+            blob = cv2.dnn.blobFromImage(crop_bgr, 1.0 / 127.5, (n, n), (127.5, 127.5, 127.5), swapRB=True)
+        else:  # inswapper: RGB 0..1 in and out
+            blob = cv2.dnn.blobFromImage(crop_bgr, 1.0 / 255.0, (n, n), (0, 0, 0), swapRB=True)
         feeds = {}
         for name in self.in_names:
             arr = blob if name == "target" else latent
             if "float16" in self.in_types[name]:
                 arr = arr.astype(np.float16)
             feeds[name] = arr
-        out = self.swapper.run(None, feeds)[0][0].astype(np.float32)  # RGB, 0..1
-        out = np.clip(out.transpose(1, 2, 0) * 255.0, 0, 255).astype(np.uint8)
+        out = self.swapper.run(None, feeds)[0][0].astype(np.float32).transpose(1, 2, 0)  # RGB
+        if self.model == "hyperswap":
+            out = out * 0.5 + 0.5
+        out = np.clip(out * 255.0, 0, 255).astype(np.uint8)
         return out[:, :, ::-1]  # → BGR
 
     def swap_face(self, bgr, face, latent, boost=1):
-        """Swap one face in a BGR image (in place copy). boost 1 = 128 px, 2 = 256 px (4 tiles)."""
+        """Swap one face in a BGR image (in place copy). boost 1 = the model's size (256 / 128 px), 2 = twice that (4 tiles)."""
         import cv2
-        size = 128 * boost
+        size = self.size * boost
         crop, M = align(bgr, face["landmarks"], size)
         if boost == 1:
             fake = self._run(crop, latent)
         else:
             fake = np.zeros_like(crop)
-            for y in range(boost):  # the swapper works at 128 px: do the face as tiles, every tile the same identity
+            for y in range(boost):  # the swapper works at its own size: do the face as tiles, every tile the same identity
                 for x in range(boost):
                     tile = crop[y::boost, x::boost]
                     fake[y::boost, x::boost] = self._run(np.ascontiguousarray(tile), latent)
