@@ -631,6 +631,6 @@ details.fine summary { cursor: pointer; }
 .tf-star { position: absolute; top: 2px; right: 3px; z-index: 2; font-size: 15px; line-height: 1; padding: 2px; color: #fff; text-shadow: 0 1px 3px #000; opacity: 0; cursor: pointer; }
 .tf-tile:hover .tf-star, .tf-star.on { opacity: 1; }
 .tf-star.on { color: #f5c04a; }
-.tf-dirs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 4px; }
+.tf-dirs { display: grid; grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); gap: 4px; margin-top: 4px; }
 .tf-dirs button { padding: 4px 2px; font-size: 11px; }
 .tf-dirs button.on { border-color: #f5c04a; color: #f5c04a; }
