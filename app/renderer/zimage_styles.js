@@ -843,5 +843,59 @@ window.Z_STYLES = [
 "cat": "Effects",
 "pre": "A detailed banknote-style line engraving of ",
 "post": "Fine parallel lines that thicken in the shadows and curve with the forms, cross-hatching in the darkest areas, black ink on off-white paper, crisp and precise like an antique engraved portrait."
+},
+{
+"name": "Dispersion",
+"cat": "Effects",
+"pre": "A dramatic dispersion photo effect of ",
+"post": "One side breaks apart into thousands of small shards, flakes and dust, each carrying the colour of the part it came from, streaming away as if blown by a strong wind, the face and main form whole and sharp; a dark, softly graded background, dramatic side light on the flying pieces."
+},
+{
+"name": "Glitch",
+"cat": "Effects",
+"pre": "A digital glitch photo of ",
+"post": "Red and blue channels split and offset with colour fringes on every edge, horizontal bands torn and shifted sideways, smeared pixel streaks, scan lines, blocky compression and noise, like a damaged video signal; cold high-contrast grade with magenta and cyan accents."
+},
+{
+"name": "Marble Statue",
+"cat": "Effects",
+"pre": "A photograph of a lifelike white marble sculpture of ",
+"post": "Everything carved in polished white marble with fine grey veins, sculpted locks of hair, carved folds of cloth, smooth blank eyes; on a stone plinth in a quiet museum gallery under a soft skylight, deep shadows."
+},
+{
+"name": "Low-Poly",
+"cat": "Effects",
+"pre": "Low-poly geometric art of ",
+"post": "Built from flat triangles of solid colour, small and dense on the face and details, larger elsewhere, faint wireframe lines between facets, some triangles breaking away and floating off; a clean gradient background, crisp vector art."
+},
+{
+"name": "Ink Splash",
+"cat": "Effects",
+"pre": "A bold black ink artwork of ",
+"post": "Sharp confident ink on the face and main features, dissolving towards the edges into big splashes, wet brush strokes, drips and spatter, grey washes where the ink was thinned, bare white paper; high contrast black and white."
+},
+{
+"name": "Stained Glass",
+"cat": "Effects",
+"pre": "A photograph of a stained-glass window showing ",
+"post": "Pieces of coloured glass joined by dark lead lines, small pieces with painted shading for the face, larger decorative pieces for the clothes and background, glowing jewel colours lit from behind, bubbles and ripples in the glass, an arched stone frame."
+},
+{
+"name": "Hologram",
+"cat": "Effects",
+"pre": "A projected hologram of ",
+"post": "Semi-transparent glowing cyan light, fine horizontal scan lines, a few flickering shifted bands, glowing particles drifting off the edges, a cone of light rising from a small round projector; a dark high-tech room lit blue by the glow."
+},
+{
+"name": "Embroidered Patch",
+"cat": "Effects",
+"pre": "A close-up photograph of an embroidered patch of ",
+"post": "Dense satin stitches following the shapes and shading, blended rows of thread in close shades, soft thread sheen, a raised edge and a thick stitched border, sewn on denim, soft light showing every thread."
+},
+{
+"name": "Layered Paper Cut",
+"cat": "Effects",
+"pre": "A layered paper-cut artwork of ",
+"post": "Cut from many stacked sheets of thick matte coloured paper, clean smooth curved edges, soft real shadows between the layers giving depth, fine paper texture, a few curled quilled details, softly lit from one side; a handmade paper diorama."
 }
 ];

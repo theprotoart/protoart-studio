@@ -16,7 +16,7 @@ def _nostyle():
 
 def test_presets():
     ids = [p[0] for p in _presets()]
-    assert len(ids) == 43 and len(set(ids)) == 43  # 27 looks + 14 ✨ photo effects + 🔬 Ultra-detail + 🔤 Fill a shape
+    assert len(ids) == 52 and len(set(ids)) == 52  # 27 looks + 23 ✨ photo effects + 🔬 Ultra-detail + 🔤 Fill a shape
     for pid, slots, prompt in _presets():
         assert 'kind: "style"' in slots or pid in _nostyle(), pid
         for ph in re.findall(r"\[[A-Z0-9 ]+\]", prompt):

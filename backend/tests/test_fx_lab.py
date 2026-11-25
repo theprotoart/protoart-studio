@@ -135,7 +135,7 @@ def test_wired_up():
     assert "shapeRemake()" in html and '"threshold"' in bee and 'a.get("solid")' in bee
     assert "tile_thumb" not in bee and "setTileThumb" not in html  # tile pictures are the app's own; nobody can change them
     styles = (ROOT / "app" / "renderer" / "zimage_styles.js").read_text()
-    assert styles.count('"cat": "Effects"') == 15 and "'Effects']" in html
+    assert styles.count('"cat": "Effects"') == 24 and "'Effects']" in html
     for gone in ('label: "🧍 Turnaround sheet"', 'label: "📖 Comic panel"', 'label: "🌴 Crime-game art"'):
         assert gone not in app, gone   # duplicates of 🎭 Transform looks
     for t in ("tf_fx_sparkler", "tf_fx_glass"):
