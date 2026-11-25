@@ -2106,8 +2106,11 @@ class Engine:
         return out
 
     @staticmethod
-    def _h3_steps(args):
-        """⚡ MiniMax-H3-Image's speed: "fast" 2 steps, "balanced" 3 (both with the few-step LoRA), else the usual 6."""
+    def _h3_steps(args, width=None, height=None):
+        """⚡ MiniMax-H3-Image's speed: "fast" 2 steps, "balanced" 4 (both with the few-step LoRA), else the usual 6.
+        The LoRA is made for big pictures (2048-4096 px): drawn smaller it comes out speckled, so there it's always 6."""
+        if width and height and width * height < 2048 * 2048 * 0.8:
+            return 6
         # balanced: 4 (the LoRA's own page suggests 3-4 steps when 2 drift; 3 still speckled flat areas)
         return {"fast": 2, "balanced": 4}.get(str((args or {}).get("h3_speed") or ""), 6)
 
@@ -2208,9 +2211,13 @@ class Engine:
                 # draws smaller) in the same shape, then shrunk to the size asked for
                 k = (2048 * 2048 / (width * height)) ** 0.5
                 draw_w, draw_h = min(4096, int(width * k) // 32 * 32), min(4096, int(height * k) // 32 * 32)
+            h3_steps = self._h3_steps(args, draw_w, draw_h)
+            if h3_steps == 6 and self._h3_steps(args) < 6 and i == 0:
+                self.emit({"type": "status", "msg": "MiniMax-H3-Image: ⚡ Draft / Balanced need pictures of about 2048 px "
+                           "(they speckle smaller): drawing with ★ Best's 6 steps"})
             timings = self._h3_picture(p_run, out, draw_w, draw_h, img_seed, refs, i + 1, n,
                                        ref_sides=[min(draw_w, draw_h)] + [512] * (len(refs) - 1) if refs else None,
-                                       loras=h3_loras, steps=self._h3_steps(args))
+                                       loras=h3_loras, steps=h3_steps)
             image = Image.open(out).convert("RGB")
             if image.size != (width, height):
                 image = image.resize((width, height), Image.LANCZOS)
@@ -2222,7 +2229,7 @@ class Engine:
             print(f"[timing] MiniMax-H3-Image {i + 1}/{n}: {secs:.1f}s at {width}x{height}, {len(refs)} pictures, "
                   f"stages {timings}", flush=True)
             settings = {"model": model_id, "prompt": p_run, "negative_prompt": "", "width": image.width,
-                        "height": image.height, "steps": self._h3_steps(args), "cfg": 1.0, "sampler": "flow", "seed": img_seed,
+                        "height": image.height, "steps": h3_steps, "cfg": 1.0, "sampler": "flow", "seed": img_seed,
                         "engine": "h3", "seconds": round(secs, 1),
                         "loras": [{"name": l["name"], "weight": float(l.get("weight", 1.0))}
                                   for l in args.get("loras") or [] if isinstance(l, dict) and l.get("name")
@@ -5528,7 +5535,10 @@ class Engine:
             scale = side / max(1.0, (image.width * image.height) ** 0.5)
             width = max(256, min(4096, int(image.width * scale) // 32 * 32))
             height = max(256, min(4096, int(image.height * scale) // 32 * 32))
-            steps = self._h3_steps(args)  # 6, or ⚡ 2 / 3 with the few-step LoRA
+            steps = self._h3_steps(args, width, height)  # 6, or ⚡ 2 / 4 with the few-step LoRA at 2048 px and up
+            if steps == 6 and self._h3_steps(args) < 6:
+                self.emit({"type": "status", "msg": "MiniMax-H3-Image: ⚡ Draft / Balanced need a work size of 2048 "
+                           "(they speckle smaller): drawing with ★ Best's 6 steps"})
             tmp = paths.HOME / "tmp"
             tmp.mkdir(parents=True, exist_ok=True)
             ref_files = [tmp / f"h3edit_src_{os.getpid()}.png"]
@@ -5543,7 +5553,7 @@ class Engine:
                 # an outfit or a style) unless "Extra pictures in detail" is ticked
                 extra = 768 if args.get("h3_ref_detail") else 512
                 self._h3_picture(prompt, out, width, height, seed, ref_files,
-                                 ref_sides=[side] + [extra] * (len(ref_files) - 1), steps=self._h3_steps(args))
+                                 ref_sides=[side] + [extra] * (len(ref_files) - 1), steps=steps)
                 result = Image.open(out).convert("RGB")
             finally:
                 for f in [out, *ref_files]:

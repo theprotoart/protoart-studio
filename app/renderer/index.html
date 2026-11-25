@@ -926,12 +926,12 @@
           <label v-if="family === 'h3'" class="check" title="MiniMax-H3-Image is made for big pictures: it draws at about 2048 × 2048 (the same shape as your size) and the result is shrunk to your size. Much more detail and fewer odd faces, about 3 times as long (about 13 minutes on an 8 GB Mac)"><input type="checkbox" v-model="form.h3_best"> 🧠 Best quality (draws at 2048, ~13 min)</label>
           <template v-if="family === 'h3'"><label title="How many steps MiniMax-H3-Image draws in: ⚡ Draft 2 and Balanced 4 (with a few-step LoRA, downloaded once, about 2 GB), ★ Best the usual 6. Draft and Balanced are made for big pictures (2048 px and up)">⚡ Speed</label>
             <div class="seg mod-seg h3-speed">
-            <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="A quick draft in 2 steps (the pDMD few-step LoRA, about 2 GB, downloaded the first time): about a third of the time, good for checking the layout and colours. Up close it looks grainy and plastic, with a fine dotted texture: make the final one with Balanced or ★ Best">⚡ Draft</button>
-            <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="A faster good picture in 4 steps (the same LoRA): about two thirds of the time, much cleaner than ⚡ Draft; a little less fine detail than ★ Best">Balanced</button>
+            <button :class="{on: form.h3_speed === 'fast'}" @click="h3SetSpeed('fast', 'create')" title="A quick draft in 2 steps (the pDMD few-step LoRA, about 2 GB, downloaded the first time): about a third of the time, good for checking the layout and colours. Up close it looks grainy and plastic, with a fine dotted texture: make the final one with Balanced or ★ Best">⚡ Draft</button>
+            <button :class="{on: form.h3_speed === 'balanced'}" @click="h3SetSpeed('balanced', 'create')" title="A faster good picture in 4 steps (the same LoRA): about two thirds of the time, much cleaner than ⚡ Draft; a little less fine detail than ★ Best">Balanced</button>
             <button :class="{on: !form.h3_speed}" @click="form.h3_speed = ''" title="The usual 6 steps: the best result">★ Best</button>
           </div></template>
         </div>
-        <div v-if="form.h3_speed && !form.h3_best && form.width * form.height < 2048 * 2048 * 0.8" class="span2 size-warn h3-speed-warn">⚠ ⚡ Draft and Balanced are made for big pictures (about 2048 px and up): at {{ form.width }} × {{ form.height }} they come out speckled. Use ★ Best at this size, or tick 🧠 Best quality (draws at 2048).</div>
+        <div v-if="family === 'h3' && form.h3_speed" class="span2 hint h3-speed-note">⚡ {{ form.h3_speed === 'fast' ? 'Draft' : 'Balanced' }} draws at 2048 (🧠 Best quality), the size its speed-up is made for; smaller, it uses ★ Best's 6 steps.</div>
         <div v-if="sizeWarning()" class="span2 size-warn">⚠ {{ sizeWarning() }}</div>
         <div v-if="currentModel?.fast_mode" class="span2 fast-row" :class="{on: form.fast}">
           <label class="check"><input type="checkbox" :checked="form.fast" @change="toggleFast($event.target.checked)">
@@ -3552,8 +3552,8 @@
             <template v-if="editModelId() === 'h3_image'">
               <div class="shape-step">MiniMax speed</div>
               <div class="seg mod-seg h3-speed">
-                <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="A quick draft in 2 steps (the pDMD few-step LoRA, about 2 GB, downloaded the first time): about a third of the time, good for checking the layout and colours. Up close it looks grainy and plastic, with a fine dotted texture: make the final one with Balanced or ★ Best">⚡ Draft</button>
-                <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="A faster good picture in 4 steps (the same LoRA): about two thirds of the time, much cleaner than ⚡ Draft; a little less fine detail than ★ Best">Balanced</button>
+                <button :class="{on: form.h3_speed === 'fast'}" @click="h3SetSpeed('fast', 'edit')" title="A quick draft in 2 steps (the pDMD few-step LoRA, about 2 GB, downloaded the first time): about a third of the time, good for checking the layout and colours. Up close it looks grainy and plastic, with a fine dotted texture: make the final one with Balanced or ★ Best">⚡ Draft</button>
+                <button :class="{on: form.h3_speed === 'balanced'}" @click="h3SetSpeed('balanced', 'edit')" title="A faster good picture in 4 steps (the same LoRA): about two thirds of the time, much cleaner than ⚡ Draft; a little less fine detail than ★ Best">Balanced</button>
                 <button :class="{on: !form.h3_speed}" @click="form.h3_speed = ''" title="The usual 6 steps: the best result">★ Best</button>
               </div>
             </template>
@@ -3618,8 +3618,8 @@
             <template v-if="editModelId() === 'h3_image'">
               <div class="shape-step">MiniMax speed</div>
               <div class="seg mod-seg h3-speed">
-                <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="A quick draft in 2 steps (the pDMD few-step LoRA, about 2 GB, downloaded the first time): about a third of the time, good for checking the layout and colours. Up close it looks grainy and plastic, with a fine dotted texture: make the final one with Balanced or ★ Best">⚡ Draft</button>
-                <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="A faster good picture in 4 steps (the same LoRA): about two thirds of the time, much cleaner than ⚡ Draft; a little less fine detail than ★ Best">Balanced</button>
+                <button :class="{on: form.h3_speed === 'fast'}" @click="h3SetSpeed('fast', 'edit')" title="A quick draft in 2 steps (the pDMD few-step LoRA, about 2 GB, downloaded the first time): about a third of the time, good for checking the layout and colours. Up close it looks grainy and plastic, with a fine dotted texture: make the final one with Balanced or ★ Best">⚡ Draft</button>
+                <button :class="{on: form.h3_speed === 'balanced'}" @click="h3SetSpeed('balanced', 'edit')" title="A faster good picture in 4 steps (the same LoRA): about two thirds of the time, much cleaner than ⚡ Draft; a little less fine detail than ★ Best">Balanced</button>
                 <button :class="{on: !form.h3_speed}" @click="form.h3_speed = ''" title="The usual 6 steps: the best result">★ Best</button>
               </div>
             </template>
@@ -3750,8 +3750,8 @@
           <template v-if="editModelId() === 'h3_image'">
             <label title="How many steps MiniMax-H3-Image draws in: ⚡ Draft 2 and Balanced 4 (with a few-step LoRA, downloaded once, about 2 GB), ★ Best the usual 6. Draft and Balanced are made for big pictures (2048 px and up)">⚡ Speed</label>
             <div class="seg mod-seg h3-speed">
-              <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="A quick draft in 2 steps (the pDMD few-step LoRA, about 2 GB, downloaded the first time): about a third of the time, good for checking the layout and colours. Up close it looks grainy and plastic, with a fine dotted texture: make the final one with Balanced or ★ Best">⚡ Draft</button>
-              <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="A faster good picture in 4 steps (the same LoRA): about two thirds of the time, much cleaner than ⚡ Draft; a little less fine detail than ★ Best">Balanced</button>
+              <button :class="{on: form.h3_speed === 'fast'}" @click="h3SetSpeed('fast', 'edit')" title="A quick draft in 2 steps (the pDMD few-step LoRA, about 2 GB, downloaded the first time): about a third of the time, good for checking the layout and colours. Up close it looks grainy and plastic, with a fine dotted texture: make the final one with Balanced or ★ Best">⚡ Draft</button>
+              <button :class="{on: form.h3_speed === 'balanced'}" @click="h3SetSpeed('balanced', 'edit')" title="A faster good picture in 4 steps (the same LoRA): about two thirds of the time, much cleaner than ⚡ Draft; a little less fine detail than ★ Best">Balanced</button>
               <button :class="{on: !form.h3_speed}" @click="form.h3_speed = ''" title="The usual 6 steps: the best result">★ Best</button>
             </div>
             <label title="The size MiniMax-H3-Image works at (the bigger, the sharper faces and lettering come out). On an 8 GB Mac with one picture, about: 768 5–6 minutes, 896 8, 1024 12, 1280 17, 1536 25, 2048 45">🧠 Work size</label>

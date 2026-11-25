@@ -12,7 +12,7 @@ def test_steps():
     src = (ROOT / "engine.py").read_text()
     assert 'return {"fast": 2, "balanced": 4}.get(str((args or {}).get("h3_speed") or ""), 6)' in src
     assert "not self._is_fast_lora(l[\"name\"])" in src  # never recorded among your LoRAs (Use these settings re-added it)
-    assert "steps=self._h3_steps(args)" in src and "loras = list(loras) + [(self._h3_fast_lora(), 1.0)]" in src
+    assert "self._h3_steps(args, width, height)" in src and "self._h3_steps(args, draw_w, draw_h)" in src and "loras = list(loras) + [(self._h3_fast_lora(), 1.0)]" in src
 
 
 def test_worker_and_lora():
@@ -50,3 +50,14 @@ def test_few_step_lora_never_doubles():
         assert seen["loras"] == [("/loras/style.safetensors", 0.8)] and seen["steps"] == 6
     finally:
         h3_engine.picture = real
+
+
+def test_small_pictures_use_best():
+    """The few-step LoRA speckles below ~2048 px: there Draft / Balanced draw with 6 steps."""
+    import engine
+    st = engine.Engine._h3_steps
+    assert st({"h3_speed": "fast"}, 1024, 1365) == 6 and st({"h3_speed": "balanced"}, 1088, 1456) == 6
+    assert st({"h3_speed": "fast"}, 2048, 2048) == 2 and st({"h3_speed": "balanced"}, 1792, 2368) == 4
+    assert st({"h3_speed": "fast"}) == 2  # the setting itself (shown with the size it needs)
+    app = (Path(__file__).resolve().parents[2] / "app" / "renderer" / "app.js").read_text()
+    assert 'this.form.h3_best = true' in app and 'this.form.h3_side = "2048"' in app  # Draft sets its size
