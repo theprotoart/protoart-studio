@@ -160,3 +160,9 @@ def test_dispersion_direction():
     assert 'kind: "choice"' in blk and '["left", "← Left"]' in blk and 'dflt: "left"' in blk
     assert '["extreme", "Extreme",' in blk and 'dflt: "medium"' in blk and "shatters like glass" in blk and "if (o && o[2]) adds.push(o[2])" in app
     assert 'if (sl.kind === "choice")' in app and "sl.kind === 'choice'" in html
+
+
+def test_new_look_empty_boxes():
+    app = (ROOT / "app" / "renderer" / "app.js").read_text()
+    body = app[app.index("    pickEditRecipe(id) {"):][:900]
+    assert "old.id !== f.edit_recipe) f.tf = { pics: {}, words: {} }" in body
