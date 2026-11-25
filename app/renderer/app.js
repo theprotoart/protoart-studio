@@ -1541,6 +1541,7 @@ const protoartApp = createApp({
       paperJob: false,
       filmJob: false,
       tileThumbs: {},  // 🎭 your own Transform tile pictures {recipe id: path}
+      tileMaking: null,  // 🎭 making the missing tile pictures: {done, total, now, stop}
       fxJob: false,
       fxPrev: "",   // ✨ the effect's live preview (data URL)
       filmPrev: "",     // 🎞 the film look's live preview (data URL)
@@ -1696,7 +1697,7 @@ const protoartApp = createApp({
               "<b>▭ Box</b> selection tool (Image to image and Tools painting): drag a rectangle and it becomes the painted area.",
               "<b>🔤 Fill a shape → text styles</b> for a word: 🎨 Graffiti 3D, 🪞 Chrome, 🏆 Gold game title, 💡 Neon sign, 🧊 Carved ice, 🔥 Fire, 🎈 Foil balloons (they fill in the two boxes; the word is drawn as styled lettering).",
               "<b>⬛ Use as a shape → Threshold slider</b> (and ⬛ Solid silhouette, Light parts are the shape) under your own shape in Fill a shape: a photo becomes a clean black shape instead of speckles. Any picture in the box can be turned into a shape (⬛ Turn this picture into a black shape…).",
-              "<b>🎭 Use as the tile picture</b> (picture window, for a Transform look's result): your own picture on that look's tile (right-click puts the app's back).",
+              "<b>🎭 Use as the tile picture</b> (picture window, for a Transform look's result): your own picture on that look's tile (right-click puts the app's back). Or under the Transform tiles, <b>🎭 Make the missing tile pictures from this photo</b> runs every look that has no picture yet on the photo in 1 · Picture, one after the other, and puts each result on its tile.",
               "Fix: ✂ Cut out's People, Classic, General and Anime finders download from a Hugging Face copy when GitHub can't be reached, checked against rembg's own checksums.",
               "<b>🔁 Face swap: ★ HyperSwap 1c</b> (FaceFusion, 2025) is the new default model: it draws the new face at 256 px (512 with Sharper) instead of 128, so skin, eyes and the face's outline come out sharper and the likeness closer. ~400 MB the first time. <b>inswapper</b> stays as a choice. HyperSwap's licence is ResearchRAIL (research use).",
               "<b>↺ Use these settings works for Image to image pictures</b>: an edit goes back into Image to image with the picture it started from, the recipe and its card (🔤 Fill a shape's shape, filling and background, 🔁 Seamless pattern's choices, a Transform look's boxes), the edit model, ⚡ speed, work size and seed, so ✨ Edit makes it again (it used to fill in Create instead). Pictures made before this keep their recipe, model and seed.",
@@ -11663,6 +11664,35 @@ const protoartApp = createApp({
     tfThumb(id) {  // your own tile picture (↺ from a result), else the app's
       const mine = this.tileThumbs[id];
       return mine ? this.fileUrl(mine.split("?")[0]) + "?" + (mine.split("?")[1] || "") : TF_THUMBS.has(id) ? `assets/presets/${id}.jpg` : "";
+    },
+    tileMissing() {  // 🎭 the looks with no tile picture yet (no LoRA to download, not Klein-only)
+      return EDIT_RECIPES.filter((r) => r.slots && r.group === "transform" && !r.files && !r.klein && !this.tfThumb(r.id));
+    },
+    async tileMakeAll() {  // 🎭 every look without a picture, on the photo in 1 · Picture; each result goes on its tile
+      const f = this.form, todo = this.tileMissing();
+      if (!f.init_image) return (this.error = "Drop the photo to use in 1 · Picture first.");
+      if (!todo.length) return (this.status = "🎭 Every look already has its tile picture.");
+      this.error = "";
+      this.tileMaking = { done: 0, total: todo.length, now: "", stop: false };
+      const seed = f.seed == null || +f.seed < 0 ? Math.floor(Math.random() * 2 ** 31) : +f.seed;
+      try {
+        for (const r of todo) {
+          if (this.tileMaking.stop) break;
+          this.tileMaking.now = r.label;
+          let text = r.prompt;  // its own wording with the boxes' examples: the look as it comes
+          for (const sl of r.slots || []) if (sl.ph) text = text.split(sl.ph).join(sl.dflt || "");
+          const head = r.head || "Picture 1 is the reference photo of the person.";
+          const rec = await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: f.init_image,
+                                                        prompt: head + "\n" + text, refs: [], seed, recipe: r.id,
+                                                        keep_faces: !!(r.set && r.set.keep_faces), match_colors: false });
+          if (rec && rec.path) {
+            const t = await call("tile_thumb_set", { id: r.id, path: rec.path }).catch(() => null);
+            if (t && t.path) this.tileThumbs = { ...this.tileThumbs, [r.id]: t.path };
+          }
+          this.tileMaking.done++;
+        }
+        this.status = `🎭 ${this.tileMaking.done} tile picture${this.tileMaking.done === 1 ? "" : "s"} made` + (this.tileMaking.stop ? " (stopped)" : "") + ". Right-click 🎭 Use as the tile picture on a result to put the app's back.";
+      } finally { this.tileMaking = null; }
     },
     async setTileThumb(d, reset = false) {  // 🎭 this result as its look's tile picture
       const id = d && d.settings && d.settings.recipe;

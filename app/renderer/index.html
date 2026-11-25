@@ -3576,6 +3576,11 @@
               <span class="tf-tile-name">{{ r.label.split(' ').slice(1).join(' ') }}</span>
             </button>
           </div>
+          <div v-if="!i2iShut('transform') && (tileMaking || tileMissing().length)" class="tile-make hint">
+            <template v-if="tileMaking">🎭 Making tile pictures: {{ tileMaking.done }} of {{ tileMaking.total }}<span v-if="tileMaking.now"> · now {{ tileMaking.now }}</span>
+              <button class="link small" :disabled="tileMaking.stop" @click="tileMaking.stop = true" title="Finish the look being made, then stop">{{ tileMaking.stop ? 'stopping after this one…' : 'stop after this one' }}</button></template>
+            <button v-else class="link small" :disabled="!form.init_image" @click="tileMakeAll" :title="'Runs each of these looks on the photo in 1 · Picture with the edit model you picked, one after the other, and puts each result on its tile: ' + tileMissing().map((r) => r.label).join(', ')">🎭 Make the {{ tileMissing().length }} missing tile pictures from this photo<span v-if="!form.init_image"> (drop a photo in 1 · Picture first)</span> · about {{ tileMissing().length * 4 }} min</button>
+          </div>
           <label class="pair-head pair-fold" :class="{shut: i2iShut('shapes')}" @click="i2iFoldToggle('shapes', $event)" title="Click to fold or unfold"><span class="pf-arrow" aria-hidden="true">{{ i2iShut('shapes') ? '▸' : '▾' }}</span> 🔤 Fill a shape <span v-if="i2iShut('shapes') && editRecipe() && (editRecipe().group === 'shape')" class="pf-sum">· {{ editRecipe().label }}</span><span class="hint">a word or a black shape, built out of anything you name, keeping its exact outline</span></label>
           <div v-if="!i2iShut('shapes')" class="seg seg-wrap edit-recipes">
             <button v-for="r in EDIT_RECIPES().filter((x) => x.group === 'shape')" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
