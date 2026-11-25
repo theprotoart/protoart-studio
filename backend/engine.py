@@ -308,11 +308,21 @@ def look_info(args):
     """What was put on top of the prompt (🎨 style preset, 🎞 film look) and the quality extras switched on, so a
     picture's info says which were used."""
     out = {}
-    for key in ("style", "film_look"):
+    for key in ("style", "film_look", "h3_preset"):  # 🧠 MiniMax-H3-Image's layout preset (Manga draft page…) too
         v = args.get(key)
-        if isinstance(v, str) and v.strip():
+        if isinstance(v, str) and v.strip() and v.strip() != "any":
             out[key] = v.strip()[:80]
     return out
+
+
+def recipe_opts(args):
+    """What was picked in a recipe's own card (🔤 Fill a shape, 🔁 Seamless pattern, 🎭 a look's boxes), for the
+    picture info: a few short label -> value pairs."""
+    ro = args.get("recipe_opts")
+    if not isinstance(ro, dict):
+        return None
+    out = {str(k)[:30]: str(v)[:80] for k, v in list(ro.items())[:10] if v not in (None, "", False)}
+    return out or None
 
 
 # ✨ FreeU's settings (Si et al. 2023; the values its authors give for each model)
@@ -2230,7 +2240,7 @@ class Engine:
                   f"stages {timings}", flush=True)
             settings = {"model": model_id, "prompt": p_run, "negative_prompt": "", "width": image.width,
                         "height": image.height, "steps": h3_steps, "cfg": 1.0, "sampler": "flow", "seed": img_seed,
-                        "engine": "h3", "seconds": round(secs, 1),
+                        "engine": "h3", "seconds": round(secs, 1), "h3_speed": {2: "draft", 4: "balanced"}.get(h3_steps, "best"),
                         "loras": [{"name": l["name"], "weight": float(l.get("weight", 1.0))}
                                   for l in args.get("loras") or [] if isinstance(l, dict) and l.get("name")
                                   and not self._is_fast_lora(l["name"])]}
@@ -5706,6 +5716,10 @@ class Engine:
                                           or str(args.get("recipe") or "").startswith("tf_")) else None  # 🎭 Transform a person
         if recipe:
             settings["recipe"] = recipe
+            if recipe_opts(args):
+                settings["recipe_opts"] = recipe_opts(args)
+        if h3:
+            settings["h3_speed"] = {2: "draft", 4: "balanced"}.get(steps, "best")
         if recipe in ("replace_subject", "head_swap"):
             # 🔁 Replace subject / 🧑 Head swap put a person from another photo into the picture: the same safeguard as
             # face swap (never saved when the checker is clearly sure the result is explicit)

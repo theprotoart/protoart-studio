@@ -624,3 +624,5 @@ details.fine summary { cursor: pointer; }
 .film-looks button span { font-size: 14px; }
 .film-tip { margin: 2px 0 0; }
 .film-prev { width: 100%; max-height: 220px; object-fit: contain; border-radius: 6px; background: #0004; display: block; }
+.picked-list { margin: 0; padding: 0; list-style: none; }
+.picked-list li { margin: 0 0 2px; }

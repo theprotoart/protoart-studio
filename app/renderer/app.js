@@ -1580,6 +1580,7 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.31: 🎞 Film looks, 🔁 seamless patterns, Krea 2 on 16 GB Macs, ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
+              "<b>The picture window lists what you picked</b> (<b>Picked</b>): the recipe or look and its choices (Fill a shape's shape, filling, background and outline; Seamless pattern's start, subject and use; a Transform look's boxes), MiniMax-H3's layout preset, ⚡ speed and Best-quality size, and Tools' film look and paper cut-out settings.",
               "<b>🎞 Film look</b> (Tools, and the 🔌 patchbay's <b>FILM</b> module): five classic film stocks on any picture, instantly (no model, no download): <b>🌸 Soft portrait</b> (low contrast, warm, kind to skin), <b>📸 Disposable</b> (a 2000s throwaway camera: punchy, green-cyan shadows, dark corners), <b>🏞 Clean slide</b> (crisp, saturated, deep blacks), <b>🖤 Gritty B&W</b> (heavy grain, deep blacks) and <b>🌃 Night tungsten</b> (cool teal shadows, red halos round lights). Strength, Grain and Glow round lights to taste, with a live preview.",
               "<b>Krea 2 Turbo on 16 GB Macs</b> (it needed 32 GB): its 8 GB text reader is kept at full quality but loaded on its own to read each new prompt, then put away before the picture model loads, so it never needs more than about 9 GB at once. The pictures are the same; a new prompt adds about half a minute, and more pictures from the same prompt start at once. Download it in Models (15.8 GB).",
               "<b>🔁 Seamless pattern</b> (Image to image → ✨ Edit with words): a tile that repeats with no visible join, for <b>🧵 fabric</b> prints, <b>🏠 wallpaper</b> or <b>🎮 game textures</b>. Start from <b>✏️ words</b>, a picture as <b>🖼 inspiration</b>, or <b>🔁 make your own picture tile</b>; make 1, 2 or 4 at once. The picture is shifted by half so its edges meet in the middle, and only that cross is repainted, so the edges always join up. The card shows your latest pattern repeated 3 × 3.",
@@ -5919,7 +5920,7 @@ const protoartApp = createApp({
     },
     lookInfo(d) {  // 🎨 the style preset / 🎞 film look put on top of the prompt (picture info)
       const s = d.settings || {};
-      return [s.style && "🎨 " + s.style + " (style preset)", s.film_look && "🎞 " + s.film_look + " (film look)"].filter(Boolean).join(" · ");
+      return [s.style && "🎨 " + s.style + " (style preset)", s.film_look && "🎞 " + s.film_look + " (film look)"].filter(Boolean).join(" · ");  // 🧠 layout: under Picked
     },
     extrasInfo(d) {  // what else was switched on for this picture (picture info)
       const s = d.settings || {}, out = [];
@@ -7319,21 +7320,24 @@ const protoartApp = createApp({
           blank = (await call("save_drawing", { data: cv.toDataURL("image/png"), name: "pattern_bg" })).path;
         }
       } catch (e) { return (this.error = "Couldn't start: " + (e.message || e)); }
-      const base = { edit_model: this.editModelId(), ...this.h3EditArgs(), refs: [], keep_faces: false, match_colors: false };
+      const opts = { "Start from": { words: "✏️ Words", inspired: "🖼 Inspired by a picture", tile: "🔁 My picture made to tile" }[p.from],
+                     "Pattern of": p.from === "tile" ? "" : String(p.what || "").trim(), "For": p.from === "tile" ? "" : { fabric: "🧵 Fabric", wallpaper: "🏠 Wallpaper", game: "🎮 Game texture" }[p.use] };
+      const base = { edit_model: this.editModelId(), ...this.h3EditArgs(), refs: [], keep_faces: false, match_colors: false, recipe: "tf_pattern" };
       const seed0 = f.seed == null || +f.seed < 0 ? Math.floor(Math.random() * 2 ** 31) : +f.seed;
       for (let i = 0; i < n; i++) {
         const seed = (seed0 + i * 7919) % 2 ** 31, of = n > 1 ? ` (${i + 1} of ${n})` : "";
         let start = p.from === "tile" ? f.init_image : null;
         if (!start) {
           this.status = `🔁 Seamless pattern${of}, step 1 of 2: the pattern…`;
-          const r = await this.runJob("edit_words", { ...base, seed, init_image: p.from === "words" ? blank : f.init_image, prompt: words.prompt });
+          const r = await this.runJob("edit_words", { ...base, seed, init_image: p.from === "words" ? blank : f.init_image, prompt: words.prompt, recipe_opts: { ...opts, "Step": "1 of 2: the pattern" } });
           if (!r || !r.path) return (this.status = "");
           start = r.path;
         }
         this.status = `🔁 Seamless pattern${of}${p.from === "tile" ? "" : ", step 2 of 2"}: joining the edges…`;
         let prep;
         try { prep = await call("pattern_prep", { path: start }); } catch (e) { this.status = ""; return (this.error = "Couldn't prepare the picture: " + (e.message || e)); }
-        const done = await this.runJob("edit_words", { ...base, seed, init_image: prep.path, mask: prep.mask, mask_light: true, crop_stitch: false, prompt: words.seam });
+        const done = await this.runJob("edit_words", { ...base, seed, init_image: prep.path, mask: prep.mask, mask_light: true, crop_stitch: false, prompt: words.seam,
+                                                         recipe_opts: { ...opts, "Step": p.from === "tile" ? "the join repainted" : "2 of 2: the join" } });
         if (!done || !done.path) return (this.status = "");
         this.patLast = done.path;
       }
@@ -7412,6 +7416,14 @@ const protoartApp = createApp({
       g.putImageData(img, 0, 0);
       return cv.toDataURL("image/png");
     },
+    shapeOpts(extra) {  // 🔤 what was picked on the Fill a shape card (kept in the picture's info)
+      const p = this.shp, w = (this.form.tf && this.form.tf.words) || {};
+      const shape = p.how === "word" ? `the word “${p.word}” (${this.shapeFontOwn() || p.font}${p.stack ? ", stacked" : ""})`
+        : p.how === "ready" ? (SHAPES.find((x) => x.id === p.ready) || {}).tip || p.ready : "your own shape";
+      return { "Shape": shape, "Filled with": String(w.material || "").trim() || "yellow flowers (example)",
+               "Put on": String(w.around || "").trim() || "a green meadow (example)", "Inverted": p.invert ? "yes" : "",
+               "Outline": p.how === "own" ? "" : p.exact ? "✂ More accurate (2 steps)" : "⚡ Quicker (1 step)", ...(extra || {}) };
+    },
     async shapeExact(rec) {  // ✂ Exact outline: 1 the background over the whole frame, 2 the material painted in the shape only
       const [W, H] = this.shapeSize(), f = this.form, words = f.tf.words || {};
       const slot = (id) => (rec.slots || []).find((x) => x.id === id) || {};
@@ -7426,13 +7438,13 @@ const protoartApp = createApp({
       catch (e) { return (this.error = "Couldn't start: " + (e.message || e)); }
       const style = (f.tf.pics || {}).style;
       const look = style ? "\nFollow the visual style, colour palette and finish of Picture 2 (a style reference only: don't copy its subject)." : "";
-      const base = { edit_model: this.editModelId(), ...this.h3EditArgs(), seed: f.seed, refs: style ? [style] : [], keep_faces: false, match_colors: false };
+      const base = { edit_model: this.editModelId(), ...this.h3EditArgs(), seed: f.seed, refs: style ? [style] : [], keep_faces: false, match_colors: false, recipe: "tf_shape" };
       this.status = "🔤 Fill a shape, step 1 of 2: the background…";
-      const first = await this.runJob("edit_words", { ...base, init_image: start,
+      const first = await this.runJob("edit_words", { ...base, init_image: start, recipe_opts: this.shapeOpts({ "Step": "1 of 2: the background" }),
         prompt: `Replace this entire blank picture with ${bgw}, filling the whole frame from edge to edge, realistic, in its own natural colours, evenly detailed and lit. No objects added in the middle, no shapes, no letters, no text.${look}` });
       if (!first || !first.path) return;
       this.status = "🔤 Fill a shape, step 2 of 2: the shape…";
-      await this.runJob("edit_words", { ...base, init_image: first.path, mask, mask_light: false, crop_stitch: false,
+      await this.runJob("edit_words", { ...base, init_image: first.path, mask, mask_light: false, crop_stitch: false, recipe_opts: this.shapeOpts({ "Step": "2 of 2: the shape" }),
         prompt: `Cover the whole picture with a dense, continuous layer of ${mat}, in its own natural colours, packed tightly with no gaps, with real texture, highlights and shadows, lit like a real photo and resting on ${bgw}. No text, no letters, no outlines.${look}` });
       this.status = "";
     },
@@ -11087,7 +11099,8 @@ const protoartApp = createApp({
         await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: shapeInit || f.init_image, prompt: tfb ? tfb.prompt : f.prompt, mask: shapeInit ? null : painted,
                                           keep_faces: !painted && f.keep_faces !== false && (!rec || !!(rec.set && rec.set.keep_faces)), match_colors: !painted && !!f.match_colors && !(rec && rec.group === "shape"),  // 🔤 never: the guide is black and white
                                           move_boxes: this.editModelId() === "flux3_klein_mlx_q4" && this.mvReady().length ? this.mvReady() : null,
-                                          refs: tfb ? tfb.refs : (f.edit_refs || []).slice(0, this.editRefMax()), seed: f.seed, ...this.recipeEditArgs() });
+                                          refs: tfb ? tfb.refs : (f.edit_refs || []).slice(0, this.editRefMax()), seed: f.seed, ...this.recipeEditArgs(),
+                                          recipe_opts: rec && rec.group === "shape" ? this.shapeOpts() : rec && rec.slots ? this.tfOpts(rec) : null });
         return;
       }
       if (f.i2i_mode === "outpaint" && f.outpaint_engine !== "model") {  // ↔ Expand with FLUX.2 Klein + outpaint LoRA
@@ -11429,6 +11442,28 @@ const protoartApp = createApp({
       if (file && sl) this.preparePicture(window.bee.pathForFile(file)).then((p) => { if (p) this.form.tf.pics = { ...this.form.tf.pics, [sl.id]: p }; });
     },
     tfClear(sl) { const { [sl.id]: _, ...rest } = this.form.tf.pics; this.form.tf.pics = rest; },
+    tfOpts(r) {  // 🎭 a look's boxes as they were filled in (kept in the picture's info)
+      const pics = this.form.tf.pics || {}, words = this.form.tf.words || {}, out = {};
+      for (const sl of r.slots || []) {
+        const w = String(words[sl.id] || "").trim(), pic = !!pics[sl.id];
+        if (w || pic) out[sl.label || sl.id] = [w, pic ? "a picture" : ""].filter(Boolean).join(" + ");
+      }
+      return out;
+    },
+    pickedInfo(d) {  // what was picked to make the picture: the recipe and its choices, the speed, Tools' film look
+      const s = d.settings || {}, out = [];
+      if (s.recipe) {
+        const r = EDIT_RECIPES.find((x) => x.id === s.recipe);
+        out.push(r ? r.label : s.recipe);
+      }
+      for (const [k, v] of Object.entries(s.recipe_opts || {})) out.push(`${k}: ${v}`);
+      if (s.h3_preset) out.push("🧠 Layout: " + s.h3_preset);
+      if (s.h3_speed) out.push("MiniMax speed: " + ({ draft: "⚡ Draft (2 steps)", balanced: "Balanced (4 steps)", best: "★ Best (6 steps)" }[s.h3_speed] || s.h3_speed));
+      if (s.drawn_at) out.push("🧠 Best quality: drawn at " + s.drawn_at.replace("x", " × "));
+      if (s.film) out.push(`🎞 ${s.film.look} · strength ${Math.round((s.film.strength ?? 1) * 100)}% · grain ${s.film.grain ?? 1}×` + ((FILM_LAB.find((x) => x.id === s.film.stock) || {}).glow ? ` · glow ${s.film.halation ?? 1}×` : ""));
+      if (s.papercut) out.push(`📄 ${s.papercut.edge_colour} paper · ${s.papercut.print_as} · border ${s.papercut.edge}%`);
+      return out;
+    },
     tfBuild(r = this.editRecipe(), prompt = this.form.prompt) {  // -> {prompt, refs}: the pictures in order and the prompt filled in
       const pics = this.form.tf.pics || {}, words = this.form.tf.words || {}, refs = [], adds = [], roles = [];
       let text = String(prompt || "");
@@ -12083,7 +12118,7 @@ const protoartApp = createApp({
                depth: "Depth map", inpaint: "Inpainted", outpaint: "Expanded", grid: "Comparison grid",
                edited: "Edited", healed: "Objects removed", word_edit: "Edited with words", combined: "Combined", camera_angle: "Camera angle", faceswap: "Face swap",
                chain: "Model chain", tiled: "Tiled upscale", animation: "Animation", layer: "Layer", cutout: "Cut out", relit: "Relit", mesh3d: "3D model", splat3d: "3D splat",
-               papercut: "Paper cut-out" }[kind] || kind;
+               papercut: "Paper cut-out", film: "🎞 Film look (Tools)" }[kind] || kind;
     },
     depthModelInfo(id) {
       return this.depthModels.find((d) => d.id === id) || this.depthModels[0];

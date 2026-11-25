@@ -6216,6 +6216,7 @@
           <tr><td>Made with</td><td>{{ madeWith(detail) }}</td></tr>
           <tr v-if="enhanceInfo(detail)"><td>Upscaled</td><td>{{ enhanceInfo(detail) }}</td></tr>
           <tr v-if="lookInfo(detail)"><td>Style</td><td>{{ lookInfo(detail) }}</td></tr>
+          <tr v-if="pickedInfo(detail).length"><td>Picked</td><td><ul class="picked-list"><li v-for="(x, i) in pickedInfo(detail)" :key="i">{{ x }}</li></ul></td></tr>
           <tr v-if="extrasInfo(detail)"><td>Extras</td><td>{{ extrasInfo(detail) }}</td></tr>
           <tr><td>LoRAs</td>
             <td><button v-for="l in detail.loras" :key="l.name" class="chip static lora-link" @click="filterByLora(l.name)"
