@@ -1246,27 +1246,6 @@ def handle_quick(cmd, a):
             out = ImageOps.invert(out)
         out.save(dest)
         return {"path": str(dest), "width": W, "height": H, "how": how}
-    if cmd == "tile_thumbs":  # 🎭 your own tile pictures for the Transform looks: {recipe id: picture path}
-        d = Path(paths.HOME) / "tile_thumbs"
-        return {f.stem: f"{f}?v={int(f.stat().st_mtime)}" for f in d.glob("tf_*.jpg")} if d.is_dir() else {}
-    if cmd == "tile_thumb_set":  # 🎭 a result of yours as its look's tile picture (240 × 320, cropped to fit); "" puts back the app's
-        import re as _re
-        from PIL import Image, ImageOps
-        rid = str(a.get("id") or "")
-        if not _re.fullmatch(r"tf_\w{1,40}", rid):
-            raise ValueError("Not a Transform look.")
-        d = Path(paths.HOME) / "tile_thumbs"
-        d.mkdir(parents=True, exist_ok=True)
-        dest = d / f"{rid}.jpg"
-        if not a.get("path"):
-            dest.unlink(missing_ok=True)
-            return {"ok": True}
-        src = Path(str(a["path"]))
-        if not src.is_file():
-            raise FileNotFoundError("That picture isn't there any more.")
-        with Image.open(src) as im:
-            ImageOps.fit(ImageOps.exif_transpose(im).convert("RGB"), (240, 320), Image.LANCZOS, centering=(0.5, 0.3)).save(dest, quality=88)
-        return {"ok": True, "path": f"{dest}?v={int(dest.stat().st_mtime)}"}
     if cmd == "file_exists":  # ↺ Use these settings: is the picture an edit started from still there
         return Path(str(a.get("path") or "")).is_file()
     if cmd == "pattern_prompt":  # 🔁 Seamless pattern: the wording for step 1 and for the seam pass
@@ -2356,7 +2335,7 @@ def run_side(mid, cmd, a):
 
 # quick commands that talk to a website (up to ~25 s if it's slow or blocked): run beside the reader, so the
 # app stays responsive (an unanswered Check used to leave every other button waiting)
-NET_QUICK = ("select_object", "tile_thumbs", "tile_thumb_set", "film_preview", "fx_preview", "pattern_prompt", "pattern_prep", "kept_list", "sheet_crop", "save_drawing", "make_shape", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
+NET_QUICK = ("select_object", "film_preview", "fx_preview", "pattern_prompt", "pattern_prep", "kept_list", "sheet_crop", "save_drawing", "make_shape", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
              "train_square_copies", "poselib_thumbs", "poselib_get")  # (that one isn't online, but can take a while for a big folder)
 
 

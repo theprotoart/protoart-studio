@@ -1540,10 +1540,9 @@ const protoartApp = createApp({
       cutFix: { tool: "", size: 30, undo: 0, any: false, figure: null },  // ✍ Cut out's touch-up: brush / lasso to add to or take from the cut-out  // 🧩 Split a character sheet  // ✂ Cut out's live preview
       paperJob: false,
       filmJob: false,
-      tileThumbs: {},  // 🎭 your own Transform tile pictures {recipe id: path}
       tileMaking: null,  // 🎭 a batch of looks running: {done, total, now, stop}
       tfStars: loadJSON("protoart.tfstars", []),  // ★ the Transform looks you starred (ids)
-      lookBatch: Object.assign({ which: "all", tiles: true }, loadJSON("protoart.lookbatch", {})),  // 🎭 Run every look: which, and tiles
+      lookBatch: { which: loadJSON("protoart.lookbatch", {}).which === "star" ? "star" : "all" },  // 🎭 Run every look: all, or ★ starred
       fxJob: false,
       fxPrev: "",   // ✨ the effect's live preview (data URL)
       filmPrev: "",     // 🎞 the film look's live preview (data URL)
@@ -1696,11 +1695,11 @@ const protoartApp = createApp({
             { h: "1.6.31: ✨ Photo effects, ✨ Effects lab, 🎞 Film looks, 🔁 seamless patterns, Krea 2 on 16 GB Macs, ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
               "<b>✨ 14 photo-effect looks</b> in 🎭 Transform a person (they work on people, things and places): ❄️ Winter storm (snow settling on the head, shoulders and every edge), 🌧 Soaked in rain (wet hair and clothes, water dripping off), 🖌 Concept-art painting, 🔦 Dramatic light, 🌲 Double exposure (drop a landscape picture or describe one), 💧 Made of water, 🔥 Apocalypse, 💨 Made of smoke, ✏️ Pencil sketch, 🎨 Watercolour splash, 😃 Cartoon portrait, 📄 Torn paper, 🎇 Sparkler light trail and 🪟 Fluted glass. The same looks are in Create → 🎨 Styles → <b>Effects</b> (with ✒️ Line engraving). Quick edits that repeated a Transform look (Turnaround sheet, Comic panel, Crime-game art) now live only in Transform.",
               "<b>✨ Effects lab</b> (Tools, and the patchbay's <b>FX</b> module), instant, no model: <b>✨ Sparkler</b>: paint a path round a person or a thing and it becomes a long-exposure sparkler trail (white-hot core, glow, sparks) that really lights the faces and clothes near it, the scene optionally turned to night; <b>✒️ Engraving</b>: a banknote-style line engraving or halftone dots, in black, sepia, navy or red ink; <b>🪟 Fluted glass</b>: reeded glass over a shape you place or an area you paint or select (▭ Box, 👤 Subject, Invert…).",
-              "<b>★ Star your favourite looks</b> (the star in a 🎭 Transform tile's corner) and <b>▶ Run every look on one photo</b> (under the tiles): drop one photo in 1 · Picture and run all the looks, just your ★ starred ones, just the ✨ effects, or only the looks with no tile picture, one after the other; every result goes to the Library, and a look with no tile picture can get yours. Stop after any one.",
+              "<b>★ Star your favourite looks</b> (the ☆ in a 🎭 Transform tile's corner) and <b>▶ Run every look on one photo</b> (under the tiles): drop one photo in 1 · Picture and run all the looks, or just your ★ starred ones, one after the other; every result goes to the Library. Stop after any one.",
               "<b>▭ Box</b> selection tool (Image to image and Tools painting): drag a rectangle and it becomes the painted area.",
               "<b>🔤 Fill a shape → text styles</b> for a word: 🎨 Graffiti 3D, 🪞 Chrome, 🏆 Gold game title, 💡 Neon sign, 🧊 Carved ice, 🔥 Fire, 🎈 Foil balloons (they fill in the two boxes; the word is drawn as styled lettering).",
               "<b>⬛ Use as a shape → Threshold slider</b> (and ⬛ Solid silhouette, Light parts are the shape) under your own shape in Fill a shape: a photo becomes a clean black shape instead of speckles. Any picture in the box can be turned into a shape (⬛ Turn this picture into a black shape…).",
-              "<b>🎭 Use as the tile picture</b> (picture window, for a Transform look's result): your own picture on that look's tile (right-click puts the app's back). And under the Transform tiles, <b>▶ Run every look on one photo</b>: drop a photo in 1 · Picture and run all the looks (or just your ★ starred ones — click the star in a tile's corner — the ✨ effects, or only those without a tile picture) one after the other; the results go to the Library, and a look with no tile picture can get yours.",
+              "<b>★ Starred looks</b>: click the ☆ in a 🎭 Transform tile's corner to star a look. And under the Transform tiles, <b>▶ Run every look on one photo</b>: drop a photo in 1 · Picture and run all the looks, or just your ★ starred ones, one after the other; the results go to the Library.",
               "Fix: ✂ Cut out's People, Classic, General and Anime finders download from a Hugging Face copy when GitHub can't be reached, checked against rembg's own checksums.",
               "<b>🔁 Face swap: ★ HyperSwap 1c</b> (FaceFusion, 2025) is the new default model: it draws the new face at 256 px (512 with Sharper) instead of 128, so skin, eyes and the face's outline come out sharper and the likeness closer. ~400 MB the first time. <b>inswapper</b> stays as a choice. HyperSwap's licence is ResearchRAIL (research use).",
               "<b>↺ Use these settings works for Image to image pictures</b>: an edit goes back into Image to image with the picture it started from, the recipe and its card (🔤 Fill a shape's shape, filling and background, 🔁 Seamless pattern's choices, a Transform look's boxes), the edit model, ⚡ speed, work size and seed, so ✨ Edit makes it again (it used to fill in Create instead). Pictures made before this keep their recipe, model and seed.",
@@ -2461,7 +2460,7 @@ const protoartApp = createApp({
               "Image to image → ✨ Edit with words → <b>🎭 Transform a person</b>: the ✨ looks (❄️ Winter storm, 🌧 Soaked in rain, 🖌 Concept-art painting, 🔦 Dramatic light, 🌲 Double exposure, 💧 Made of water, 🔥 Apocalypse, 💨 Made of smoke, ✏️ Pencil sketch, 🎨 Watercolour splash, 😃 Cartoon portrait, 📄 Torn paper, 🎇 Sparkler light trail, 🪟 Fluted glass) work on a person, a thing or a place. Drop the photo, optionally a picture whose look to follow, fill in the optional box (the place for the weather looks, the colours for the painted ones), and press ✨ Edit.",
               "<b>🌲 Double exposure</b> takes a second picture: drop a landscape (a forest, a city, the sea) in its box, or describe one; the person's silhouette is filled with it and the face shows softly through.",
               "In Create: 🎨 Styles → <b>Effects</b> wraps your prompt in the same looks (and ✒️ Line engraving).",
-              "Your own tile pictures: in a look's result, <b>🎭 Use as the tile picture</b> puts it on that look's tile (right-click the button to put the app's picture back).",
+              "<b>★ Starred looks</b>: click the ☆ in a tile's corner to star a look; <b>▶ Run every look on one photo</b> (under the tiles) can run all the looks or just the starred ones on the photo in 1 · Picture, one after the other.",
             ] },
             { h: "🎞 Film look: a classic film stock on any picture", items: [
               "Tools → <b>🎞 Film look</b>: pick a film, see it in the module's preview, then <b>🎞 Make it</b> (it takes about a second; no model or download). The new picture goes to your Library.",
@@ -4794,7 +4793,6 @@ const protoartApp = createApp({
           clearTimeout(slow);
         }
         this.queue = this.queue.filter((x) => x.cmd !== "preload");
-        call("tile_thumbs").then((m) => { this.tileThumbs = m || {}; }).catch(() => {});
         // 1.6.31 builds set a 2048 work size with ⚡ Draft in Image to image; under 16 GB that runs out of memory
         if (!this.h3SpeedEdit() && this.form.h3_side === "2048" && this.form.h3_speed) { this.form.h3_side = ""; this.form.h3_speed = ""; }
         this.loadContentStatus();
@@ -11664,22 +11662,21 @@ const protoartApp = createApp({
       const r = j.recipe && EDIT_RECIPES.find((x) => x.id === j.recipe);
       return r ? `${r.label}${j.prompt ? " · " + j.prompt.replace(/^Picture 1 is[^\n]*\n/, "").slice(0, 70) : ""}` : j.label;
     },
-    tfThumb(id) {  // your own tile picture (↺ from a result), else the app's
-      const mine = this.tileThumbs[id];
-      return mine ? this.fileUrl(mine.split("?")[0]) + "?" + (mine.split("?")[1] || "") : TF_THUMBS.has(id) ? `assets/presets/${id}.jpg` : "";
+    tfThumb(id) {  // the look's example picture (built into the app)
+      return TF_THUMBS.has(id) ? `assets/presets/${id}.jpg` : "";
     },
     tfStar(id) {  // ★ star or unstar a Transform look (for the batch run's ★ Starred choice)
       this.tfStars = this.tfStars.includes(id) ? this.tfStars.filter((x) => x !== id) : [...this.tfStars, id];
       saveJSON("protoart.tfstars", this.tfStars);
     },
-    batchLooks(which = this.lookBatch.which) {  // 🎭 the looks a batch runs: all, ★ starred, the ✨ effects, or those with no tile picture
+    batchLooks(which = this.lookBatch.which) {  // 🎭 the looks a batch runs: all, or ★ starred
       const klein = ["flux2_klein_mlx_q4", "flux2_klein9b_mlx_q4"].includes(this.editModelId());
       return EDIT_RECIPES.filter((r) => r.slots && r.group === "transform" && r.id !== "tf_ultra_detail"  // (an upscale, not a look)
         && (!r.files || this.editRecipeLora(r)) && (!r.klein || klein)
-        && (which === "fx" ? r.id.startsWith("tf_fx_") : which === "star" ? this.tfStars.includes(r.id) : which === "missing" ? !this.tfThumb(r.id) : true));
+        && (which === "star" ? this.tfStars.includes(r.id) : true));
     },
     async tileMakeAll() {  // 🎭 run every look in the batch on the photo in 1 · Picture, one after the other
-      const f = this.form, todo = this.batchLooks(), tiles = !!this.lookBatch.tiles;
+      const f = this.form, todo = this.batchLooks();
       saveJSON("protoart.lookbatch", this.lookBatch);
       if (!f.init_image) return (this.error = "Drop the photo to use in 1 · Picture first.");
       if (!todo.length) return (this.status = "🎭 No looks to run.");
@@ -11695,30 +11692,13 @@ const protoartApp = createApp({
           const head = r.head || "Picture 1 is the reference photo of the person.";
           const lora = r.files ? this.editRecipeLora(r) : null, file = r.files ? this.editRecipeFile(r) : null;
           const own = lora ? { loras: [{ name: lora.name, weight: 1.0 }], edit_model: file === r.files["9b"] ? "flux2_klein9b_mlx_q4" : "flux2_klein_mlx_q4" } : {};
-          const hadTile = !!this.tfThumb(r.id);
-          const rec = await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: f.init_image,
+          await this.runJob("edit_words", { edit_model: this.editModelId(), ...this.h3EditArgs(), init_image: f.init_image,
                                                         prompt: head + "\n" + text, refs: [], seed, recipe: r.id, ...own,
                                                         keep_faces: !!(r.set && r.set.keep_faces), match_colors: !!(r.set && r.set.match_colors) });
-          if (rec && rec.path && tiles && !hadTile) {  // a look with no picture yet gets this one on its tile
-            const t = await call("tile_thumb_set", { id: r.id, path: rec.path }).catch(() => null);
-            if (t && t.path) this.tileThumbs = { ...this.tileThumbs, [r.id]: t.path };
-          }
           this.tileMaking.done++;
         }
         this.status = `🎭 ${this.tileMaking.done} look${this.tileMaking.done === 1 ? "" : "s"} made from your photo` + (this.tileMaking.stop ? " (stopped)" : "") + ": they're in the Library.";
       } finally { this.tileMaking = null; }
-    },
-    async setTileThumb(d, reset = false) {  // 🎭 this result as its look's tile picture
-      const id = d && d.settings && d.settings.recipe;
-      if (!id) return;
-      try {
-        const r = await call("tile_thumb_set", { id, path: reset ? "" : d.path });
-        const m = { ...this.tileThumbs };
-        if (reset) delete m[id]; else m[id] = r.path;
-        this.tileThumbs = m;
-        const rec = EDIT_RECIPES.find((x) => x.id === id);
-        this.status = reset ? `🎭 ${rec ? rec.label : id}: back to the app's tile picture` : `🎭 This picture is now the ${rec ? rec.label : id} tile`;
-      } catch (e) { this.error = "Couldn't set the tile picture: " + (e.message || e); }
     },
     tfSlotLabel(sl) { return sl.label || (sl.kind === "style" ? "Style reference" : "An item"); },
     tfDrop(e, sl) {

@@ -3587,10 +3587,7 @@
               <div class="seg mod-seg">
                 <button :class="{on: lookBatch.which === 'all'}" @click="lookBatch.which = 'all'" :title="batchLooks('all').map((r) => r.label).join(', ')">All looks ({{ batchLooks('all').length }})</button>
                 <button :class="{on: lookBatch.which === 'star'}" @click="lookBatch.which = 'star'" :title="batchLooks('star').map((r) => r.label).join(', ') || 'Click the ☆ in a tile\'s corner to star a look'">★ Starred ({{ batchLooks('star').length }})</button>
-                <button :class="{on: lookBatch.which === 'fx'}" @click="lookBatch.which = 'fx'" :title="batchLooks('fx').map((r) => r.label).join(', ')">✨ Effects ({{ batchLooks('fx').length }})</button>
-                <button :class="{on: lookBatch.which === 'missing'}" @click="lookBatch.which = 'missing'" :title="batchLooks('missing').map((r) => r.label).join(', ') || 'Every look has its tile picture'">No tile picture ({{ batchLooks('missing').length }})</button>
               </div>
-              <label class="check" title="A look whose tile has no picture yet gets your result on it (🎭 Use as the tile picture changes it later)"><input type="checkbox" v-model="lookBatch.tiles"> Put each result on its tile if the tile has no picture yet</label>
               <button class="primary" :disabled="!form.init_image || !batchLooks().length" @click="tileMakeAll" :title="'One after the other, with the edit model you picked: ' + batchLooks().map((r) => r.label).join(', ')">▶ Run {{ batchLooks().length }} looks<span v-if="form.init_image"> · about {{ batchLooks().length * 4 }} min</span></button>
               <span v-if="!form.init_image" class="hint">drop a photo in 1 · Picture first</span>
             </template>
@@ -6375,7 +6372,6 @@
           <button v-if="detailOriginalPrompt" @click="reusePrompt(detail, true)" title="The prompt as you typed it, before Enhance prompt or wildcards changed it">↺ Original prompt</button>
           <button @click="reuse(detail)" :title="['word_edit', 'combined', 'camera_angle'].includes(detail.kind) ? 'Put everything that made this picture back in Image to image: the picture it started from, the recipe and its card (Fill a shape, Seamless pattern, a look), the edit model, speed and seed' : 'Load everything that made this picture: prompt, model, LoRAs, size, steps, sampler and seed'">Use these settings</button>
           <button @click="useAsStart(detail)">🖼 Send to Image to image</button>
-          <button v-if="detail.settings && /^tf_/.test(detail.settings.recipe || '') && !['tf_shape', 'tf_pattern'].includes(detail.settings.recipe)" @click="setTileThumb(detail)" @contextmenu.prevent="setTileThumb(detail, true)" title="Show this picture on its look's tile in 🎭 Transform a person (right-click: put back the app's own tile picture)">🎭 Use as the tile picture</button>
           <button @click="useAsShape(detail)" title="Turn this picture into a solid black shape (its outline if it's see-through, otherwise its dark parts) for Image to image → 🔤 Fill a shape">⬛ Use as a shape</button>
           <button @click="useForAngles(detail)" title="See this picture from other angles, make a turnaround or an expression sheet (FLUX.2 Klein)">📷 Other angles / sheets</button>
           <button @click="openInTools(detail)">🧰 Send to Tools</button>

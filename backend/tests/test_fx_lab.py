@@ -133,7 +133,7 @@ def test_wired_up():
     assert 'cmd == "fx_preview"' in bee and 'kind == "fx"' in bee and "def fx(self, args" in eng
     assert "const TEXT_FX = [" in app and "TEXT_FX_PROMPT" in app and "pickTextFx(t.id)" in html
     assert "shapeRemake()" in html and '"threshold"' in bee and 'a.get("solid")' in bee
-    assert 'cmd == "tile_thumb_set"' in bee and "setTileThumb(detail)" in html
+    assert "tile_thumb" not in bee and "setTileThumb" not in html  # tile pictures are the app's own; nobody can change them
     styles = (ROOT / "app" / "renderer" / "zimage_styles.js").read_text()
     assert styles.count('"cat": "Effects"') == 15 and "'Effects']" in html
     for gone in ('label: "🧍 Turnaround sheet"', 'label: "📖 Comic panel"', 'label: "🌴 Crime-game art"'):
@@ -145,9 +145,9 @@ def test_wired_up():
 def test_batch_run_every_look():
     app = (ROOT / "app" / "renderer" / "app.js").read_text()
     html = (ROOT / "app" / "renderer" / "index.html").read_text()
-    body = app[app.index("    batchLooks(which"):app.index("    async setTileThumb(")]
+    body = app[app.index("    batchLooks(which"):app.index("    tfSlotLabel(sl)")]
     assert 'r.id !== "tf_ultra_detail"' in body and "this.editRecipeLora(r)" in body and "(!r.klein || klein)" in body
-    assert 'startsWith("tf_fx_")' in body and "!this.tfThumb(r.id)" in body and "tileMaking.stop" in body
-    assert "loras: [{ name: lora.name" in body and "tiles && !hadTile" in body  # LoRA looks with their LoRA; never replace a tile
-    assert "Run every look on one photo" in html and "lookBatch.which = 'fx'" in html and 'v-model="lookBatch.tiles"' in html
-    assert 'which === "star" ? this.tfStars.includes(r.id)' in body and 'tfStar(r.id)' in html and "lookBatch.which = 'star'" in html
+    assert "tileMaking.stop" in body and "loras: [{ name: lora.name" in body  # LoRA looks with their LoRA
+    assert 'which === "star" ? this.tfStars.includes(r.id)' in body and "tile_thumb" not in body
+    assert "Run every look on one photo" in html and 'tfStar(r.id)' in html and "lookBatch.which = 'star'" in html
+    assert "lookBatch.which = 'fx'" not in html and "lookBatch.tiles" not in html
