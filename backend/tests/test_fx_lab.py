@@ -158,5 +158,5 @@ def test_dispersion_direction():
     html = (ROOT / "app" / "renderer" / "index.html").read_text()
     blk = app[app.index('id: "tf_fx_dispersion"'):][:3000]
     assert 'kind: "choice"' in blk and '["left", "← Left"]' in blk and 'dflt: "left"' in blk
-    assert '["extreme", "Extreme",' in blk and 'dflt: "medium"' in blk and "never meat" in blk and "if (o && o[2]) adds.push(o[2])" in app
+    assert '["extreme", "Extreme",' in blk and 'dflt: "medium"' in blk and "shatters like glass" in blk and "if (o && o[2]) adds.push(o[2])" in app
     assert 'if (sl.kind === "choice")' in app and "sl.kind === 'choice'" in html
