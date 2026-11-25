@@ -3738,6 +3738,11 @@
                   <div class="pair-empty tf-word"><b>{{ tfSlotLabel(sl) }}</b><span>type it below: it's drawn as black letters into box 1</span></div>
                   <input type="text" v-model="form.tf.words[sl.id]" placeholder="e.g. PASTA" maxlength="40" title="A word or two (three short lines at most). Leave it empty to use the shape in box 1">
                 </template>
+                <div v-else-if="sl.kind === 'choice'" class="pair-empty tf-word tf-choice"><b>{{ tfSlotLabel(sl) }}</b>
+                  <div class="tf-dirs">
+                    <button v-for="o in sl.options" :key="o[0]" :class="{on: (form.tf.words[sl.id] || sl.dflt) === o[0]}" @click="form.tf.words = { ...form.tf.words, [sl.id]: o[0] }">{{ o[1] }}</button>
+                  </div>
+                </div>
                 <div v-else class="pair-slot" :class="{over: pairOver === sl.id, filled: !!form.tf.pics[sl.id]}" @dragover.prevent="pairOver = sl.id" @dragleave="pairOver = ''"
                      @drop.prevent="tfDrop($event, sl)" @click="tfPick(sl)" :title="sl.kind === 'style' ? 'Optional: a picture whose look (style, colours, finish) to follow' : 'Optional: a picture of it (and / or type it below)'">
                   <img v-if="form.tf.pics[sl.id]" :src="fileUrl(form.tf.pics[sl.id])" alt="">

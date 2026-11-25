@@ -730,9 +730,11 @@ const EDIT_RECIPES = [
     licence: "no LoRA: the edit model alone" },
   { id: "tf_fx_dispersion", label: "💥 Dispersion", group: "transform", by: "", files: null, p1: "the photo",
     head: "Picture 1 is the reference photograph (a person, a thing or a place).",
-    tip: "A big part of the subject crumbles away into thousands of pieces of itself (skin, hair, fabric), swept off to one side as if blown by the wind, the background showing through where it was. Works on people, things and places.",
+    tip: "A big part of the subject crumbles away into thousands of pieces of itself (skin, hair, fabric), swept off to one side as if blown by the wind, the background showing through where it was. Pick the way it breaks away with the arrows; to choose exactly which part goes, paint over it on the picture (or 👤 Subject, ▭ Box) together with the space the pieces should fly into: only the painted part changes. Works on people, things and places.",
     slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" },
-            { id: "dir", kind: "item", label: "Which way it breaks away (optional)", add: "The pieces fly off towards {x}." }],
+            { id: "dir", kind: "choice", label: "Breaks away towards", dflt: "left",
+              options: [["left", "← Left"], ["right", "Right →"], ["top", "↑ Up"], ["bottom", "↓ Down"]],
+              add: "Direction: the subject crumbles away from its side nearest the {x} of the picture, and every piece flies off towards the {x} edge of the picture; the opposite side stays whole." }],
     prompt: "Keep the subject exactly recognizable: the same face, features, hairstyle, skin tone, pose and clothes for a person, the same shape and details for a thing or a place, and the same composition.\nApply a strong dispersion effect: a large part of the subject itself is disintegrating and blowing away.\nAbout a third of the subject is physically gone: one whole side, the back of the head and hair, that shoulder and that arm crumble apart, and the background is clearly visible through the gaps where the body used to be. The eyes, the nose and the mouth stay whole and sharp.\nThe subject breaks into thousands of pieces made of its own material: cubes and flakes of skin, chunks of hair, scraps of the clothes' fabric, each with the exact colour and texture of the place it came from. Not glass, not stone, not grey shards, and nothing floating in front of an intact body: the missing parts are really missing.\nThe pieces stream away sideways in one direction as if blown by a strong wind: large chunks right at the broken edge, smaller and more scattered further out, motion-blurred, fading into fine dust at the edge of the picture. The broken edge is ragged and cuts into the body.\nA dark, softly graded studio background so the flying pieces stand out; dramatic side light on the edges of the pieces.\nA real photograph with a photographic effect, not a painting. No text.",
     licence: "no LoRA: the edit model alone" },
   { id: "tf_fx_glitch", label: "📺 Glitch", group: "transform", by: "", files: null, p1: "the photo",
@@ -1758,6 +1760,7 @@ const protoartApp = createApp({
             { h: "1.6.31: ✨ Photo effects, ✨ Effects lab, 🎞 Film looks, 🔁 seamless patterns, Krea 2 on 16 GB Macs, ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
               "<b>✨ 23 photo-effect looks</b> in 🎭 Transform a person (they work on people, things and places): ❄️ Winter storm (snow settling on the head, shoulders and every edge), 🌧 Soaked in rain (wet hair and clothes, water dripping off), 🖌 Concept-art painting, 🔦 Dramatic light, 🌲 Double exposure (drop a landscape picture or describe one), 💧 Made of water, 🔥 Apocalypse, 💨 Made of smoke, ✏️ Pencil sketch, 🎨 Watercolour splash, 😃 Cartoon portrait, 📄 Torn paper, 🎇 Sparkler light trail, 🪟 Fluted glass, 💥 Dispersion, 📺 Glitch, 🗽 Statue, 🔷 Low-poly, 🖋 Ink splash, ⛪ Stained glass, 💠 Hologram, 🧵 Embroidered patch and ✂️ Layered paper cut. The same looks are in Create → 🎨 Styles → <b>Effects</b> (with ✒️ Line engraving). Quick edits that repeated a Transform look (Turnaround sheet, Comic panel, Crime-game art) now live only in Transform.",
               "<b>✨ Effects lab</b> (Tools, and the patchbay's <b>FX</b> module), instant, no model: <b>✨ Sparkler</b>: paint a path round a person or a thing and it becomes a long-exposure sparkler trail (white-hot core, glow, sparks) that really lights the faces and clothes near it, the scene optionally turned to night; <b>✒️ Engraving</b>: a banknote-style line engraving or halftone dots, in black, sepia, navy or red ink; <b>🪟 Fluted glass</b>: reeded glass over a shape you place or an area you paint or select (▭ Box, 👤 Subject, Invert…).",
+              "<b>💥 Dispersion</b> breaks away ← left, right →, ↑ up or ↓ down (arrows in its box), and you can paint over (or 👤 Subject-select) the part that should break away and the space its pieces fly into: only the painted part changes.",
               "<b>★ Star your favourite looks</b> (the ☆ in a 🎭 Transform tile's corner) and <b>▶ Run every look on one photo</b> (under the tiles): drop one photo in 1 · Picture and run all the looks, or just your ★ starred ones, one after the other; every result goes to the Library. Stop after any one.",
               "<b>▭ Box</b> selection tool (Image to image and Tools painting): drag a rectangle and it becomes the painted area.",
               "<b>🔤 Fill a shape → text styles</b> for a word: 🎨 Graffiti 3D, 🪞 Chrome, 🏆 Gold game title, 💡 Neon sign, 🧊 Carved ice, 🔥 Fire, 🎈 Foil balloons (they fill in the two boxes; the word is drawn as styled lettering).",
@@ -11806,6 +11809,11 @@ const protoartApp = createApp({
       let text = String(prompt || "");
       for (const sl of r.slots || []) {
         if (sl.kind === "word") continue;  // 🔤 the word becomes Picture 1 itself (shapeWordPicture)
+        if (sl.kind === "choice") {  // a few buttons (💥 Dispersion's direction): the picked one, or its default
+          const v = String(words[sl.id] || sl.dflt || "");
+          if (v && sl.add) adds.push(sl.add.split("{x}").join(v));
+          continue;
+        }
         const pic = pics[sl.id], w = String(words[sl.id] || "").trim();
         let n = 0;
         if (pic) { refs.push(pic); n = refs.length + 1; }

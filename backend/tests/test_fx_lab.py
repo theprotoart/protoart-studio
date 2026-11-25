@@ -151,3 +151,11 @@ def test_batch_run_every_look():
     assert 'which === "star" ? this.tfStars.includes(r.id)' in body and "tile_thumb" not in body
     assert "Run every look on one photo" in html and 'tfStar(r.id)' in html and "lookBatch.which = 'star'" in html
     assert "lookBatch.which = 'fx'" not in html and "lookBatch.tiles" not in html
+
+
+def test_dispersion_direction():
+    app = (ROOT / "app" / "renderer" / "app.js").read_text()
+    html = (ROOT / "app" / "renderer" / "index.html").read_text()
+    blk = app[app.index('id: "tf_fx_dispersion"'):][:3000]
+    assert 'kind: "choice"' in blk and '["left", "← Left"]' in blk and 'dflt: "left"' in blk
+    assert 'if (sl.kind === "choice")' in app and "sl.kind === 'choice'" in html
