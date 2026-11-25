@@ -200,7 +200,9 @@ MODELS = {
         "download_gb": 10.6, "engine_gb": 1.5, "min_ram_gb": 24, "license": "Qwen Research (non-commercial)",
         "defaults": {"width": 1024, "height": 1024, "steps": 40, "cfg": 1.0},
     },
-    # Krea 2 Turbo (Krea, Qwen-Image VAE; Krea 2 Community licence): 8 steps, ~16 GB at 4-bit. 32 GB+.
+    # Krea 2 Turbo (Krea, Qwen-Image VAE; Krea 2 Community licence): 8 steps, ~16 GB at 4-bit with its full-precision
+    # 8 GB text reader. 32 GB Macs keep it all loaded; on 16-24 GB Macs (low_ram) the fast engine reads each new prompt
+    # with the text reader on its own, then loads the ~6.5 GB picture model (mlx_worker: peak ~9 GB, same pictures).
     # FIBO 2.0 by Bria (8.1B, structured JSON captions or a short sentence; Qwen3-VL 4B text encoder, FLUX.2 VAE).
     # Gated (accept the licence on Hugging Face and save a token in Settings → Models); CC BY-NC 4.0: non-commercial
     # use only, commercial use needs Bria's own agreement. The official full-size files (~25.5 GB) are shrunk to 4-bit
@@ -220,10 +222,10 @@ MODELS = {
         "defaults": {"width": 1024, "height": 1024, "steps": 30, "cfg": 5.0},
     },
     "krea2_turbo_mlx_q4": {
-        "label": "Krea 2 Turbo · 4-bit · ⚡ fast engine (32 GB+)", "family": "krea2",
+        "label": "Krea 2 Turbo · 4-bit · ⚡ fast engine (16 GB+)", "family": "krea2",
         "quant": "Q4 MLX", "engine": "mlx", "mlx_repo": "mflux-community/krea-2-turbo-mflux-q4",
         "mlx_revision": "fa0ba74dc2e50c4288a81216e05487c343196bf7", "mlx_base": "krea-2",
-        "download_gb": 15.8, "engine_gb": 1.5, "min_ram_gb": 32, "license": "Krea 2 Community",
+        "download_gb": 15.8, "engine_gb": 1.5, "min_ram_gb": 32, "low_memory_min_ram_gb": 16, "license": "Krea 2 Community",
         "defaults": {"width": 1024, "height": 1024, "steps": 8, "cfg": 1.0},
     },
     # Ideogram 4 (Ideogram, 9.3B single-stream DiT, Qwen3-VL-8B text encoder): posters, logos and lettering; reads

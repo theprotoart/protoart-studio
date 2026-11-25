@@ -183,6 +183,9 @@ class Worker:
         self.cls_path = None
         self.f2_cache = {}   # FLUX.2: encoded prompts, so the text encoder can be dropped between prompts
         self.zi_cache = {}   # Z-Image: the same
+        self.k2_cache = {}   # Krea 2 on 16 GB Macs: read prompts, kept while the picture model is loaded again
+        self.k2_repo = None
+        self.k2_tok = None
         self.path = None
 
     def load(self, repo, base="ernie-image-turbo", loras=None, low_ram=False, force=False, allow_download=False,
@@ -269,8 +272,14 @@ class Worker:
                 send({"type": "status", "msg": f"Loading {name} (its {self.quantize}-bit copy on this Mac)…"})
             elif saved:
                 send({"type": "status", "msg": f"Shrinking {name} to {q}-bit (first time only; it's saved for next time)…"})
-            self.model = _make(klass, model_path=path, model_config=ModelConfig.from_name(base),
-                               **({"quantize": int(q)} if q else {}), **lora_kw)
+            if self.family == "krea2" and low_ram:
+                # 🪶 Krea 2 on a 16 GB Mac: the picture model without its 8 GB text reader (read on its own: see generate)
+                if self.k2_repo != repo:
+                    self.k2_cache, self.k2_repo = {}, repo
+                self.model = self._krea2_without_reader(klass, path, base, int(q) if q else None, lora_kw)
+            else:
+                self.model = _make(klass, model_path=path, model_config=ModelConfig.from_name(base),
+                                   **({"quantize": int(q)} if q else {}), **lora_kw)
             if saved and q and not loras:
                 _save_copy(self.model, saved, name)
             if self.family == "zimage":
@@ -290,6 +299,72 @@ class Worker:
         self.model.callbacks.register(_Hooks(self))
         send({"type": "status", "msg": f"{name} ready ({time.time() - t0:.0f}s)"})
         print(f"[mlx] loaded {repo} in {time.time() - t0:.1f}s low_ram={self.low_ram}", file=sys.stderr, flush=True)
+
+    @staticmethod
+    def _krea2_defs():
+        """Krea 2's weight list split in two: (the text reader alone, everything else)."""
+        from mflux.models.krea2.weights.krea2_weight_definition import Krea2WeightDefinition as D
+        comps = D.get_components()
+        reader = [c for c in comps if c.name == "text_encoder"]
+        rest = [c for c in comps if c.name != "text_encoder"]
+        ReaderOnly = type("Krea2ReaderOnly", (D,), {"get_components": staticmethod(lambda: reader)})
+        NoReader = type("Krea2NoReader", (D,), {"get_components": staticmethod(lambda: rest)})
+        return D, ReaderOnly, NoReader
+
+    def _krea2_without_reader(self, klass, path, base, q, lora_kw):
+        """Krea 2 built as mflux builds it (Krea2Initializer.init), minus the Qwen3-VL-4B text reader: it's kept at full
+        precision (~8 GB; shrinking it makes pictures follow the prompt less well), so on a 16 GB Mac it's loaded on its
+        own to read the prompt and freed before the ~6.5 GB picture model loads. Peak ~9 GB instead of ~16."""
+        import mlx.core as mx
+        from mflux.models.common.config import ModelConfig
+        from mflux.models.common.weights.loading.weight_applier import WeightApplier
+        from mflux.models.common.weights.loading.weight_loader import WeightLoader
+        from mflux.models.krea2.krea2_initializer import Krea2Initializer as I
+        from mflux.models.krea2.model.krea2_transformer.transformer import Krea2Transformer
+        from mflux.models.qwen.model.qwen_vae.qwen_vae import QwenVAE
+        from mlx import nn
+        D, _, NoReader = self._krea2_defs()
+        cfg = ModelConfig.from_name(base)
+        m = klass.__new__(klass)
+        nn.Module.__init__(m)
+        I._init_config(m, cfg)
+        weights = WeightLoader.load(weight_definition=NoReader, model_path=path,
+                                    download_patterns=D.get_download_patterns(cfg.model_name))
+        I._init_tokenizers(m, path)
+        m.vae = QwenVAE()
+        m.transformer = Krea2Transformer(**(cfg.transformer_overrides or {}))
+        m.bits = WeightApplier.apply_and_quantize(weights=weights, quantize_arg=q, weight_definition=NoReader,
+                                                  models={"vae": m.vae, "transformer": m.transformer})
+        I._apply_lora(m, lora_kw.get("lora_paths"), lora_kw.get("lora_scales"), lora_kw.get("bake_lora", True), weights)
+        del weights
+        mx.eval(m.vae.parameters(), m.transformer.parameters())
+        m.text_encoder = None
+        self.k2_tok = m.tokenizers
+        gc.collect()
+        mx.clear_cache()
+        return m
+
+    def _krea2_read_prompt(self, prompt, negative_prompt, guidance):
+        """Krea 2 (16 GB Macs): load only the text reader, read the prompt into self.k2_cache, free the reader."""
+        import mlx.core as mx
+        from mflux.models.common.weights.loading.weight_applier import WeightApplier
+        from mflux.models.common.weights.loading.weight_loader import WeightLoader
+        from mflux.models.krea2.model.krea2_text_encoder.prompt_encoder import Krea2PromptEncoder
+        from mflux.models.krea2.model.krea2_text_encoder.text_encoder import Krea2TextEncoder
+        _, ReaderOnly, _ = self._krea2_defs()
+        weights = WeightLoader.load(weight_definition=ReaderOnly, model_path=self.path)
+        reader = Krea2TextEncoder()
+        WeightApplier.apply_and_quantize(weights=weights, quantize_arg=None, weight_definition=ReaderOnly,
+                                         models={"text_encoder": reader})
+        del weights
+        if len(self.k2_cache) > 16:
+            self.k2_cache.clear()
+        Krea2PromptEncoder.encode_prompt_pair(prompt=prompt, negative_prompt=negative_prompt, guidance=guidance,
+                                              tokenizer=self.k2_tok["qwen3vl"], text_encoder=reader,
+                                              prompt_cache=self.k2_cache)
+        del reader
+        gc.collect()
+        mx.clear_cache()
 
     def _cache_flux2_prompts(self, m):
         """FLUX.2 encodes the prompt on every picture and has no prompt cache of its own: keep the encoded prompts
@@ -374,6 +449,20 @@ class Worker:
                 missing = False
             except Exception as e:  # mflux changed inside: reload the whole model instead
                 print(f"[mlx] Z-Image text encoder reload failed ({e}); reloading the model", file=sys.stderr, flush=True)
+        if self.family == "krea2" and getattr(m, "text_encoder", 1) is None:
+            # 🪶 Krea 2 on a 16 GB Mac: a new prompt is read with the picture model out of memory, then it's loaded again
+            # (the same prompt again, e.g. more seeds, starts at once)
+            k2neg = neg if neg and cfg > 1.0 else None
+            if (a["prompt"], k2neg, cfg) not in self.k2_cache:
+                send({"type": "status", "msg": "Krea 2: reading the prompt (its text reader on its own, to fit this Mac's memory)…"})
+                repo, base, loras, variant, q = self.key
+                self.model = m = None
+                gc.collect()
+                mx.clear_cache()
+                self._krea2_read_prompt(a["prompt"], k2neg, cfg)
+                self.load(repo, base, list(loras), self.low_ram, force=True, revision=self.revision, variant=variant, quantize=q)
+                m = self.model
+            m.prompt_cache = self.k2_cache
         if missing and cache_key not in prompt_cache:
             # Low-memory mode dropped the text encoder after the last prompt: reload to encode this one.
             repo, base, loras, variant, q = self.key
