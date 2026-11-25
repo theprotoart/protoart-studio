@@ -2108,7 +2108,13 @@ class Engine:
     @staticmethod
     def _h3_steps(args):
         """⚡ MiniMax-H3-Image's speed: "fast" 2 steps, "balanced" 3 (both with the few-step LoRA), else the usual 6."""
-        return {"fast": 2, "balanced": 3}.get(str((args or {}).get("h3_speed") or ""), 6)
+        # balanced: 4 (the LoRA's own page suggests 3-4 steps when 2 drift; 3 still speckled flat areas)
+        return {"fast": 2, "balanced": 4}.get(str((args or {}).get("h3_speed") or ""), 6)
+
+    @staticmethod
+    def _is_fast_lora(name):
+        """The ⚡ few-step LoRA itself (pDMD), however it got into your LoRA list: the app adds it only for Draft / Balanced."""
+        return "pdmd" in os.path.basename(str(name or "")).lower()
 
     def _h3_fast_lora(self):
         """The few-step LoRA's file, downloaded once (~2 GB) when it isn't here yet."""
@@ -2137,8 +2143,15 @@ class Engine:
         # the bar counts only the 6 drawing steps: reading the prompt and pictures takes seconds to minutes and
         # finishing the picture under a minute, so counting them as steps made the time left read ~3 min at first
         # (a quick stage measured as one step) and then jump to the real ~20 min (1.6.27)
-        if steps < 6:  # ⚡ Fast / Balanced: the few-step LoRA joins your LoRAs at full strength
-            loras = list(loras or []) + [(self._h3_fast_lora(), 1.0)]
+        # the few-step LoRA is never one of yours: in your LoRA list as well it ran twice (double strength: a coarse
+        # dotted texture) on ⚡ Draft and spoiled ★ Best's 6 steps (1.6.31)
+        mine = [l for l in (loras or []) if not self._is_fast_lora(l[0] if isinstance(l, (list, tuple)) else l)]
+        if len(mine) < len(loras or []):
+            self.emit({"type": "status", "msg": "MiniMax-H3-Image: the ⚡ few-step LoRA in your LoRA list is left out "
+                       "(the ⚡ Speed setting adds it by itself for Draft and Balanced)"})
+        loras = mine
+        if steps < 6:  # ⚡ Draft / Balanced: the few-step LoRA joins your LoRAs at full strength (its page: keep it at 1.0)
+            loras = list(loras) + [(self._h3_fast_lora(), 1.0)]
         total = steps + extra_steps
         names = {"text": "reading the prompt", "refs": "reading the pictures", "dit": "drawing",
                  "vae": "finishing the picture"}
@@ -2212,7 +2225,8 @@ class Engine:
                         "height": image.height, "steps": self._h3_steps(args), "cfg": 1.0, "sampler": "flow", "seed": img_seed,
                         "engine": "h3", "seconds": round(secs, 1),
                         "loras": [{"name": l["name"], "weight": float(l.get("weight", 1.0))}
-                                  for l in args.get("loras") or [] if isinstance(l, dict) and l.get("name")]}
+                                  for l in args.get("loras") or [] if isinstance(l, dict) and l.get("name")
+                                  and not self._is_fast_lora(l["name"])]}
             if (draw_w, draw_h) != (width, height):
                 settings["drawn_at"] = f"{draw_w}x{draw_h}"
             if refs and args.get("init_image"):
@@ -4595,6 +4609,56 @@ class Engine:
         record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
         emit({"type": "image", "record": record})
         return record
+
+    @staticmethod
+    def _film_opts(args):
+        return {"stock": str(args.get("stock") or "warm_portrait"),
+                "strength": max(0.0, min(1.0, float(args.get("strength") if args.get("strength") is not None else 1.0))),
+                "grain": max(0.0, min(2.0, float(args.get("grain") if args.get("grain") is not None else 1.0))),
+                "halation": max(0.0, min(2.0, float(args.get("halation") if args.get("halation") is not None else 1.0)))}
+
+    def film(self, args, emit=None):
+        """🎞 Film look (Tools): the picture's colours, grain and halation as on one of five kinds of film (no model)."""
+        import postprocess.film as film
+        emit = emit or self.emit
+        src, image = self._source_picture(args)
+        started = time.time()
+        opts = self._film_opts(args)
+        emit({"type": "progress", "image": 1, "images": 1, "step": 0, "steps": 1})
+        try:
+            out = film.apply(image, **opts, seed=int(args.get("seed") or 7))
+        except ValueError as e:
+            raise UserError(str(e))
+        emit({"type": "progress", "image": 1, "images": 1, "step": 1, "steps": 1})
+        settings = dict(src.get("settings") or {})
+        settings.update({k: src.get(k) for k in ("prompt", "negative_prompt", "model", "sampler", "steps", "cfg", "seed")})
+        settings["loras"] = src.get("loras") or []
+        settings.update(width=out.width, height=out.height, seconds=round(time.time() - started, 1),
+                        film=dict(opts, look=film.STOCKS[opts["stock"]]["label"]))
+        path = self._save(out, settings, suffix="film")
+        record = self.library.add_image(path, settings, parent_id=src.get("id"), kind="film")
+        record["thumb"] = str(thumbs.make(record["id"], path, out) or "") or None
+        emit({"type": "image", "record": record})
+        return record
+
+    def film_preview(self, args):
+        """🎞 A small preview of the film look (about 640 px, not saved): -> data URL."""
+        import base64
+        import io
+        import postprocess.film as film
+        from PIL import Image
+        _, image = self._source_picture(args)
+        image = image.convert("RGB")
+        k = min(1.0, 640 / max(image.size))
+        if k < 1:
+            image = image.resize((max(1, int(image.width * k)), max(1, int(image.height * k))), Image.LANCZOS)
+        try:
+            out = film.apply(image, **self._film_opts(args), seed=7)
+        except ValueError as e:
+            raise UserError(str(e))
+        buf = io.BytesIO()
+        out.save(buf, "JPEG", quality=88)
+        return {"src": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()}
 
     def papercut_preview(self, args):
         """📄 A small, quick preview of the paper cut-out with its settings, from the subject Cut out already found

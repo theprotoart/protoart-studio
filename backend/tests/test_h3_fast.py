@@ -10,8 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_steps():
     src = (ROOT / "engine.py").read_text()
-    assert 'return {"fast": 2, "balanced": 3}.get(str((args or {}).get("h3_speed") or ""), 6)' in src
-    assert "steps=self._h3_steps(args)" in src and "loras = list(loras or []) + [(self._h3_fast_lora(), 1.0)]" in src
+    assert 'return {"fast": 2, "balanced": 4}.get(str((args or {}).get("h3_speed") or ""), 6)' in src
+    assert "not self._is_fast_lora(l[\"name\"])" in src  # never recorded among your LoRAs (Use these settings re-added it)
+    assert "steps=self._h3_steps(args)" in src and "loras = list(loras) + [(self._h3_fast_lora(), 1.0)]" in src
 
 
 def test_worker_and_lora():
@@ -21,3 +22,31 @@ def test_worker_and_lora():
     assert 'FAST_FILE = "minimax_h3_pdmd_2nfe_comfyui.safetensors"' in e and '"steps": int(steps)' in e
     dit = (ROOT / "vendor" / "h3_image_mlx" / "dit.py").read_text()
     assert 'steps = int(flag("H3_STEPS"))' in dit  # the vendored engine's few-step switch this relies on
+
+
+def test_few_step_lora_never_doubles():
+    """The pDMD LoRA in your own LoRA list is left out: Draft adds it once, Best never has it."""
+    import types
+    import engine
+    e = engine.Engine.__new__(engine.Engine)
+    sent, seen = [], {}
+    e.emit = sent.append
+    e._h3_python = lambda: "python"
+    e._h3_fast_lora = lambda: "/hf/minimax_h3_pdmd_2nfe_comfyui.safetensors"
+    e.cancel_event = types.SimpleNamespace(is_set=lambda: False)
+    import h3_engine
+    real = h3_engine.picture
+
+    def fake(py, prompt, out, width, height, seed, refs, on_event=None, cancel_event=None, ref_sides=None, loras=None, steps=6):
+        seen["loras"], seen["steps"] = list(loras or []), steps
+        return {}
+    h3_engine.picture = fake
+    try:
+        mine = [("/loras/minimax_h3_pdmd_2nfe_comfyui.safetensors", 1.0), ("/loras/style.safetensors", 0.8)]
+        e._h3_picture("p", "/tmp/o.png", 1024, 1024, 1, loras=mine, steps=2)
+        assert [l for l in seen["loras"] if "pdmd" in l[0]] == [("/hf/minimax_h3_pdmd_2nfe_comfyui.safetensors", 1.0)]
+        assert ("/loras/style.safetensors", 0.8) in seen["loras"]
+        e._h3_picture("p", "/tmp/o.png", 1024, 1024, 1, loras=mine, steps=6)
+        assert seen["loras"] == [("/loras/style.safetensors", 0.8)] and seen["steps"] == 6
+    finally:
+        h3_engine.picture = real

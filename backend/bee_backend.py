@@ -178,7 +178,7 @@ def engine():
 
 settings = {"force_load": False, "low_memory": False, "image_format": "png", "jpeg_quality": 92, "previews": True,
             "embed_meta": "details", "check_pictures": False, "sfw_mode": False}  # embed_meta: "details" (prompt + settings, no file paths) or "none"
-HEAVY = ("make3d", "harmonize", "relight", "store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "detail_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "model_keep", "lora_base_find", "cutout", "papercut", "peel", "peel_save", "find_text", "find_words", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
+HEAVY = ("make3d", "harmonize", "relight", "store_move", "zeng_setup", "lora_hf_download", "quantize", "tiled_upscale", "detail_upscale", "ckpt_merge", "lora_extract", "faceswap", "faceswap_faces", "ckpt_convert", "heal", "edit_words", "vae_get", "vectorize", "preload", "nsfw_scan", "people_scan", "model_delete", "civitai_download", "model_keep_local", "model_keep", "lora_base_find", "cutout", "papercut", "film", "peel", "peel_save", "find_text", "find_words", "procreate_layers", "downloads_move", "model_download", "generate", "postprocess", "interrogate", "enhance_prompt", "plan_regions", "train_lora", "train_embedding", "lora_merge", "train_autocaption", "control_preview",
          "convert_tdict", "compare")
 
 
@@ -307,6 +307,9 @@ def job_label(cmd, a):
         return "Convert " + os.path.basename(str(a.get("path") or "")) + " to .safetensors"
     if cmd == "papercut":
         return "Paper cut-out"
+    if cmd == "film":
+        import postprocess.film as _film
+        return "🎞 Film look · " + _film.STOCKS.get(a.get("stock") or "", {}).get("label", "")
     if cmd == "harmonize":
         return "🎯 Match colours · " + ("the background to the subject" if a.get("direction") == "background" else "the subject to the background")
     if cmd == "procreate_layers":
@@ -904,6 +907,8 @@ def handle_quick(cmd, a):
                             "size_mb": i.get("size_mb")})
         return {"items": out, "default_out": str(paths.CONVERTED_DIR), "free_gb": round(
             __import__("shutil").disk_usage(paths.HOME).free / 2**30, 1)}
+    if cmd == "film_preview":  # 🎞 the film look's live preview (small, not saved)
+        return _engine.film_preview(a) if _engine is not None else None
     if cmd == "papercut_preview":  # 📄 the paper cut-out's live preview (small, not saved) from the found subject
         return _engine.papercut_preview(a) if _engine is not None else None
     if cmd == "select_object":
@@ -2267,7 +2272,7 @@ def reader():
 
 # Tools jobs that run on the processor (not the graphics chip) and take seconds: while a picture is being made they
 # run beside it instead of waiting in the queue (Remove with smart fill uses LaMa on the CPU; quick fill is OpenCV).
-SIDE_LANE = ("heal", "cutout", "harmonize", "papercut", "peel", "peel_save")
+SIDE_LANE = ("heal", "cutout", "harmonize", "papercut", "film", "peel", "peel_save")
 
 
 def _ram_gb():
@@ -2294,6 +2299,8 @@ def run_side(mid, cmd, a):
             data = eng.harmonize(a, emit=side_emit)
         elif cmd == "papercut":
             data = eng.papercut(a, emit=side_emit)
+        elif cmd == "film":
+            data = eng.film(a, emit=side_emit)
         elif cmd == "peel":
             data = eng.peel(a, emit=side_emit)
         elif cmd == "peel_save":
@@ -2310,7 +2317,7 @@ def run_side(mid, cmd, a):
 
 # quick commands that talk to a website (up to ~25 s if it's slow or blocked): run beside the reader, so the
 # app stays responsive (an unanswered Check used to leave every other button waiting)
-NET_QUICK = ("select_object", "pattern_prompt", "pattern_prep", "kept_list", "sheet_crop", "save_drawing", "make_shape", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
+NET_QUICK = ("select_object", "film_preview", "pattern_prompt", "pattern_prep", "kept_list", "sheet_crop", "save_drawing", "make_shape", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
              "train_square_copies", "poselib_thumbs", "poselib_get")  # (that one isn't online, but can take a while for a big folder)
 
 
@@ -2493,6 +2500,8 @@ def run_job(kind, a):
         return eng.harmonize(a)
     if kind == "papercut":
         return eng.papercut(a)
+    if kind == "film":  # 🎞 Film look (Tools)
+        return eng.film(a)
     if kind == "find_text":
         return eng.find_text(a)
     if kind == "find_words":

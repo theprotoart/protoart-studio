@@ -617,3 +617,10 @@ details.fine summary { cursor: pointer; }
 .shape-font-own { width: 100%; }
 .shape-font-own.on { outline: 2px solid var(--accent, #f5a623); }
 .shape-card .shape-prev { align-self: center; margin: 4px auto 0; }
+
+/* 🎞 Film look (Tools) */
+.film-looks { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 5px; }
+.film-looks button { display: flex; align-items: center; gap: 5px; font-size: 12px; padding: 6px 7px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.film-looks button span { font-size: 14px; }
+.film-tip { margin: 2px 0 0; }
+.film-prev { width: 100%; max-height: 220px; object-fit: contain; border-radius: 6px; background: #0004; display: block; }

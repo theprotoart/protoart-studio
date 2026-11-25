@@ -211,6 +211,7 @@ function defaultPost() {  // Tools settings on a fresh install
     cut: { threshold: 0.5, softness: 0.1, grow: 0, bg: "transparent", color: "#ffffff", clean: true, fix_edges: true, crop: false, finder: "birefnet", invert: false },
     // 📄 Paper cut-out: border width (% of the shorter side), its paper, torn-ness, shadow, print look, background
     paper: { edge: 2, edge_colour: "white", rough: 0.5, shadow: 0.6, print_as: "photo", background: "transparent" },
+    film: { stock: "warm_portrait", strength: 1, grain: 1, halation: 1 },  // 🎞 Film look: which film, how much, grain, glow
     harmonize: { direction: "subject", strength: 70, light: 50, ref: "" },  // 🎯 Match colours (Tools)
     relight: { prompt: "", subject: "", direction: "none", model: "", size: 640, hires: true, speed: "standard", background: "keep", ref_on: false, ref: "",
                shadow: true, blend: true, full_size: true, warmth: 0, colour_on: false, colour: "#ffb066" },
@@ -220,7 +221,7 @@ function defaultPost() {  // Tools settings on a fresh install
 // each Tools module's own starting settings (its ↺ reset button); the big ↺ Reset Tools settings does them all
 const TOOL_PARTS = {
   enhance: { post: ["enh", "do_enhance"] }, faces: { post: ["face_strength", "face_model", "face_fidelity", "do_faces"] },
-  depth: { post: ["depth"] }, vector: { post: ["vec"] }, detail: { post: ["det"] }, cutout: { post: ["cut"] }, paper: { post: ["paper"] }, relight: { post: ["relight"] }, harmonize: { post: ["harmonize"] }, mesh3d: { post: ["mesh3d"] },
+  depth: { post: ["depth"] }, vector: { post: ["vec"] }, detail: { post: ["det"] }, cutout: { post: ["cut"] }, paper: { post: ["paper"] }, film: { post: ["film"] }, relight: { post: ["relight"] }, harmonize: { post: ["harmonize"] }, mesh3d: { post: ["mesh3d"] },
   heal: {}, tiled: {}, quant: {}, merge: {}, convert: {},
 };
 // 😀 Expression sheets (📷 Camera angle → Picture layout): the expressions to show, picked in the window
@@ -921,7 +922,17 @@ const PATCH_NODES = [
   { id: "relight", label: "RELIGHT", sub: "new light", icon: "💡", in: true, out: true },
   { id: "cutout", label: "CUT OUT", sub: "subject", icon: "✂", in: true, out: true },
   { id: "paper", label: "PAPER", sub: "cut-out", icon: "📄", in: true, out: true },
+  { id: "film", label: "FILM", sub: "look", icon: "🎞", in: true, out: true },
   { id: "result", label: "RESULT", sub: "to Library", in: true },
+];
+// 🎞 Film lab (Tools): five kinds of film, named by their look (postprocess/film.py has the numbers). Create's 🎞 Film
+// (FILM_LOOKS) asks the model for a film look in the prompt; this one applies it to any finished picture
+const FILM_LAB = [
+  { id: "warm_portrait", icon: "🌸", label: "Soft portrait", tip: "A professional portrait colour film: low contrast, warm, soft and kind to skin tones, gentle fine grain" },
+  { id: "disposable", icon: "📸", label: "Disposable", tip: "A 2000s throwaway camera on consumer colour film: punchy colours, green-cyan shadows, dark corners, a little soft, more grain", glow: true },
+  { id: "slide", icon: "🏞", label: "Clean slide", tip: "Colour slide film: clean, crisp and punchy, saturated, deep blacks, neutral to cool, very fine grain" },
+  { id: "gritty_bw", icon: "🖤", label: "Gritty B&W", tip: "A fast black-and-white film, pushed: heavy grain, deep blacks, bright highlights, black and white with attitude" },
+  { id: "night_tungsten", icon: "🌃", label: "Night tungsten", tip: "A tungsten-balanced cinema film with its anti-halation layer removed: cool teal shadows and red-orange halos round lights and bright edges", glow: true },
 ];
 const PATCH_PER_ROW = 7;                       // PICTURE and up to six modules a row; more modules start a new row below
 const PATCH_ROW_H = 250;                       // a row's height in the panel's drawing
@@ -1420,6 +1431,9 @@ const protoartApp = createApp({
                boxes: [], boxesFor: "", W: 0, H: 0, finding: false },  // 🔍 the figures' boxes, checked before splitting
       cutFix: { tool: "", size: 30, undo: 0, any: false, figure: null },  // ✍ Cut out's touch-up: brush / lasso to add to or take from the cut-out  // 🧩 Split a character sheet  // ✂ Cut out's live preview
       paperJob: false,
+      filmJob: false,
+      filmPrev: "",     // 🎞 the film look's live preview (data URL)
+      filmLive: false,  // previews follow the settings once you've picked a look
       i2iInpaintPick: "",
       promptCardOver: false,
       relightRefOver: false,
@@ -1565,10 +1579,11 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.31: 🔁 Seamless patterns, ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
+            { h: "1.6.31: 🎞 Film looks, 🔁 seamless patterns, Krea 2 on 16 GB Macs, ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
+              "<b>🎞 Film look</b> (Tools, and the 🔌 patchbay's <b>FILM</b> module): five classic film stocks on any picture, instantly (no model, no download): <b>🌸 Soft portrait</b> (low contrast, warm, kind to skin), <b>📸 Disposable</b> (a 2000s throwaway camera: punchy, green-cyan shadows, dark corners), <b>🏞 Clean slide</b> (crisp, saturated, deep blacks), <b>🖤 Gritty B&W</b> (heavy grain, deep blacks) and <b>🌃 Night tungsten</b> (cool teal shadows, red halos round lights). Strength, Grain and Glow round lights to taste, with a live preview.",
               "<b>Krea 2 Turbo on 16 GB Macs</b> (it needed 32 GB): its 8 GB text reader is kept at full quality but loaded on its own to read each new prompt, then put away before the picture model loads, so it never needs more than about 9 GB at once. The pictures are the same; a new prompt adds about half a minute, and more pictures from the same prompt start at once. Download it in Models (15.8 GB).",
               "<b>🔁 Seamless pattern</b> (Image to image → ✨ Edit with words): a tile that repeats with no visible join, for <b>🧵 fabric</b> prints, <b>🏠 wallpaper</b> or <b>🎮 game textures</b>. Start from <b>✏️ words</b>, a picture as <b>🖼 inspiration</b>, or <b>🔁 make your own picture tile</b>; make 1, 2 or 4 at once. The picture is shifted by half so its edges meet in the middle, and only that cross is repainted, so the edges always join up. The card shows your latest pattern repeated 3 × 3.",
-              "<b>⚡ Speed for MiniMax-H3-Image</b> (Create, Edit with words, Fill a shape and Seamless pattern): <b>⚡ Draft</b> (2 steps: a quick try to check the layout; grainy up close, so make the final one with Balanced or ★ Best) and <b>Balanced</b> (3 steps) use the pDMD few-step LoRA (about 2 GB, downloaded the first time) for roughly a third / half of the drawing time; <b>★ Best</b> is the usual 6 steps.",
+              "<b>⚡ Speed for MiniMax-H3-Image</b> (Create, Edit with words, Fill a shape and Seamless pattern): <b>⚡ Draft</b> (2 steps) and <b>Balanced</b> (4 steps) use the pDMD few-step LoRA (about 2 GB, downloaded the first time) for roughly a third / two thirds of the drawing time; <b>★ Best</b> is the usual 6 steps. The LoRA is made for big pictures (2048 px and up): smaller ones come out speckled, so Create warns you and ★ Best is the one to use there. If the LoRA file is also in your own LoRA list it's left out (it had run twice, at double strength, and spoiled ★ Best too)",
               "<b>🔤 Fill a shape is simpler</b>: <b>1</b> Pick a shape (a word in a thick font, a ready shape, or your own), <b>2</b> Fill it with, <b>3</b> Put it on, then ✨ Edit. <b>4</b> Speed: ⚡ Quicker (1 step) or ✂ More accurate (2 steps, the exact outline). Your own font, stacking, ◐ Invert and a look to follow are under <b>⚙ More options</b>, and the tools that don't apply (painting, More pictures, Quick edits…) are hidden while it's picked.",
               "<b>✂ More accurate</b> (Fill a shape → 4 Speed, the default for a word or a ready shape): the picture is made in 2 steps, first the background over the whole frame, then the material painted into the shape only, so the shape's outline is exact and nothing spills over it or draws a border round it. It takes about twice as long; ⚡ Quicker does it in one step (the outline is then followed more loosely).",
               "Image to image → ✨ Edit with words: <b>🧩 Two pictures → one</b>, <b>🎭 Transform a person</b> and <b>🔤 Fill a shape</b> fold up (click the title; collapse all / expand all too); a folded one still shows the look you picked.",
@@ -2277,7 +2292,7 @@ const protoartApp = createApp({
               "<b>Each module's settings</b>: press <b>SELECT</b> at the bottom of a module. Its rack unit below lights up and shows that module's settings, with a ⚙ badge naming it; a copy you added, such as FACES 2, keeps <b>its own settings</b> in the same rack unit (model, strength, fidelity for faces; upscale, detail, steps for enhance…), so each copy can do something different. Press SELECTED again to finish.",
               "<b>✕</b> (top right of a module) takes it off the rack; <b>Add a module → ↩ put … back</b> returns it. <b>🔎 DETAIL</b> redraws lightly with its own SD 1.5 or SDXL model (picked in the Detail with a LoRA module: <i>automatic</i> uses Create's if it's one of those) and one LoRA (an “add detail” LoRA works well; change strength 0.2–0.4 keeps the picture). It needs an SD 1.5 or SDXL model on this Mac. When the patchbay is hidden, <b>Run chain</b> lists the patched modules in order and runs them with ▶ Run patch.",
               "<b>Keep only the final picture</b> (above the panel): when a run finishes, the in-between pictures (after Enhance, after Faces…) go to the macOS Trash, so the Library only gets the finished one. You can still put them back from the Trash.",
-              "<b>More modules on the patchbay</b>: besides Remove, Faces, Enhance, Depth, Detail and Vector, you can now patch in <b>🧩 TILED</b> upscale (Create's SD model), <b>💡 RELIGHT</b> (its module's light, reference and background), <b>✂ CUT OUT</b> (its module's settings and background) and <b>📄 PAPER</b> cut-out. Replace text stays a module of its own (it needs you to type).",
+              "<b>More modules on the patchbay</b>: besides Remove, Faces, Enhance, Depth, Detail and Vector, you can now patch in <b>🧩 TILED</b> upscale (Create's SD model), <b>💡 RELIGHT</b> (its module's light, reference and background), <b>✂ CUT OUT</b> (its module's settings and background) <b>📄 PAPER</b> cut-out and <b>🎞 FILM</b> look. Replace text stays a module of its own (it needs you to type).",
               "<b>🛡 Protect areas…</b>: paint over parts the rack must not change (a face you like, a logo), press ✓ Done protecting, then ▶ Run patch: those parts are put back from your original at the end. The picture forming shows in the preview while it runs.",
               "<b>Saving a signal flow</b>: type a name next to <b>💾 Save flow</b> and press it: the cables, the copies you added, the module order and the copies' own settings are kept. Load it again from <i>load a saved flow…</i>; 🗑 deletes the saved one (the patchbay stays as it is).",
               "<b>Moving modules</b>: drag a module's name plate left or right, or point at it and press <b>‹</b> / <b>›</b>. PICTURE stays first and RESULT last. Moving a module doesn't change what runs: the <b>cables</b> set the order the picture goes through (shown in the amber readout). <b>↺ reset</b> puts the modules back in their places and pulls out every cable.",
@@ -2307,6 +2322,12 @@ const protoartApp = createApp({
               "<b>4 Speed</b>: <b>✂ More accurate</b> (the default) makes it in 2 steps: first what it's put on, over the whole picture, then the filling inside the shape only, so the outline is exact and nothing spills over (about twice as long; the first step also lands in your Library). <b>⚡ Quicker</b> does it in one step, with the outline followed more loosely.",
               "<b>⚙ More options</b>: <b>🔤 Use your own font</b> (any font installed on this Mac, or 📂 a .ttf / .otf file, kept until the app closes), <b>Stack the letters</b>, <b>◐ Invert</b> (the filling goes all around the shape instead: letters cut out of a field of flowers) and <b>a look to follow</b> (an optional style picture).",
               "<b>MiniMax-H3-Image</b> gives the best result (about 20 minutes a step on an 8 GB Mac); <b>FLUX.2 Klein</b> is much quicker for tries. Thick, bold fonts and simple shapes work best: thin lines and small gaps get lost in the filling. While Fill a shape is picked, the tools that don't apply (painting, More pictures, Quick edits, the prompt box) are hidden.",
+            ] },
+            { h: "🎞 Film look: a classic film stock on any picture", items: [
+              "Tools → <b>🎞 Film look</b>: pick a film, see it in the module's preview, then <b>🎞 Make it</b> (it takes about a second; no model or download). The new picture goes to your Library.",
+              "<b>🌸 Soft portrait</b>: a professional portrait colour film: low contrast, warm, soft skin tones, fine grain. <b>📸 Disposable</b>: a 2000s throwaway camera: punchy colours, green-cyan shadows, dark corners, a little soft, more grain. <b>🏞 Clean slide</b>: slide film: crisp, saturated, deep blacks, very fine grain. <b>🖤 Gritty B&W</b>: fast black-and-white film, pushed: heavy grain, deep blacks. <b>🌃 Night tungsten</b>: a cinema film made for tungsten light, with its anti-halation layer taken off: cool teal shadows and red-orange halos round lights (best on night shots with lamps, signs and headlights).",
+              "<b>Strength</b> mixes the look with your picture (100% is the full look); <b>Grain</b> is the film's own grain at 1×, none at 0, double at 2×; <b>Glow round lights</b> (Disposable and Night tungsten) sets the halation the same way.",
+              "In the <b>🔌 patchbay</b> it's the <b>FILM</b> module: put it last, e.g. PICTURE → ENHANCE → FACES → FILM → RESULT, so the grain isn't smoothed away. ＋ Add a module → another FILM gives a second copy with its own look. Create's <b>🎞 Film</b> is different: it asks the model for a film look while the picture is made; this one adds it to a finished picture.",
             ] },
             { h: "🔁 Seamless pattern: a tile that repeats with no join", items: [
               "Image to image → ✨ Edit with words → <b>🔁 Seamless pattern</b>, then press <b>✨ Edit</b>:",
@@ -2708,7 +2729,7 @@ const protoartApp = createApp({
               "<b>Peel left an outline behind</b>: select a little past the edge (Grow the selection, or paint over it), or turn on ✂ Follow the edge exactly. <b>The .psd won't open</b>: it's a standard 8-bit RGB Photoshop file; a very big picture with many layers can be several hundred MB." ] },
             { h: "New in 1.5.1: if something doesn't work", items: [
               "<b>A MiniMax-H3-Image edit seems stuck on step 1 or 2</b>: it isn't. Each of its 6 drawing steps takes about 3 minutes on an 8 GB Mac (an Edit with words at 1280 takes about 20 minutes in all), so the step count moves slowly; leave it running. For a quicker edit pick <b>⚡ Fast</b> (2 steps) or <b>Balanced</b> (3) under ⚡ Speed, or a smaller size (768 or 1024).",
-              "<b>MiniMax-H3-Image ⚡ Speed</b> (Create, Edit with words, 🔤 Fill a shape and 🔁 Seamless pattern): <b>⚡ Draft</b> draws in 2 steps and <b>Balanced</b> in 3, with the pDMD few-step LoRA (Apache-2.0, about 2 GB, downloaded the first time); <b>★ Best</b> is the usual 6 steps. The drawing is most of the time, so ⚡ Draft takes roughly a third as long (an edit at 1280 about 8 minutes instead of 20 on an 8 GB Mac). The same seed gives a somewhat different picture at each speed. ⚡ Draft is for trying ideas: up close it looks grainy and plastic, with a fine dotted texture, so make the final picture with Balanced (3 steps, much cleaner) or ★ Best",
+              "<b>MiniMax-H3-Image ⚡ Speed</b> (Create, Edit with words, 🔤 Fill a shape and 🔁 Seamless pattern): <b>⚡ Draft</b> draws in 2 steps and <b>Balanced</b> in 4, with the pDMD few-step LoRA (Apache-2.0, about 2 GB, downloaded the first time); <b>★ Best</b> is the usual 6 steps. It's made for big pictures: use Draft and Balanced with <b>🧠 Best quality (draws at 2048)</b> or a size of 2048 px or more, where they save time; at smaller sizes they come out speckled and grainy (Create shows a warning), so use ★ Best there. Don't add the LoRA file to your own LoRA list: the Speed setting adds it by itself (if it's there anyway, it's left out)",
               "<b>Training says it will take 16 hours</b>: on an 8 GB Mac that's about right for ERNIE (each step works through a very big model, and memory spills onto the disk). Use ★ Recommended (fewer steps for ERNIE), or train on an SD 1.5 model, which takes minutes to a few hours. The estimate becomes a measurement after the first steps.",
               "<b>MOSS-Image is very slow or the Mac stalls</b>: it's a big model; on Macs under 14 GB it uses its own <b>8 GB version</b> (downloaded ready-made the first time, ~10.5 GB, and copied to the Mac's own drive once if your models are on an external drive). Close other apps (web browsers especially), use Medium (768) size and Turbo, and make one picture at a time. <b>“MOSS-Image isn't on this Mac yet”</b> with Strict offline on: turn it off for the one-time download (~13 GB).",
               "<b>MOSS-Image misspells a word</b>: put the exact words in quotes and say where they go (“at the top, in large letters”); shorter text works best. Try another seed." ] },
@@ -3001,6 +3022,7 @@ const protoartApp = createApp({
       modelSearch: "",
       tool: { source: null, results: [], dragOver: false, working: null, latest: null, healing: false, protecting: false, protectWhich: "all", enhArea: false, paintFor: "remove", promptText: "", promptCopied: false, view: "split", split: 0.5 },
       PATCH_NODES,
+      FILM_LAB,
       ProtoText: window.ProtoText,  // 🔤 Replace text's fonts
       patchInY: PATCH_IN_Y,
       patchOutY: PATCH_OUT_Y,
@@ -4270,7 +4292,7 @@ const protoartApp = createApp({
           est = key === "both" ? one("enhance") + one("faces") : one(key);
           if ((key === "enhance" || key === "both") && j.upscale) est *= (j.upscale / 2) ** 2;
           if (j.h3_speed === "fast") est *= 0.45;  // ⚡ MiniMax-H3 in 2 of its 6 steps (the prompt and decoder stay)
-          else if (j.h3_speed === "balanced") est *= 0.6;
+          else if (j.h3_speed === "balanced") est *= 0.75;  // 4 of 6
           measured = this.perf.jobs[key] != null;
         }
         if (!["generate", "train_lora", "train_embedding", "model_download"].includes(j.cmd) && j.state === "running") {
@@ -4320,6 +4342,7 @@ const protoartApp = createApp({
   },
 
   watch: {
+    "post.film": { deep: true, handler() { if (this.filmLive) this.filmPreview(); } },
     "form.edit_recipe"(v) { if (v === "tf_shape") this.$nextTick(() => this.shapePreview()); },
     family() {  // Pony ↔ SD 1.5: Create's ControlNet switches to the same kind made for the new model type
       const cc = this.form.cc;
@@ -4423,6 +4446,7 @@ const protoartApp = createApp({
       },
     },
     "tool.source"() {
+      this.filmPrev = ""; if (this.filmLive) this.filmPreview();  // 🎞 the film preview follows the picture
       if (this.txIn("tools")) this.txClose();  // its text was placed on the picture that was here before
       this.tool.healing = false; this.zoomReset("tools"); if (this.cut.open) this.closeCutout(); this.$nextTick(() => this.cmpDraw()); },
     "train.kind"() { if (this.train.preset === "recommended") this.applyTrainPreset(this.trainRecommended); },
@@ -6221,7 +6245,7 @@ const protoartApp = createApp({
       window.ProtoSound?.play("plug");
     },
     patchFields(type) {  // the rack-unit settings a module's copies have of their own
-      return { faces: ["face_strength", "face_model", "face_fidelity"], enhance: ["enh"], depth: ["depth"], detail: ["det"] }[type] || [];
+      return { faces: ["face_strength", "face_model", "face_fidelity"], enhance: ["enh"], depth: ["depth"], detail: ["det"], film: ["film"] }[type] || [];
     },
     patchCopyInit(id) {  // a copy starts with the settings its module has now; after that they're its own
       const type = String(id).split("#")[0], P = this.post;
@@ -6493,7 +6517,7 @@ const protoartApp = createApp({
       id = String(id).split("#")[0];
       return { heal: "Removing what you painted", faces: "Restoring faces", enhance: "Enhancing & upscaling",
                depth: "Making a depth map", vector: "Vectorizing", detail: "Adding detail with a LoRA",
-               tiled: "Tiled upscale", relight: "Relighting", cutout: "Cutting out", paper: "Making a paper cut-out" }[id] || id;
+               tiled: "Tiled upscale", relight: "Relighting", cutout: "Cutting out", paper: "Making a paper cut-out", film: "Adding the film look" }[id] || id;
     },
     async patchRun() {
       const steps = this.patchChain.steps;
@@ -6562,6 +6586,8 @@ const protoartApp = createApp({
               background: o.bg === "transparent" ? "transparent" : o.bg === "white" ? "#ffffff" : o.bg === "black" ? "#000000" : o.color });
           } else if (id === "paper") {
             rec = await this.runJob("papercut", { ...cur, ...this.post.paper, threshold: this.post.cut.threshold, grow: this.post.cut.grow });
+          } else if (id === "film") {  // 🎞 a copy you added (FILM 2) has its own look
+            rec = await this.runJob("film", { ...cur, ...((this.patch.copySettings[node] && this.patch.copySettings[node].film) || this.post.film) });
           } else if (id === "vector") {
             const v = this.post.vec;
             rec = await this.runJob("vectorize", { ...cur, colors: v.colors, detail: v.detail, smooth: v.smooth });
@@ -8567,6 +8593,30 @@ const protoartApp = createApp({
       if (!s || !data) return;
       this.closeCutout();
       await this.openPuppet({ path: s.path, id: s.image_id ?? null }, data);
+    },
+    filmLook() { return FILM_LAB.find((x) => x.id === this.post.film.stock) || FILM_LAB[0]; },
+    filmPick(id) { this.post.film.stock = id; this.filmLive = true; this.filmPreview(); },
+    filmPreview() {  // 🎞 a small preview of the look on the picture, a moment after the settings stop changing
+      clearTimeout(this._filmT);
+      if (!this.tool.source) return (this.filmPrev = "");
+      this._filmT = setTimeout(async () => {
+        const want = JSON.stringify([this.tool.source.path, this.post.film]);
+        try {
+          const r = await call("film_preview", { ...this.toolArgs(), ...this.post.film });
+          if (r && want === JSON.stringify([this.tool.source && this.tool.source.path, this.post.film])) this.filmPrev = r.src;
+        } catch (e) { this.error = "Couldn't preview the film look: " + (e.message || e); }
+      }, 250);
+    },
+    async toolFilm() {
+      const s = this.tool.source, o = this.post.film;
+      if (!s || this.filmJob) return;
+      this.filmJob = true;
+      this.tool.working = { label: "Adding the film look", started: Date.now() };
+      this.tool.latest = null;
+      try {
+        const rec = await this.runJob("film", { ...this.toolArgs(), ...o });
+        if (rec) { this.tool.latest = rec; this.afterPost(rec); }
+      } finally { this.tool.working = null; this.filmJob = false; }
     },
     async toolPaper() {
       const s = this.tool.source, o = this.post.paper;
