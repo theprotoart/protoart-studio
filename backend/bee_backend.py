@@ -1227,6 +1227,16 @@ def handle_quick(cmd, a):
             out = ImageOps.invert(out)
         out.save(dest)
         return {"path": str(dest), "width": W, "height": H, "how": how}
+    if cmd == "pattern_prompt":  # 🔁 Seamless pattern: the wording for step 1 and for the seam pass
+        import pattern
+        return {"prompt": pattern.first_prompt(str(a.get("source") or "words"), str(a.get("use") or "fabric"), str(a.get("what") or "")),
+                "seam": pattern.SEAM_PROMPT}
+    if cmd == "pattern_prep":  # 🔁 the picture shifted by half (its edges meet in the middle) + the cross to repaint
+        import pattern
+        src = Path(str(a.get("path") or ""))
+        if not src.is_file():
+            raise FileNotFoundError("The picture isn't there any more (moved or deleted).")
+        return pattern.prepare(src, Path(paths.HOME) / "tmp", f"{os.getpid()}_{int(_t.time() * 1000)}")
     if cmd == "save_drawing":  # 🔤 a picture drawn in the app (the word shape) -> a PNG file to start from
         import base64
         import io
@@ -2300,7 +2310,7 @@ def run_side(mid, cmd, a):
 
 # quick commands that talk to a website (up to ~25 s if it's slow or blocked): run beside the reader, so the
 # app stays responsive (an unanswered Check used to leave every other button waiting)
-NET_QUICK = ("select_object", "kept_list", "sheet_crop", "save_drawing", "make_shape", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
+NET_QUICK = ("select_object", "pattern_prompt", "pattern_prep", "kept_list", "sheet_crop", "save_drawing", "make_shape", "papercut_preview", "civitai_inspect", "civitai_key_set", "hf_token_set", "model_inspect",
              "train_square_copies", "poselib_thumbs", "poselib_get")  # (that one isn't online, but can take a while for a big folder)
 
 

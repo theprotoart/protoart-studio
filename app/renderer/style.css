@@ -610,6 +610,7 @@ details.fine summary { cursor: pointer; }
 .shape-how button { flex: 1 1 0; }
 .shape-text { width: 100%; font-size: 14px; padding: 7px 9px; }
 .shape-hint { margin-top: 2px; }
+.pattern-tiles { width: 100%; max-width: 240px; align-self: center; aspect-ratio: 1; border-radius: 8px; background-repeat: repeat; background-size: 33.333% 33.333%; border: 1px solid var(--line, #333); }
 .shape-more { margin-top: 4px; }
 .shape-more summary { cursor: pointer; font-size: 12px; opacity: 0.85; }
 .shape-more-body { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; }

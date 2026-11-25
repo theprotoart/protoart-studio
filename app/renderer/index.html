@@ -926,8 +926,8 @@
           <label v-if="family === 'h3'" class="check" title="MiniMax-H3-Image is made for big pictures: it draws at about 2048 × 2048 (the same shape as your size) and the result is shrunk to your size. Much more detail and fewer odd faces, about 3 times as long (about 13 minutes on an 8 GB Mac)"><input type="checkbox" v-model="form.h3_best"> 🧠 Best quality (draws at 2048, ~13 min)</label>
           <template v-if="family === 'h3'"><label title="How many steps MiniMax-H3-Image draws in: ⚡ Fast 2 and Balanced 3 (with a few-step LoRA, downloaded once, about 2 GB), ★ Best the usual 6">⚡ Speed</label>
             <div class="seg mod-seg h3-speed">
-            <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="2 steps with the pDMD few-step LoRA (about 2 GB, downloaded the first time): about a third of the drawing time. A little softer up close; strong edits can drift more">⚡ Fast</button>
-            <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="3 steps with the same LoRA: about half the drawing time, cleaner flat areas than ⚡ Fast">Balanced</button>
+            <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="A quick draft in 2 steps (the pDMD few-step LoRA, about 2 GB, downloaded the first time): about a third of the time, good for checking the layout and colours. Up close it looks grainy and plastic, with a fine dotted texture: make the final one with Balanced or ★ Best">⚡ Draft</button>
+            <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="A faster good picture in 3 steps (the same LoRA): about half the time, much cleaner than ⚡ Draft; a little less fine detail than ★ Best">Balanced</button>
             <button :class="{on: !form.h3_speed}" @click="form.h3_speed = ''" title="The usual 6 steps: the best result">★ Best</button>
           </div></template>
         </div>
@@ -3474,9 +3474,9 @@
           </template>
         </template>
         <template v-else-if="form.i2i_mode === 'edit'">
-          <label class="pair-head pair-fold" :class="{shut: i2iShut('pair2')}" @click="i2iFoldToggle('pair2', $event)" title="Click to fold or unfold"><span class="pf-arrow" aria-hidden="true">{{ i2iShut('pair2') ? '▸' : '▾' }}</span> 🧩 Two pictures → one <span v-if="i2iShut('pair2') && editRecipe() && (!editRecipe().slots)" class="pf-sum">· {{ editRecipe().label }}</span><span class="hint">pick a recipe, drop Picture 1 and Picture 2 in their boxes, press Generate (the prompt is written for you; edit it if you like). Some use a community LoRA for FLUX.2 Klein, downloaded the first time</span></label>
+          <label class="pair-head pair-fold" :class="{shut: i2iShut('pair2')}" @click="i2iFoldToggle('pair2', $event)" title="Click to fold or unfold"><span class="pf-arrow" aria-hidden="true">{{ i2iShut('pair2') ? '▸' : '▾' }}</span> 🧩 Two pictures → one <span v-if="i2iShut('pair2') && editRecipe() && (!editRecipe().slots && !editRecipe().group)" class="pf-sum">· {{ editRecipe().label }}</span><span class="hint">pick a recipe, drop Picture 1 and Picture 2 in their boxes, press Generate (the prompt is written for you; edit it if you like). Some use a community LoRA for FLUX.2 Klein, downloaded the first time</span></label>
           <div v-if="!i2iShut('pair2')" class="seg seg-wrap edit-recipes">
-            <button v-for="r in EDIT_RECIPES().filter((x) => !x.slots)" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
+            <button v-for="r in EDIT_RECIPES().filter((x) => !x.slots && !x.group)" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
           </div>
           <label class="pair-head pair-fold" :class="{shut: i2iShut('transform')}" @click="i2iFoldToggle('transform', $event)" title="Click to fold or unfold"><span class="pf-arrow" aria-hidden="true">{{ i2iShut('transform') ? '▸' : '▾' }}</span> 🎭 Transform a person <span v-if="i2iShut('transform') && editRecipe() && (editRecipe().slots && editRecipe().group !== 'shape')" class="pf-sum">· {{ editRecipe().label }}</span><span class="hint">pick a look, drop a photo of the person, and optionally a style picture and the items it asks for (a picture, words, or both)</span></label>
           <div v-if="!i2iShut('transform')" class="tf-tiles">
@@ -3527,8 +3527,8 @@
             <template v-if="editModelId() === 'h3_image'">
               <div class="shape-step">MiniMax speed</div>
               <div class="seg mod-seg h3-speed">
-                <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="2 steps with the pDMD few-step LoRA (about 2 GB, downloaded the first time): about a third of the drawing time. A little softer up close; strong edits can drift more">⚡ Fast</button>
-                <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="3 steps with the same LoRA: about half the drawing time, cleaner flat areas than ⚡ Fast">Balanced</button>
+                <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="A quick draft in 2 steps (the pDMD few-step LoRA, about 2 GB, downloaded the first time): about a third of the time, good for checking the layout and colours. Up close it looks grainy and plastic, with a fine dotted texture: make the final one with Balanced or ★ Best">⚡ Draft</button>
+                <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="A faster good picture in 3 steps (the same LoRA): about half the time, much cleaner than ⚡ Draft; a little less fine detail than ★ Best">Balanced</button>
                 <button :class="{on: !form.h3_speed}" @click="form.h3_speed = ''" title="The usual 6 steps: the best result">★ Best</button>
               </div>
             </template>
@@ -3559,6 +3559,50 @@
                 <input ref="tfPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd" hidden @change="tfPicked">
               </div>
             </details>
+          </div>
+          <label class="pair-head pair-fold" :class="{shut: i2iShut('patterns')}" @click="i2iFoldToggle('patterns', $event)" title="Click to fold or unfold"><span class="pf-arrow" aria-hidden="true">{{ i2iShut('patterns') ? '▸' : '▾' }}</span> 🔁 Seamless pattern <span v-if="i2iShut('patterns') && editRecipe() && editRecipe().group === 'pattern'" class="pf-sum">· on</span><span class="hint">a tile that repeats with no visible join: fabric prints, wallpaper, game textures</span></label>
+          <div v-if="!i2iShut('patterns')" class="seg seg-wrap edit-recipes">
+            <button v-for="r in EDIT_RECIPES().filter((x) => x.group === 'pattern')" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
+          </div>
+          <div v-if="editRecipe() && editRecipe().group === 'pattern'" class="recipe-card shape-card pattern-card">
+            <div class="shape-step"><b>1</b> Start from</div>
+            <div class="seg mod-seg shape-how">
+              <button :class="{on: pat.from === 'words'}" @click="pat.from = 'words'; patSave()" title="Describe the pattern: no picture needed">✏️ Words</button>
+              <button :class="{on: pat.from === 'inspired'}" @click="pat.from = 'inspired'; patSave()" title="A new pattern made from the things, colours and style of your picture">🖼 Inspired by a picture</button>
+              <button :class="{on: pat.from === 'tile'}" @click="pat.from = 'tile'; patSave()" title="Your own picture (a texture, a print, a drawing) made to repeat with no join: only the join is repainted">🔁 Make my picture tile</button>
+            </div>
+            <div v-if="pat.from !== 'words'" class="pair-slot shape-own" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
+                 @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()" title="The picture to start from">
+              <img v-if="form.init_image" :src="fileUrl(form.init_image)" alt="">
+              <div v-else class="pair-empty"><b>Drop your picture here</b><span>or click</span></div>
+            </div>
+            <template v-if="pat.from !== 'tile'">
+              <div class="shape-step"><b>2</b> {{ pat.from === 'words' ? 'The pattern is of' : 'Add (optional)' }}</div>
+              <input type="text" v-model="pat.what" @change="patSave" :placeholder="pat.from === 'words' ? 'e.g. lemons and leaves on pale blue' : 'e.g. little gold stars'" class="shape-text">
+              <div class="shape-step"><b>3</b> It's for</div>
+              <div class="seg mod-seg shape-how">
+                <button :class="{on: pat.use === 'fabric'}" @click="pat.use = 'fabric'; patSave()" title="A flat printed design for clothes, bags, gift wrap">🧵 Fabric</button>
+                <button :class="{on: pat.use === 'wallpaper'}" @click="pat.use = 'wallpaper'; patSave()" title="An elegant repeating wall design">🏠 Wallpaper</button>
+                <button :class="{on: pat.use === 'game'}" @click="pat.use = 'game'; patSave()" title="A realistic surface seen from above, evenly lit: stone, grass, wood, bricks… for games and 3D">🎮 Game texture</button>
+              </div>
+              <div class="shape-step"><b>4</b> How many</div>
+              <div class="seg mod-seg shape-how">
+                <button v-for="c in [1, 2, 4]" :key="c" :class="{on: +pat.count === c}" @click="pat.count = c; patSave()" :title="c === 1 ? 'One pattern' : c + ' different patterns, one after the other'">{{ c }}</button>
+              </div>
+            </template>
+            <template v-if="editModelId() === 'h3_image'">
+              <div class="shape-step">MiniMax speed</div>
+              <div class="seg mod-seg h3-speed">
+                <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="A quick draft in 2 steps (the pDMD few-step LoRA, about 2 GB, downloaded the first time): about a third of the time, good for checking the layout and colours. Up close it looks grainy and plastic, with a fine dotted texture: make the final one with Balanced or ★ Best">⚡ Draft</button>
+                <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="A faster good picture in 3 steps (the same LoRA): about half the time, much cleaner than ⚡ Draft; a little less fine detail than ★ Best">Balanced</button>
+                <button :class="{on: !form.h3_speed}" @click="form.h3_speed = ''" title="The usual 6 steps: the best result">★ Best</button>
+              </div>
+            </template>
+            <div class="hint shape-hint">Then press <b>✨ Edit</b>. {{ pat.from === 'tile' ? 'One pass: only the join is repainted.' : 'Two passes: the pattern, then the join.' }}</div>
+            <template v-if="patLast">
+              <div class="shape-step">How it repeats</div>
+              <div class="pattern-tiles" :style="{backgroundImage: 'url(&quot;' + fileUrl(patLast) + '&quot;)'}" title="Your latest pattern, repeated 3 × 3: there should be no lines where the copies meet"></div>
+            </template>
           </div>
           <div v-if="editRecipe() && editRecipe().slots && editRecipe().group !== 'shape'" class="recipe-card">
             <div class="tf-layout">
@@ -3594,7 +3638,7 @@
             <div v-if="tfBuild().refs.length > editRefMax()" class="hint warn">{{ tfBuild().refs.length }} pictures in the boxes, and this edit model takes {{ editRefMax() }}: type some items instead, or pick FLUX 3 or MiniMax-H3 as the edit model.</div>
             <div v-if="!form.init_image && !(editRecipe().group === 'shape' && (form.tf.words.word || '').trim())" class="hint warn">{{ editRecipe().group === 'shape' ? 'Type a word, or drop a black shape on white in the first box.' : 'Drop ' + (editRecipe().p1 === 'the photo' ? 'the photo' : 'a photo of the person') + ' in the first box.' }}</div>
           </div>
-          <div v-if="editRecipe() && !editRecipe().slots" class="recipe-card">
+          <div v-if="editRecipe() && !editRecipe().slots && !editRecipe().group" class="recipe-card">
             <div class="pair-layout" title="Drop a picture on each box (or click to pick one)">
               <div class="pair-slot" :class="{over: pairOver === '1', filled: !!form.init_image}" @dragover.prevent="pairOver = '1'" @dragleave="pairOver = ''"
                    @drop.prevent="pairDrop($event, 1)" @click="$refs.startPick.click()">
@@ -3654,9 +3698,9 @@
             </div>
             <p v-if="mv.items.length" class="hint">The prompt can stay empty, or add to it (“at night”). Orange boxes: where things are now · blue: where they go. Drag a box to move it, its corner to resize it.</p>
           </template>
-          <div v-if="form.edit_recipe !== 'tf_shape'" class="hint">Describe the change in <b>3 · Prompt</b>. <b>Optional:</b> paint over the part that may change, and
+          <div v-if="!['tf_shape', 'tf_pattern'].includes(form.edit_recipe)" class="hint">Describe the change in <b>3 · Prompt</b>. <b>Optional:</b> paint over the part that may change, and
             everything else stays exactly as it is (best for small, precise edits).</div>
-          <div v-if="form.edit_recipe !== 'tf_shape'" class="mask-tools">
+          <div v-if="!['tf_shape', 'tf_pattern'].includes(form.edit_recipe)" class="mask-tools">
             <div class="sel-tools" role="toolbar" aria-label="Painting and selection tools">
               <button v-for="t in SEL_TOOLS" :key="t.id" class="sel-tool" :class="{on: (mask.tool || 'brush') === t.id}" @click="setMaskTool(t.id)" :title="t.tip"><span>{{ t.icon }}</span><small>{{ t.label }}</small></button>
             </div>
@@ -3681,8 +3725,8 @@
           <template v-if="editModelId() === 'h3_image'">
             <label title="How many steps MiniMax-H3-Image draws in: ⚡ Fast 2 and Balanced 3 (with a few-step LoRA, downloaded once, about 2 GB), ★ Best the usual 6">⚡ Speed</label>
             <div class="seg mod-seg h3-speed">
-              <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="2 steps with the pDMD few-step LoRA (about 2 GB, downloaded the first time): about a third of the drawing time. A little softer up close; strong edits can drift more">⚡ Fast</button>
-              <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="3 steps with the same LoRA: about half the drawing time, cleaner flat areas than ⚡ Fast">Balanced</button>
+              <button :class="{on: form.h3_speed === 'fast'}" @click="form.h3_speed = 'fast'" title="A quick draft in 2 steps (the pDMD few-step LoRA, about 2 GB, downloaded the first time): about a third of the time, good for checking the layout and colours. Up close it looks grainy and plastic, with a fine dotted texture: make the final one with Balanced or ★ Best">⚡ Draft</button>
+              <button :class="{on: form.h3_speed === 'balanced'}" @click="form.h3_speed = 'balanced'" title="A faster good picture in 3 steps (the same LoRA): about half the time, much cleaner than ⚡ Draft; a little less fine detail than ★ Best">Balanced</button>
               <button :class="{on: !form.h3_speed}" @click="form.h3_speed = ''" title="The usual 6 steps: the best result">★ Best</button>
             </div>
             <label title="The size MiniMax-H3-Image works at (the bigger, the sharper faces and lettering come out). On an 8 GB Mac with one picture, about: 768 5–6 minutes, 896 8, 1024 12, 1280 17, 1536 25, 2048 45">🧠 Work size</label>
@@ -3691,7 +3735,7 @@
             </div>
             <label class="check" title="More pictures go in at 512 (a quarter of the work of 1024 each: enough for a face, an outfit or a style). Tick this for 768 when small details matter (lettering on a label, a pattern), about twice as long per picture"><input type="checkbox" v-model="form.h3_ref_detail"> More pictures in more detail <span class="hint">(slower)</span></label>
           </template>
-          <template v-if="form.edit_recipe !== 'tf_shape'">  <!-- 🔤 Fill a shape has its own simple card: none of this -->
+          <template v-if="!['tf_shape', 'tf_pattern'].includes(form.edit_recipe)">  <!-- 🔤 Fill a shape has its own simple card: none of this -->
           <label v-if="editModelId() !== 'h3_image'" class="check" title="After the edit, each face (up to 3) is edited again on its own, close up, with the original face beside it, and blended in: the person stays recognisable (restoring or colouring old photos, changing clothes or the background). Adds about one more edit per face. Not used when you paint an area (the rest stays exactly the same then)">
             <input type="checkbox" :checked="form.keep_faces !== false" @change="form.keep_faces = $event.target.checked"> 🙂 Keep faces close to the original <span class="hint">(+1 full edit per face: switch it off when only the background changes)</span></label>
           <label class="check" title="After the edit, the whole picture's colours are moved back to the original's (like ComfyUI's Color Match), for when the model shifts everything warmer, greener or brighter. Leave it off when the change IS the colours (a sunset relight, black and white, a new palette). Not used with a painted area: that already matches the light around it">
@@ -4557,7 +4601,7 @@
         </template>
       </div>
 
-      <div v-if="!['faceswap', 'text', 'relight'].includes(form.i2i_mode) && !(form.i2i_mode === 'edit' && form.edit_recipe === 'tf_shape')" class="card i2ifold" :class="{shut: i2iShut('prompt')}">
+      <div v-if="!['faceswap', 'text', 'relight'].includes(form.i2i_mode) && !(form.i2i_mode === 'edit' && ['tf_shape', 'tf_pattern'].includes(form.edit_recipe))" class="card i2ifold" :class="{shut: i2iShut('prompt')}">
         <h3 @click="i2iFoldToggle('prompt', $event)">3 · Prompt <span v-if="i2iShut('prompt')" class="cfold-sum">{{ form.prompt ? (form.prompt.length > 60 ? form.prompt.slice(0, 59) + '…' : form.prompt) : 'empty' }}</span><span class="cfold-chev" aria-hidden="true"></span></h3>
         <textarea class="tape" v-model="form.prompt" rows="3"
                   :placeholder="form.i2i_mode === 'camera' ? 'Optional: anything to add · she is holding the sword · he is smiling…' : form.i2i_mode === 'combine' ? 'Where and doing what · sitting on the bench, waving · standing on the left, small, in the distance…' : form.i2i_mode === 'edit' ? 'The change, in a sentence: make the jacket red · add a hat · turn it into a watercolour…' : i2iUsesKlein ? 'Optional: what goes around the picture · more of the street · a sunny beach · the rest of the room…' : 'What the result should look like…'"></textarea>
@@ -5407,7 +5451,7 @@
     <p>Protoart Studio is a free AI art app for Apple Silicon Macs, made to run fully on your own Mac, also on older and smaller ones. It started
       as a rebuild of the ideas behind DiffusionBee and now has: Create with Stable Diffusion, FLUX, ERNIE-Image, MiniMax-H3-Image and more (with
       regions, presets and LoRA stacking and training); Image to image with ✨ Edit with words (FLUX.2 Klein and MiniMax-H3), 🎭 Transform a person
-      looks, 🔬 Ultra-detail upscale and 🔤 Fill a shape (a word or a shape made of anything); ControlNet, face restoration (RestoreFormer or
+      looks, 🔬 Ultra-detail upscale and 🔤 Fill a shape (a word or a shape made of anything), 🔁 seamless patterns (tiles that repeat with no join); ControlNet, face restoration (RestoreFormer or
       CodeFormer), enhancing and upscaling, cut-outs and character-sheet splitting, a searchable library and live previews.</p>
     <p class="hint">Built on open-source work: Hugging Face diffusers &amp; transformers, PyTorch, Apple MLX and mflux (fast ERNIE engine),
       ERNIE-Image (Baidu, Apache 2.0), Stable Diffusion (CreativeML OpenRAIL-M), ControlNet 1.1 (lllyasviel), RestoreFormer (via GFPGAN, Apache 2.0),

@@ -646,6 +646,11 @@ const EDIT_RECIPES = [
             { id: "around", kind: "item", label: "What's around it", ph: "[BACKGROUND]", dflt: "a green meadow" }],
     prompt: "Make a brand-new, full-colour, realistic picture. Picture 1 is only a layout guide: use its dark shape for the outline and nothing else from it: not its colours, not its edges.\nThe background: [BACKGROUND] fills the entire frame from edge to edge, in its own natural colours, lit and detailed like a real scene. There is no white, grey or plain empty area anywhere: every part outside the shape shows [BACKGROUND].\nThe shape: in the exact outline of the dark shape from Picture 1 (same position, size, proportions, every edge and corner), the shape is made entirely of [MATERIAL], in its own natural colours, packed densely right up to the edges, with real texture, highlights and shadows, sitting on or in the background as part of the same scene. If the shape is lettering, every letter stays clearly readable with its exact form and spacing.\nThe shape reads instantly from a distance against the background. The shape has no outline, border, stroke or drop shadow: where the material ends, the background begins. Nothing dark, grey or white remains from the guide. No extra text.",
     licence: "no LoRA: the edit model alone" },
+  // 🔁 Seamless pattern: a tile that repeats with no visible join (fabric, wallpaper, game texture). Its own card builds
+  // the wording; the picture is shifted by half and the cross where the edges meet is repainted (pattern.py)
+  { id: "tf_pattern", label: "🔁 Seamless pattern", group: "pattern", by: "", files: null, p1: "the picture", prompt: "",
+    tip: "Makes a tile that repeats with no visible join: from words, from a picture as inspiration, or your own picture made to tile. The picture is shifted by half so its edges meet in the middle, then only that cross is repainted.",
+    licence: "no LoRA: the edit model alone" },
 ];
 // ✨ Edit with words: ready-made instructions (no download), e.g. old photo repair
 // 🧠 MiniMax-H3-Image's multi-picture edits (shown when it's the edit model): your picture is <Picture 1>, More pictures are <Picture 2>…
@@ -1560,8 +1565,9 @@ const protoartApp = createApp({
       helpTabs: [
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
-            { h: "1.6.31: ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
-              "<b>⚡ Speed for MiniMax-H3-Image</b> (Create, Edit with words and Fill a shape): <b>⚡ Fast</b> (2 steps) and <b>Balanced</b> (3 steps) use the pDMD few-step LoRA (about 2 GB, downloaded the first time) for roughly a third / half of the drawing time; <b>★ Best</b> is the usual 6 steps.",
+            { h: "1.6.31: 🔁 Seamless patterns, ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
+              "<b>🔁 Seamless pattern</b> (Image to image → ✨ Edit with words): a tile that repeats with no visible join, for <b>🧵 fabric</b> prints, <b>🏠 wallpaper</b> or <b>🎮 game textures</b>. Start from <b>✏️ words</b>, a picture as <b>🖼 inspiration</b>, or <b>🔁 make your own picture tile</b>; make 1, 2 or 4 at once. The picture is shifted by half so its edges meet in the middle, and only that cross is repainted, so the edges always join up. The card shows your latest pattern repeated 3 × 3.",
+              "<b>⚡ Speed for MiniMax-H3-Image</b> (Create, Edit with words, Fill a shape and Seamless pattern): <b>⚡ Draft</b> (2 steps: a quick try to check the layout; grainy up close, so make the final one with Balanced or ★ Best) and <b>Balanced</b> (3 steps) use the pDMD few-step LoRA (about 2 GB, downloaded the first time) for roughly a third / half of the drawing time; <b>★ Best</b> is the usual 6 steps.",
               "<b>🔤 Fill a shape is simpler</b>: <b>1</b> Pick a shape (a word in a thick font, a ready shape, or your own), <b>2</b> Fill it with, <b>3</b> Put it on, then ✨ Edit. <b>4</b> Speed: ⚡ Quicker (1 step) or ✂ More accurate (2 steps, the exact outline). Your own font, stacking, ◐ Invert and a look to follow are under <b>⚙ More options</b>, and the tools that don't apply (painting, More pictures, Quick edits…) are hidden while it's picked.",
               "<b>✂ More accurate</b> (Fill a shape → 4 Speed, the default for a word or a ready shape): the picture is made in 2 steps, first the background over the whole frame, then the material painted into the shape only, so the shape's outline is exact and nothing spills over it or draws a border round it. It takes about twice as long; ⚡ Quicker does it in one step (the outline is then followed more loosely).",
               "Image to image → ✨ Edit with words: <b>🧩 Two pictures → one</b>, <b>🎭 Transform a person</b> and <b>🔤 Fill a shape</b> fold up (click the title; collapse all / expand all too); a folded one still shows the look you picked.",
@@ -2301,6 +2307,13 @@ const protoartApp = createApp({
               "<b>⚙ More options</b>: <b>🔤 Use your own font</b> (any font installed on this Mac, or 📂 a .ttf / .otf file, kept until the app closes), <b>Stack the letters</b>, <b>◐ Invert</b> (the filling goes all around the shape instead: letters cut out of a field of flowers) and <b>a look to follow</b> (an optional style picture).",
               "<b>MiniMax-H3-Image</b> gives the best result (about 20 minutes a step on an 8 GB Mac); <b>FLUX.2 Klein</b> is much quicker for tries. Thick, bold fonts and simple shapes work best: thin lines and small gaps get lost in the filling. While Fill a shape is picked, the tools that don't apply (painting, More pictures, Quick edits, the prompt box) are hidden.",
             ] },
+            { h: "🔁 Seamless pattern: a tile that repeats with no join", items: [
+              "Image to image → ✨ Edit with words → <b>🔁 Seamless pattern</b>, then press <b>✨ Edit</b>:",
+              "<b>1 Start from</b>: <b>✏️ Words</b> (no picture needed), <b>🖼 Inspired by a picture</b> (a new pattern from the things, colours and style of your picture), or <b>🔁 Make my picture tile</b> (your own texture, print or drawing, made to repeat: only the join is repainted, in one pass).",
+              "<b>2 The pattern is of</b>: a few words, e.g. “lemons and leaves on pale blue”, “mossy cobblestones”, “art deco gold fans on navy”. <b>3 It's for</b>: <b>🧵 Fabric</b> (a flat printed design), <b>🏠 Wallpaper</b> (an elegant wall design) or <b>🎮 Game texture</b> (a realistic surface seen from above, evenly lit, for games and 3D). <b>4 How many</b>: 1, 2 or 4 different patterns, one after the other.",
+              "How it works: the pattern is made first; then it's shifted by half its width and height, so its old edges meet in a cross in the middle and its new edges already join up; only that cross is repainted. The result tiles perfectly: <b>How it repeats</b> in the card shows it 3 × 3. The first step's picture is kept in your Library too.",
+              "FLUX.2 Klein is quick for tries; MiniMax-H3 gives richer detail (its ⚡ Speed works here too). Small, evenly spread motifs repeat best; one big centred subject doesn't make a good pattern.",
+            ] },
             { h: "⏩ Which upscaler? (Instant)", items: [
               "Tools → <b>Enhance & upscale</b> → Speed <b>⏩ Instant</b> makes the picture bigger in seconds with an upscaler alone (no new detail invented). Not sure? Use the buttons under the list: <b>⚡ Fastest</b> (<b>UltraSharp V2 Lite</b> for anything, <b>Real-ESRGAN fast</b>, <b>AnimeVideo v3</b> for anime) or <b>★ Best quality</b> (<b>UltraSharp V2</b> for anything, <b>Nomos WebPhoto</b> for phone and web photos, <b>AnimeSharp</b> for anime, line art and text). The list shows each one's speed; hover for what it's best at.",
               "<b>For everything:</b> 4x-UltraSharp (built in, crisp), UltraSharp V2 (most detail; slow: 1–3 min for a 1024 px picture on an 8 GB Mac), UltraSharp V2 Lite (fast), Real-ESRGAN fast. <b>Photos:</b> Real-ESRGAN (old or compressed pictures), Real-ESRGAN 2× (made for 2×), Nomos WebPhoto (noise, lens blur, JPEG/WebP), Nomos8kSC (clean photos, natural texture). <b>Anime, drawings & text:</b> AnimeSharp (extra crisp), Real-ESRGAN Anime (clean lines, flat colours), AnimeVideo v3 (fastest, a little softer).",
@@ -2694,7 +2707,7 @@ const protoartApp = createApp({
               "<b>Peel left an outline behind</b>: select a little past the edge (Grow the selection, or paint over it), or turn on ✂ Follow the edge exactly. <b>The .psd won't open</b>: it's a standard 8-bit RGB Photoshop file; a very big picture with many layers can be several hundred MB." ] },
             { h: "New in 1.5.1: if something doesn't work", items: [
               "<b>A MiniMax-H3-Image edit seems stuck on step 1 or 2</b>: it isn't. Each of its 6 drawing steps takes about 3 minutes on an 8 GB Mac (an Edit with words at 1280 takes about 20 minutes in all), so the step count moves slowly; leave it running. For a quicker edit pick <b>⚡ Fast</b> (2 steps) or <b>Balanced</b> (3) under ⚡ Speed, or a smaller size (768 or 1024).",
-              "<b>MiniMax-H3-Image ⚡ Speed</b> (Create and Edit with words, and in 🔤 Fill a shape): <b>⚡ Fast</b> draws in 2 steps and <b>Balanced</b> in 3, with the pDMD few-step LoRA (Apache-2.0, about 2 GB, downloaded the first time); <b>★ Best</b> is the usual 6 steps. The drawing is most of the time, so ⚡ Fast takes roughly a third as long (an edit at 1280 about 8 minutes instead of 20 on an 8 GB Mac). Fast can look a little softer up close and strong edits can drift more; Balanced cleans up flat areas. The same seed gives a somewhat different picture at each speed.",
+              "<b>MiniMax-H3-Image ⚡ Speed</b> (Create, Edit with words, 🔤 Fill a shape and 🔁 Seamless pattern): <b>⚡ Draft</b> draws in 2 steps and <b>Balanced</b> in 3, with the pDMD few-step LoRA (Apache-2.0, about 2 GB, downloaded the first time); <b>★ Best</b> is the usual 6 steps. The drawing is most of the time, so ⚡ Draft takes roughly a third as long (an edit at 1280 about 8 minutes instead of 20 on an 8 GB Mac). The same seed gives a somewhat different picture at each speed. ⚡ Draft is for trying ideas: up close it looks grainy and plastic, with a fine dotted texture, so make the final picture with Balanced (3 steps, much cleaner) or ★ Best",
               "<b>Training says it will take 16 hours</b>: on an 8 GB Mac that's about right for ERNIE (each step works through a very big model, and memory spills onto the disk). Use ★ Recommended (fewer steps for ERNIE), or train on an SD 1.5 model, which takes minutes to a few hours. The estimate becomes a measurement after the first steps.",
               "<b>MOSS-Image is very slow or the Mac stalls</b>: it's a big model; on Macs under 14 GB it uses its own <b>8 GB version</b> (downloaded ready-made the first time, ~10.5 GB, and copied to the Mac's own drive once if your models are on an external drive). Close other apps (web browsers especially), use Medium (768) size and Turbo, and make one picture at a time. <b>“MOSS-Image isn't on this Mac yet”</b> with Strict offline on: turn it off for the one-time download (~13 GB).",
               "<b>MOSS-Image misspells a word</b>: put the exact words in quotes and say where they go (“at the top, in large letters”); shorter text works best. Try another seed." ] },
@@ -2938,6 +2951,8 @@ const protoartApp = createApp({
       relightJob: false,
       // 🧊 Make 3D (Idol, 16 GB+ Macs): quality, kind of picture, the last result and the viewer's points
       // 🔤 Fill a shape: where the shape comes from (a word in a built-in font, a ready shape, or your own picture)
+      pat: Object.assign({ from: "words", what: "", use: "fabric", count: 1 }, loadJSON("protoart.pattern", {})),  // 🔁 Seamless pattern
+      patLast: "",
       shp: Object.assign({ how: "word", word: "", font: "Protoart Bubble", stack: false, ready: "heart", invert: false, exact: true }, loadJSON("protoart.fillshape", {})),
       splatOn: false,  // 🧊 Make 3D (Idol): hidden until it has been tested on a 16 GB Mac
       spl: { job: false, status: null, last: null, quality: loadJSON("protoart.splat.quality", "standard"), mode: "auto",
@@ -7126,7 +7141,7 @@ const protoartApp = createApp({
     },
     i2iFoldAll(shut) {  // Image to image → collapse all / expand all
       const all = {};
-      for (const k of ["picture", "chain", "cn", "prompt", "steps", "loras", "pair2", "transform", "shapes"]) all[k] = shut;
+      for (const k of ["picture", "chain", "cn", "prompt", "steps", "loras", "pair2", "transform", "shapes", "patterns"]) all[k] = shut;
       this.i2iFolds = all;
       saveJSON("protoart.i2iFolds", this.i2iFolds);
     },
@@ -7261,6 +7276,42 @@ const protoartApp = createApp({
       } catch (err) { this.error = "Couldn't load that font file: " + (err.message || err); }
     },
     shapeList() { return SHAPES; },
+    patSave() { saveJSON("protoart.pattern", this.pat); },
+    async patternRun() {  // 🔁 Seamless pattern: (1 the pattern, from words or a picture) 2 shifted by half, the cross repainted
+      const f = this.form, p = this.pat, n = [1, 2, 4].includes(+p.count) ? +p.count : 1;
+      if (p.from !== "words" && !f.init_image) return (this.error = "🔁 Seamless pattern: drop the picture in the box first.");
+      if (p.from === "words" && !String(p.what || "").trim()) return (this.error = "🔁 Seamless pattern: say what the pattern is of, e.g. “lemons and leaves on pale blue”.");
+      this.error = "";
+      let words, blank = null;
+      try {
+        words = await call("pattern_prompt", { source: p.from, use: p.use, what: p.what });
+        if (p.from === "words") {  // step 1 starts from a blank square (the edit model draws the whole pattern on it)
+          const cv = document.createElement("canvas");
+          cv.width = cv.height = 1024;
+          const g = cv.getContext("2d"); g.fillStyle = "#ffffff"; g.fillRect(0, 0, 1024, 1024);
+          blank = (await call("save_drawing", { data: cv.toDataURL("image/png"), name: "pattern_bg" })).path;
+        }
+      } catch (e) { return (this.error = "Couldn't start: " + (e.message || e)); }
+      const base = { edit_model: this.editModelId(), ...this.h3EditArgs(), refs: [], keep_faces: false, match_colors: false };
+      const seed0 = f.seed == null || +f.seed < 0 ? Math.floor(Math.random() * 2 ** 31) : +f.seed;
+      for (let i = 0; i < n; i++) {
+        const seed = (seed0 + i * 7919) % 2 ** 31, of = n > 1 ? ` (${i + 1} of ${n})` : "";
+        let start = p.from === "tile" ? f.init_image : null;
+        if (!start) {
+          this.status = `🔁 Seamless pattern${of}, step 1 of 2: the pattern…`;
+          const r = await this.runJob("edit_words", { ...base, seed, init_image: p.from === "words" ? blank : f.init_image, prompt: words.prompt });
+          if (!r || !r.path) return (this.status = "");
+          start = r.path;
+        }
+        this.status = `🔁 Seamless pattern${of}${p.from === "tile" ? "" : ", step 2 of 2"}: joining the edges…`;
+        let prep;
+        try { prep = await call("pattern_prep", { path: start }); } catch (e) { this.status = ""; return (this.error = "Couldn't prepare the picture: " + (e.message || e)); }
+        const done = await this.runJob("edit_words", { ...base, seed, init_image: prep.path, mask: prep.mask, mask_light: true, crop_stitch: false, prompt: words.seam });
+        if (!done || !done.path) return (this.status = "");
+        this.patLast = done.path;
+      }
+      this.status = "🔁 Done: the preview in the card shows it repeated 3 × 3.";
+    },
     shpSave() { saveJSON("protoart.fillshape", this.shp); this.$nextTick(() => this.shapePreview()); },
     shapeSize() {  // the picture's size: square for a ready shape, wide for a long word, tall for stacked letters
       const s = this.shp;
@@ -10860,7 +10911,8 @@ const protoartApp = createApp({
     async generateI2I() {
       if (!["edit", "remove"].includes(this.form.i2i_mode)) this.dropMismatchedLoras();
       const f = this.form;
-      const shapeDrawn = f.i2i_mode === "edit" && f.edit_recipe === "tf_shape" && this.shp.how !== "own";  // 🔤 drawn for you
+      const shapeDrawn = f.i2i_mode === "edit" && ((f.edit_recipe === "tf_shape" && this.shp.how !== "own")  // 🔤 drawn for you
+                                                   || (f.edit_recipe === "tf_pattern" && this.pat.from === "words"));  // 🔁 from words
       if (!f.init_image && !shapeDrawn) return (this.error = "Add a picture first.");
       if (f.i2i_mode === "faceswap") {  // 🔁 inswapper_128: no model or prompt involved
         const sw = f.swap || {};
@@ -10938,6 +10990,7 @@ const protoartApp = createApp({
         return;
       }
       if (f.i2i_mode === "edit") {  // ✨ FLUX.2 Klein, whatever model Create has
+        if (f.edit_recipe === "tf_pattern") return this.patternRun();  // 🔁 its own card and wording
         if (!(f.prompt || "").trim() && !(this.editModelId() === "flux3_klein_mlx_q4" && this.mvReady().length))
           return (this.error = "Describe the change in the prompt, e.g. “make the jacket red” or “turn it into a watercolour”.");
         this.error = "";
