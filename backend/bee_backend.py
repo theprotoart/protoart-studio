@@ -1232,6 +1232,8 @@ def handle_quick(cmd, a):
             out = ImageOps.invert(out)
         out.save(dest)
         return {"path": str(dest), "width": W, "height": H, "how": how}
+    if cmd == "file_exists":  # ↺ Use these settings: is the picture an edit started from still there
+        return Path(str(a.get("path") or "")).is_file()
     if cmd == "pattern_prompt":  # 🔁 Seamless pattern: the wording for step 1 and for the seam pass
         import pattern
         return {"prompt": pattern.first_prompt(str(a.get("source") or "words"), str(a.get("use") or "fabric"), str(a.get("what") or "")),

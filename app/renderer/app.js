@@ -1580,6 +1580,8 @@ const protoartApp = createApp({
         { id: "new", go: "tools", icon: "🆕", title: "What's new", summary: "The latest improvements, in one place", goLabel: "Open Tools",
           sections: [
             { h: "1.6.31: 🎞 Film looks, 🔁 seamless patterns, Krea 2 on 16 GB Macs, ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
+              "<b>↺ Use these settings works for Image to image pictures</b>: an edit goes back into Image to image with the picture it started from, the recipe and its card (🔤 Fill a shape's shape, filling and background, 🔁 Seamless pattern's choices, a Transform look's boxes), the edit model, ⚡ speed, work size and seed, so ✨ Edit makes it again (it used to fill in Create instead). Pictures made before this keep their recipe, model and seed.",
+              "Fixes: a job no longer sits at “~1 s left” when it runs longer than usual (it now projects from the steps done, then says it's taking longer than usual); on Macs under 16 GB, Image to image has no ⚡ Draft / Balanced (they need a 2048 work size, which ran out of memory) and a 2048 size set by them is put back.",
               "<b>The picture window lists what you picked</b> (<b>Picked</b>): the recipe or look and its choices (Fill a shape's shape, filling, background and outline; Seamless pattern's start, subject and use; a Transform look's boxes), MiniMax-H3's layout preset, ⚡ speed and Best-quality size, and Tools' film look and paper cut-out settings.",
               "<b>🎞 Film look</b> (Tools, and the 🔌 patchbay's <b>FILM</b> module): five classic film stocks on any picture, instantly (no model, no download): <b>🌸 Soft portrait</b> (low contrast, warm, kind to skin), <b>📸 Disposable</b> (a 2000s throwaway camera: punchy, green-cyan shadows, dark corners), <b>🏞 Clean slide</b> (crisp, saturated, deep blacks), <b>🖤 Gritty B&W</b> (heavy grain, deep blacks) and <b>🌃 Night tungsten</b> (cool teal shadows, red halos round lights). Strength, Grain and Glow round lights to taste, with a live preview.",
               "<b>Krea 2 Turbo on 16 GB Macs</b> (it needed 32 GB): its 8 GB text reader is kept at full quality but loaded on its own to read each new prompt, then put away before the picture model loads, so it never needs more than about 9 GB at once. The pictures are the same; a new prompt adds about half a minute, and more pictures from the same prompt start at once. Download it in Models (15.8 GB).",
@@ -4304,12 +4306,15 @@ const protoartApp = createApp({
             const left = this.genLeft(pr);
             // until two steps have been timed, the typical time of this kind of job (the time before the first
             // step, e.g. reading a big model's prompt, isn't a step and made the guess swing)
-            est = left ? elapsed + left.seconds : Math.max(est, elapsed + 1);
+            // past the typical time with only 1 step timed: project from the steps done so far (a 2-step job used
+            // to sit at "~1 s left" for its whole second step)
+            est = left ? elapsed + left.seconds : Math.max(est, elapsed * pr.steps / Math.max(1, pr.step), elapsed + 5);
           }
         }
+        const over = j.state === "running" && est - elapsed < 3;  // still running past the estimate
         const remaining = Math.max(1, est - elapsed);
         clock += remaining;
-        return { id: j.id, remaining, finishIn: clock, measured };
+        return { id: j.id, remaining, finishIn: clock, measured, over };
       });
     },
     elapsedText() {
@@ -4647,6 +4652,8 @@ const protoartApp = createApp({
           clearTimeout(slow);
         }
         this.queue = this.queue.filter((x) => x.cmd !== "preload");
+        // 1.6.31 builds set a 2048 work size with ⚡ Draft in Image to image; under 16 GB that runs out of memory
+        if (!this.h3SpeedEdit() && this.form.h3_side === "2048" && this.form.h3_speed) { this.form.h3_side = ""; this.form.h3_speed = ""; }
         this.loadContentStatus();
         call("privacy_get").then((r) => { this.strictOffline = !!(r && r.strict); this.updateAuto(); setTimeout(() => { this.upd.askReady = !!window.bee.updateCheck; }, 20000); }).catch(() => {});
         await this.refreshLoras();
@@ -7322,7 +7329,8 @@ const protoartApp = createApp({
       } catch (e) { return (this.error = "Couldn't start: " + (e.message || e)); }
       const opts = { "Start from": { words: "✏️ Words", inspired: "🖼 Inspired by a picture", tile: "🔁 My picture made to tile" }[p.from],
                      "Pattern of": p.from === "tile" ? "" : String(p.what || "").trim(), "For": p.from === "tile" ? "" : { fabric: "🧵 Fabric", wallpaper: "🏠 Wallpaper", game: "🎮 Game texture" }[p.use] };
-      const base = { edit_model: this.editModelId(), ...this.h3EditArgs(), refs: [], keep_faces: false, match_colors: false, recipe: "tf_pattern" };
+      const base = { edit_model: this.editModelId(), ...this.h3EditArgs(), refs: [], keep_faces: false, match_colors: false, recipe: "tf_pattern",
+                     recipe_state: { pat: JSON.parse(JSON.stringify(p)), picture: p.from === "words" ? "" : f.init_image || "" } };
       const seed0 = f.seed == null || +f.seed < 0 ? Math.floor(Math.random() * 2 ** 31) : +f.seed;
       for (let i = 0; i < n; i++) {
         const seed = (seed0 + i * 7919) % 2 ** 31, of = n > 1 ? ` (${i + 1} of ${n})` : "";
@@ -7424,6 +7432,11 @@ const protoartApp = createApp({
                "Put on": String(w.around || "").trim() || "a green meadow (example)", "Inverted": p.invert ? "yes" : "",
                "Outline": p.how === "own" ? "" : p.exact ? "✂ More accurate (2 steps)" : "⚡ Quicker (1 step)", ...(extra || {}) };
     },
+    shapeState() {  // 🔤 the Fill a shape card as it is, so ↺ Use these settings can put it back
+      const w = this.form.tf.words || {}, pics = this.form.tf.pics || {};
+      return { shp: JSON.parse(JSON.stringify(this.shp)), words: { material: w.material || "", around: w.around || "" },
+               pics: { style: pics.style || "" }, own: this.shp.how === "own" ? this.form.init_image || "" : "" };
+    },
     async shapeExact(rec) {  // ✂ Exact outline: 1 the background over the whole frame, 2 the material painted in the shape only
       const [W, H] = this.shapeSize(), f = this.form, words = f.tf.words || {};
       const slot = (id) => (rec.slots || []).find((x) => x.id === id) || {};
@@ -7438,7 +7451,7 @@ const protoartApp = createApp({
       catch (e) { return (this.error = "Couldn't start: " + (e.message || e)); }
       const style = (f.tf.pics || {}).style;
       const look = style ? "\nFollow the visual style, colour palette and finish of Picture 2 (a style reference only: don't copy its subject)." : "";
-      const base = { edit_model: this.editModelId(), ...this.h3EditArgs(), seed: f.seed, refs: style ? [style] : [], keep_faces: false, match_colors: false, recipe: "tf_shape" };
+      const base = { edit_model: this.editModelId(), ...this.h3EditArgs(), seed: f.seed, refs: style ? [style] : [], keep_faces: false, match_colors: false, recipe: "tf_shape", recipe_state: this.shapeState() };
       this.status = "🔤 Fill a shape, step 1 of 2: the background…";
       const first = await this.runJob("edit_words", { ...base, init_image: start, recipe_opts: this.shapeOpts({ "Step": "1 of 2: the background" }),
         prompt: `Replace this entire blank picture with ${bgw}, filling the whole frame from edge to edge, realistic, in its own natural colours, evenly detailed and lit. No objects added in the middle, no shapes, no letters, no text.${look}` });
@@ -8613,7 +8626,10 @@ const protoartApp = createApp({
     h3SetSpeed(v, where) {  // ⚡ Draft / Balanced set the size they're made for (about 2048 px): smaller, they speckle
       this.form.h3_speed = v;
       if (where === "create" && !this.h3SpeedOk("create")) { this.form.h3_best = true; this.status = "⚡ MiniMax-H3: 🧠 Best quality is on: Draft and Balanced draw at 2048, the size their speed-up is made for."; }
-      if (where === "edit" && !this.h3SpeedOk("edit")) { this.form.h3_side = "2048"; this.status = "⚡ MiniMax-H3: work size set to 2048, the size Draft and Balanced are made for."; }
+      if (where === "edit" && !this.h3SpeedOk("edit")) { this.form.h3_side = "2048"; this.status = "⚡ MiniMax-H3: work size set to 2048, the size Draft and Balanced are made for (about 15 min on a 16 GB Mac)."; }
+    },
+    h3SpeedEdit() {  // ⚡ Draft / Balanced in Image to image need a 2048 work size: more than an edit can use on a Mac under 16 GB
+      return !this.sys.ram_gb || this.sys.ram_gb >= 15.5;
     },
     filmLook() { return FILM_LAB.find((x) => x.id === this.post.film.stock) || FILM_LAB[0]; },
     filmPick(id) { this.post.film.stock = id; this.filmLive = true; this.filmPreview(); },
@@ -9332,7 +9348,8 @@ const protoartApp = createApp({
       return m && m.engine === "mlx" && FAST_I2I.includes(m.family) && m.cached !== false ? m : null;
     },
     h3EditArgs() {  // MiniMax-H3-Image's edit size (768 / 896 / 1024) and how big the extra pictures go in
-      return { h3_side: this.form.h3_side || "", h3_ref_detail: !!this.form.h3_ref_detail, h3_speed: this.form.h3_speed || "" };
+      // on a Mac under 16 GB an edit has no ⚡ speed (it needs a 2048 work size, which runs out of memory there)
+      return { h3_side: this.form.h3_side || "", h3_ref_detail: !!this.form.h3_ref_detail, h3_speed: this.h3SpeedEdit() ? this.form.h3_speed || "" : "" };
     },
     h3RoleOf(i) {  // 🧩 the role of picture i (0 = your picture, 1… = More pictures)
       const r = this.form.h3_roles || [];
@@ -9954,6 +9971,7 @@ const protoartApp = createApp({
       if (!e) return "";
       const guess = e.measured ? "" : " (rough guess until the first run)";
       if (job.state === "running" && this.paused) return `❚❚ Paused · ~${this.formatDuration(e.remaining)} left when resumed`;
+      if (job.state === "running" && e.over) return "taking longer than usual: almost done…";
       return job.state === "running"
         ? `~${this.formatDuration(e.remaining)} left`
         : `~${this.formatDuration(e.remaining)} · done in ~${this.formatDuration(e.finishIn)}${guess}`;
@@ -11100,7 +11118,9 @@ const protoartApp = createApp({
                                           keep_faces: !painted && f.keep_faces !== false && (!rec || !!(rec.set && rec.set.keep_faces)), match_colors: !painted && !!f.match_colors && !(rec && rec.group === "shape"),  // 🔤 never: the guide is black and white
                                           move_boxes: this.editModelId() === "flux3_klein_mlx_q4" && this.mvReady().length ? this.mvReady() : null,
                                           refs: tfb ? tfb.refs : (f.edit_refs || []).slice(0, this.editRefMax()), seed: f.seed, ...this.recipeEditArgs(),
-                                          recipe_opts: rec && rec.group === "shape" ? this.shapeOpts() : rec && rec.slots ? this.tfOpts(rec) : null });
+                                          recipe_opts: rec && rec.group === "shape" ? this.shapeOpts() : rec && rec.slots ? this.tfOpts(rec) : null,
+                                          recipe_state: rec && rec.group === "shape" ? this.shapeState() : rec && rec.slots
+                                            ? { words: { ...(f.tf.words || {}) }, pics: { ...(f.tf.pics || {}) } } : null });
         return;
       }
       if (f.i2i_mode === "outpaint" && f.outpaint_engine !== "model") {  // ↔ Expand with FLUX.2 Klein + outpaint LoRA
@@ -14159,8 +14179,38 @@ const protoartApp = createApp({
       } else this.content.msg = "";
       await this.loadContentStatus();
     },
+    async reuseEdit(r) {  // ↺ an Image to image picture: back into Image to image, as it was made
+      const s = r.settings || {}, f = this.form, st = s.recipe_state || {};
+      this.detail = null;
+      this.tab = "i2i";
+      f.i2i_mode = s.camera ? "camera" : s.combine ? "combine" : "edit";
+      if (s.model) f.edit_model = s.model;
+      if (s.recipe && EDIT_RECIPES.some((x) => x.id === s.recipe)) { if (f.edit_recipe !== s.recipe) this.pickEditRecipe(s.recipe); }
+      else if (f.edit_recipe) this.pickEditRecipe(f.edit_recipe);  // (picking it again takes it off)
+      f.seed = r.seed;
+      f.h3_speed = s.h3_speed === "draft" ? "fast" : s.h3_speed === "balanced" ? "balanced" : "";
+      if (s.h3_side) f.h3_side = s.h3_side;
+      f.match_colors = !!(s.edit && s.edit.match_colors);
+      if (st.shp) { Object.assign(this.shp, st.shp); this.shpSave(); }
+      if (st.pat) { Object.assign(this.pat, st.pat); this.patSave(); }
+      if (st.words) f.tf.words = { ...(f.tf.words || {}), ...st.words };
+      if (st.pics) f.tf.pics = { ...(f.tf.pics || {}), ...st.pics };
+      let pic = s.init_image || "";
+      if (s.recipe === "tf_shape") pic = st.own || "";  // a word or a ready shape is drawn again from the card
+      if (s.recipe === "tf_pattern") pic = st.picture || "";
+      if (pic) { f.init_image = pic; this.controlMap = null; }
+      if (!s.recipe) {
+        f.prompt = s.user_prompt || r.prompt;
+        f.edit_refs = (s.edit_refs || []).slice();
+      }
+      const gone = pic && !(await call("file_exists", { path: pic }).catch(() => true));
+      this.status = gone ? "↺ The settings are back in Image to image, but the picture it started from has been moved or deleted: drop it in again."
+        : s.recipe_state || !s.recipe ? "↺ Everything that made this picture is back in Image to image: press ✨ Edit to make it again (the same seed gives the same picture)."
+        : "↺ The recipe, model and seed are back in Image to image (this picture was made before the card's choices were saved: check them, then ✨ Edit).";
+    },
     async reuse(r) {
       const s = r.settings || {};
+      if (["word_edit", "combined", "camera_angle"].includes(r.kind)) return this.reuseEdit(r);
       this.form.model = s.model || r.model;
       await this.loadSamplers(false);
       Object.assign(this.form, {

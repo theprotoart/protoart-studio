@@ -5720,6 +5720,19 @@ class Engine:
                 settings["recipe_opts"] = recipe_opts(args)
         if h3:
             settings["h3_speed"] = {2: "draft", 4: "balanced"}.get(steps, "best")
+        # ↺ Use these settings brings an edit back into Image to image: your picture, your own words, the extra pictures,
+        # the recipe card's choices (Fill a shape, Seamless pattern, a look's boxes) and the work size
+        if src.get("path"):
+            settings["init_image"] = str(src["path"])
+        if (args.get("prompt") or "").strip() and args.get("prompt") != prompt:
+            settings["user_prompt"] = str(args["prompt"])[:4000]
+        if refs:
+            settings["edit_refs"] = [str(r) for r in refs]
+        rs = args.get("recipe_state")
+        if isinstance(rs, dict) and len(json.dumps(rs, default=str)) < 8000:
+            settings["recipe_state"] = rs
+        if h3 and args.get("h3_side"):
+            settings["h3_side"] = str(args["h3_side"])
         if recipe in ("replace_subject", "head_swap"):
             # 🔁 Replace subject / 🧑 Head swap put a person from another photo into the picture: the same safeguard as
             # face swap (never saved when the checker is clearly sure the result is explicit)
