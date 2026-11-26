@@ -6,6 +6,7 @@
 - Models: a model that runs on less memory in parts (Krea 2 Turbo) shows "needs 16 GB RAM (32 GB+ is faster)" (`needRamText`), not 32 GB.
 - What's new: the 1.6.31 list no longer names the ★ starred looks twice.
 - 🍬 Sweet treat (`tf_sweet`, Transform): an object or simple shape rebuilt as peppermint candy, sugared gummy, jelly, cupcake, layer cake or chocolate (a `choice` slot whose options carry their own wording), or your own treat; text in an item box picks ✏️ My own (a choice with an `own` option gives way to a filled-in box). Prompt only, no LoRA.
+- 🛠 Restore & technical: the Quick edits Repair & colourize, Repair keep black & white, Colourize, Sharpen & restore detail (`EDIT_QUICK`) and MiniMax's Exploded view, Blueprint, CAD views, Product shot, Render → film still and Map → game view (`H3_QUICK`) are Transform tiles now (`sec: "fix"`, their own row under the looks, with 🔬 Ultra-detail upscale, left out of ▶ Run every look), with the same wording (`Picture 1` for `<Picture 1>`), so they work with every edit model.
 - 🙂 Faces selection tool (`selFindFaces`, `selFaceAt`, key F): the face swap's finder (`faceswap_faces`) outlines the faces; a click adds an oval round that face (with hair and chin) to the painted area, ⌥ takes it away; for repairing only some faces.
 - 🔤 Fill a shape: the own-font picker moved from ⚙ More options to under the font buttons.
 - Tools: module titles shrink and wrap between words so they never run under the ↺ reset and lamp (seen with the Mac's own fonts).

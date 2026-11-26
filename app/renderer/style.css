@@ -634,3 +634,4 @@ details.fine summary { cursor: pointer; }
 .tf-dirs { display: grid; grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); gap: 4px; margin-top: 4px; }
 .tf-dirs button { padding: 4px 2px; font-size: 11px; }
 .tf-dirs button.on { border-color: #f5c04a; color: #f5c04a; }
+.tf-sec { margin-top: 12px; }
