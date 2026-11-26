@@ -20,3 +20,14 @@ def test_installing_shown_and_ram_text():
     app = (ROOT / "app" / "renderer" / "app.js").read_text()
     assert "upd.busy === 'install'" in html and "Installing…" in html
     assert "needRamText(m)" in html and "GB+ is faster" in app
+
+
+def test_sweet_treat_faces_and_font():
+    app = (ROOT / "app" / "renderer" / "app.js").read_text()
+    html = (ROOT / "app" / "renderer" / "index.html").read_text()
+    blk = app[app.index('id: "tf_sweet"'):][:3000]
+    assert 'kind: "choice"' in blk and '"cupcake"' in blk and '"own"' in blk and "exact form" in blk
+    assert 'x[0] === "own")' in app                                   # typing your own treat picks My own
+    assert 'id: "faces", icon: "🙂"' in app and "selFaceAt(p, sub)" in app and 'call("faceswap_faces"' in app
+    word = html[html.index("<template v-if=\"shp.how === 'word'\">"):][:2500]
+    assert "shape-font-own" in word                                    # own font right under the font buttons

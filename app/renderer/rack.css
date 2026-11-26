@@ -2885,3 +2885,8 @@ section.cfold > label:first-child:hover .cfold-chev, .i2ifold > h3:hover .cfold-
 .splat-gate ol { margin: 4px 0 6px 18px; padding: 0; }
 .splat-gate code.sel { user-select: all; word-break: break-all; }
 .splat-notice { font-size: 11px; opacity: 0.7; margin-top: 6px; }
+/* titles never run under the ↺ and lamp in the module's top corner: the title column may shrink, and long titles wrap
+   between words (MATCH / COLOURS) with a little less letter spacing */
+.rack-module .mod-head { grid-template-columns: auto minmax(0, 1fr); }
+.rack-module .mod-head h3, .rack-module .mod-head .mod-sub { min-width: 0; max-width: 100%; overflow-wrap: break-word; }
+.rack-module .mod-head:has(.mod-reset) h3 { padding-right: 52px; letter-spacing: .1em; }

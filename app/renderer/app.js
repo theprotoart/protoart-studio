@@ -797,6 +797,21 @@ const EDIT_RECIPES = [
             { id: "colours", kind: "item", label: "Colours (optional)", add: "Use paper in {x}." }],
     prompt: "Keep the subject exactly recognizable: the same face, features, hairstyle, skin tone, pose and clothes for a person, the same shape and details for a thing or a place, and the same composition.\nRebuild the whole picture as a layered paper-cut artwork.\nThe subject and the scene are cut from sheets of thick coloured paper stacked in many layers, from the background at the back to the subject at the front. The face and the main shapes keep their exact outline and features, simplified into clean cut shapes with smooth curved edges; the hair, the clothes and the details are separate cut pieces.\nEvery layer casts a soft, real shadow on the one behind it, giving depth; the paper has a fine visible texture and slightly uneven edges, with a few curled or quilled paper details.\nA harmonious palette of matte paper colours, softly lit from one side.\nA real photograph of a real handmade paper artwork. No text.",
     licence: "no LoRA: the edit model alone" },
+  { id: "tf_sweet", label: "🍬 Sweet treat", group: "transform", by: "", files: null, p1: "the shape",
+    head: "Picture 1 is the reference: an object or a simple shape (a cube, a logo, a toy, a word).",
+    tip: "Turns an object or a simple shape into something good enough to eat: peppermint candy, a sugared gummy, jelly, a cupcake, a layer cake or chocolate (or a treat you name), keeping its exact form. Try it on a plain cube, a logo or a toy.",
+    slots: [{ id: "style", kind: "style", label: "A look to follow (optional)" },
+            { id: "treat", kind: "choice", label: "Made of", dflt: "peppermint",
+              options: [["peppermint", "🍬 Peppermint", "The treat: a glossy hard candy with red and white peppermint swirls that follow the form and spiral on every face, a translucent amber glow at the edges, a few tiny sugar sparkles."],
+                        ["gummy", "🍑 Sugared gummy", "The treat: a soft, squishy translucent orange gummy candy with rounded, slightly bulging edges, a light coating of sugar crystals on top, glowing where the light passes through it."],
+                        ["jelly", "🍒 Jelly", "The treat: clear, glossy dark-cherry jelly, a little wobbly, with soft rounded edges, a few tiny air bubbles inside and bright wet highlights."],
+                        ["cupcake", "🧁 Cupcake", "The treat: a cupcake: the form is iced with glossy pink and cream icing that drips over the edges, a swirl of whipped cream on top, a few pastel sprinkles, and the lower part sits in a pleated paper cupcake case."],
+                        ["cake", "🍰 Layer cake", "The treat: a slice of layered sponge cake: golden sponge layers with cream and pink filling between them showing on the sides, smooth cream frosting on top with a row of piped cream swirls along the edges and chocolate dripping down one corner."],
+                        ["chocolate", "🍫 Chocolate", "The treat: rich glossy milk chocolate with smooth tempered surfaces, soft rounded edges, a few curls and shavings of chocolate and a light dusting of cocoa."],
+                        ["own", "✏️ My own", "The treat: the one described below."]] },
+            { id: "own", kind: "item", label: "Or your own treat (a picture, words or both)", add: "The treat: {x}." }],
+    prompt: "Turn the object or shape in Picture 1 into a delicious sweet treat, keeping its exact form: the same outline, proportions, angle, edges and every part of its shape, only now made of the treat described below.\nThe treat follows the form: its stripes, layers, icing and highlights wrap around the real faces and edges of the shape, and its corners are softly rounded the way a real sweet would be.\nA soft, polished 3D illustration with a gentle painterly finish: glossy, appetising surfaces, soft light from the top left, a soft lilac shadow on the ground, on a plain pastel background that fades from pale cream to soft pink.\nOne treat on its own, centred, nothing else in the picture. No text, no plate.",
+    licence: "no LoRA: the edit model alone" },
   { id: "tf_ultra_detail", label: "🔬 Ultra-detail upscale", group: "transform", by: "", files: null, p1: "the photo",
     head: "Picture 1 is the photo to enhance.", set: { keep_faces: true, match_colors: true }, nostyle: true, klein: true,
     tip: "Redraws the photo's fine detail (pores, hair strands, lashes, fabric weave, stitching) without changing the person, the light or the colours. Runs on FLUX.2 Klein (9B when this Mac has room, else 4B): it keeps faces closer to the original and adds less “AI texture” than MiniMax-H3, which over-sharpened skin and changed small features in tests. For true 4K afterwards, run Tools → ⏩ Upscale on the result.",
@@ -1523,10 +1538,12 @@ const protoartApp = createApp({
         { id: "object", icon: "⬚", label: "Object", tip: "Object selection: drag a box around something and its outline is found (O)" },
         { id: "text", icon: "🔤", label: "Text", tip: "Select text: finds the writing in the picture by itself (signs, logos, captions, watermarks), e.g. to peel it onto its own layer or remove it (T). To change the words, use Tools → 🔤 Replace text (picture models can't spell). Uses Florence-2 (~1.5 GB the first time)" },
         { id: "words", icon: "🔍", label: "Words", tip: "Select by words: type what to select (“the red shirt”, “the dog”, “the sky”) and press Return; Florence-2 finds it (the model Quick describe uses: ~1.5 GB once)" },
+        { id: "faces", icon: "🙂", label: "Faces", tip: "Select faces: finds the faces in the picture and outlines them; click a face to add it (with its hair) to the area, ⌥ Option-click to take it away. E.g. to repair or restore only some of the faces in an old photo (F)" },
         { id: "subject", icon: "👤", label: "Subject", tip: "Select subject: finds the people, animals or main thing in the picture by itself, like Photoshop's Select Subject (S). ~224 MB download the first time" },
       ],
       brush: { show: false, x: 0, y: 0 },
       objFinding: false,   // object selection is working out the outline
+      selFaces: null,      // 🙂 Faces: {for: picture, boxes: [[x0,y0,x1,y1] as 0..1]} found in the picture being painted
       selWords: "",        // 🔍 Select by words: what to select
       soundsOn: window.ProtoSound ? window.ProtoSound.enabled : true,
       TAG_DICT: window.TAG_DICT || {}, ideas: { cat: Object.keys(window.TAG_DICT || {})[0] || "", q: "" },
@@ -1771,6 +1788,10 @@ const protoartApp = createApp({
             { h: "1.6.32: a sturdier ↻ Install and restart", items: [
               "↻ Install and restart: the new version is now copied in while the app is still open (it says Installing…, about a minute), then the app closes, the new one is swapped in at once and opens. Before, the copy happened after the app closed, so opening it again too soon left you on the old version.",
               "Models: Krea 2 Turbo's card says it needs 16 GB (32 GB+ is faster) instead of 32 GB.",
+              "<b>🍬 Sweet treat</b> (🎭 Transform): any object or simple shape (a cube, a logo, a toy) turned into peppermint candy, a sugared gummy, jelly, a cupcake, a layer cake or chocolate, keeping its exact form; or type a treat of your own.",
+              "<b>🙂 Faces</b> selection tool (Image to image painting): finds the faces and outlines them; click the ones to select (⌥ Option-click takes one away). E.g. repair or restore only some faces of an old photo.",
+              "<b>🔤 Fill a shape</b>: <i>Your own font</i> (any font on this Mac, or a font file) sits right under the font buttons instead of in More options.",
+              "Tools: long module names no longer run under the ↺ button in the module's corner.",
             ] },
             { h: "1.6.31: ✨ Photo effects, ✨ Effects lab, 🎞 Film looks, 🔁 seamless patterns, Krea 2 on 16 GB Macs, ⚡ Fast MiniMax-H3 and a simpler Fill a shape", items: [
               "<b>✨ 23 photo-effect looks</b> in 🎭 Transform a person (they work on people, things and places): ❄️ Winter storm (snow settling on the head, shoulders and every edge), 🌧 Soaked in rain (wet hair and clothes, water dripping off), 🖌 Concept-art painting, 🔦 Dramatic light, 🌲 Double exposure (drop a landscape picture or describe one), 💧 Made of water, 🔥 Apocalypse, 💨 Made of smoke, ✏️ Pencil sketch, 🎨 Watercolour splash, 😃 Cartoon portrait, 📄 Torn paper, 🎇 Sparkler light trail, 🪟 Fluted glass, 💥 Dispersion, 📺 Glitch, 🗽 Statue, 🔷 Low-poly, 🖋 Ink splash, ⛪ Stained glass, 💠 Hologram, 🧵 Embroidered patch and ✂️ Layered paper cut. The same looks are in Create → 🎨 Styles → <b>Effects</b> (with ✒️ Line engraving). Quick edits that repeated a Transform look (Turnaround sheet, Comic panel, Crime-game art) now live only in Transform.",
@@ -3142,6 +3163,8 @@ const protoartApp = createApp({
               "Checkpoints smaller than 1.5 GB are treated as LoRAs/embeddings, not base models. Watched folders are re-checked every few seconds; switch tabs to refresh the list.",
               "ERNIE and other newer models need their whole model folder (the one with <i>model_index.json</i>), or add them from Hugging Face." ] },
             { h: "Image to image, inpainting and ControlNet", items: [
+              "<b>🍬 Sweet treat</b> (🎭 Transform): drop a picture of an object or a simple shape (a plain cube, a logo, a toy) in the first box and pick what it's made of: 🍬 Peppermint, 🍑 Sugared gummy, 🍒 Jelly, 🧁 Cupcake, 🍰 Layer cake or 🍫 Chocolate; or type your own treat in the last box (that picks ✏️ My own by itself). The shape keeps its exact form, on a soft pastel background.",
+              "<b>🙂 Select faces</b> (Image to image, the painting tools under the picture, or F): the faces are found and outlined in yellow; click one to add it with its hair to the area, ⌥ Option-click to take it away. With 🧹 Repair &amp; colourize or any edit, only the selected faces change.",
               "<b>🎭 Transform a person</b> (✨ Edit with words): pick a look, drop a clear photo of the person in the first box, then optionally a style picture and the items (pictures, words or both). The [BRACKETS] in the prompt are filled in from the boxes when you press Generate. FLUX.2 Klein takes 3 extra pictures; for more, type some items or pick FLUX 3 (9) or MiniMax-H3 (15) as the edit model.",
               "ControlNet works with <b>SD 1.5</b> models (built-in and your own) and <b>SDXL</b> models (your own SDXL ControlNets from Civitai); image to image and inpainting work with SD 1.5 and SDXL (not ERNIE).",
               "Inpainting/Expand and ControlNet can't be used together yet: the app tells you to switch one off.",
@@ -7887,6 +7910,8 @@ const protoartApp = createApp({
         this.sel = { tool, start: p, end: p, sub };
       } else if (tool === "wand") {
         this.wandAt(p, sub);
+      } else if (tool === "faces") {
+        this.selFaceAt(p, sub);
       }
       this.selDraw();
     },
@@ -7934,6 +7959,7 @@ const protoartApp = createApp({
     setMaskTool(id) {
       if (id === "subject") return this.selAutoSubject(this.mask.subtract);  // a one-click action, not a brush
       if (id === "text") return this.selAutoText(this.mask.subtract);
+      if (id === "faces") this.selFindFaces();
       this.mask.tool = id;
       this.mask.erase = id === "erase";
       this.sel = null;
@@ -7973,7 +7999,7 @@ const protoartApp = createApp({
         this.status = `Brush size ${this.mask.size}`;
         return;
       }
-      const map = { b: "brush", e: "erase", l: "lasso", r: "rect", p: "poly", w: "wand", o: "object", s: "subject", t: "text" };
+      const map = { b: "brush", e: "erase", l: "lasso", r: "rect", p: "poly", w: "wand", o: "object", s: "subject", t: "text", f: "faces" };
       const id = map[(e.key || "").toLowerCase()];
       if (id) this.setMaskTool(id);
     },
@@ -7983,6 +8009,13 @@ const protoartApp = createApp({
       const ctx = c.getContext("2d");
       ctx.clearRect(0, 0, c.width, c.height);
       if (this._ants && this._ants.w === c.width && this._ants.h === c.height) ctx.putImageData(this._ants.img, 0, 0);
+      if (this.mask.tool === "faces" && this.selFaces && this.selFaces.for === this.maskTarget()) {  // 🙂 the faces to click
+        const kk = c.width / Math.max(1, c.getBoundingClientRect().width || c.width);
+        ctx.lineWidth = 2 * kk; ctx.setLineDash([]);
+        for (const e of this.selFaceEllipses(c.width, c.height)) {
+          ctx.strokeStyle = "rgba(255, 210, 80, .95)"; ctx.beginPath(); ctx.ellipse(e.cx, e.cy, e.rx, e.ry, 0, 0, Math.PI * 2); ctx.stroke();
+        }
+      }
       const s = this.sel;
       if (!s) return;
       const k = (s.pts && s.pts[0] && s.pts[0].k) || (s.start && s.start.k) || 1;
@@ -8008,6 +8041,39 @@ const protoartApp = createApp({
       if (s.tool === "poly") {  // corner points; the first one is where to click to close
         s.pts.forEach((q, i) => { ctx.beginPath(); ctx.arc(q.x, q.y, (i ? 2.5 : 5) * k, 0, Math.PI * 2); ctx.fillStyle = i ? "#fff" : "rgba(255,200,80,.95)"; ctx.fill(); });
       }
+    },
+    async selFindFaces() {  // 🙂 Faces: find them once per picture (the face swap's finder)
+      const src = this.maskTarget();
+      if (!src || (this.selFaces && this.selFaces.for === src) || this.objFinding) return this.selDraw();
+      this.objFinding = true;
+      this.status = "Finding the faces…";
+      try {
+        const r = await call("faceswap_faces", { path: src, init_image: src });
+        this.selFaces = { for: src, boxes: ((r && r.faces) || []).map((f) => f.box) };
+        this.status = this.selFaces.boxes.length
+          ? `🙂 ${this.selFaces.boxes.length} face${this.selFaces.boxes.length === 1 ? "" : "s"} found (yellow outlines): click the ones to select, ⌥ Option-click to take one away`
+          : "🙂 No faces found: paint them with 🖌 Brush or drag a ▭ Box instead";
+      } catch (e) {
+        this.error = "Finding the faces failed: " + (e.message || e);
+      } finally { this.objFinding = false; this.selDraw(); }
+    },
+    selFaceEllipses(W, H) {  // each found face as an oval with room for the hair, chin and ears (canvas pixels)
+      return ((this.selFaces && this.selFaces.boxes) || []).map(([x0, y0, x1, y1]) => {
+        const w = (x1 - x0) * W, h = (y1 - y0) * H;
+        return { cx: (x0 + x1) / 2 * W, cy: (y0 + y1) / 2 * H - h * 0.08, rx: w * 0.78, ry: h * 0.85 };
+      });
+    },
+    selFaceAt(p, sub) {  // 🙂 a click: the face under it (or the nearest one) joins the area, or leaves it with ⌥
+      const cv = this.$refs.maskCanvas;
+      if (!this.selFaces || this.selFaces.for !== this.maskTarget()) return this.selFindFaces();
+      const els = this.selFaceEllipses(cv.width, cv.height);
+      if (!els.length) return;
+      const inside = (e) => ((p.x - e.cx) / e.rx) ** 2 + ((p.y - e.cy) / e.ry) ** 2;
+      const e = els.reduce((a, b) => (inside(b) < inside(a) ? b : a));
+      if (inside(e) > 9) return (this.status = "🙂 Click on one of the yellow outlines");
+      const pts = Array.from({ length: 48 }, (_, i) => ({ x: e.cx + e.rx * Math.cos(i / 48 * Math.PI * 2), y: e.cy + e.ry * Math.sin(i / 48 * Math.PI * 2) }));
+      this.selFill(pts, sub);
+      this.status = sub ? "🙂 Face taken away" : "🙂 Face added: click more faces, or describe the change and press ✨ Edit";
     },
     selFill(pts, sub) {  // fill a closed outline into the painted area (or cut it out)
       const ctx = this.$refs.maskCanvas.getContext("2d");
@@ -11837,7 +11903,10 @@ const protoartApp = createApp({
       for (const sl of r.slots || []) {
         if (sl.kind === "word") continue;  // 🔤 the word becomes Picture 1 itself (shapeWordPicture)
         if (sl.kind === "choice") {  // a few buttons (💥 Dispersion's direction): the picked one, or its default
-          const v = String(words[sl.id] || sl.dflt || ""), o = (sl.options || []).find((x) => x[0] === v);
+          let v = String(words[sl.id] || sl.dflt || "");
+          // 🍬 typing your own treat picks ✏️ My own (a choice with an "own" option gives way to a filled-in box)
+          if ((sl.options || []).some((x) => x[0] === "own") && (r.slots || []).some((x) => x.kind === "item" && String(words[x.id] || "").trim())) v = "own";
+          const o = (sl.options || []).find((x) => x[0] === v);
           if (o && o[2]) adds.push(o[2]);  // the option's own wording (💥 Subtle / Medium / Extreme)
           else if (v && sl.add) adds.push(sl.add.split("{x}").join(v));
           continue;
