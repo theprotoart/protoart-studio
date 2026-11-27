@@ -812,6 +812,20 @@ const EDIT_RECIPES = [
             { id: "own", kind: "item", label: "Or your own treat (a picture, words or both)", add: "The treat: {x}." }],
     prompt: "Turn the object or shape in Picture 1 into a delicious sweet treat, keeping its exact form: the same outline, proportions, angle, edges and every part of its shape, only now made of the treat described below.\nThe treat follows the form: its stripes, layers, icing and highlights wrap around the real faces and edges of the shape, and its corners are softly rounded the way a real sweet would be.\nA soft, polished 3D illustration with a gentle painterly finish: glossy, appetising surfaces, soft light from the top left, a soft lilac shadow on the ground, on a plain pastel background that fades from pale cream to soft pink.\nOne treat on its own, centred, nothing else in the picture. No text, no plate.",
     licence: "no LoRA: the edit model alone" },
+  { id: "tf_style_transfer", label: "🎨 Style transfer", group: "transform", sec: "style", by: "", files: null, p1: "your picture", p2: "the style",
+    head: "Picture 1 is the content: the picture to restyle.",
+    tip: "Redraws your picture in the style of another picture (a painting, an illustration, a film still, a photo with a look you like), keeping its content: drop your picture in the first box and the style picture in the Style box, or describe the style in words.",
+    slots: [{ id: "style", kind: "style", label: "Style picture" },
+            { id: "amount", kind: "choice", label: "How much style", dflt: "balanced",
+              options: [["subtle", "Subtle", "Amount: subtle. Keep the photo's realism and detail; take on mostly the colour palette, the light and the surface texture of the style."],
+                        ["balanced", "Balanced", "Amount: balanced. Redraw it fully in the style: its medium, brushwork or line, shapes, colour palette, light and finish, while the content stays exactly the same."],
+                        ["strong", "Strong", "Amount: strong. Transform it completely into the style, as if the style's artist had made this picture from scratch: their medium, exaggeration, simplification, palette and finish everywhere, while the subject, the pose and the layout stay recognizable."]] },
+            { id: "keep", kind: "choice", label: "Keep", dflt: "exact",
+              options: [["exact", "Exact layout", "Keep the exact composition, framing, poses, faces, expressions and every object of Picture 1 in the same places; only the style changes."],
+                        ["loose", "Freer", "Keep the subject, the pose and the overall layout of Picture 1, but small details may change to suit the style."]] },
+            { id: "words", kind: "item", label: "Or describe the style (optional)", add: "The style: {x}." }],
+    prompt: "Style transfer: redraw Picture 1 in the style of the style reference, keeping the content and characteristics of Picture 1.\nTake from the style reference only its style: the medium (paint, ink, pencil, 3D, photo), the brushwork or line, the way shapes are simplified, the colour palette, the lighting and the finish. Never copy its subject, its people, its objects or its layout.\nFrom Picture 1 keep everything that is there: the same people with the same faces, identity and expressions, the same clothes, objects, background and composition.",
+    licence: "no LoRA: the edit model alone" },
   { id: "tf_repair_colour", label: "🧽 Repair & colourize", group: "transform", sec: "fix", by: "", files: null, p1: "the photo",
     nostyle: true, head: "Picture 1 is the reference: an old photo.",
     tip: "Repair and colourize this old photo.",
@@ -1838,6 +1852,7 @@ const protoartApp = createApp({
             { h: "1.6.32: a sturdier ↻ Install and restart", items: [
               "↻ Install and restart: the new version is now copied in while the app is still open (it says Installing…, about a minute), then the app closes, the new one is swapped in at once and opens. Before, the copy happened after the app closed, so opening it again too soon left you on the old version.",
               "Models: Krea 2 Turbo's card says it needs 16 GB (32 GB+ is faster) instead of 32 GB.",
+              "<b>🎨 Style transfer</b> (Image to image → ✨ Edit with words, above the Transform looks): your picture redrawn in the style of another picture (or a style you describe), with How much style (Subtle, Balanced, Strong) and Keep (Exact layout or Freer).",
               "<b>🛠 Restore &amp; technical</b> tiles (under the 🎭 Transform looks): 🧽 Repair &amp; colourize, 🧹 Repair keeping black &amp; white, 🎨 Colourize, 🔍 Sharpen &amp; restore detail, 🔬 Ultra-detail upscale, 🔩 Exploded view, 📐 Blueprint, 🛠 CAD views, 🛍 Product shot, 🎞 Render → film still and 🗺 Map → game view are one-click tiles now (they were Quick edits), and work with every edit model.",
               "<b>🍬 Sweet treat</b> (🎭 Transform): any object or simple shape (a cube, a logo, a toy) turned into peppermint candy, a sugared gummy, jelly, a cupcake, a layer cake or chocolate, keeping its exact form; or type a treat of your own.",
               "<b>🙂 Faces</b> selection tool (Image to image painting): finds the faces and outlines them; click the ones to select (⌥ Option-click takes one away). E.g. repair or restore only some faces of an old photo.",
@@ -3215,6 +3230,7 @@ const protoartApp = createApp({
               "ERNIE and other newer models need their whole model folder (the one with <i>model_index.json</i>), or add them from Hugging Face." ] },
             { h: "Image to image, inpainting and ControlNet", items: [
               "<b>🍬 Sweet treat</b> (🎭 Transform): drop a picture of an object or a simple shape (a plain cube, a logo, a toy) in the first box and pick what it's made of: 🍬 Peppermint, 🍑 Sugared gummy, 🍒 Jelly, 🧁 Cupcake, 🍰 Layer cake or 🍫 Chocolate; or type your own treat in the last box (that picks ✏️ My own by itself). The shape keeps its exact form, on a soft pastel background.",
+              "<b>🎨 Style transfer</b> (Image to image → ✨ Edit with words, the wide button above the Transform looks): drop your picture in the first box and the style picture (a painting, an illustration, a film still) in the Style box, or describe the style in words. <b>How much style</b>: Subtle (mostly colours, light and texture), Balanced, or Strong (as if the style's artist drew it). <b>Keep</b>: Exact layout (the same faces, poses and places) or Freer. Only the style is taken from the style picture, never its people or objects. MiniMax-H3 gives the closest result; FLUX.2 Klein is quicker.",
               "<b>🛠 Restore &amp; technical</b> (Image to image → ✨ Edit with words, under the 🎭 Transform looks): drop the picture in the first box and press a tile: 🧽 Repair &amp; colourize, 🧹 Repair keeping black &amp; white, 🎨 Colourize or 🔍 Sharpen an old photo (with 🙂 Faces or the brush, only the parts you select change); 🔩 Exploded view, 📐 Blueprint, 🛠 CAD views or 🛍 Product shot of an object; 🎞 a grey 3D render as a film still; 🗺 an illustrated map as a game view.",
               "<b>🙂 Select faces</b> (Image to image, the painting tools under the picture, or F): the faces are found and outlined in yellow; click one to add it with its hair to the area, ⌥ Option-click to take it away. With 🧹 Repair &amp; colourize or any edit, only the selected faces change.",
               "<b>🎭 Transform a person</b> (✨ Edit with words): pick a look, drop a clear photo of the person in the first box, then optionally a style picture and the items (pictures, words or both). The [BRACKETS] in the prompt are filled in from the boxes when you press Generate. FLUX.2 Klein takes 3 extra pictures; for more, type some items or pick FLUX 3 (9) or MiniMax-H3 (15) as the edit model.",
@@ -11878,7 +11894,7 @@ const protoartApp = createApp({
     },
     batchLooks(which = this.lookBatch.which) {  // 🎭 the looks a batch runs: all, or ★ starred
       const klein = ["flux2_klein_mlx_q4", "flux2_klein9b_mlx_q4"].includes(this.editModelId());
-      return EDIT_RECIPES.filter((r) => r.slots && r.group === "transform" && r.id !== "tf_ultra_detail" && r.sec !== "fix"  // (an upscale, and 🛠 repairs, aren't looks)
+      return EDIT_RECIPES.filter((r) => r.slots && r.group === "transform" && r.id !== "tf_ultra_detail" && !r.sec  // (an upscale, and 🛠 repairs, aren't looks)
         && (!r.files || this.editRecipeLora(r)) && (!r.klein || klein)
         && (which === "star" ? this.tfStars.includes(r.id) : true));
     },
@@ -11968,6 +11984,7 @@ const protoartApp = createApp({
         if (pic) { refs.push(pic); n = refs.length + 1; }
         if (sl.kind === "style") {
           if (n) adds.push(`Follow the visual style, colour palette, materials and finish of Picture ${n} (a style reference only: don't copy its subject).`);
+          if (r.sec === "style") text = text.split("the style reference").join(n ? `Picture ${n}` : "the style described below");  // 🎨 names its picture
           if (n) roles.push(`Picture ${n} is the style reference`);
           continue;
         }

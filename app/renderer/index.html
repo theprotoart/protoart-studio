@@ -3569,9 +3569,14 @@
           <div v-if="!i2iShut('pair2')" class="seg seg-wrap edit-recipes">
             <button v-for="r in EDIT_RECIPES().filter((x) => !x.slots && !x.group)" :key="r.id" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">{{ r.label }}</button>
           </div>
+          <div class="style-xfer">
+            <button class="style-xfer-btn" :class="{on: form.edit_recipe === 'tf_style_transfer'}" @click="pickEditRecipe('tf_style_transfer')">
+              <span class="sx-icon">🎨</span><span><b>Style transfer</b><br><span class="hint">your picture redrawn in the style of another picture: a painting, an illustration, a film still</span></span>
+            </button>
+          </div>
           <label class="pair-head pair-fold" :class="{shut: i2iShut('transform')}" @click="i2iFoldToggle('transform', $event)" title="Click to fold or unfold"><span class="pf-arrow" aria-hidden="true">{{ i2iShut('transform') ? '▸' : '▾' }}</span> 🎭 Transform a person <span v-if="i2iShut('transform') && editRecipe() && (editRecipe().slots && editRecipe().group !== 'shape')" class="pf-sum">· {{ editRecipe().label }}</span><span class="hint">pick a look, drop a photo of the person, and optionally a style picture and the items it asks for (a picture, words, or both)</span></label>
           <div v-if="!i2iShut('transform')" class="tf-tiles">
-            <button v-for="r in EDIT_RECIPES().filter((x) => x.slots && x.group !== 'shape' && x.sec !== 'fix')" :key="r.id" class="tf-tile" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">
+            <button v-for="r in EDIT_RECIPES().filter((x) => x.slots && x.group !== 'shape' && !x.sec)" :key="r.id" class="tf-tile" :class="{on: form.edit_recipe === r.id}" @click="pickEditRecipe(r.id)" :title="r.tip">
               <img v-if="tfThumb(r.id)" :src="tfThumb(r.id)" alt="" loading="lazy">
               <span v-else class="tf-tile-icon">{{ r.label.split(' ')[0] }}</span>
               <span class="tf-tile-name">{{ r.label.split(' ').slice(1).join(' ') }}</span>
@@ -3772,7 +3777,7 @@
             </div>
             <div class="hint">{{ editRecipe().tip }}<template v-if="editRecipe().slots.length"> The words in [BRACKETS] in the prompt are filled in from the boxes when you press Generate; edit the rest of the prompt as you like.</template></div>
             <div v-if="tfBuild().refs.length > editRefMax()" class="hint warn">{{ tfBuild().refs.length }} pictures in the boxes, and this edit model takes {{ editRefMax() }}: type some items instead, or pick FLUX 3 or MiniMax-H3 as the edit model.</div>
-            <div v-if="!form.init_image && !(editRecipe().group === 'shape' && (form.tf.words.word || '').trim())" class="hint warn">{{ editRecipe().group === 'shape' ? 'Type a word, or drop a black shape on white in the first box.' : 'Drop ' + (editRecipe().p1 === 'the photo' ? 'the photo' : editRecipe().p1 === 'the shape' ? 'a picture of the object or shape' : 'a photo of the person') + ' in the first box.' }}</div>
+            <div v-if="!form.init_image && !(editRecipe().group === 'shape' && (form.tf.words.word || '').trim())" class="hint warn">{{ editRecipe().group === 'shape' ? 'Type a word, or drop a black shape on white in the first box.' : 'Drop ' + (editRecipe().p1 === 'the photo' ? 'the photo' : editRecipe().p1 === 'the shape' ? 'a picture of the object or shape' : editRecipe().p1 === 'your picture' ? 'your picture' : 'a photo of the person') + ' in the first box.' }}</div>
           </div>
           <div v-if="editRecipe() && !editRecipe().slots && !editRecipe().group" class="recipe-card">
             <div class="pair-layout" title="Drop a picture on each box (or click to pick one)">

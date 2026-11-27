@@ -635,3 +635,9 @@ details.fine summary { cursor: pointer; }
 .tf-dirs button { padding: 4px 2px; font-size: 11px; }
 .tf-dirs button.on { border-color: #f5c04a; color: #f5c04a; }
 .tf-sec { margin-top: 12px; }
+.style-xfer { margin: 6px 0 10px; }
+.style-xfer-btn { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 12px; }
+.style-xfer-btn .sx-icon { font-size: 26px; }
+.style-xfer-btn.on { border-color: #f5c04a; box-shadow: 0 0 0 1px #f5c04a inset; }
+.style-xfer-btn, .style-xfer-btn .hint { white-space: normal; }
+.style-xfer-btn > span:last-child { min-width: 0; flex: 1; }

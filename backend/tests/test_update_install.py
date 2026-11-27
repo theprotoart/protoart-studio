@@ -31,3 +31,12 @@ def test_sweet_treat_faces_and_font():
     assert 'id: "faces", icon: "🙂"' in app and "selFaceAt(p, sub)" in app and 'call("faceswap_faces"' in app
     word = html[html.index("<template v-if=\"shp.how === 'word'\">"):][:2500]
     assert "shape-font-own" in word                                    # own font right under the font buttons
+
+
+def test_style_transfer():
+    app = (ROOT / "app" / "renderer" / "app.js").read_text()
+    html = (ROOT / "app" / "renderer" / "index.html").read_text()
+    blk = app[app.index('id: "tf_style_transfer"'):][:3500]
+    assert 'sec: "style"' in blk and '"strong", "Strong"' in blk and '"exact", "Exact layout"' in blk and "keep_faces" not in blk
+    assert 'text.split("the style reference").join(n ? `Picture ${n}` : "the style described below")' in app
+    assert "pickEditRecipe('tf_style_transfer')" in html and "!x.sec)" in html
