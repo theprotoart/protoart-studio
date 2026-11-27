@@ -642,3 +642,4 @@ details.fine summary { cursor: pointer; }
 .style-xfer-btn, .style-xfer-btn .hint { white-space: normal; }
 .style-xfer-btn > span:last-child { min-width: 0; flex: 1; }
 .sx-note { margin: 6px 2px 0; line-height: 1.45; }
+.ipa-stub { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; padding: 8px 12px; font-size: 13px; }

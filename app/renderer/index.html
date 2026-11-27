@@ -586,6 +586,47 @@
         <button class="link" @click="tab='i2i'">🖼 Start from a picture or use ControlNet → Image to image tab</button>
       </section>
 
+      <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="ipa cfold" :class="{shut: cfShut('ipa')}">
+        <label @click="cfToggle('ipa', $event)">🖼 Copy a picture's look <span class="hint">Image prompt (IP-Adapter) · drop a picture and borrow its style, its outfit and details, or a face · {{ ipReadyText }}</span><span v-if="cfShut('ipa')" class="cfold-sum">{{ cfSummary('ipa') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <details class="which-one">
+          <summary>Which one should I use?</summary>
+          <div class="which-row"><div><b>The same person in different pictures</b><span class="hint">a close-up photo of the face as the reference</span></div>
+            <button class="ghost small" @click="whichOne('face')" title="Image prompt → Face (IP-Adapter Plus Face)">Use Image prompt · Face</button></div>
+          <div class="which-row"><div><b>Copy a picture's style, outfit, colours or details</b><span class="hint">the picture whose look you want</span></div>
+            <button class="ghost small" @click="whichOne('plus')" title="Image prompt → Stronger (IP-Adapter Plus)">Use Image prompt · Stronger</button></div>
+          <div class="which-row"><div><b>Follow a pose, drawing, silhouette or composition</b><span class="hint">{{ family === 'sdxl' ? 'ControlNet Union ProMax with the right map type' : 'a ControlNet (OpenPose, Line art, Scribble, Canny, Depth)' }}</span></div>
+            <button class="ghost small" @click="whichOne('pose')" title="Opens Image to image with a ControlNet picked for you">Use ControlNet…</button></div>
+          <div class="hint">They combine: a Face image prompt plus a pose ControlNet keeps the person and copies the pose.</div>
+        </details>
+                <div v-if="regionsParked && form.ip_adapter.image" class="hint mutex-note">🗺 Regional prompts were switched off when you added a picture here (they can't run together yet); they come back when you remove it.</div>
+        <div v-else-if="form.regions.on && !form.ip_adapter.image" class="hint mutex-note">Adding a picture here switches 🗺 Regional prompts off (they can't run together yet).</div>
+        <div v-if="!form.ip_adapter.image" class="ipa-drop" :class="{over: ipDragOver}" @dragover.prevent="ipDragOver=true"
+             @dragleave="ipDragOver=false" @drop.prevent="onIpDrop" @click="$refs.ipPick.click()">
+          Drop a reference picture <span class="hint">(or click to choose)</span></div>
+        <div v-else class="ipa-on">
+          <img :src="fileUrl(form.ip_adapter.image)">
+          <div class="ipa-opts">
+            <div class="seg">
+              <button v-for="k in ipKinds" :key="k.id" :class="{on: form.ip_adapter.kind === k.id}" @click="form.ip_adapter.kind = k.id" :title="k.tip">{{ k.label }}</button>
+            </div>
+            <div v-if="family === 'sdxl'" class="seg" title="Take only part of the picture (like InstantStyle in ComfyUI's IPAdapter Plus)">
+              <button :class="{on: !form.ip_adapter.take || form.ip_adapter.take === 'all'}" @click="form.ip_adapter.take = 'all'" title="The whole look: style, subject and layout">All</button>
+              <button :class="{on: form.ip_adapter.take === 'style'}" @click="form.ip_adapter.take = 'style'" title="Only its style (colours, brushwork, mood); your prompt decides what's in the picture">🎨 Style only</button>
+              <button :class="{on: form.ip_adapter.take === 'layout'}" @click="form.ip_adapter.take = 'layout'" title="Only its layout (where things are, the composition); your prompt decides the style">📐 Layout only</button>
+            </div>
+            <label>How much to borrow <span class="hint">{{ form.ip_adapter.scale.toFixed(2) }}</span></label>
+            <input type="range" min="0" max="1.2" step="0.05" v-model.number="form.ip_adapter.scale">
+            <div class="hint slider-help">0.4–0.6 mixes it with your prompt · 0.8+ follows the picture closely</div>
+            <button class="link" @click="form.ip_adapter.image = ''">remove</button>
+          </div>
+        </div>
+        <input ref="ipPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.procreate,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onIpPicked">
+      </section>
+      <section v-else class="ipa-stub">
+        <span>🖼 <b>Copy a picture's look</b> <span class="hint">(Image prompt) works with SD 1.5 and SDXL models: pick one at the top. With {{ currentModel ? currentModel.label.split(' · ')[0] : 'this model' }}, use</span></span>
+        <button class="link" @click="tab = 'i2i'; form.i2i_mode = 'edit'; form.edit_recipe === 'tf_style_transfer' || pickEditRecipe('tf_style_transfer')">🎨 Style transfer →</button>
+      </section>
+
       <section class="loras cfold adv" :class="{shut: cfShut('loras')}">
         <label @click="cfToggle('loras', $event)">LoRAs
           <span class="hint">{{ form.loras.length ? form.loras.length + ' active · ' : '' }}{{ compatibleLoras.length }} available for {{ familyLabel }} · no limit</span>
@@ -760,42 +801,6 @@
             <input type="checkbox" v-model="form.regions.add_main"> Add the main prompt to every area</label>
           <p class="hint">Tips: describe each area fully (“a woman in a red coat, full body”), keep the main prompt to the setting (“a city street, photo”), and use a size wide enough for the areas (768 × 512 for three columns).</p>
         </template>
-      </section>
-      <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="ipa cfold adv" :class="{shut: cfShut('ipa')}">
-        <label @click="cfToggle('ipa', $event)">Image prompt <span class="hint">IP-Adapter · borrow the look, style or face of a picture · {{ ipReadyText }}</span><span v-if="cfShut('ipa')" class="cfold-sum">{{ cfSummary('ipa') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
-        <details class="which-one">
-          <summary>Which one should I use?</summary>
-          <div class="which-row"><div><b>The same person in different pictures</b><span class="hint">a close-up photo of the face as the reference</span></div>
-            <button class="ghost small" @click="whichOne('face')" title="Image prompt → Face (IP-Adapter Plus Face)">Use Image prompt · Face</button></div>
-          <div class="which-row"><div><b>Copy a picture's style, outfit, colours or details</b><span class="hint">the picture whose look you want</span></div>
-            <button class="ghost small" @click="whichOne('plus')" title="Image prompt → Stronger (IP-Adapter Plus)">Use Image prompt · Stronger</button></div>
-          <div class="which-row"><div><b>Follow a pose, drawing, silhouette or composition</b><span class="hint">{{ family === 'sdxl' ? 'ControlNet Union ProMax with the right map type' : 'a ControlNet (OpenPose, Line art, Scribble, Canny, Depth)' }}</span></div>
-            <button class="ghost small" @click="whichOne('pose')" title="Opens Image to image with a ControlNet picked for you">Use ControlNet…</button></div>
-          <div class="hint">They combine: a Face image prompt plus a pose ControlNet keeps the person and copies the pose.</div>
-        </details>
-                <div v-if="regionsParked && form.ip_adapter.image" class="hint mutex-note">🗺 Regional prompts were switched off when you added a picture here (they can't run together yet); they come back when you remove it.</div>
-        <div v-else-if="form.regions.on && !form.ip_adapter.image" class="hint mutex-note">Adding a picture here switches 🗺 Regional prompts off (they can't run together yet).</div>
-        <div v-if="!form.ip_adapter.image" class="ipa-drop" :class="{over: ipDragOver}" @dragover.prevent="ipDragOver=true"
-             @dragleave="ipDragOver=false" @drop.prevent="onIpDrop" @click="$refs.ipPick.click()">
-          Drop a reference picture <span class="hint">(or click to choose)</span></div>
-        <div v-else class="ipa-on">
-          <img :src="fileUrl(form.ip_adapter.image)">
-          <div class="ipa-opts">
-            <div class="seg">
-              <button v-for="k in ipKinds" :key="k.id" :class="{on: form.ip_adapter.kind === k.id}" @click="form.ip_adapter.kind = k.id" :title="k.tip">{{ k.label }}</button>
-            </div>
-            <div v-if="family === 'sdxl'" class="seg" title="Take only part of the picture (like InstantStyle in ComfyUI's IPAdapter Plus)">
-              <button :class="{on: !form.ip_adapter.take || form.ip_adapter.take === 'all'}" @click="form.ip_adapter.take = 'all'" title="The whole look: style, subject and layout">All</button>
-              <button :class="{on: form.ip_adapter.take === 'style'}" @click="form.ip_adapter.take = 'style'" title="Only its style (colours, brushwork, mood); your prompt decides what's in the picture">🎨 Style only</button>
-              <button :class="{on: form.ip_adapter.take === 'layout'}" @click="form.ip_adapter.take = 'layout'" title="Only its layout (where things are, the composition); your prompt decides the style">📐 Layout only</button>
-            </div>
-            <label>How much to borrow <span class="hint">{{ form.ip_adapter.scale.toFixed(2) }}</span></label>
-            <input type="range" min="0" max="1.2" step="0.05" v-model.number="form.ip_adapter.scale">
-            <div class="hint slider-help">0.4–0.6 mixes it with your prompt · 0.8+ follows the picture closely</div>
-            <button class="link" @click="form.ip_adapter.image = ''">remove</button>
-          </div>
-        </div>
-        <input ref="ipPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.procreate,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onIpPicked">
       </section>
 
       <!-- 🦴 Follow a pose without ControlNet: FLUX.2 Klein reads the pose picture; ERNIE redraws Klein's picture -->
