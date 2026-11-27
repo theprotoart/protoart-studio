@@ -93,7 +93,7 @@
         <span class="eng slot-label">Model</span>
         <div class="slot-row">
         <select title="The model Image to image uses: FLUX.2 Klein for Edit with words and Expand, or an SD 1.5 / SDXL model for the other modes" :value="i2iModelValue()" @change="pickI2iModel($event.target.value)">
-          <optgroup v-if="editModel()" label="FLUX.2 · ✨ Edit with words (uses More pictures instead of image prompt / ControlNet)">
+          <optgroup v-if="editModel()" label="FLUX.2 · ✨ Edit with words (uses More pictures instead of Instant look / ControlNet)">
             <option value="flux2_klein_mlx_q4" :disabled="form.i2i_mode === 'inpaint'">FLUX.2 Klein 4B · {{ form.i2i_mode === 'inpaint' ? '— not an inpainting model' : form.i2i_mode === 'outpaint' ? '↔ Expand with the outpaint LoRA' : '✨ Edit with words' }}{{ editModel().cached ? '' : ' · ' + Math.round(editModel().download_gb) + ' GB download' }}</option>
             <option v-if="editModel9() && form.i2i_mode !== 'outpaint'" value="flux2_klein9b_mlx_q4" :disabled="form.i2i_mode === 'inpaint' || ramBlocked(editModel9())">FLUX.2 Klein 9B · ✨ Edit with words (sharper){{ ramBlocked(editModel9()) ? ' — needs ' + editModel9().min_ram_gb + ' GB memory' : editModel9().cached ? '' : ' · ' + Math.round(editModel9().download_gb) + ' GB download' }}</option>
           </optgroup>
@@ -308,7 +308,7 @@
         <button class="link small" @click="cfAll(false)" title="Open every section (or click a section's name to open just that one)">expand all</button>
         <span class="spacer"></span>
         <button class="bat-toggle reset-toggle" :class="{on: resetFlip}" :disabled="!currentModel || resetFlip" @click="flipResetAll"
-                title="Reset all of Create: prompt and negative prompt cleared, this model's own size, steps, guidance and sampler, no LoRAs, no image prompt, extras off, every section folded. Your model and saved presets stay. The lever springs back by itself.">
+                title="Reset all of Create: prompt and negative prompt cleared, this model's own size, steps, guidance and sampler, no LoRAs, no Instant look, extras off, every section folded. Your model and saved presets stay. The lever springs back by itself.">
           <span class="bt-switch"><i class="bt-plate"></i><i class="bt-nut"></i><i class="bt-lever"></i><i class="bt-ball"></i></span>
           <span class="bt-state">Reset all</span>
         </button>
@@ -587,16 +587,16 @@
       </section>
 
       <section v-if="['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx'" class="ipa cfold" :class="{shut: cfShut('ipa')}">
-        <label @click="cfToggle('ipa', $event)">🖼 Copy a picture's look <span class="hint">Image prompt (IP-Adapter) · drop a picture and borrow its style, its outfit and details, or a face · {{ ipReadyText }}</span><span v-if="cfShut('ipa')" class="cfold-sum">{{ cfSummary('ipa') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <label @click="cfToggle('ipa', $event)">🖼 Instant look <span class="hint">drop a picture and borrow its style, its outfit and details, or a face (IP-Adapter) · {{ ipReadyText }}</span><span v-if="cfShut('ipa')" class="cfold-sum">{{ cfSummary('ipa') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
         <details class="which-one">
           <summary>Which one should I use?</summary>
           <div class="which-row"><div><b>The same person in different pictures</b><span class="hint">a close-up photo of the face as the reference</span></div>
-            <button class="ghost small" @click="whichOne('face')" title="Image prompt → Face (IP-Adapter Plus Face)">Use Image prompt · Face</button></div>
+            <button class="ghost small" @click="whichOne('face')" title="Instant look → Face (IP-Adapter Plus Face)">Use Instant look · Face</button></div>
           <div class="which-row"><div><b>Copy a picture's style, outfit, colours or details</b><span class="hint">the picture whose look you want</span></div>
-            <button class="ghost small" @click="whichOne('plus')" title="Image prompt → Stronger (IP-Adapter Plus)">Use Image prompt · Stronger</button></div>
+            <button class="ghost small" @click="whichOne('plus')" title="Instant look → Stronger (IP-Adapter Plus)">Use Instant look · Stronger</button></div>
           <div class="which-row"><div><b>Follow a pose, drawing, silhouette or composition</b><span class="hint">{{ family === 'sdxl' ? 'ControlNet Union ProMax with the right map type' : 'a ControlNet (OpenPose, Line art, Scribble, Canny, Depth)' }}</span></div>
             <button class="ghost small" @click="whichOne('pose')" title="Opens Image to image with a ControlNet picked for you">Use ControlNet…</button></div>
-          <div class="hint">They combine: a Face image prompt plus a pose ControlNet keeps the person and copies the pose.</div>
+          <div class="hint">They combine: an Instant look Face plus a pose ControlNet keeps the person and copies the pose.</div>
         </details>
                 <div v-if="regionsParked && form.ip_adapter.image" class="hint mutex-note">🗺 Regional prompts were switched off when you added a picture here (they can't run together yet); they come back when you remove it.</div>
         <div v-else-if="form.regions.on && !form.ip_adapter.image" class="hint mutex-note">Adding a picture here switches 🗺 Regional prompts off (they can't run together yet).</div>
@@ -623,7 +623,7 @@
         <input ref="ipPick" type="file" accept="image/*,.heic,.heif,.avif,.tif,.tiff,.psd,.procreate,.jp2,.dng,.cr2,.cr3,.nef,.arw,.raf,.orf,.rw2,.pef,.srw,.tga,.exr" hidden @change="onIpPicked">
       </section>
       <section v-else class="ipa-stub">
-        <span>🖼 <b>Copy a picture's look</b> <span class="hint">(Image prompt) works with SD 1.5 and SDXL models: pick one at the top. With {{ currentModel ? currentModel.label.split(' · ')[0] : 'this model' }}, use</span></span>
+        <span>🖼 <b>Instant look</b> <span class="hint">works with SD 1.5 and SDXL models: pick one at the top. With {{ currentModel ? currentModel.label.split(' · ')[0] : 'this model' }}, use</span></span>
         <button class="link" @click="tab = 'i2i'; form.i2i_mode = 'edit'; form.edit_recipe === 'tf_style_transfer' || pickEditRecipe('tf_style_transfer')">🎨 Style transfer →</button>
       </section>
 
@@ -740,11 +740,12 @@
         <p class="hint">Regional prompts work with SD 1.5, SDXL, FLUX.1, FLUX.2 Klein, FLUX 3, ERNIE, Ideogram 4 and MOSS-Image. {{ familyLabel }} understands positions in plain words, though:
           “on the left a woman in a red coat, in the middle a man with an umbrella, on the right a small dog”.</p>
       </section>
-      <section v-if="(['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx') || regionsByParts() || regionsLayout()" class="regions cfold adv" :class="{shut: cfShut('regions')}">
-        <label @click="cfToggle('regions', $event)">🗺 Regions <span class="hint">a different prompt for each part of the picture</span><span v-if="cfShut('regions')" class="cfold-sum">{{ cfSummary('regions') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
-        <label class="check"><input type="checkbox" v-model="form.regions.on"> Use regional prompts
-          <span class="hint">· {{ regionsLayout() ? familyLabel + ' places each area’s subject in its box (one pass: the boxes go into the prompt as its layout)' : 'each area draws its own prompt; the main prompt above sets the scene around them' }}</span></label>
-        <div v-if="form.regions.on && ipaParked" class="hint mutex-note">🖼 Your image prompt is switched off while regions are on (they can't run together yet); it comes back when you untick this.</div>
+      <section v-if="(['sd15','sdxl'].includes(family) && currentModel?.engine !== 'mlx') || regionsByParts() || regionsLayout()" class="regions cfold adv" :class="{shut: cfShut('regions'), 'reg-off': !form.regions.on}">
+        <label @click="cfToggle('regions', $event)">🗺 Regions <button class="onoff" :class="{on: form.regions.on}" @click.stop="form.regions.on = !form.regions.on" :title="form.regions.on ? 'Regional prompts are ON: each area draws its own prompt. Click to switch them off' : 'Regional prompts are OFF: the whole picture follows the main prompt. Click to switch them on'">{{ form.regions.on ? 'ON' : 'OFF' }}</button> <span class="hint">a different prompt for each part of the picture</span><span v-if="cfShut('regions')" class="cfold-sum">{{ cfSummary('regions') }}</span><span class="cfold-chev" aria-hidden="true"></span></label>
+        <p v-if="!form.regions.on" class="hint reg-offnote">Off: the whole picture follows the main prompt. Switch it <b>ON</b> to give each part of the picture its own prompt.</p>
+        <label v-else class="check reg-onnote">
+          <span class="hint">{{ regionsLayout() ? familyLabel + ' places each area’s subject in its box (one pass: the boxes go into the prompt as its layout)' : 'each area draws its own prompt; the main prompt above sets the scene around them' }}</span></label>
+        <div v-if="form.regions.on && ipaParked" class="hint mutex-note">🖼 Your Instant look is switched off while regions are on (they can't run together yet); it comes back when you untick this.</div>
         <div class="reg-templates">
           <span class="hint">Templates</span>
           <button v-for="t in REGION_TEMPLATES" :key="'rt' + t.id" class="ghost small" @click="useRegionTemplate(t)" :title="t.tip + ' · sets the areas, example prompts to edit and a size that fits (↩ puts it back)'">{{ t.icon }} {{ t.label }}</button>
@@ -4188,7 +4189,6 @@
             <button :class="{on: form.swap.boost === 2}" @click="form.swap.boost = 2" :title="'“Pixel boost” ' + (form.swap.model === 'inswapper' ? '256' : '512') + ' px: sharper for big, close-up faces (4× the work)'">Sharper ({{ form.swap.model === 'inswapper' ? '256' : '512' }} px)</button>
           </div>
           <label class="check" title="Restore faces (CodeFormer, fidelity 0.7, blended 60% so skin texture survives) after the swap"><input type="checkbox" v-model="form.swap.restore"> Tidy the new face (CodeFormer · 0.7 · 60%)</label>
-          <label class="check consent"><input type="checkbox" v-model="form.swap.consent"> I have permission from the person whose face this is</label>
           <p class="hint">{{ form.swap.model === 'inswapper' ? 'inswapper_128 is licensed for non-commercial research use only' : 'HyperSwap 1c is licensed for research use (FaceFusion’s ResearchRAIL)' }}, and every result is checked: explicit results aren't saved. First use downloads ~{{ form.swap.model === 'inswapper' ? '450' : '570' }} MB.</p>
         </template>
         <template v-else-if="form.i2i_mode === 'relight'">
@@ -4692,7 +4692,7 @@
         <div v-if="form.i2i_mode === 'edit'" class="cn-off-tips">Edit with words already keeps the layout, and <b>More pictures</b> above lend it a style, an outfit or a face.
           To make a new picture that follows this one's <b>structure</b> instead, use ControlNet with an SD 1.5 model:
           <b>Canny</b> (outlines), <b>Depth</b> (3-D layout), <b>Line art</b> (colour a drawing), <b>OpenPose</b> (copy a pose), <b>Tile</b> (add detail)<template v-if="userControlnets.length">, or one of yours ({{ userControlnets.slice(0, 3).map((u) => u.name).join(', ') }}{{ userControlnets.length > 3 ? '…' : '' }})</template>.
-          SD 1.5 and SDXL models can also take an <b>image prompt</b> (IP-Adapter, in Create → Image prompt) that copies a picture's style or subject.</div>
+          SD 1.5 and SDXL models can also take an <b>🖼 Instant look</b> (IP-Adapter, in Create → 🖼 Instant look) that copies a picture's style or subject.</div>
         <button v-if="form.i2i_mode === 'edit' || form.i2i_mode === 'inpaint'" class="ghost small" @click="switchToControlNet">Use ControlNet instead</button>
       </div>
       <div v-else-if="form.i2i_mode === 'change'" class="card i2ifold" :class="{shut: i2iShut('cn')}">
@@ -4701,12 +4701,12 @@
         <details class="which-one">
           <summary>Which one should I use?</summary>
           <div class="which-row"><div><b>The same person in different pictures</b><span class="hint">a close-up photo of the face as the reference</span></div>
-            <button class="ghost small" @click="whichOne('face')" title="Image prompt → Face (IP-Adapter Plus Face)">Use Image prompt · Face</button></div>
+            <button class="ghost small" @click="whichOne('face')" title="Instant look → Face (IP-Adapter Plus Face)">Use Instant look · Face</button></div>
           <div class="which-row"><div><b>Copy a picture's style, outfit, colours or details</b><span class="hint">the picture whose look you want</span></div>
-            <button class="ghost small" @click="whichOne('plus')" title="Image prompt → Stronger (IP-Adapter Plus)">Use Image prompt · Stronger</button></div>
+            <button class="ghost small" @click="whichOne('plus')" title="Instant look → Stronger (IP-Adapter Plus)">Use Instant look · Stronger</button></div>
           <div class="which-row"><div><b>Follow a pose, drawing, silhouette or composition</b><span class="hint">{{ family === 'sdxl' ? 'ControlNet Union ProMax with the right map type' : 'a ControlNet (OpenPose, Line art, Scribble, Canny, Depth)' }}</span></div>
             <button class="ghost small" @click="whichOne('pose', true)" title="Opens Image to image with a ControlNet picked for you">Use ControlNet…</button></div>
-          <div class="hint">They combine: a Face image prompt plus a pose ControlNet keeps the person and copies the pose.</div>
+          <div class="hint">They combine: an Instant look Face plus a pose ControlNet keeps the person and copies the pose.</div>
         </details>
                 <select title="The ControlNet: what the result follows from your picture (outlines, depth, pose, line art…). None = off" v-model="form.control.type" @change="controlMap = null">
           <option value="">None</option>
@@ -4821,7 +4821,7 @@
         </div>
         <textarea class="tape tape-neg" v-model="form.negative_prompt" rows="2" placeholder="What to avoid…"></textarea>
         </template>
-        <div class="hint">LoRAs, sampler, image prompt, face detailer and wildcards: <button class="link" @click="tab='create'">set in Create</button> (they apply here too)</div>
+        <div class="hint">LoRAs, sampler, Instant look, face detailer and wildcards: <button class="link" @click="tab='create'">set in Create</button> (they apply here too)</div>
       </div>
 
       <div class="actions" :class="{busy}">

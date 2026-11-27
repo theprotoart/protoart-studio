@@ -1854,7 +1854,9 @@ const protoartApp = createApp({
             { h: "1.6.32: a sturdier ↻ Install and restart", items: [
               "↻ Install and restart: the new version is now copied in while the app is still open (it says Installing…, about a minute), then the app closes, the new one is swapped in at once and opens. Before, the copy happened after the app closed, so opening it again too soon left you on the old version.",
               "Models: Krea 2 Turbo's card says it needs 16 GB (32 GB+ is faster) instead of 32 GB.",
-              "<b>🖼 Copy a picture's look</b> (the Image prompt, IP-Adapter) is easier to find: it's right under the prompt in Create, also in the simple view, and with a model it doesn't work with it points to 🎨 Style transfer.",
+              "<b>🖼 Instant look</b> (it was called Image prompt; IP-Adapter) is easier to find: it's right under the prompt in Create, also in the simple view, and with a model it doesn't work with it points to 🎨 Style transfer.",
+              "<b>🔁 Face swap</b>: no tick box each time any more; you agree once, in a short box before the first swap (and its download).",
+              "<b>🗺 Regions</b> has an <b>ON / OFF</b> switch in its title: off, only a one-line note shows, so it's clear it isn't being used.",
               "<b>🎨 Style transfer</b> (Image to image → ✨ Edit with words, above the Transform looks): your picture redrawn in the style of another picture (or a style you describe), with How much style (Subtle, Balanced, Strong) and Keep (Exact layout or Freer). <b>Made with</b>: ✨ the edit model, or 🖌 <b>SDXL · InstantStyle</b> (any SDXL model: the image-prompt adapter on the style part only, plus ControlNet outlines for Exact layout), quick and light for drawn and painted styles.",
               "<b>🛠 Restore &amp; technical</b> tiles (under the 🎭 Transform looks): 🧽 Repair &amp; colourize, 🧹 Repair keeping black &amp; white, 🎨 Colourize, 🔍 Sharpen &amp; restore detail, 🔬 Ultra-detail upscale, 🔩 Exploded view, 📐 Blueprint, 🛠 CAD views, 🛍 Product shot, 🎞 Render → film still and 🗺 Map → game view are one-click tiles now (they were Quick edits), and work with every edit model.",
               "<b>🍬 Sweet treat</b> (🎭 Transform): any object or simple shape (a cube, a logo, a toy) turned into peppermint candy, a sugared gummy, jelly, a cupcake, a layer cake or chocolate, keeping its exact form; or type a treat of your own.",
@@ -3233,7 +3235,7 @@ const protoartApp = createApp({
               "ERNIE and other newer models need their whole model folder (the one with <i>model_index.json</i>), or add them from Hugging Face." ] },
             { h: "Image to image, inpainting and ControlNet", items: [
               "<b>🍬 Sweet treat</b> (🎭 Transform): drop a picture of an object or a simple shape (a plain cube, a logo, a toy) in the first box and pick what it's made of: 🍬 Peppermint, 🍑 Sugared gummy, 🍒 Jelly, 🧁 Cupcake, 🍰 Layer cake or 🍫 Chocolate; or type your own treat in the last box (that picks ✏️ My own by itself). The shape keeps its exact form, on a soft pastel background.",
-              "<b>🖼 Copy a picture's look</b> (Create, right under the prompt; the Image prompt, IP-Adapter; SD 1.5 and SDXL models): open it and drop a picture. <b>Style</b> borrows its overall look, <b>Stronger</b> its outfit, colours and details too, <b>Face</b> the same person (a close-up of the face). With SDXL, <b>🎨 Style only</b> takes only its colours, brushwork and mood (InstantStyle) while your prompt decides what's in the picture. <b>How much to borrow</b>: 0.4–0.6 mixes it with your prompt, 0.8+ follows the picture closely. To restyle a picture you already have, use Image to image → 🎨 Style transfer.",
+              "<b>🖼 Instant look</b> (Create, right under the prompt; IP-Adapter; SD 1.5 and SDXL models): open it and drop a picture. <b>Style</b> borrows its overall look, <b>Stronger</b> its outfit, colours and details too, <b>Face</b> the same person (a close-up of the face). With SDXL, <b>🎨 Style only</b> takes only its colours, brushwork and mood (InstantStyle) while your prompt decides what's in the picture. <b>How much to borrow</b>: 0.4–0.6 mixes it with your prompt, 0.8+ follows the picture closely. To restyle a picture you already have, use Image to image → 🎨 Style transfer.",
               "<b>🎨 Style transfer</b> (Image to image → ✨ Edit with words, the wide button above the Transform looks): drop your picture in the first box and the style picture (a painting, an illustration, a film still) in the Style box, or describe the style in words. <b>How much style</b>: Subtle (mostly colours, light and texture), Balanced, or Strong (as if the style's artist drew it). <b>Keep</b>: Exact layout (the same faces, poses and places) or Freer. Only the style is taken from the style picture, never its people or objects. <b>Made with</b>: ✨ Edit model (MiniMax-H3 gives the closest result; FLUX.2 Klein is quicker) or 🖌 <b>SDXL · InstantStyle</b>: an SDXL model (the one picked at the top, or one on this Mac) redraws your picture while the image-prompt adapter copies the Style picture's look into the style part of the model only, so its subject doesn't leak in; Exact layout adds ControlNet outlines. It needs a Style picture; words in “Or describe the style” become its prompt. The first time it downloads the adapter (about 2.6 GB) and the ControlNet (2.5 GB).",
               "<b>🛠 Restore &amp; technical</b> (Image to image → ✨ Edit with words, under the 🎭 Transform looks): drop the picture in the first box and press a tile: 🧽 Repair &amp; colourize, 🧹 Repair keeping black &amp; white, 🎨 Colourize or 🔍 Sharpen an old photo (with 🙂 Faces or the brush, only the parts you select change); 🔩 Exploded view, 📐 Blueprint, 🛠 CAD views or 🛍 Product shot of an object; 🎞 a grey 3D render as a film still; 🗺 an illustrated map as a game view.",
               "<b>🙂 Select faces</b> (Image to image, the painting tools under the picture, or F): the faces are found and outlined in yellow; click one to add it with its hair to the area, ⌥ Option-click to take it away. With 🧹 Repair &amp; colourize or any edit, only the selected faces change.",
@@ -4193,7 +4195,7 @@ const protoartApp = createApp({
         else if (cc) out.push("Hi-res fix (it doesn't run together with ControlNet)");
       }
       if (f.face_detailer && f.face_detailer.on && !sd) out.push("the face detailer (SD 1.5 and SDXL models only)");
-      if (f.ip_adapter && f.ip_adapter.image && !sd) out.push("the image prompt (SD 1.5 and SDXL models only)");
+      if (f.ip_adapter && f.ip_adapter.image && !sd) out.push("the 🖼 Instant look (SD 1.5 and SDXL models only)");
       if (cc && !sd && !this.poseFast) out.push("ControlNet (SD 1.5 and SDXL models only)");
       else if (cc && !this.ccAvailable) out.push("ControlNet (none downloaded for this model type yet)");
       else if (cc && sd && !this.ccTypeNow) out.push("ControlNet (the one picked is for another model type: pick one again)");
@@ -4214,7 +4216,7 @@ const protoartApp = createApp({
       if (f.seed !== -1 && f.seed != null) on.push("fixed seed");
       if (f.var_strength > 0) on.push("small change");
       if (f.regions && f.regions.on) on.push("regions");
-      if (f.ip_adapter && f.ip_adapter.image) on.push("image prompt");
+      if (f.ip_adapter && f.ip_adapter.image) on.push("Instant look");
       if (f.dn && f.dn.image && f.dn.value < 1) on.push("denoise");
       if (f.cc && f.cc.image) on.push("pose / ControlNet");
       if (f.freeu) on.push("FreeU");
@@ -4687,17 +4689,17 @@ const protoartApp = createApp({
       const ipa = this.form.ip_adapter;
       if (on && ipa && ipa.image) {
         this.ipaParked = ipa.image; ipa.image = ""; this.regionsParked = false;
-        this.status = "🖼 Image prompt switched off: it can't be used together with 🗺 Regional prompts. It comes back when you switch regions off.";
+        this.status = "🖼 Instant look switched off: it can't be used together with 🗺 Regional prompts. It comes back when you switch regions off.";
       } else if (!on && this.ipaParked && ipa && !ipa.image) {
         ipa.image = this.ipaParked; this.ipaParked = "";
-        this.status = "🖼 Image prompt switched back on";
+        this.status = "🖼 Instant look switched back on";
       }
     },
     "form.ip_adapter.image"(img) {
       const r = this.form.regions;
       if (img && r && r.on) {
         this.regionsParked = true; this.ipaParked = ""; r.on = false;
-        this.status = "🗺 Regional prompts switched off: they can't be used together with 🖼 an image prompt. They come back when you remove the picture.";
+        this.status = "🗺 Regional prompts switched off: they can't be used together with 🖼 an Instant look. They come back when you remove the picture.";
       } else if (!img && this.regionsParked && r && !r.on) {
         this.regionsParked = false; r.on = true;
         this.status = "🗺 Regional prompts switched back on";
@@ -6249,7 +6251,7 @@ const protoartApp = createApp({
     extrasInfo(d) {  // what else was switched on for this picture (picture info)
       const s = d.settings || {}, out = [];
       const ip = s.ip_adapter;
-      if (ip) out.push(`🖼 Image prompt${ip.take && ip.take !== "all" ? " (" + (ip.take === "style" ? "style only" : "layout only") + ")" : ""} ${ip.scale}`);
+      if (ip) out.push(`🖼 Instant look${ip.take && ip.take !== "all" ? " (" + (ip.take === "style" ? "style only" : "layout only") + ")" : ""} ${ip.scale}`);
       if (s.control) out.push("🦴 ControlNet" + (s.control.type ? " " + s.control.type : ""));
       if (s.regions) out.push("🗺 Regions");
       if (s.freeu) out.push("✨ FreeU");
@@ -7155,8 +7157,8 @@ const protoartApp = createApp({
         this.form.ip_adapter.kind = goal;
         if (!this.form.ip_adapter.scale || this.form.ip_adapter.scale < 0.5) this.form.ip_adapter.scale = goal === "face" ? 0.7 : 0.6;
         if (this.tab !== "create") this.tab = "create";
-        this.status = goal === "face" ? "Image prompt → Face: drop a close-up photo of the person, then describe the new picture"
-          : "Image prompt → Stronger: drop the picture whose style, outfit or colours you want";
+        this.status = goal === "face" ? "Instant look → Face: drop a close-up photo of the person, then describe the new picture"
+          : "Instant look → Stronger: drop the picture whose style, outfit or colours you want";
         this.$nextTick(() => document.querySelector(".ipa")?.scrollIntoView({ behavior: "smooth", block: "center" }));
         return;
       }
@@ -11480,7 +11482,16 @@ const protoartApp = createApp({
       if (f.i2i_mode === "faceswap") {  // 🔁 inswapper_128: no model or prompt involved
         const sw = f.swap || {};
         if (!sw.face) return (this.error = "Add the photo of the face to use.");
-        if (!sw.consent) return (this.error = "Tick “I have permission from the person whose face this is” first.");
+        if (!loadJSON("protoart.swapConsent", false)) {  // asked once, before the first swap (and its download), then never again
+          const yes = await this.confirmAsk("Face swap: before you start",
+            "The first swap downloads the face-swap model (about 0.5 GB). " + (sw.model === "inswapper"
+              ? "inswapper_128 is licensed for non-commercial research use only."
+              : "HyperSwap 1c is licensed for research use (FaceFusion's ResearchRAIL).")
+            + "\n\nOnly swap faces of people who have given you permission, never public figures, and never to deceive or harm anyone. Every result is checked: explicit results aren't saved."
+            + "\n\nBy pressing I agree, you confirm you'll use it this way. You won't be asked again.", "I agree");
+          if (!yes) return (this.status = "Face swap not started.");
+          saveJSON("protoart.swapConsent", true);
+        }
         this.error = "";
         const extra = {};
         if ((sw.more || []).length) extra.more_faces = sw.more.slice(0, 4);
@@ -13087,7 +13098,7 @@ const protoartApp = createApp({
       if (k === "ipa") return f.ip_adapter && f.ip_adapter.image  // 🖼 folded: what it's doing, or what it's for
         ? `on · ${({ face: "face", plus: "stronger", style: "look" })[f.ip_adapter.kind] || f.ip_adapter.kind}${this.family === "sdxl" && f.ip_adapter.take === "style" ? " · style only" : ""} · ${Number(f.ip_adapter.scale || 0).toFixed(2)}`
         : "off · open to drop a picture and borrow its style, outfit or face";
-      if (k === "regions") return f.regions && f.regions.on ? `${f.regions.prompts.filter((x) => x.trim()).length} areas · ${f.regions.layout}` : "off";
+      if (k === "regions") return f.regions && f.regions.on ? `${f.regions.prompts.filter((x) => x.trim()).length} areas · ${f.regions.layout}` : "";
       if (k === "size") return `${f.width}×${f.height} · ${f.fast && this.currentModel?.fast_mode ? "⚡ fast" : f.steps + " steps"} · CFG ${f.cfg} · ${f.num_images} image${f.num_images === 1 ? "" : "s"}`;
       if (k === "extras") {
         const on = [];

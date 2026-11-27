@@ -643,3 +643,9 @@ details.fine summary { cursor: pointer; }
 .style-xfer-btn > span:last-child { min-width: 0; flex: 1; }
 .sx-note { margin: 6px 2px 0; line-height: 1.45; }
 .ipa-stub { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; padding: 8px 12px; font-size: 13px; }
+/* 🗺 Regions: a clear ON / OFF switch in the section's title; when off only a one-line note shows */
+.onoff { margin: 0 6px; padding: 1px 9px; min-width: 42px; font-size: 10px; font-weight: 700; letter-spacing: .08em; border-radius: 10px;
+  background: #3a3a3a; color: #bbb; border: 1px solid #555; vertical-align: middle; }
+.onoff.on { background: #f5c04a; color: #1b1b1b; border-color: #f5c04a; }
+.regions.reg-off > :not(label:first-child):not(.reg-offnote) { display: none !important; }
+section.cfold.shut > label:first-child > button.onoff { display: inline-block; }  /* the ON / OFF switch shows folded too */
