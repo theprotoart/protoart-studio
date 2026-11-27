@@ -40,3 +40,12 @@ def test_style_transfer():
     assert 'sec: "style"' in blk and '"strong", "Strong"' in blk and '"exact", "Exact layout"' in blk and "keep_faces" not in blk
     assert 'text.split("the style reference").join(n ? `Picture ${n}` : "the style described below")' in app
     assert "pickEditRecipe('tf_style_transfer')" in html and "!x.sec)" in html
+
+
+def test_style_transfer_instantstyle():
+    app = (ROOT / "app" / "renderer" / "app.js").read_text()
+    body = app[app.index("    async styleSdxl() {"):][:3000]
+    assert 'take: "style"' in body and 'type: "union:canny"' in body and 'i2i_mode: "change"' in body
+    assert '(f.tf.words || {}).engine === "sdxl") return this.styleSdxl()' in app
+    eng = (ROOT / "backend" / "engine.py").read_text()
+    assert 'return {"up": {"block_0": [0.0, scale, 0.0]}}' in eng   # InstantStyle: the style block only

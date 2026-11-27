@@ -823,7 +823,9 @@ const EDIT_RECIPES = [
             { id: "keep", kind: "choice", label: "Keep", dflt: "exact",
               options: [["exact", "Exact layout", "Keep the exact composition, framing, poses, faces, expressions and every object of Picture 1 in the same places; only the style changes."],
                         ["loose", "Freer", "Keep the subject, the pose and the overall layout of Picture 1, but small details may change to suit the style."]] },
-            { id: "words", kind: "item", label: "Or describe the style (optional)", add: "The style: {x}." }],
+            { id: "words", kind: "item", label: "Or describe the style (optional)", add: "The style: {x}." },
+            { id: "engine", kind: "choice", label: "Made with", dflt: "edit",
+              options: [["edit", "✨ Edit model", ""], ["sdxl", "🖌 SDXL · InstantStyle", ""]] }],
     prompt: "Style transfer: redraw Picture 1 in the style of the style reference, keeping the content and characteristics of Picture 1.\nTake from the style reference only its style: the medium (paint, ink, pencil, 3D, photo), the brushwork or line, the way shapes are simplified, the colour palette, the lighting and the finish. Never copy its subject, its people, its objects or its layout.\nFrom Picture 1 keep everything that is there: the same people with the same faces, identity and expressions, the same clothes, objects, background and composition.",
     licence: "no LoRA: the edit model alone" },
   { id: "tf_repair_colour", label: "🧽 Repair & colourize", group: "transform", sec: "fix", by: "", files: null, p1: "the photo",
@@ -1852,7 +1854,7 @@ const protoartApp = createApp({
             { h: "1.6.32: a sturdier ↻ Install and restart", items: [
               "↻ Install and restart: the new version is now copied in while the app is still open (it says Installing…, about a minute), then the app closes, the new one is swapped in at once and opens. Before, the copy happened after the app closed, so opening it again too soon left you on the old version.",
               "Models: Krea 2 Turbo's card says it needs 16 GB (32 GB+ is faster) instead of 32 GB.",
-              "<b>🎨 Style transfer</b> (Image to image → ✨ Edit with words, above the Transform looks): your picture redrawn in the style of another picture (or a style you describe), with How much style (Subtle, Balanced, Strong) and Keep (Exact layout or Freer).",
+              "<b>🎨 Style transfer</b> (Image to image → ✨ Edit with words, above the Transform looks): your picture redrawn in the style of another picture (or a style you describe), with How much style (Subtle, Balanced, Strong) and Keep (Exact layout or Freer). <b>Made with</b>: ✨ the edit model, or 🖌 <b>SDXL · InstantStyle</b> (any SDXL model: the image-prompt adapter on the style part only, plus ControlNet outlines for Exact layout), quick and light for drawn and painted styles.",
               "<b>🛠 Restore &amp; technical</b> tiles (under the 🎭 Transform looks): 🧽 Repair &amp; colourize, 🧹 Repair keeping black &amp; white, 🎨 Colourize, 🔍 Sharpen &amp; restore detail, 🔬 Ultra-detail upscale, 🔩 Exploded view, 📐 Blueprint, 🛠 CAD views, 🛍 Product shot, 🎞 Render → film still and 🗺 Map → game view are one-click tiles now (they were Quick edits), and work with every edit model.",
               "<b>🍬 Sweet treat</b> (🎭 Transform): any object or simple shape (a cube, a logo, a toy) turned into peppermint candy, a sugared gummy, jelly, a cupcake, a layer cake or chocolate, keeping its exact form; or type a treat of your own.",
               "<b>🙂 Faces</b> selection tool (Image to image painting): finds the faces and outlines them; click the ones to select (⌥ Option-click takes one away). E.g. repair or restore only some faces of an old photo.",
@@ -3230,7 +3232,7 @@ const protoartApp = createApp({
               "ERNIE and other newer models need their whole model folder (the one with <i>model_index.json</i>), or add them from Hugging Face." ] },
             { h: "Image to image, inpainting and ControlNet", items: [
               "<b>🍬 Sweet treat</b> (🎭 Transform): drop a picture of an object or a simple shape (a plain cube, a logo, a toy) in the first box and pick what it's made of: 🍬 Peppermint, 🍑 Sugared gummy, 🍒 Jelly, 🧁 Cupcake, 🍰 Layer cake or 🍫 Chocolate; or type your own treat in the last box (that picks ✏️ My own by itself). The shape keeps its exact form, on a soft pastel background.",
-              "<b>🎨 Style transfer</b> (Image to image → ✨ Edit with words, the wide button above the Transform looks): drop your picture in the first box and the style picture (a painting, an illustration, a film still) in the Style box, or describe the style in words. <b>How much style</b>: Subtle (mostly colours, light and texture), Balanced, or Strong (as if the style's artist drew it). <b>Keep</b>: Exact layout (the same faces, poses and places) or Freer. Only the style is taken from the style picture, never its people or objects. MiniMax-H3 gives the closest result; FLUX.2 Klein is quicker.",
+              "<b>🎨 Style transfer</b> (Image to image → ✨ Edit with words, the wide button above the Transform looks): drop your picture in the first box and the style picture (a painting, an illustration, a film still) in the Style box, or describe the style in words. <b>How much style</b>: Subtle (mostly colours, light and texture), Balanced, or Strong (as if the style's artist drew it). <b>Keep</b>: Exact layout (the same faces, poses and places) or Freer. Only the style is taken from the style picture, never its people or objects. <b>Made with</b>: ✨ Edit model (MiniMax-H3 gives the closest result; FLUX.2 Klein is quicker) or 🖌 <b>SDXL · InstantStyle</b>: an SDXL model (the one picked at the top, or one on this Mac) redraws your picture while the image-prompt adapter copies the Style picture's look into the style part of the model only, so its subject doesn't leak in; Exact layout adds ControlNet outlines. It needs a Style picture; words in “Or describe the style” become its prompt. The first time it downloads the adapter (about 2.6 GB) and the ControlNet (2.5 GB).",
               "<b>🛠 Restore &amp; technical</b> (Image to image → ✨ Edit with words, under the 🎭 Transform looks): drop the picture in the first box and press a tile: 🧽 Repair &amp; colourize, 🧹 Repair keeping black &amp; white, 🎨 Colourize or 🔍 Sharpen an old photo (with 🙂 Faces or the brush, only the parts you select change); 🔩 Exploded view, 📐 Blueprint, 🛠 CAD views or 🛍 Product shot of an object; 🎞 a grey 3D render as a film still; 🗺 an illustrated map as a game view.",
               "<b>🙂 Select faces</b> (Image to image, the painting tools under the picture, or F): the faces are found and outlined in yellow; click one to add it with its hair to the area, ⌥ Option-click to take it away. With 🧹 Repair &amp; colourize or any edit, only the selected faces change.",
               "<b>🎭 Transform a person</b> (✨ Edit with words): pick a look, drop a clear photo of the person in the first box, then optionally a style picture and the items (pictures, words or both). The [BRACKETS] in the prompt are filled in from the boxes when you press Generate. FLUX.2 Klein takes 3 extra pictures; for more, type some items or pick FLUX 3 (9) or MiniMax-H3 (15) as the edit model.",
@@ -8110,6 +8112,38 @@ const protoartApp = createApp({
         s.pts.forEach((q, i) => { ctx.beginPath(); ctx.arc(q.x, q.y, (i ? 2.5 : 5) * k, 0, Math.PI * 2); ctx.fillStyle = i ? "#fff" : "rgba(255,200,80,.95)"; ctx.fill(); });
       }
     },
+    sdxlForStyle() {  // 🎨 the SDXL model Style transfer's InstantStyle uses: the one picked at the top, or one on this Mac
+      const ok = (m) => m && m.family === "sdxl" && m.engine !== "mlx" && !/inpaint/i.test(m.id + " " + (m.label || ""));
+      return ok(this.currentModel) ? this.currentModel : this.installedModels.find((m) => ok(m) && this.isInstalled(m)) || null;
+    },
+    async styleSdxl() {  // 🎨 Style transfer with SDXL: InstantStyle (the IP-Adapter on the style block only) + Change it
+      const f = this.form, w = f.tf.words || {}, style = (f.tf.pics || {}).style;
+      if (!f.init_image) return (this.error = "Drop your picture in the first box.");
+      if (!style) return (this.error = "🖌 SDXL · InstantStyle copies the style from a picture: drop one in the Style picture box (or pick ✨ Edit model to describe a style in words).");
+      const m = this.sdxlForStyle();
+      if (!m) return (this.error = "🖌 SDXL · InstantStyle needs an SDXL model (e.g. SDXL Base, Juggernaut, an Illustrious or Pony model): download one in Models, or pick ✨ Edit model.");
+      const amt = { subtle: [0.45, 0.65], balanced: [0.6, 0.85], strong: [0.75, 1.0] }[w.amount || "balanced"] || [0.6, 0.85];
+      const d = m.defaults || {}, fast = /lightning|turbo|hyper|dmd|lcm/i.test(m.id + " " + (m.label || ""));
+      const args = JSON.parse(JSON.stringify(f));
+      for (const k of ["cc", "dn", "hires", "inpaint", "outpaint", "regions", "face_detailer", "pose_image", "loras", "edit_refs", "tf", "mask"]) delete args[k];
+      Object.assign(args, {
+        model: m.id, i2i_mode: "change", init_image: f.init_image, i2i_use_init: true, use_init_size: true, fast: false,
+        strength: amt[0], num_images: 1, sampler: "", vae: "",
+        steps: fast ? Math.max(6, d.steps || 8) : d.steps || 30, cfg: fast ? d.cfg || 2 : d.cfg || 6,
+        prompt: [String(w.words || "").trim(), "masterpiece, best quality, highly detailed"].filter(Boolean).join(", "),
+        negative_prompt: "blurry, low quality, deformed, watermark, text, signature",
+        ip_adapter: { image: style, kind: "style", take: "style", scale: amt[1] },
+        recipe: "tf_style_transfer", recipe_opts: { "How much style": w.amount || "balanced", Keep: w.keep || "exact", "Made with": "SDXL · InstantStyle" },
+      });
+      if ((w.keep || "exact") === "exact") {  // the outlines hold the layout, faces and poses (ControlNet Union, SDXL)
+        args.control = { type: "union:canny", scale: 0.45, start: 0, end: 0.7, already_map: false };
+        args.control_image = f.init_image;
+      } else delete args.control;
+      this.error = "";
+      this.status = `🎨 Style transfer with ${m.label} (InstantStyle)…`;
+      const res = await this.runJob("generate", args);
+      if (res) this.models = await call("list_models");
+    },
     async selFindFaces() {  // 🙂 Faces: find them once per picture (the face swap's finder)
       const src = this.maskTarget();
       if (!src || (this.selFaces && this.selFaces.for === src) || this.objFinding) return this.selDraw();
@@ -11518,6 +11552,7 @@ const protoartApp = createApp({
       }
       if (f.i2i_mode === "edit") {  // ✨ FLUX.2 Klein, whatever model Create has
         if (f.edit_recipe === "tf_pattern") return this.patternRun();  // 🔁 its own card and wording
+        if (f.edit_recipe === "tf_style_transfer" && (f.tf.words || {}).engine === "sdxl") return this.styleSdxl();  // 🎨 InstantStyle
         if (!(f.prompt || "").trim() && !(this.editModelId() === "flux3_klein_mlx_q4" && this.mvReady().length))
           return (this.error = "Describe the change in the prompt, e.g. “make the jacket red” or “turn it into a watercolour”.");
         this.error = "";

@@ -641,3 +641,4 @@ details.fine summary { cursor: pointer; }
 .style-xfer-btn.on { border-color: #f5c04a; box-shadow: 0 0 0 1px #f5c04a inset; }
 .style-xfer-btn, .style-xfer-btn .hint { white-space: normal; }
 .style-xfer-btn > span:last-child { min-width: 0; flex: 1; }
+.sx-note { margin: 6px 2px 0; line-height: 1.45; }

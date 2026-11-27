@@ -3573,6 +3573,12 @@
             <button class="style-xfer-btn" :class="{on: form.edit_recipe === 'tf_style_transfer'}" @click="pickEditRecipe('tf_style_transfer')">
               <span class="sx-icon">🎨</span><span><b>Style transfer</b><br><span class="hint">your picture redrawn in the style of another picture: a painting, an illustration, a film still</span></span>
             </button>
+            <div v-if="form.edit_recipe === 'tf_style_transfer' && (form.tf.words || {}).engine === 'sdxl'" class="hint sx-note">
+              🖌 <b>SDXL · InstantStyle</b>: copies only the style of the Style picture (its brushwork, palette and finish) with
+              {{ sdxlForStyle() ? sdxlForStyle().label : 'an SDXL model (none on this Mac yet: download one in Models)' }}.
+              Quick and light, best for drawn and painted styles. The first time it downloads the image-prompt adapter (about 2.6 GB){{ (form.tf.words || {}).keep === 'loose' ? '' : ' and, for Exact layout, the SDXL ControlNet Union (2.5 GB) that holds the outlines' }}.
+              Words in “Or describe the style” become the prompt.
+            </div>
           </div>
           <label class="pair-head pair-fold" :class="{shut: i2iShut('transform')}" @click="i2iFoldToggle('transform', $event)" title="Click to fold or unfold"><span class="pf-arrow" aria-hidden="true">{{ i2iShut('transform') ? '▸' : '▾' }}</span> 🎭 Transform a person <span v-if="i2iShut('transform') && editRecipe() && (editRecipe().slots && editRecipe().group !== 'shape')" class="pf-sum">· {{ editRecipe().label }}</span><span class="hint">pick a look, drop a photo of the person, and optionally a style picture and the items it asks for (a picture, words, or both)</span></label>
           <div v-if="!i2iShut('transform')" class="tf-tiles">
